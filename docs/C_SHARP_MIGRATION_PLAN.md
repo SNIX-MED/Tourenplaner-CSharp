@@ -19,8 +19,8 @@ Phase 5 closure status:
 ## Immediate next implementation steps
 
 1. Karte visual enhancement:
-   - add embedded map tile host and marker rendering for full visual parity
-   - keep current route panel as fallback when map host is unavailable
+   - extend advanced map interactions (drag route edits, richer overlays, deeper marker actions)
+   - keep fallback behavior when embedded map host is unavailable
 2. Quality pass:
    - extend tests for order split persistence and settings backup workflows
    - execute full build/test after environment fix

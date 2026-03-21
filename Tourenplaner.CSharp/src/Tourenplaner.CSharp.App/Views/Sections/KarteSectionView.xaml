@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              mc:Ignorable="d"
              d:DesignHeight="780"
              d:DesignWidth="1180">
@@ -37,6 +38,7 @@
             <Grid Grid.Column="0" Margin="0,0,8,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="280" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
@@ -51,7 +53,19 @@
                              ToolTip="Search by id, customer, address or assigned tour" />
                 </DockPanel>
 
-                <DataGrid Grid.Row="1"
+                <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <Border BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Background="#F8FAFC" />
+                    <wv2:WebView2 x:Name="MapWebView" Margin="1" />
+                    <TextBlock x:Name="MapFallbackNotice"
+                               Margin="12"
+                               VerticalAlignment="Top"
+                               Foreground="#7C2D12"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed"
+                               Text="Embedded map unavailable. Route/order workflow remains active via list panel." />
+                </Grid>
+
+                <DataGrid Grid.Row="2"
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
                           ItemsSource="{Binding MapOrders}"
