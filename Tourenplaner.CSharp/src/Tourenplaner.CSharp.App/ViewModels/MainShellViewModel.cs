@@ -13,7 +13,9 @@ public sealed class MainShellViewModel : ObservableObject
         string ordersJsonPath,
         string toursJsonPath,
         string employeesJsonPath,
-        string vehiclesJsonPath)
+        string vehiclesJsonPath,
+        string settingsJsonPath,
+        string dataRootPath)
     {
         var start = new StartSectionViewModel(snapshotService);
         var orders = new OrdersSectionViewModel(ordersJsonPath);
@@ -21,6 +23,7 @@ public sealed class MainShellViewModel : ObservableObject
         var tours = new ToursSectionViewModel(toursJsonPath, employeesJsonPath, vehiclesJsonPath);
         var employees = new EmployeesSectionViewModel(employeesJsonPath);
         var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath);
+        var settings = new SettingsSectionViewModel(settingsJsonPath, dataRootPath);
 
         NavigationItems =
         [
@@ -33,7 +36,7 @@ public sealed class MainShellViewModel : ObservableObject
             new NavigationItemViewModel("Tours", tours),
             new NavigationItemViewModel("Employees", employees),
             new NavigationItemViewModel("Vehicles", vehicles),
-            new NavigationItemViewModel("Settings", new SettingsSectionViewModel()),
+            new NavigationItemViewModel("Settings", settings),
             new NavigationItemViewModel("Updates", new UpdatesSectionViewModel())
         ];
 

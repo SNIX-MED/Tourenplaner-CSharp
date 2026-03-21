@@ -29,10 +29,18 @@ public partial class App : System.Windows.Application
         var toursJsonPath = Path.Combine(dataRoot, "tours.json");
         var employeesJsonPath = Path.Combine(dataRoot, "employees.json");
         var vehiclesJsonPath = Path.Combine(dataRoot, "vehicles.json");
+        var settingsJsonPath = Path.Combine(dataRoot, "settings.json");
 
         var mainWindow = new MainWindow
         {
-            DataContext = new MainShellViewModel(snapshotService, ordersJsonPath, toursJsonPath, employeesJsonPath, vehiclesJsonPath)
+            DataContext = new MainShellViewModel(
+                snapshotService,
+                ordersJsonPath,
+                toursJsonPath,
+                employeesJsonPath,
+                vehiclesJsonPath,
+                settingsJsonPath,
+                dataRoot)
         };
 
         mainWindow.Show();
