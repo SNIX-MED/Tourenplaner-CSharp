@@ -1,13 +1,11 @@
 ﻿namespace Tourenplaner.CSharp.Domain.Models;
 
-public sealed class Vehicle
+public sealed class TrailerRecord
 {
     public string Id { get; set; } = string.Empty;
-    public string Type { get; set; } = "other";
     public string Name { get; set; } = string.Empty;
     public string LicensePlate { get; set; } = string.Empty;
     public int MaxPayloadKg { get; set; }
-    public int MaxTrailerLoadKg { get; set; }
     public bool Active { get; set; } = true;
     public string Notes { get; set; } = string.Empty;
     public int VolumeM3 { get; set; }

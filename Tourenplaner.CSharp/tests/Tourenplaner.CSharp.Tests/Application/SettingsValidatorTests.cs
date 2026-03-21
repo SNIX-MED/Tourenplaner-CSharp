@@ -11,19 +11,31 @@ public class SettingsValidatorTests
         var validator = new SettingsValidator();
         var settings = new AppSettings
         {
-            BaseDataPath = "",
-            BackupPath = "",
-            SqlConnectionString = "Server=.\\SQLEXPRESS;Trusted_Connection=True;",
-            AutoBackupRetentionDays = 0
+            SqlServerInstance = "",
+            SqlDataDir = "",
+            SqlDatabase = "",
+            AppearanceMode = "Blue",
+            BackupsEnabled = true,
+            BackupDir = "",
+            BackupModeDefault = "delta",
+            BackupRetentionDays = 0,
+            AutoBackupEnabled = true,
+            AutoBackupIntervalDays = 0,
+            QuickAccessItems = Enumerable.Range(0, 9).Select(i => $"action:{i}").ToList()
         };
 
         var result = validator.Validate(settings);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Contains("BaseDataPath"));
-        Assert.Contains(result.Errors, e => e.Contains("BackupPath"));
-        Assert.Contains(result.Errors, e => e.Contains("AutoBackupRetentionDays"));
-        Assert.Contains(result.Errors, e => e.Contains("SqlConnectionString"));
+        Assert.Contains(result.Errors, e => e.Contains("SqlServerInstance"));
+        Assert.Contains(result.Errors, e => e.Contains("SqlDataDir"));
+        Assert.Contains(result.Errors, e => e.Contains("SqlDatabase"));
+        Assert.Contains(result.Errors, e => e.Contains("AppearanceMode"));
+        Assert.Contains(result.Errors, e => e.Contains("BackupModeDefault"));
+        Assert.Contains(result.Errors, e => e.Contains("BackupRetentionDays"));
+        Assert.Contains(result.Errors, e => e.Contains("AutoBackupIntervalDays"));
+        Assert.Contains(result.Errors, e => e.Contains("BackupDir"));
+        Assert.Contains(result.Errors, e => e.Contains("QuickAccessItems"));
     }
 
     [Fact]
@@ -32,10 +44,17 @@ public class SettingsValidatorTests
         var validator = new SettingsValidator();
         var settings = new AppSettings
         {
-            BaseDataPath = @"C:\data\tourenplaner",
-            BackupPath = @"C:\data\tourenplaner\backups",
-            SqlConnectionString = "Server=.\\SQLEXPRESS;Database=TourenplanerDb;Trusted_Connection=True;",
-            AutoBackupRetentionDays = 30
+            SqlServerInstance = @".\SQLEXPRESS",
+            SqlDataDir = @"C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA",
+            SqlDatabase = "GAWELA_TP",
+            AppearanceMode = "System",
+            BackupsEnabled = true,
+            BackupDir = @"C:\data\tourenplaner\backups",
+            BackupModeDefault = "full",
+            BackupRetentionDays = 30,
+            AutoBackupEnabled = true,
+            AutoBackupIntervalDays = 7,
+            QuickAccessItems = new List<string> { "action:import_sql", "action:save_route" }
         };
 
         var result = validator.Validate(settings);
