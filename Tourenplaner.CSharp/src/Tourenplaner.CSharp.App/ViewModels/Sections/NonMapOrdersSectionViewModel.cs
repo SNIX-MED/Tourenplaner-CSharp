@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
+using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
 
@@ -9,6 +10,7 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 {
     private readonly JsonOrderRepository _repository;
+    private readonly OrderPartitionService _partitionService;
     private readonly List<Order> _allOrders = new();
 
     private string _searchText = string.Empty;
@@ -19,6 +21,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         : base("Non-Map Orders", "Orders currently without mappable coordinates.")
     {
         _repository = new JsonOrderRepository(ordersJsonPath);
+        _partitionService = new OrderPartitionService();
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SaveCommand = new AsyncCommand(SaveAsync, () => NonMapOrders.Count > 0);
         AddCommand = new DelegateCommand(AddOrder);
@@ -75,7 +78,6 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     public async Task SaveAsync()
     {
-        var untouched = _allOrders.Where(o => o.Type == OrderType.Map).ToList();
         var updated = NonMapOrders
             .Where(o => !string.IsNullOrWhiteSpace(o.CustomerName))
             .Select(o => new Order
@@ -90,7 +92,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             })
             .ToList();
 
-        var merged = untouched.Concat(updated).ToList();
+        var merged = _partitionService.MergeNonMapOrders(_allOrders, updated);
         await _repository.SaveAllAsync(merged);
         await RefreshAsync();
     }
