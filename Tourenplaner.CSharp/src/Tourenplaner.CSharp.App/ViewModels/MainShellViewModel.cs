@@ -8,10 +8,16 @@ public sealed class MainShellViewModel : ObservableObject
     private NavigationItemViewModel? _selectedNavigationItem;
     private object? _currentSection;
 
-    public MainShellViewModel(AppSnapshotService snapshotService, string toursJsonPath)
+    public MainShellViewModel(
+        AppSnapshotService snapshotService,
+        string toursJsonPath,
+        string employeesJsonPath,
+        string vehiclesJsonPath)
     {
         var start = new StartSectionViewModel(snapshotService);
         var tours = new ToursSectionViewModel(toursJsonPath);
+        var employees = new EmployeesSectionViewModel(employeesJsonPath);
+        var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath);
 
         NavigationItems =
         [
@@ -22,8 +28,8 @@ public sealed class MainShellViewModel : ObservableObject
             new NavigationItemViewModel("Orders", new OrdersSectionViewModel()),
             new NavigationItemViewModel("Non-Map Orders", new NonMapOrdersSectionViewModel()),
             new NavigationItemViewModel("Tours", tours),
-            new NavigationItemViewModel("Employees", new EmployeesSectionViewModel()),
-            new NavigationItemViewModel("Vehicles", new VehiclesSectionViewModel()),
+            new NavigationItemViewModel("Employees", employees),
+            new NavigationItemViewModel("Vehicles", vehicles),
             new NavigationItemViewModel("Settings", new SettingsSectionViewModel()),
             new NavigationItemViewModel("Updates", new UpdatesSectionViewModel())
         ];
