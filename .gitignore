@@ -1,0 +1,17 @@
+﻿# Build output
+**/bin/
+**/obj/
+
+# User files
+*.user
+*.suo
+*.cache
+
+# VS
+.vs/
+
+# Rider
+.idea/
+
+# Logs
+*.log

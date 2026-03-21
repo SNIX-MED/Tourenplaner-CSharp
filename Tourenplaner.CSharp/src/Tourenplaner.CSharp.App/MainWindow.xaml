@@ -1,0 +1,49 @@
+﻿<Window x:Class="Tourenplaner.CSharp.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="GAWELA Tourenplaner"
+        Width="1300"
+        Height="850"
+        MinWidth="980"
+        MinHeight="650"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="260" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="#1E293B">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top"
+                           Margin="20,24,20,16"
+                           Foreground="White"
+                           FontSize="24"
+                           FontWeight="SemiBold"
+                           Text="Tourenplaner" />
+
+                <ListBox Margin="12"
+                         ItemsSource="{Binding NavigationItems}"
+                         SelectedItem="{Binding SelectedNavigationItem, Mode=TwoWay}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Foreground="White">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,4" Padding="12,10" CornerRadius="6" Background="#334155">
+                                <TextBlock Text="{Binding DisplayName}" FontSize="14" />
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Column="1" Background="#F1F5F9">
+            <ContentControl Content="{Binding CurrentSection}" />
+        </Grid>
+    </Grid>
+</Window>
