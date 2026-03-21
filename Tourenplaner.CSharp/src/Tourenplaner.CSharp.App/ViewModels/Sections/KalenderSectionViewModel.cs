@@ -10,18 +10,23 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 public sealed class KalenderSectionViewModel : SectionViewModelBase
 {
     private readonly JsonToursRepository _repository;
+    private readonly Func<int, Task>? _openTourAsync;
     private readonly List<TourRecord> _allTours = new();
 
     private DateTime _displayMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private string _statusText = "Loading calendar...";
     private CalendarDayItem? _selectedDay;
+    private CalendarTourItem? _selectedDayTour;
 
-    public KalenderSectionViewModel(string toursJsonPath) : base("Kalender", "Monthly tour overview with per-day details.")
+    public KalenderSectionViewModel(string toursJsonPath, Func<int, Task>? openTourAsync = null)
+        : base("Kalender", "Monthly tour overview with per-day details.")
     {
         _repository = new JsonToursRepository(toursJsonPath);
+        _openTourAsync = openTourAsync;
         PreviousMonthCommand = new DelegateCommand(ShowPreviousMonth);
         NextMonthCommand = new DelegateCommand(ShowNextMonth);
         RefreshCommand = new AsyncCommand(RefreshAsync);
+        OpenTourCommand = new AsyncCommand(OpenSelectedTourAsync, () => SelectedDayTour is not null);
         _ = RefreshAsync();
     }
 
@@ -34,6 +39,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     public ICommand NextMonthCommand { get; }
 
     public ICommand RefreshCommand { get; }
+
+    public ICommand OpenTourCommand { get; }
 
     public string DisplayMonthText => _displayMonth.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
 
@@ -51,6 +58,21 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             if (SetProperty(ref _selectedDay, value))
             {
                 LoadSelectedDayTours();
+            }
+        }
+    }
+
+    public CalendarTourItem? SelectedDayTour
+    {
+        get => _selectedDayTour;
+        set
+        {
+            if (SetProperty(ref _selectedDayTour, value))
+            {
+                if (OpenTourCommand is AsyncCommand open)
+                {
+                    open.RaiseCanExecuteChanged();
+                }
             }
         }
     }
@@ -120,6 +142,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
         SelectedDay = CalendarDays.FirstOrDefault(x => !x.IsPlaceholder && x.Date == DateTime.Today.Date)
             ?? CalendarDays.FirstOrDefault(x => !x.IsPlaceholder);
+        SelectedDayTour = SelectedDayTours.FirstOrDefault();
 
         var totalTours = monthTourLookup.Values.Sum(v => v.Count);
         StatusText = $"Month tours: {totalTours} | Days with tours: {monthTourLookup.Count}";
@@ -152,6 +175,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             });
         }
 
+        SelectedDayTour = SelectedDayTours.FirstOrDefault();
+
         if (SelectedDayTours.Count == 0)
         {
             StatusText = $"Selected day {date:dd.MM.yyyy}: no tours.";
@@ -160,6 +185,16 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         {
             StatusText = $"Selected day {date:dd.MM.yyyy}: {SelectedDayTours.Count} tour(s).";
         }
+    }
+
+    private async Task OpenSelectedTourAsync()
+    {
+        if (SelectedDayTour is null || _openTourAsync is null)
+        {
+            return;
+        }
+
+        await _openTourAsync(SelectedDayTour.TourId);
     }
 
     private static DateTime? ParseTourDate(string? raw)

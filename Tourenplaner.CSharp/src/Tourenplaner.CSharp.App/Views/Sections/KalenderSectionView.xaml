@@ -87,18 +87,34 @@
         </Border>
 
         <GroupBox Grid.Row="3" Margin="0,12,0,0" Header="Tours on selected day">
-            <DataGrid AutoGenerateColumns="False"
-                      IsReadOnly="True"
-                      ItemsSource="{Binding SelectedDayTours}">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="ID" Width="70" Binding="{Binding TourId}" />
-                    <DataGridTextColumn Header="Tour" Width="2*" Binding="{Binding Name}" />
-                    <DataGridTextColumn Header="Start" Width="90" Binding="{Binding StartTime}" />
-                    <DataGridTextColumn Header="Vehicle" Width="130" Binding="{Binding VehicleId}" />
-                    <DataGridTextColumn Header="Employees" Width="2*" Binding="{Binding Employees}" />
-                    <DataGridTextColumn Header="Stops" Width="80" Binding="{Binding StopCount}" />
-                </DataGrid.Columns>
-            </DataGrid>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Margin="0,0,0,8">
+                    <Button Width="130"
+                            DockPanel.Dock="Right"
+                            Content="Open in Tours"
+                            Command="{Binding OpenTourCommand}" />
+                </DockPanel>
+
+                <DataGrid Grid.Row="1"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          ItemsSource="{Binding SelectedDayTours}"
+                          SelectedItem="{Binding SelectedDayTour, Mode=TwoWay}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="ID" Width="70" Binding="{Binding TourId}" />
+                        <DataGridTextColumn Header="Tour" Width="2*" Binding="{Binding Name}" />
+                        <DataGridTextColumn Header="Start" Width="90" Binding="{Binding StartTime}" />
+                        <DataGridTextColumn Header="Vehicle" Width="130" Binding="{Binding VehicleId}" />
+                        <DataGridTextColumn Header="Employees" Width="2*" Binding="{Binding Employees}" />
+                        <DataGridTextColumn Header="Stops" Width="80" Binding="{Binding StopCount}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
         </GroupBox>
     </Grid>
 </UserControl>

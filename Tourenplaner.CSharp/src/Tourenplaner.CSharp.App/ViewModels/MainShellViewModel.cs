@@ -18,11 +18,11 @@ public sealed class MainShellViewModel : ObservableObject
         string dataRootPath)
     {
         var start = new StartSectionViewModel(snapshotService);
-        var calendar = new KalenderSectionViewModel(toursJsonPath);
+        var tours = new ToursSectionViewModel(toursJsonPath, employeesJsonPath, vehiclesJsonPath);
+        var calendar = new KalenderSectionViewModel(toursJsonPath, tourId => NavigateToTourAsync(tours, tourId));
         var map = new KarteSectionViewModel(ordersJsonPath, toursJsonPath);
         var orders = new OrdersSectionViewModel(ordersJsonPath);
         var nonMapOrders = new NonMapOrdersSectionViewModel(ordersJsonPath);
-        var tours = new ToursSectionViewModel(toursJsonPath, employeesJsonPath, vehiclesJsonPath);
         var employees = new EmployeesSectionViewModel(employeesJsonPath);
         var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath);
         var settings = new SettingsSectionViewModel(settingsJsonPath, dataRootPath);
@@ -67,5 +67,11 @@ public sealed class MainShellViewModel : ObservableObject
     {
         get => _currentSection;
         private set => SetProperty(ref _currentSection, value);
+    }
+
+    private async Task NavigateToTourAsync(ToursSectionViewModel toursSection, int tourId)
+    {
+        await toursSection.FocusTourAsync(tourId);
+        SelectedNavigationItem = NavigationItems.FirstOrDefault(x => ReferenceEquals(x.Section, toursSection)) ?? SelectedNavigationItem;
     }
 }

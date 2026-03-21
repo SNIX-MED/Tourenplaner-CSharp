@@ -181,6 +181,21 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         await RefreshAsync();
     }
 
+    public async Task FocusTourAsync(int tourId)
+    {
+        var match = Tours.FirstOrDefault(t => t.TourId == tourId);
+        if (match is null)
+        {
+            await RefreshAsync();
+            match = Tours.FirstOrDefault(t => t.TourId == tourId);
+        }
+
+        if (match is not null)
+        {
+            SelectedTour = match;
+        }
+    }
+
     private async Task LoadReferenceDataAsync()
     {
         var employees = await _employeeRepository.LoadAsync();
