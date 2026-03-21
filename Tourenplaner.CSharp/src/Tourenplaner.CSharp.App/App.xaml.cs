@@ -25,10 +25,11 @@ public partial class App : System.Windows.Application
         var vehicleRepository = new JsonVehicleRepository(Path.Combine(dataRoot, "vehicles.json"));
 
         var snapshotService = new AppSnapshotService(orderRepository, tourRepository, employeeRepository, vehicleRepository);
+        var toursJsonPath = Path.Combine(dataRoot, "tours.json");
 
         var mainWindow = new MainWindow
         {
-            DataContext = new MainShellViewModel(snapshotService)
+            DataContext = new MainShellViewModel(snapshotService, toursJsonPath)
         };
 
         mainWindow.Show();

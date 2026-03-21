@@ -1,16 +1,74 @@
-﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.ToursSectionView"
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.ToursSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="450"
-             d:DesignWidth="800">
-    <Border Margin="20" Padding="20" CornerRadius="8" BorderThickness="1" BorderBrush="#DDDDDD" Background="#FAFAFA">
-        <StackPanel>
-            <TextBlock Text="{Binding Title}" FontSize="28" FontWeight="Bold" />
-            <TextBlock Margin="0,8,0,0" Text="{Binding Description}" TextWrapping="Wrap" FontSize="14" />
-            <TextBlock Margin="0,12,0,0" Text="Ready for migration feature implementation." FontStyle="Italic"/>
-        </StackPanel>
-    </Border>
+             d:DesignHeight="600"
+             d:DesignWidth="980">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="2*" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+
+        <DockPanel Grid.Row="1" Margin="0,12,0,12">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button Width="180"
+                        Margin="8,0,0,0"
+                        Content="Touren Neu Laden"
+                        Command="{Binding RefreshCommand}" />
+                <Button Width="220"
+                        Margin="8,0,0,0"
+                        Content="ETA/ETD Neu Berechnen"
+                        Command="{Binding RecalculateCommand}" />
+            </StackPanel>
+            <TextBlock VerticalAlignment="Center"
+                       FontSize="13"
+                       Foreground="#334155"
+                       Text="{Binding StatusText}" />
+        </DockPanel>
+
+        <DataGrid Grid.Row="2"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  ItemsSource="{Binding Tours}"
+                  SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
+                  SelectionMode="Single"
+                  SelectionUnit="FullRow">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="ID" Binding="{Binding TourId}" Width="60" />
+                <DataGridTextColumn Header="Tour" Binding="{Binding Name}" Width="2*" />
+                <DataGridTextColumn Header="Datum" Binding="{Binding Date}" Width="110" />
+                <DataGridTextColumn Header="Start" Binding="{Binding Start}" Width="80" />
+                <DataGridTextColumn Header="Ende" Binding="{Binding End}" Width="80" />
+                <DataGridTextColumn Header="Fahrzeug" Binding="{Binding VehicleId}" Width="120" />
+                <DataGridTextColumn Header="Anhänger" Binding="{Binding TrailerId}" Width="120" />
+                <DataGridTextColumn Header="Mitarbeiter" Binding="{Binding Employees}" Width="2*" />
+                <DataGridTextColumn Header="Stops" Binding="{Binding StopCount}" Width="70" />
+                <DataGridTextColumn Header="Stop-Konflikte" Binding="{Binding StopConflicts}" Width="120" />
+                <DataGridTextColumn Header="Ressourcen-Konflikte" Binding="{Binding AssignmentConflicts}" Width="160" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <GroupBox Grid.Row="3" Margin="0,12,0,0" Header="Stops der ausgewählten Tour">
+            <DataGrid AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      ItemsSource="{Binding SelectedTourStops}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="#" Binding="{Binding Order}" Width="50" />
+                    <DataGridTextColumn Header="Stopp" Binding="{Binding Name}" Width="2*" />
+                    <DataGridTextColumn Header="Adresse" Binding="{Binding Address}" Width="2*" />
+                    <DataGridTextColumn Header="Zeitfenster" Binding="{Binding Window}" Width="130" />
+                    <DataGridTextColumn Header="ETA" Binding="{Binding Arrival}" Width="80" />
+                    <DataGridTextColumn Header="ETD" Binding="{Binding Departure}" Width="80" />
+                    <DataGridTextColumn Header="Konflikt" Binding="{Binding Conflict}" Width="2*" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+    </Grid>
 </UserControl>
