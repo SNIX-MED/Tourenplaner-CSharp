@@ -10,11 +10,14 @@ public sealed class MainShellViewModel : ObservableObject
 
     public MainShellViewModel(
         AppSnapshotService snapshotService,
+        string ordersJsonPath,
         string toursJsonPath,
         string employeesJsonPath,
         string vehiclesJsonPath)
     {
         var start = new StartSectionViewModel(snapshotService);
+        var orders = new OrdersSectionViewModel(ordersJsonPath);
+        var nonMapOrders = new NonMapOrdersSectionViewModel(ordersJsonPath);
         var tours = new ToursSectionViewModel(toursJsonPath, employeesJsonPath, vehiclesJsonPath);
         var employees = new EmployeesSectionViewModel(employeesJsonPath);
         var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath);
@@ -25,8 +28,8 @@ public sealed class MainShellViewModel : ObservableObject
             new NavigationItemViewModel("Kalender", new KalenderSectionViewModel()),
             new NavigationItemViewModel("Karte", new KarteSectionViewModel()),
             new NavigationItemViewModel("GPS", new GpsSectionViewModel()),
-            new NavigationItemViewModel("Orders", new OrdersSectionViewModel()),
-            new NavigationItemViewModel("Non-Map Orders", new NonMapOrdersSectionViewModel()),
+            new NavigationItemViewModel("Orders", orders),
+            new NavigationItemViewModel("Non-Map Orders", nonMapOrders),
             new NavigationItemViewModel("Tours", tours),
             new NavigationItemViewModel("Employees", employees),
             new NavigationItemViewModel("Vehicles", vehicles),

@@ -25,13 +25,14 @@ public partial class App : System.Windows.Application
         var vehicleRepository = new JsonVehicleRepository(Path.Combine(dataRoot, "vehicles.json"));
 
         var snapshotService = new AppSnapshotService(orderRepository, tourRepository, employeeRepository, vehicleRepository);
+        var ordersJsonPath = Path.Combine(dataRoot, "orders.json");
         var toursJsonPath = Path.Combine(dataRoot, "tours.json");
         var employeesJsonPath = Path.Combine(dataRoot, "employees.json");
         var vehiclesJsonPath = Path.Combine(dataRoot, "vehicles.json");
 
         var mainWindow = new MainWindow
         {
-            DataContext = new MainShellViewModel(snapshotService, toursJsonPath, employeesJsonPath, vehiclesJsonPath)
+            DataContext = new MainShellViewModel(snapshotService, ordersJsonPath, toursJsonPath, employeesJsonPath, vehiclesJsonPath)
         };
 
         mainWindow.Show();

@@ -1,16 +1,49 @@
-﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.NonMapOrdersSectionView"
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.NonMapOrdersSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="450"
-             d:DesignWidth="800">
-    <Border Margin="20" Padding="20" CornerRadius="8" BorderThickness="1" BorderBrush="#DDDDDD" Background="#FAFAFA">
-        <StackPanel>
-            <TextBlock Text="{Binding Title}" FontSize="28" FontWeight="Bold" />
-            <TextBlock Margin="0,8,0,0" Text="{Binding Description}" TextWrapping="Wrap" FontSize="14" />
-            <TextBlock Margin="0,12,0,0" Text="Ready for migration feature implementation." FontStyle="Italic"/>
-        </StackPanel>
-    </Border>
+             d:DesignHeight="650"
+             d:DesignWidth="1000">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+
+        <DockPanel Grid.Row="1" Margin="0,12,0,12">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <TextBox Width="220"
+                         VerticalAlignment="Center"
+                         ToolTip="Search by id, customer, address or tour"
+                         Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Width="120" Margin="8,0,0,0" Content="Reload" Command="{Binding RefreshCommand}" />
+                <Button Width="120" Margin="8,0,0,0" Content="Save" Command="{Binding SaveCommand}" />
+                <Button Width="120" Margin="8,0,0,0" Content="Add +" Command="{Binding AddCommand}" />
+                <Button Width="120" Margin="8,0,0,0" Content="Delete -" Command="{Binding RemoveCommand}" />
+            </StackPanel>
+            <TextBlock VerticalAlignment="Center"
+                       FontSize="13"
+                       Foreground="#334155"
+                       Text="{Binding StatusText}" />
+        </DockPanel>
+
+        <DataGrid Grid.Row="2"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  ItemsSource="{Binding NonMapOrders}"
+                  SelectedItem="{Binding SelectedOrder, Mode=TwoWay}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="ID" Width="2*" Binding="{Binding Id, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <DataGridTextColumn Header="Customer" Width="2*" Binding="{Binding CustomerName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <DataGridTextColumn Header="Address" Width="3*" Binding="{Binding Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <DataGridTextColumn Header="Date" Width="110" Binding="{Binding ScheduledDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <DataGridTextColumn Header="Assigned Tour" Width="120" Binding="{Binding AssignedTourId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
 </UserControl>
