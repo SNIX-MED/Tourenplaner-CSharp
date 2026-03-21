@@ -38,7 +38,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <GroupBox Grid.Column="0" Header="SQL & Appearance" Margin="0,0,6,0">
+            <GroupBox Grid.Column="0" Header="SQL &amp; Appearance" Margin="0,0,6,0">
                 <Grid Margin="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -69,7 +69,7 @@
                 </Grid>
             </GroupBox>
 
-            <GroupBox Grid.Column="1" Header="Backup & Restore" Margin="6,0,0,0">
+            <GroupBox Grid.Column="1" Header="Backup &amp; Restore" Margin="6,0,0,0">
                 <Grid Margin="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

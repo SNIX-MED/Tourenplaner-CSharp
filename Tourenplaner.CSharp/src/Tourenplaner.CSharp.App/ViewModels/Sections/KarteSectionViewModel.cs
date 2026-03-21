@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
+using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
@@ -13,6 +14,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private readonly JsonOrderRepository _orderRepository;
     private readonly JsonToursRepository _tourRepository;
     private readonly RouteOptimizationService _optimizationService;
+    private readonly MapRouteService _mapRouteService;
     private readonly List<Order> _allOrders = new();
 
     private string _searchText = string.Empty;
@@ -31,6 +33,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _orderRepository = new JsonOrderRepository(ordersJsonPath);
         _tourRepository = new JsonToursRepository(toursJsonPath);
         _optimizationService = new RouteOptimizationService();
+        _mapRouteService = new MapRouteService();
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         AddToRouteCommand = new DelegateCommand(AddSelectedOrderToRoute, () => SelectedOrder is not null);
@@ -185,24 +188,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     public void SwapRouteStops(string sourceOrderId, string targetOrderId)
     {
-        if (string.IsNullOrWhiteSpace(sourceOrderId) || string.IsNullOrWhiteSpace(targetOrderId))
-        {
-            return;
-        }
-
-        var sourceIndex = RouteStops.ToList().FindIndex(x => string.Equals(x.OrderId, sourceOrderId, StringComparison.OrdinalIgnoreCase));
-        var targetIndex = RouteStops.ToList().FindIndex(x => string.Equals(x.OrderId, targetOrderId, StringComparison.OrdinalIgnoreCase));
-        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex == targetIndex)
-        {
-            return;
-        }
-
-        var sourceItem = RouteStops[sourceIndex];
-        RouteStops.RemoveAt(sourceIndex);
-        RouteStops.Insert(targetIndex, sourceItem);
-
-        RebuildPositions();
-        SelectedRouteStop = sourceItem;
+        var swapped = _mapRouteService.SwapStops(ToMapRouteStops(), sourceOrderId, targetOrderId);
+        ApplyRouteStops(swapped, sourceOrderId);
     }
 
     public void UpdateRouteStopCoordinates(string orderId, double lat, double lon)
@@ -313,16 +300,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var index = RouteStops.IndexOf(SelectedRouteStop);
-        var newIndex = index + delta;
-        if (index < 0 || newIndex < 0 || newIndex >= RouteStops.Count)
-        {
-            return;
-        }
-
-        RouteStops.Move(index, newIndex);
-        RebuildPositions();
-        RaiseCommandStates();
+        var moved = _mapRouteService.MoveStop(ToMapRouteStops(), SelectedRouteStop.OrderId, delta);
+        ApplyRouteStops(moved, SelectedRouteStop.OrderId);
     }
 
     private bool CanMoveSelectedStop(int delta)
@@ -367,33 +346,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         var tours = (await _tourRepository.LoadAsync()).ToList();
-        var nextId = tours.Count == 0 ? 1 : tours.Max(t => t.Id) + 1;
-
-        var tour = new TourRecord
-        {
-            Id = nextId,
-            Name = string.IsNullOrWhiteSpace(RouteName) ? $"Karte Tour {nextId}" : RouteName.Trim(),
-            Date = string.IsNullOrWhiteSpace(RouteDate) ? DateOnly.FromDateTime(DateTime.Today).ToString("dd.MM.yyyy") : RouteDate.Trim(),
-            StartTime = string.IsNullOrWhiteSpace(RouteStartTime) ? "08:00" : RouteStartTime.Trim(),
-            RouteMode = "car",
-            Stops = RouteStops.Select(x => new TourStopRecord
-            {
-                Id = $"auftrag:{x.OrderId}",
-                Auftragsnummer = x.OrderId,
-                Name = x.Customer,
-                Address = x.Address,
-                Order = x.Position,
-                Lat = x.Latitude,
-                Lng = x.Longitude,
-                Lon = x.Longitude,
-                ServiceMinutes = 10
-            }).ToList()
-        };
+        var nextId = _mapRouteService.DetermineNextTourId(tours);
+        var tour = _mapRouteService.BuildTour(ToMapRouteStops(), nextId, RouteName, RouteDate, RouteStartTime, defaultServiceMinutes: 10);
 
         tours.Add(tour);
         await _tourRepository.SaveAsync(tours);
 
-        var routeOrderIds = RouteStops.Select(s => s.OrderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var routeOrderIds = _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops());
         foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
         {
             order.AssignedTourId = nextId.ToString();
@@ -403,6 +362,36 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         ClearRoute();
         RebuildOrderGrid();
         StatusText = $"Route saved as tour #{nextId}.";
+    }
+
+    private IReadOnlyList<MapRouteStop> ToMapRouteStops()
+    {
+        return RouteStops
+            .Select(x => new MapRouteStop(x.Position, x.OrderId, x.Customer, x.Address, x.Latitude, x.Longitude))
+            .ToList();
+    }
+
+    private void ApplyRouteStops(IReadOnlyList<MapRouteStop> routeStops, string? selectedOrderId = null)
+    {
+        RouteStops.Clear();
+        foreach (var stop in routeStops)
+        {
+            RouteStops.Add(new RouteStopItem
+            {
+                Position = stop.Position,
+                OrderId = stop.OrderId,
+                Customer = stop.Customer,
+                Address = stop.Address,
+                Latitude = stop.Latitude,
+                Longitude = stop.Longitude
+            });
+        }
+
+        RebuildPositions();
+        if (!string.IsNullOrWhiteSpace(selectedOrderId))
+        {
+            SelectRouteStopByOrderId(selectedOrderId);
+        }
     }
 
     private void ClearRoute()
