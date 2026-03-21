@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
+using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
@@ -11,6 +12,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 {
     private readonly JsonOrderRepository _orderRepository;
     private readonly JsonToursRepository _tourRepository;
+    private readonly RouteOptimizationService _optimizationService;
     private readonly List<Order> _allOrders = new();
 
     private string _searchText = string.Empty;
@@ -20,6 +22,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _routeName = "Neue Karte-Tour";
     private string _routeDate = DateOnly.FromDateTime(DateTime.Today).ToString("dd.MM.yyyy");
     private string _routeStartTime = "08:00";
+    private double _routeDistanceKm;
     private string _statusText = "Loading map orders...";
 
     public KarteSectionViewModel(string ordersJsonPath, string toursJsonPath)
@@ -27,6 +30,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         _orderRepository = new JsonOrderRepository(ordersJsonPath);
         _tourRepository = new JsonToursRepository(toursJsonPath);
+        _optimizationService = new RouteOptimizationService();
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         AddToRouteCommand = new DelegateCommand(AddSelectedOrderToRoute, () => SelectedOrder is not null);
@@ -100,6 +104,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         get => _routeStartTime;
         set => SetProperty(ref _routeStartTime, value);
+    }
+
+    public double RouteDistanceKm
+    {
+        get => _routeDistanceKm;
+        private set => SetProperty(ref _routeDistanceKm, value);
     }
 
     public string StatusText
@@ -290,21 +300,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var remaining = RouteStops.ToList();
-        var optimized = new List<RouteStopItem>();
-        var current = remaining[0];
-        optimized.Add(current);
-        remaining.RemoveAt(0);
-
-        while (remaining.Count > 0)
-        {
-            var next = remaining
-                .OrderBy(x => Distance(current.Latitude, current.Longitude, x.Latitude, x.Longitude))
-                .First();
-            optimized.Add(next);
-            remaining.Remove(next);
-            current = next;
-        }
+        var optimized = _optimizationService.OptimizeNearestNeighbor(
+            RouteStops.ToList(),
+            x => x.Latitude,
+            x => x.Longitude);
 
         RouteStops.Clear();
         foreach (var stop in optimized)
@@ -378,20 +377,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         OnPropertyChanged(nameof(RouteStops));
+        RouteDistanceKm = _optimizationService.ComputeTotalDistanceKm(RouteStops, x => x.Latitude, x => x.Longitude);
         UpdateStatus();
         RaiseCommandStates();
     }
 
     private void UpdateStatus()
     {
-        StatusText = $"Map orders: {MapOrders.Count} | Route stops: {RouteStops.Count}";
-    }
-
-    private static double Distance(double lat1, double lon1, double lat2, double lon2)
-    {
-        var dx = lat1 - lat2;
-        var dy = lon1 - lon2;
-        return (dx * dx) + (dy * dy);
+        StatusText = $"Map orders: {MapOrders.Count} | Route stops: {RouteStops.Count} | Route distance: {RouteDistanceKm:0.##} km";
     }
 
     private void RaiseCommandStates()

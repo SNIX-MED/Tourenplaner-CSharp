@@ -109,6 +109,11 @@
                 <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,8">
                     <TextBlock VerticalAlignment="Center" Text="Start Time" />
                     <TextBox Width="90" Margin="8,0,12,0" Text="{Binding RouteStartTime, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock VerticalAlignment="Center" Margin="0,0,12,0">
+                        <Run Text="Distance: " />
+                        <Run Text="{Binding RouteDistanceKm}" />
+                        <Run Text=" km" />
+                    </TextBlock>
                     <Button Width="90" Content="Remove" Command="{Binding RemoveFromRouteCommand}" />
                     <Button Width="70" Margin="8,0,0,0" Content="Up" Command="{Binding MoveStopUpCommand}" />
                     <Button Width="70" Margin="8,0,0,0" Content="Down" Command="{Binding MoveStopDownCommand}" />
@@ -131,7 +136,7 @@
                 <TextBlock Grid.Row="3"
                            Margin="0,8,0,0"
                            Foreground="#475569"
-                           Text="This route panel is the map planning fallback: marker list + stop sequence + save to tours." />
+                           Text="Legend: blue markers = unassigned, gray markers = assigned. Orange line = current route order." />
             </Grid>
         </Grid>
     </Grid>
