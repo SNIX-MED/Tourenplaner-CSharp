@@ -12,8 +12,7 @@ Completed:
 ## Current focus (next steps)
 
 1. Map interaction hardening
-   - implement drag-based route reordering in embedded map workflow
-   - extend marker context actions and overlays for planning context
+   - extend overlays and advanced in-map route editing ergonomics
 2. Quality/verification pass
    - add tests for map-route save/update edge cases
    - execute full solution build/test after resolving local restore blocker

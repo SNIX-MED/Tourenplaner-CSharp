@@ -23,14 +23,14 @@ Implemented:
 - functional shell/navigation parity with dedicated ViewModel/View per section
 - parity-focused JSON repositories + normalization strategy
 - tours scheduling and assignment conflict detection
-- map route workflow including embedded tile host, marker sync, route polyline and tour save-back
+- map route workflow including embedded tile host, marker sync, route polyline, marker context actions and tour save-back
 - GPS embedded WebView2 + browser fallback behavior
 - settings + backup/restore + validation operations
 - updates/status view with runtime/version/backup info
 - calendar month/day/tour view with direct navigation into Tours section
 
 Partially complete:
-- advanced map UX parity: drag-based route editing and richer overlays (beyond current marker/panel/route polyline set)
+- advanced map UX parity: richer overlays and advanced in-map editing ergonomics beyond current drag/swap and marker actions
 - Windows packaging/update distribution parity (AppInstaller/MSIX pipeline level)
 
 Environment limitation:
@@ -40,7 +40,7 @@ Environment limitation:
 ## Risks and mitigation
 
 1. Advanced map parity drift:
-   - mitigate by incremental WebView2 map interaction backlog (drag route reorder, contextual overlays).
+   - mitigate by incremental WebView2 map interaction backlog (richer overlays, deeper in-map editing UX).
 2. Environment-specific regressions:
    - mitigate via CI build/test in clean Windows agents once restore blocker is removed.
 3. Data compatibility regressions:
@@ -49,7 +49,7 @@ Environment limitation:
 ## Next migration increments
 
 1. Map interaction hardening:
-   - drag reorder and richer marker actions in embedded map.
+   - richer overlays and deeper in-map route editing ergonomics.
 2. Test hardening:
    - extend coverage for map-route save/update edge-cases.
 3. Build pipeline hardening:

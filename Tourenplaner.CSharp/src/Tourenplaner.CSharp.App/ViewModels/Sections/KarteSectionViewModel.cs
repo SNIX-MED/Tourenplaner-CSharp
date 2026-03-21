@@ -174,6 +174,50 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }).ToList();
     }
 
+    public void SelectRouteStopByOrderId(string orderId)
+    {
+        var match = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+        if (match is not null)
+        {
+            SelectedRouteStop = match;
+        }
+    }
+
+    public void SwapRouteStops(string sourceOrderId, string targetOrderId)
+    {
+        if (string.IsNullOrWhiteSpace(sourceOrderId) || string.IsNullOrWhiteSpace(targetOrderId))
+        {
+            return;
+        }
+
+        var sourceIndex = RouteStops.ToList().FindIndex(x => string.Equals(x.OrderId, sourceOrderId, StringComparison.OrdinalIgnoreCase));
+        var targetIndex = RouteStops.ToList().FindIndex(x => string.Equals(x.OrderId, targetOrderId, StringComparison.OrdinalIgnoreCase));
+        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex == targetIndex)
+        {
+            return;
+        }
+
+        var sourceItem = RouteStops[sourceIndex];
+        RouteStops.RemoveAt(sourceIndex);
+        RouteStops.Insert(targetIndex, sourceItem);
+
+        RebuildPositions();
+        SelectedRouteStop = sourceItem;
+    }
+
+    public void UpdateRouteStopCoordinates(string orderId, double lat, double lon)
+    {
+        var match = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+        if (match is null)
+        {
+            return;
+        }
+
+        match.Latitude = lat;
+        match.Longitude = lon;
+        RebuildPositions();
+    }
+
     private void RebuildOrderGrid()
     {
         var routeOrderIds = RouteStops.Select(s => s.OrderId).ToHashSet(StringComparer.OrdinalIgnoreCase);

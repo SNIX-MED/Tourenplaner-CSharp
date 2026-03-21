@@ -80,6 +80,10 @@ public partial class KarteSectionView : UserControl
         {
             await HighlightSelectedRouteStopAsync();
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.RouteStops))
+        {
+            await PushRouteToMapAsync();
+        }
     }
 
     private async Task EnsureMapInitializedAsync()
@@ -144,6 +148,7 @@ public partial class KarteSectionView : UserControl
             .Select(r => new
             {
                 id = r.OrderId,
+                position = r.Position,
                 lat = r.Latitude,
                 lon = r.Longitude
             }).ToList();
@@ -196,6 +201,35 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
+        if (raw.StartsWith("swap:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = raw.Split(':');
+            if (parts.Length == 3)
+            {
+                vm.SwapRouteStops(parts[1], parts[2]);
+            }
+            return;
+        }
+
+        if (raw.StartsWith("move:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = raw.Split(':');
+            if (parts.Length == 4 &&
+                double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lat) &&
+                double.TryParse(parts[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lon))
+            {
+                vm.UpdateRouteStopCoordinates(parts[1], lat, lon);
+            }
+            return;
+        }
+
+        if (raw.StartsWith("routeSelect:", StringComparison.OrdinalIgnoreCase))
+        {
+            var id = raw["routeSelect:".Length..];
+            vm.SelectRouteStopByOrderId(id);
+            return;
+        }
+
         var match = vm.MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, raw, StringComparison.OrdinalIgnoreCase));
         if (match is null)
         {
@@ -241,6 +275,7 @@ public partial class KarteSectionView : UserControl
                    let markerLayer = L.layerGroup().addTo(map);
                    let routeLayer = L.layerGroup().addTo(map);
                    let routePolyline = null;
+                   let routeMarkerMap = new Map();
 
                    function clearMarkers() {
                      markerLayer.clearLayers();
@@ -250,6 +285,7 @@ public partial class KarteSectionView : UserControl
                    function clearRoute() {
                      routeLayer.clearLayers();
                      routePolyline = null;
+                     routeMarkerMap.clear();
                    }
 
                    window.gawelaSetMarkers = function(markers) {
@@ -300,13 +336,58 @@ public partial class KarteSectionView : UserControl
                      }
                      const points = routeStops.map(x => [x.lat, x.lon]);
                      routePolyline = L.polyline(points, { color: '#f97316', weight: 4, opacity: 0.8 }).addTo(routeLayer);
+
+                     routeStops.forEach(stop => {
+                       const icon = L.divIcon({
+                         className: 'gawela-route-stop',
+                         html: `<div style="width:20px;height:20px;border-radius:10px;background:#f97316;color:#fff;font-size:11px;line-height:20px;text-align:center;border:1px solid #fff;">${stop.position}</div>`,
+                         iconSize: [20, 20],
+                         iconAnchor: [10, 10]
+                       });
+
+                       const routeMarker = L.marker([stop.lat, stop.lon], { icon, draggable: true })
+                         .addTo(routeLayer)
+                         .bindPopup(`Route stop ${stop.position}<br/>Order: ${stop.id}`);
+
+                       routeMarker.on('click', () => {
+                         if (window.chrome && window.chrome.webview) {
+                           window.chrome.webview.postMessage(`routeSelect:${stop.id}`);
+                         }
+                       });
+
+                       routeMarker.on('dragend', () => {
+                         const currentLatLng = routeMarker.getLatLng();
+                         let nearest = null;
+                         let nearestDistance = Number.MAX_VALUE;
+                         routeMarkerMap.forEach((candidate, id) => {
+                           if (id === stop.id) return;
+                           const d = currentLatLng.distanceTo(candidate.getLatLng());
+                           if (d < nearestDistance) {
+                             nearestDistance = d;
+                             nearest = id;
+                           }
+                         });
+
+                         if (nearest && nearestDistance < 300) {
+                           if (window.chrome && window.chrome.webview) {
+                             window.chrome.webview.postMessage(`swap:${stop.id}:${nearest}`);
+                           }
+                         } else {
+                           if (window.chrome && window.chrome.webview) {
+                             window.chrome.webview.postMessage(`move:${stop.id}:${currentLatLng.lat.toFixed(6)}:${currentLatLng.lng.toFixed(6)}`);
+                           }
+                         }
+                       });
+
+                       routeMarkerMap.set(stop.id, routeMarker);
+                     });
                    };
 
                    window.gawelaHighlightRouteStop = function(orderId) {
-                     if (!orderId || !markerMap.has(orderId)) {
+                     if (!orderId || !routeMarkerMap.has(orderId)) {
                        return;
                      }
-                     const marker = markerMap.get(orderId);
+                     const marker = routeMarkerMap.get(orderId);
                      map.panTo(marker.getLatLng());
                      marker.openPopup();
                    };
