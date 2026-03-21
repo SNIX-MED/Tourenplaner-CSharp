@@ -13,6 +13,9 @@ Open major increments:
 - direct cross-navigation interactions (Kalender -> Tours focus)
 - full solution build/test run after resolving local SDK restore issue (`MSB4276`)
 
+Phase 5 closure status:
+- see `docs/PHASE5_COMPLETION_REPORT.md` for delivered scope and remaining gaps
+
 ## Immediate next implementation steps
 
 1. Karte visual enhancement:

@@ -4,6 +4,9 @@
 
 The .NET 8 implementation now includes functional WPF modules for Start, Kalender, Tours, Orders, Non-Map Orders, Employees, Vehicles, Settings, GPS and Updates with a layered App/Application/Domain/Infrastructure structure.
 
+Phase 5 summary:
+- completion details and residual tasks are captured in `docs/PHASE5_COMPLETION_REPORT.md`.
+
 ## Architecture mapping
 
 - Python UI flow -> WPF shell with section-specific Views + ViewModels
