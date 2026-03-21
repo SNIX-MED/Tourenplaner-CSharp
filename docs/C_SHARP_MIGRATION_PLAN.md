@@ -1,26 +1,25 @@
 # C# Migration Plan
 
-## Progress snapshot (Phase 5 ongoing)
+## Delivered baseline
 
-Completed increments:
-- solution and layered architecture setup (`App`, `Application`, `Domain`, `Infrastructure`, `Tests`)
-- parity domain models + JSON normalizers/repositories
-- backup, settings validation, SQL name inference core services
-- tours scheduling/conflict services + unit tests
-- WPF implementation for Start, Kalender, Tours, Orders, Non-Map Orders, Employees, Vehicles, Settings, GPS, Updates
+Completed:
+- layered architecture and solution structure
+- parity models/repositories/services for primary workflows
+- WPF MVVM sections for all requested navigation entries
+- incremental parity hardening for tours, map, GPS, settings, backups, updates
+- growing test suite for core application and repository behavior
 
-Open major increments:
-- direct cross-navigation interactions (Kalender -> Tours focus)
-- full solution build/test run after resolving local SDK restore issue (`MSB4276`)
+## Current focus (next steps)
 
-Phase 5 closure status:
-- see `docs/PHASE5_COMPLETION_REPORT.md` for delivered scope and remaining gaps
+1. Map interaction hardening
+   - implement drag-based route reordering in embedded map workflow
+   - extend marker context actions and overlays for planning context
+2. Quality/verification pass
+   - add tests for map-route save/update edge cases
+   - execute full solution build/test after resolving local restore blocker
+3. Deployment readiness
+   - define publish profile and packaging/update distribution flow
 
-## Immediate next implementation steps
+## Blocking item
 
-1. Karte visual enhancement:
-   - extend remaining advanced map interactions (drag route edits, richer overlays)
-   - keep fallback behavior when embedded map host is unavailable
-2. Quality pass:
-   - extend tests for order split persistence and settings backup workflows
-   - execute full build/test after environment fix
+- local environment restore/build blocker on full solution (`MSB4276`) affects App/Infrastructure/Tests restore path and prevents complete end-to-end CLI verification here.
