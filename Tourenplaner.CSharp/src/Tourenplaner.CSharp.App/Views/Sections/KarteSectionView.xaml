@@ -1,16 +1,124 @@
-﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.KarteSectionView"
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.KarteSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="450"
-             d:DesignWidth="800">
-    <Border Margin="20" Padding="20" CornerRadius="8" BorderThickness="1" BorderBrush="#DDDDDD" Background="#FAFAFA">
-        <StackPanel>
-            <TextBlock Text="{Binding Title}" FontSize="28" FontWeight="Bold" />
-            <TextBlock Margin="0,8,0,0" Text="{Binding Description}" TextWrapping="Wrap" FontSize="14" />
-            <TextBlock Margin="0,12,0,0" Text="Ready for migration feature implementation." FontStyle="Italic"/>
-        </StackPanel>
-    </Border>
+             d:DesignHeight="780"
+             d:DesignWidth="1180">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+
+        <DockPanel Grid.Row="1" Margin="0,12,0,12">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button Width="110" Margin="8,0,0,0" Content="Refresh" Command="{Binding RefreshCommand}" />
+                <Button Width="130" Margin="8,0,0,0" Content="Add To Route" Command="{Binding AddToRouteCommand}" />
+                <Button Width="120" Margin="8,0,0,0" Content="Optimize" Command="{Binding OptimizeRouteCommand}" />
+                <Button Width="130" Margin="8,0,0,0" Content="Save As Tour" Command="{Binding SaveRouteAsTourCommand}" />
+                <Button Width="120" Margin="8,0,0,0" Content="Clear Route" Command="{Binding ClearRouteCommand}" />
+            </StackPanel>
+            <StackPanel>
+                <TextBlock FontSize="13" Foreground="#334155" Text="{Binding StatusText}" />
+            </StackPanel>
+        </DockPanel>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="1.6*" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0" Margin="0,0,8,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Margin="0,0,0,8">
+                    <CheckBox Content="Only Unassigned"
+                              IsChecked="{Binding ShowOnlyUnassigned, Mode=TwoWay}"
+                              VerticalAlignment="Center" />
+                    <TextBox Width="240"
+                             Margin="12,0,0,0"
+                             VerticalAlignment="Center"
+                             Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Search by id, customer, address or assigned tour" />
+                </DockPanel>
+
+                <DataGrid Grid.Row="1"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          ItemsSource="{Binding MapOrders}"
+                          SelectedItem="{Binding SelectedOrder, Mode=TwoWay}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Order" Width="120" Binding="{Binding OrderId}" />
+                        <DataGridTextColumn Header="Customer" Width="2*" Binding="{Binding Customer}" />
+                        <DataGridTextColumn Header="Address" Width="2*" Binding="{Binding Address}" />
+                        <DataGridTextColumn Header="Date" Width="110" Binding="{Binding ScheduledDate}" />
+                        <DataGridTextColumn Header="Tour" Width="90" Binding="{Binding AssignedTourId}" />
+                        <DataGridTextColumn Header="Lat" Width="90" Binding="{Binding Latitude}" />
+                        <DataGridTextColumn Header="Lon" Width="90" Binding="{Binding Longitude}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+
+            <Grid Grid.Column="1" Margin="8,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <GroupBox Header="Route Context">
+                    <Grid Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="95" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="95" />
+                            <ColumnDefinition Width="120" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Route Name" />
+                        <TextBox Grid.Column="1" Margin="6,0,8,0" Text="{Binding RouteName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Date" />
+                        <TextBox Grid.Column="3" Margin="6,0,0,0" Text="{Binding RouteDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                </GroupBox>
+
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,8">
+                    <TextBlock VerticalAlignment="Center" Text="Start Time" />
+                    <TextBox Width="90" Margin="8,0,12,0" Text="{Binding RouteStartTime, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Width="90" Content="Remove" Command="{Binding RemoveFromRouteCommand}" />
+                    <Button Width="70" Margin="8,0,0,0" Content="Up" Command="{Binding MoveStopUpCommand}" />
+                    <Button Width="70" Margin="8,0,0,0" Content="Down" Command="{Binding MoveStopDownCommand}" />
+                </StackPanel>
+
+                <DataGrid Grid.Row="2"
+                          AutoGenerateColumns="False"
+                          ItemsSource="{Binding RouteStops}"
+                          SelectedItem="{Binding SelectedRouteStop, Mode=TwoWay}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="#" Width="45" Binding="{Binding Position}" />
+                        <DataGridTextColumn Header="Order" Width="120" Binding="{Binding OrderId}" />
+                        <DataGridTextColumn Header="Customer" Width="2*" Binding="{Binding Customer}" />
+                        <DataGridTextColumn Header="Address" Width="2*" Binding="{Binding Address}" />
+                        <DataGridTextColumn Header="Lat" Width="90" Binding="{Binding Latitude}" />
+                        <DataGridTextColumn Header="Lon" Width="90" Binding="{Binding Longitude}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <TextBlock Grid.Row="3"
+                           Margin="0,8,0,0"
+                           Foreground="#475569"
+                           Text="This route panel is the map planning fallback: marker list + stop sequence + save to tours." />
+            </Grid>
+        </Grid>
+    </Grid>
 </UserControl>

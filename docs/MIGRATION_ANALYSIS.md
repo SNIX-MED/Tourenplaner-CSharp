@@ -23,25 +23,25 @@ Implemented in C#:
 - Employees CRUD with active/inactive state
 - Vehicles + trailers CRUD with capacities/status/notes
 - Settings load/save/validate + backup/create/restore/cleanup operations
+- Karte route planning fallback with marker list, search/filter, route panel and save-to-tour actions
 - GPS URL flow with reload/open/copy and runtime fallback messaging
 - Updates page with version/runtime/backup status
 
 Still open / partial:
-- Karte section remains a placeholder (no marker/filter/routing UI yet)
 - Kalender -> direct navigation into Tours is not wired yet (data parity exists, UI jump action pending)
 - WebView2 embedding is represented via fallback-ready logic; explicit embedded control integration pending
 - full solution build/test execution is blocked in this environment by local SDK resolver issue (`MSB4276` for App/Infrastructure/Test restore)
 
 ## Risks and mitigation
 
-1. UI parity risk for Karte: currently highest gap; planned dedicated iteration.
+1. Map parity risk: dedicated map rendering control is still represented by list/panel fallback, not a full tile map host yet.
 2. Data shape drift: reduced by parity repositories + normalizers and write-back normalization.
 3. Settings regressions: reduced by validator tests and live validation in settings UI.
 4. Scheduling/conflict behavior drift: reduced by dedicated `TourScheduleService` and `TourConflictService` tests.
 
 ## Next migration increments
 
-1. Implement Karte with marker list, filter/search, route panel and order actions.
-2. Wire Kalender day/tour interaction to auto-focus Tours section.
+1. Wire Kalender day/tour interaction to auto-focus Tours section.
+2. Add explicit map tile host + marker rendering layer for full visual parity.
 3. Add explicit WebView2 host control when runtime/package conditions are met.
 4. Resolve local SDK/workload resolver issue and run full solution build/tests in CI and local environment.

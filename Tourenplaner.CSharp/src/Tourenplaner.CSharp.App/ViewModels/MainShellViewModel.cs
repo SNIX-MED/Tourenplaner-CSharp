@@ -19,6 +19,7 @@ public sealed class MainShellViewModel : ObservableObject
     {
         var start = new StartSectionViewModel(snapshotService);
         var calendar = new KalenderSectionViewModel(toursJsonPath);
+        var map = new KarteSectionViewModel(ordersJsonPath, toursJsonPath);
         var orders = new OrdersSectionViewModel(ordersJsonPath);
         var nonMapOrders = new NonMapOrdersSectionViewModel(ordersJsonPath);
         var tours = new ToursSectionViewModel(toursJsonPath, employeesJsonPath, vehiclesJsonPath);
@@ -32,7 +33,7 @@ public sealed class MainShellViewModel : ObservableObject
         [
             new NavigationItemViewModel("Start", start),
             new NavigationItemViewModel("Kalender", calendar),
-            new NavigationItemViewModel("Karte", new KarteSectionViewModel()),
+            new NavigationItemViewModel("Karte", map),
             new NavigationItemViewModel("GPS", gps),
             new NavigationItemViewModel("Orders", orders),
             new NavigationItemViewModel("Non-Map Orders", nonMapOrders),
