@@ -1,36 +1,28 @@
-﻿# C# Migration Plan
+# C# Migration Plan
 
-## Phase 1: Foundation
+## Progress snapshot (Phase 5 ongoing)
 
-- Create .NET 8 solution and layered projects.
-- Set common build rules via `Directory.Build.props`.
-- Establish shared domain model contracts.
+Completed increments:
+- solution and layered architecture setup (`App`, `Application`, `Domain`, `Infrastructure`, `Tests`)
+- parity domain models + JSON normalizers/repositories
+- backup, settings validation, SQL name inference core services
+- tours scheduling/conflict services + unit tests
+- WPF implementation for Start, Kalender, Tours, Orders, Non-Map Orders, Employees, Vehicles, Settings, GPS, Updates
 
-## Phase 2: Core logic
+Open major increments:
+- Karte section functional parity (marker/filter/search/route panel/actions)
+- direct cross-navigation interactions (Kalender -> Tours focus)
+- explicit embedded WebView2 control integration (currently fallback-ready)
+- full solution build/test run after resolving local SDK restore issue (`MSB4276`)
 
-- Implement Application services:
-  - `AppSnapshotService`
-  - `BackupManager`
-  - `SettingsValidator`
-  - `SqlDatabaseNameInference`
-- Define repository interfaces.
+## Immediate next implementation steps
 
-## Phase 3: Infrastructure
-
-- Implement JSON repositories for Orders, Tours, Employees, Vehicles, and Settings.
-- Use deterministic serializer settings for stable files.
-
-## Phase 4: WPF UI
-
-- Build shell navigation with sections:
-  - Start, Kalender, Karte, GPS, Orders, Non-Map Orders, Tours,
-    Employees, Vehicles, Settings, Updates.
-- Bind each section to its own ViewModel and View.
-
-## Phase 5: Quality
-
-- Add unit tests for:
-  - settings validation
-  - SQL database name inference
-  - JSON repository round-trip persistence
-- Run `dotnet build` and `dotnet test`.
+1. Karte migration:
+   - adopt map/order interaction patterns from Python map flow
+   - implement marker list and order filter/search panel
+   - integrate route detail panel with stop actions
+2. Kalender interaction enhancement:
+   - add action to open selected day/tour directly in Tours context
+3. Quality pass:
+   - extend tests for order split persistence and settings backup workflows
+   - execute full build/test after environment fix
