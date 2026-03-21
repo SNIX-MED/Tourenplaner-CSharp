@@ -1,16 +1,67 @@
-﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.UpdatesSectionView"
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.UpdatesSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="450"
-             d:DesignWidth="800">
-    <Border Margin="20" Padding="20" CornerRadius="8" BorderThickness="1" BorderBrush="#DDDDDD" Background="#FAFAFA">
-        <StackPanel>
-            <TextBlock Text="{Binding Title}" FontSize="28" FontWeight="Bold" />
-            <TextBlock Margin="0,8,0,0" Text="{Binding Description}" TextWrapping="Wrap" FontSize="14" />
-            <TextBlock Margin="0,12,0,0" Text="Ready for migration feature implementation." FontStyle="Italic"/>
-        </StackPanel>
-    </Border>
+             d:DesignHeight="620"
+             d:DesignWidth="1000">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+
+        <DockPanel Grid.Row="1" Margin="0,12,0,12">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button Width="120" Margin="8,0,0,0" Content="Refresh" Command="{Binding RefreshCommand}" />
+                <Button Width="150" Margin="8,0,0,0" Content="Open Update Feed" Command="{Binding OpenUpdateFeedCommand}" />
+            </StackPanel>
+            <TextBlock VerticalAlignment="Center"
+                       FontSize="13"
+                       Foreground="#334155"
+                       Text="{Binding StatusText}" />
+        </DockPanel>
+
+        <Border Grid.Row="2" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="8" Padding="12" Background="#F8FAFC">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Application Version" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Margin="8,4,0,4" VerticalAlignment="Center" Text="{Binding ApplicationVersion}" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text=".NET Runtime Version" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Margin="8,4,0,4" VerticalAlignment="Center" Text="{Binding RuntimeVersion}" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Last Backup (ISO)" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Margin="8,4,0,4" VerticalAlignment="Center" Text="{Binding LastBackupIso}" />
+
+                <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="Latest Backup File" />
+                <TextBlock Grid.Row="3" Grid.Column="1" Margin="8,4,0,4" VerticalAlignment="Center" Text="{Binding LatestBackupFile}" />
+
+                <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Text="Available Backup Files" />
+                <TextBlock Grid.Row="4" Grid.Column="1" Margin="8,4,0,4" VerticalAlignment="Center" Text="{Binding AvailableBackupsCount}" />
+
+                <TextBlock Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" Text="Update Feed URL" />
+                <TextBox Grid.Row="5"
+                         Grid.Column="1"
+                         Margin="8,4,0,4"
+                         Text="{Binding UpdateFeedUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            </Grid>
+        </Border>
+    </Grid>
 </UserControl>

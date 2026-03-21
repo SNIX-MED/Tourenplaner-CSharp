@@ -24,20 +24,22 @@ public sealed class MainShellViewModel : ObservableObject
         var employees = new EmployeesSectionViewModel(employeesJsonPath);
         var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath);
         var settings = new SettingsSectionViewModel(settingsJsonPath, dataRootPath);
+        var gps = new GpsSectionViewModel();
+        var updates = new UpdatesSectionViewModel(settingsJsonPath);
 
         NavigationItems =
         [
             new NavigationItemViewModel("Start", start),
             new NavigationItemViewModel("Kalender", new KalenderSectionViewModel()),
             new NavigationItemViewModel("Karte", new KarteSectionViewModel()),
-            new NavigationItemViewModel("GPS", new GpsSectionViewModel()),
+            new NavigationItemViewModel("GPS", gps),
             new NavigationItemViewModel("Orders", orders),
             new NavigationItemViewModel("Non-Map Orders", nonMapOrders),
             new NavigationItemViewModel("Tours", tours),
             new NavigationItemViewModel("Employees", employees),
             new NavigationItemViewModel("Vehicles", vehicles),
             new NavigationItemViewModel("Settings", settings),
-            new NavigationItemViewModel("Updates", new UpdatesSectionViewModel())
+            new NavigationItemViewModel("Updates", updates)
         ];
 
         SelectedNavigationItem = NavigationItems[0];
