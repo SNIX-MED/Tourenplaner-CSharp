@@ -11,7 +11,6 @@ Completed increments:
 
 Open major increments:
 - direct cross-navigation interactions (Kalender -> Tours focus)
-- explicit embedded WebView2 control integration (currently fallback-ready)
 - full solution build/test run after resolving local SDK restore issue (`MSB4276`)
 
 ## Immediate next implementation steps
@@ -19,8 +18,6 @@ Open major increments:
 1. Karte visual enhancement:
    - add embedded map tile host and marker rendering for full visual parity
    - keep current route panel as fallback when map host is unavailable
-2. Kalender interaction enhancement:
-   - add action to open selected day/tour directly in Tours context
-3. Quality pass:
+2. Quality pass:
    - extend tests for order split persistence and settings backup workflows
    - execute full build/test after environment fix

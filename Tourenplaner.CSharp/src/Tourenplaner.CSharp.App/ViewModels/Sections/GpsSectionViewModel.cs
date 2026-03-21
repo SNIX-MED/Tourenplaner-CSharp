@@ -59,6 +59,15 @@ public sealed class GpsSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _lastReloadAt, value);
     }
 
+    public void SetWebView2RuntimeStatus(bool available, string? details = null)
+    {
+        WebView2Available = available;
+        if (!string.IsNullOrWhiteSpace(details))
+        {
+            StatusText = details;
+        }
+    }
+
     private void DetectWebView2()
     {
         // Runtime detection without hard package dependency, used for fallback information.

@@ -82,4 +82,33 @@ public class BackupManagerTests
         Directory.CreateDirectory(root);
         return root;
     }
+
+    [Fact]
+    public void CleanupOldBackups_DeletesFilesOlderThanRetention()
+    {
+        var root = CreateTempRoot();
+        var backupDir = Path.Combine(root, "backups");
+        Directory.CreateDirectory(backupDir);
+
+        try
+        {
+            var oldFile = Path.Combine(backupDir, "old.bak");
+            var newFile = Path.Combine(backupDir, "new.bak");
+            File.WriteAllText(oldFile, "old");
+            File.WriteAllText(newFile, "new");
+
+            File.SetLastWriteTimeUtc(oldFile, DateTime.UtcNow.AddDays(-10));
+            File.SetLastWriteTimeUtc(newFile, DateTime.UtcNow.AddDays(-1));
+
+            var manager = new BackupManager();
+            manager.CleanupOldBackups(backupDir, retentionDays: 5);
+
+            Assert.False(File.Exists(oldFile));
+            Assert.True(File.Exists(newFile));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
 }

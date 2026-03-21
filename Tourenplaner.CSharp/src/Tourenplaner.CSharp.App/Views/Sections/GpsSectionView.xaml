@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              mc:Ignorable="d"
              d:DesignHeight="640"
              d:DesignWidth="1020">
@@ -33,6 +34,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
@@ -49,20 +51,41 @@
                 <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Loaded URL" />
                 <TextBlock Grid.Row="1" Grid.Column="1" Margin="8,4,0,4" VerticalAlignment="Center" Text="{Binding LoadedUrl}" />
 
-                <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,12,0,0">
-                    <TextBlock Text="Embedded View Status" FontWeight="SemiBold" />
-                    <TextBlock Margin="0,4,0,0"
-                               TextWrapping="Wrap"
-                               Text="This migration keeps a runtime fallback: if WebView2 is not available locally, use 'Open in Browser' for the GPS feed." />
-                    <TextBlock Margin="0,8,0,0">
-                        <Run Text="WebView2 Runtime Available: " />
-                        <Run Text="{Binding WebView2Available}" />
-                    </TextBlock>
-                    <TextBlock Margin="0,2,0,0">
-                        <Run Text="Last Reload: " />
-                        <Run Text="{Binding LastReloadAt}" />
-                    </TextBlock>
-                </StackPanel>
+                <TextBlock Grid.Row="2"
+                           Grid.ColumnSpan="2"
+                           x:Name="FallbackNotice"
+                           Margin="0,8,0,0"
+                           Foreground="#7C2D12"
+                           Visibility="Collapsed"
+                           TextWrapping="Wrap"
+                           Text="WebView2 runtime not available. Open the GPS URL in the external browser." />
+
+                <Grid Grid.Row="3" Grid.ColumnSpan="2" Margin="0,12,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <wv2:WebView2 x:Name="GpsWebView"
+                                  Grid.Row="0"
+                                  MinHeight="220" />
+
+                    <StackPanel Grid.Row="1" Margin="0,8,0,0">
+                        <TextBlock Text="Embedded View Status" FontWeight="SemiBold" />
+                        <TextBlock Margin="0,4,0,0"
+                                   TextWrapping="Wrap"
+                                   Text="Embedded WebView2 is used when available; fallback actions remain available for restricted environments." />
+                        <TextBlock Margin="0,8,0,0">
+                            <Run Text="WebView2 Runtime Available: " />
+                            <Run Text="{Binding WebView2Available}" />
+                        </TextBlock>
+                        <TextBlock Margin="0,2,0,0">
+                            <Run Text="Last Reload: " />
+                            <Run Text="{Binding LastReloadAt}" />
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
+
             </Grid>
         </Border>
 

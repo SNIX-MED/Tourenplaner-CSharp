@@ -24,12 +24,11 @@ Implemented in C#:
 - Vehicles + trailers CRUD with capacities/status/notes
 - Settings load/save/validate + backup/create/restore/cleanup operations
 - Karte route planning fallback with marker list, search/filter, route panel and save-to-tour actions
-- GPS URL flow with reload/open/copy and runtime fallback messaging
+- GPS URL flow with reload/open/copy and embedded WebView2 host plus runtime fallback messaging
 - Updates page with version/runtime/backup status
 
 Still open / partial:
 - Kalender -> direct navigation into Tours is not wired yet (data parity exists, UI jump action pending)
-- WebView2 embedding is represented via fallback-ready logic; explicit embedded control integration pending
 - full solution build/test execution is blocked in this environment by local SDK resolver issue (`MSB4276` for App/Infrastructure/Test restore)
 
 ## Risks and mitigation
@@ -43,5 +42,4 @@ Still open / partial:
 
 1. Wire Kalender day/tour interaction to auto-focus Tours section.
 2. Add explicit map tile host + marker rendering layer for full visual parity.
-3. Add explicit WebView2 host control when runtime/package conditions are met.
-4. Resolve local SDK/workload resolver issue and run full solution build/tests in CI and local environment.
+3. Resolve local SDK/workload resolver issue and run full solution build/tests in CI and local environment.
