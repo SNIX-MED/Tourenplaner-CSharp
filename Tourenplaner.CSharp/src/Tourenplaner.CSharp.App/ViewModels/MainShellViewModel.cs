@@ -15,7 +15,7 @@ public sealed class MainShellViewModel : ObservableObject
         string vehiclesJsonPath)
     {
         var start = new StartSectionViewModel(snapshotService);
-        var tours = new ToursSectionViewModel(toursJsonPath);
+        var tours = new ToursSectionViewModel(toursJsonPath, employeesJsonPath, vehiclesJsonPath);
         var employees = new EmployeesSectionViewModel(employeesJsonPath);
         var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath);
 
