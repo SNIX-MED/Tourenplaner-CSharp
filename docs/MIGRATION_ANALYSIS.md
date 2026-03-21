@@ -26,7 +26,7 @@ Implemented in C#:
 - Employees CRUD with active/inactive state
 - Vehicles + trailers CRUD with capacities/status/notes
 - Settings load/save/validate + backup/create/restore/cleanup operations
-- Karte with embedded WebView2 map tile host, marker synchronization, search/filter, route panel and save-to-tour actions
+- Karte with embedded WebView2 map tile host, marker synchronization, color-coded status markers, route polyline and save-to-tour actions
 - GPS URL flow with reload/open/copy and embedded WebView2 host plus runtime fallback messaging
 - Updates page with version/runtime/backup status
 
@@ -35,7 +35,7 @@ Still open / partial:
 
 ## Risks and mitigation
 
-1. Map parity risk: tile host is now embedded; advanced map interactions (drag route edits, richer overlays) still remain for full parity.
+1. Map parity risk: tile host and core interactions are embedded; advanced drag-based route editing and richer overlays still remain for full parity.
 2. Data shape drift: reduced by parity repositories + normalizers and write-back normalization.
 3. Settings regressions: reduced by validator tests and live validation in settings UI.
 4. Scheduling/conflict behavior drift: reduced by dedicated `TourScheduleService` and `TourConflictService` tests.

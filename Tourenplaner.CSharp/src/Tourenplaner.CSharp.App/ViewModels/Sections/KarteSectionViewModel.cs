@@ -139,6 +139,31 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RebuildOrderGrid();
     }
 
+    public void AddOrderToRouteById(string orderId)
+    {
+        var match = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+        if (match is null)
+        {
+            return;
+        }
+
+        SelectedOrder = match;
+        AddSelectedOrderToRoute();
+    }
+
+    public IReadOnlyList<RouteStopItem> GetRouteSnapshot()
+    {
+        return RouteStops.Select(x => new RouteStopItem
+        {
+            Position = x.Position,
+            OrderId = x.OrderId,
+            Customer = x.Customer,
+            Address = x.Address,
+            Latitude = x.Latitude,
+            Longitude = x.Longitude
+        }).ToList();
+    }
+
     private void RebuildOrderGrid()
     {
         var routeOrderIds = RouteStops.Select(s => s.OrderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -172,6 +197,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 Address = order.Address,
                 ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
                 AssignedTourId = order.AssignedTourId ?? string.Empty,
+                IsAssigned = !string.IsNullOrWhiteSpace(order.AssignedTourId),
                 Latitude = order.Location!.Latitude,
                 Longitude = order.Location!.Longitude
             });
@@ -414,6 +440,7 @@ public sealed class MapOrderItem
     public string Address { get; set; } = string.Empty;
     public string ScheduledDate { get; set; } = string.Empty;
     public string AssignedTourId { get; set; } = string.Empty;
+    public bool IsAssigned { get; set; }
     public double Latitude { get; set; }
     public double Longitude { get; set; }
 }

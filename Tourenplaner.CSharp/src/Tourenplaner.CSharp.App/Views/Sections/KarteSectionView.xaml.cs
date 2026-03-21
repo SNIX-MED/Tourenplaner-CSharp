@@ -13,6 +13,7 @@ public partial class KarteSectionView : UserControl
     private bool _mapReady;
     private INotifyPropertyChanged? _vmNotifier;
     private INotifyCollectionChanged? _ordersCollection;
+    private INotifyCollectionChanged? _routeCollection;
     private bool _suppressSelectionSync;
 
     public KarteSectionView()
@@ -39,6 +40,10 @@ public partial class KarteSectionView : UserControl
         {
             _ordersCollection.CollectionChanged -= OnOrdersCollectionChanged;
         }
+        if (_routeCollection is not null)
+        {
+            _routeCollection.CollectionChanged -= OnRouteCollectionChanged;
+        }
 
         if (DataContext is KarteSectionViewModel vm)
         {
@@ -46,9 +51,12 @@ public partial class KarteSectionView : UserControl
             _vmNotifier.PropertyChanged += OnViewModelPropertyChanged;
             _ordersCollection = vm.MapOrders;
             _ordersCollection.CollectionChanged += OnOrdersCollectionChanged;
+            _routeCollection = vm.RouteStops;
+            _routeCollection.CollectionChanged += OnRouteCollectionChanged;
         }
 
         _ = PushMarkersToMapAsync();
+        _ = PushRouteToMapAsync();
     }
 
     private async void OnOrdersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -56,11 +64,21 @@ public partial class KarteSectionView : UserControl
         await PushMarkersToMapAsync();
     }
 
+    private async void OnRouteCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        await PushMarkersToMapAsync();
+        await PushRouteToMapAsync();
+    }
+
     private async void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(KarteSectionViewModel.SelectedOrder) && !_suppressSelectionSync)
         {
             await HighlightSelectedMarkerAsync();
+        }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedRouteStop))
+        {
+            await HighlightSelectedRouteStopAsync();
         }
     }
 
@@ -104,13 +122,35 @@ public partial class KarteSectionView : UserControl
             id = x.OrderId,
             customer = x.Customer,
             address = x.Address,
+            isAssigned = x.IsAssigned,
             lat = x.Latitude,
             lon = x.Longitude
         }).ToList();
 
         var json = JsonSerializer.Serialize(markers);
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"window.gawelaSetMarkers({json});");
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"window.gawelaSetRoute({JsonSerializer.Serialize(vm.GetRouteSnapshot().Select(r => new { id = r.OrderId, lat = r.Latitude, lon = r.Longitude }))});");
         await HighlightSelectedMarkerAsync();
+    }
+
+    private async Task PushRouteToMapAsync()
+    {
+        if (!_mapReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        var route = vm.GetRouteSnapshot()
+            .Select(r => new
+            {
+                id = r.OrderId,
+                lat = r.Latitude,
+                lon = r.Longitude
+            }).ToList();
+
+        var json = JsonSerializer.Serialize(route);
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"window.gawelaSetRoute({json});");
+        await HighlightSelectedRouteStopAsync();
     }
 
     private async Task HighlightSelectedMarkerAsync()
@@ -125,6 +165,17 @@ public partial class KarteSectionView : UserControl
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"window.gawelaHighlightMarker({jsonId});");
     }
 
+    private async Task HighlightSelectedRouteStopAsync()
+    {
+        if (!_mapReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        var id = vm.SelectedRouteStop?.OrderId ?? string.Empty;
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"window.gawelaHighlightRouteStop({JsonSerializer.Serialize(id)});");
+    }
+
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm)
@@ -132,13 +183,20 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        var orderId = e.TryGetWebMessageAsString();
-        if (string.IsNullOrWhiteSpace(orderId))
+        var raw = e.TryGetWebMessageAsString();
+        if (string.IsNullOrWhiteSpace(raw))
         {
             return;
         }
 
-        var match = vm.MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+        if (raw.StartsWith("add:", StringComparison.OrdinalIgnoreCase))
+        {
+            var addId = raw["add:".Length..];
+            vm.AddOrderToRouteById(addId);
+            return;
+        }
+
+        var match = vm.MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, raw, StringComparison.OrdinalIgnoreCase));
         if (match is null)
         {
             return;
@@ -181,10 +239,17 @@ public partial class KarteSectionView : UserControl
 
                    let markerMap = new Map();
                    let markerLayer = L.layerGroup().addTo(map);
+                   let routeLayer = L.layerGroup().addTo(map);
+                   let routePolyline = null;
 
                    function clearMarkers() {
                      markerLayer.clearLayers();
                      markerMap.clear();
+                   }
+
+                   function clearRoute() {
+                     routeLayer.clearLayers();
+                     routePolyline = null;
                    }
 
                    window.gawelaSetMarkers = function(markers) {
@@ -194,8 +259,17 @@ public partial class KarteSectionView : UserControl
                      }
                      const bounds = [];
                      markers.forEach(m => {
-                       const marker = L.marker([m.lat, m.lon]);
-                       marker.bindPopup(`<b>${m.customer || m.id}</b><br/>${m.address || ''}`);
+                       const color = m.isAssigned ? '#64748b' : '#0ea5e9';
+                       const icon = L.divIcon({
+                         className: 'gawela-marker',
+                         html: `<div style="width:14px;height:14px;border-radius:7px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px #334155;"></div>`,
+                         iconSize: [14, 14],
+                         iconAnchor: [7, 7]
+                       });
+                       const marker = L.marker([m.lat, m.lon], { icon });
+                       marker.bindPopup(
+                         `<b>${m.customer || m.id}</b><br/>${m.address || ''}<br/><button onclick="window.gawelaAddToRoute('${m.id}')">Add to route</button>`
+                       );
                        marker.on('click', () => {
                          if (window.chrome && window.chrome.webview) {
                            window.chrome.webview.postMessage(m.id);
@@ -217,6 +291,30 @@ public partial class KarteSectionView : UserControl
                      const marker = markerMap.get(orderId);
                      marker.openPopup();
                      map.panTo(marker.getLatLng());
+                   };
+
+                   window.gawelaSetRoute = function(routeStops) {
+                     clearRoute();
+                     if (!routeStops || routeStops.length === 0) {
+                       return;
+                     }
+                     const points = routeStops.map(x => [x.lat, x.lon]);
+                     routePolyline = L.polyline(points, { color: '#f97316', weight: 4, opacity: 0.8 }).addTo(routeLayer);
+                   };
+
+                   window.gawelaHighlightRouteStop = function(orderId) {
+                     if (!orderId || !markerMap.has(orderId)) {
+                       return;
+                     }
+                     const marker = markerMap.get(orderId);
+                     map.panTo(marker.getLatLng());
+                     marker.openPopup();
+                   };
+
+                   window.gawelaAddToRoute = function(orderId) {
+                     if (window.chrome && window.chrome.webview) {
+                       window.chrome.webview.postMessage(`add:${orderId}`);
+                     }
                    };
                  </script>
                </body>

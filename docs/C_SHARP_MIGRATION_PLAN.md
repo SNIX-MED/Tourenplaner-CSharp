@@ -19,7 +19,7 @@ Phase 5 closure status:
 ## Immediate next implementation steps
 
 1. Karte visual enhancement:
-   - extend advanced map interactions (drag route edits, richer overlays, deeper marker actions)
+   - extend remaining advanced map interactions (drag route edits, richer overlays)
    - keep fallback behavior when embedded map host is unavailable
 2. Quality pass:
    - extend tests for order split persistence and settings backup workflows
