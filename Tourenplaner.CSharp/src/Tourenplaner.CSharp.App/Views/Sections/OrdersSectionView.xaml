@@ -6,46 +6,96 @@
              mc:Ignorable="d"
              d:DesignHeight="650"
              d:DesignWidth="1000">
-    <Grid Margin="16">
+    <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+        <StackPanel>
+            <TextBlock FontSize="28" FontWeight="SemiBold" Text="{Binding Title}" />
+            <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Map order management, inline editing and assignment status." />
+        </StackPanel>
 
-        <DockPanel Grid.Row="1" Margin="0,12,0,12">
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                <TextBox Width="200"
-                         VerticalAlignment="Center"
-                         ToolTip="Search by id, customer, address or tour"
-                         Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                <Button Width="120" Margin="8,0,0,0" Content="Reload" Command="{Binding RefreshCommand}" />
-                <Button Width="120" Margin="8,0,0,0" Content="Save" Command="{Binding SaveCommand}" />
-                <Button Width="120" Margin="8,0,0,0" Content="Add +" Command="{Binding AddCommand}" />
-                <Button Width="120" Margin="8,0,0,0" Content="Delete -" Command="{Binding RemoveCommand}" />
-            </StackPanel>
-            <TextBlock VerticalAlignment="Center"
-                       FontSize="13"
-                       Foreground="#334155"
-                       Text="{Binding StatusText}" />
-        </DockPanel>
+        <Border Grid.Row="1" Margin="0,12,0,10" Style="{StaticResource GlassPanelBorderStyle}" Padding="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="260" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-        <DataGrid Grid.Row="2"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False"
-                  ItemsSource="{Binding MapOrders}"
-                  SelectedItem="{Binding SelectedOrder, Mode=TwoWay}">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="ID" Width="2*" Binding="{Binding Id, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                <DataGridTextColumn Header="Customer" Width="2*" Binding="{Binding CustomerName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                <DataGridTextColumn Header="Address" Width="3*" Binding="{Binding Address, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                <DataGridTextColumn Header="Date" Width="110" Binding="{Binding ScheduledDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                <DataGridTextColumn Header="Assigned Tour" Width="120" Binding="{Binding AssignedTourId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                <DataGridTextColumn Header="Lat" Width="100" Binding="{Binding Latitude, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                <DataGridTextColumn Header="Lon" Width="100" Binding="{Binding Longitude, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            </DataGrid.Columns>
-        </DataGrid>
+                <Border Grid.Column="0"
+                        CornerRadius="11"
+                        BorderBrush="{DynamicResource Brush.InputBorder}"
+                        BorderThickness="1"
+                        Background="{DynamicResource Brush.InputBackground}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="34" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   FontFamily="Segoe Fluent Icons"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                   Text="&#xE721;" />
+                        <TextBox Grid.Column="1"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 ToolTip="Search by id, customer, address or tour"
+                                 Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                </Border>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Width="110" Margin="8,0,0,0" Content="Zurueck" Command="{Binding UndoDeleteCommand}" />
+                    <Button Width="170" Margin="8,0,0,0" Content="Manuell hinzufuegen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AddManualOrderCommand}" />
+                    <Button Width="110" Margin="8,0,0,0" Content="Loeschen" Command="{Binding RemoveCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Style="{StaticResource GlassPanelBorderStyle}" Padding="10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock FontSize="13" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding StatusText}" />
+
+                <DataGrid Grid.Row="1"
+                          Margin="0,8,0,0"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          IsReadOnly="True"
+                          ItemsSource="{Binding MapOrders}"
+                          SelectedItem="{Binding SelectedOrder, Mode=TwoWay}">
+                    <DataGrid.InputBindings>
+                        <MouseBinding MouseAction="LeftDoubleClick" Command="{Binding EditSelectedOrderCommand}" />
+                    </DataGrid.InputBindings>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Auftragsnummer" Width="130" Binding="{Binding Id}" />
+                        <DataGridTextColumn Header="Auftragsdatum" Width="110" Binding="{Binding ScheduledDate}" />
+                        <DataGridTextColumn Header="Auftragsadresse Name" Width="180" Binding="{Binding OrderAddressName}" />
+                        <DataGridTextColumn Header="Auftragsstrasse" Width="180" Binding="{Binding OrderAddressStreet}" />
+                        <DataGridTextColumn Header="Auftrags-PLZ" Width="90" Binding="{Binding OrderAddressPostalCode}" />
+                        <DataGridTextColumn Header="Auftragsort" Width="130" Binding="{Binding OrderAddressCity}" />
+                        <DataGridTextColumn Header="Liefername" Width="180" Binding="{Binding DeliveryName}" />
+                        <DataGridTextColumn Header="Lieferperson" Width="160" Binding="{Binding DeliveryContactPerson}" />
+                        <DataGridTextColumn Header="Lieferstrasse" Width="190" Binding="{Binding DeliveryStreet}" />
+                        <DataGridTextColumn Header="Liefer-PLZ" Width="90" Binding="{Binding DeliveryPostalCode}" />
+                        <DataGridTextColumn Header="Lieferort" Width="130" Binding="{Binding DeliveryCity}" />
+                        <DataGridTextColumn Header="E-Mail" Width="220" Binding="{Binding Email}" />
+                        <DataGridTextColumn Header="Telefon" Width="130" Binding="{Binding Phone}" />
+                        <DataGridTextColumn Header="Produkte" Width="220" Binding="{Binding ProductsSummary}" />
+                        <DataGridTextColumn Header="Lieferart" Width="170" Binding="{Binding DeliveryType}" />
+                        <DataGridTextColumn Header="Status" Width="130" Binding="{Binding OrderStatus}" />
+                        <DataGridTextColumn Header="Notizen" Width="220" Binding="{Binding Notes}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

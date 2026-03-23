@@ -74,6 +74,9 @@ public sealed class MapRouteService
         string? routeName,
         string? routeDate,
         string? routeStartTime,
+        string? companyName = null,
+        string? companyAddress = null,
+        GeoPoint? companyLocation = null,
         int defaultServiceMinutes = 10)
     {
         var ordered = Normalize(routeStops);
@@ -88,8 +91,52 @@ public sealed class MapRouteService
             : today.ToString("dd.MM.yyyy");
 
         var normalizedStartTime = string.IsNullOrWhiteSpace(routeStartTime) ? "08:00" : routeStartTime.Trim();
-        var normalizedName = string.IsNullOrWhiteSpace(routeName) ? $"Karte Tour {nextTourId}" : routeName.Trim();
+        var normalizedName = string.IsNullOrWhiteSpace(routeName) ? $"Karte Tour {normalizedDate}" : routeName.Trim();
         var safeServiceMinutes = defaultServiceMinutes < 0 ? 0 : defaultServiceMinutes;
+
+        var normalizedCompanyName = string.IsNullOrWhiteSpace(companyName) ? "Firma" : companyName.Trim();
+        var normalizedCompanyAddress = string.IsNullOrWhiteSpace(companyAddress) ? "Firmenadresse nicht gesetzt" : companyAddress.Trim();
+        var tourStops = new List<TourStopRecord>
+        {
+            new()
+            {
+                Id = TourStopIdentity.CompanyStartStopId,
+                Auftragsnummer = TourStopIdentity.CompanyStartOrderNumber,
+                Name = $"{normalizedCompanyName} (Start)",
+                Address = normalizedCompanyAddress,
+                Order = 1,
+                Lat = companyLocation?.Latitude,
+                Lon = companyLocation?.Longitude,
+                Lng = companyLocation?.Longitude,
+                ServiceMinutes = 0
+            }
+        };
+
+        tourStops.AddRange(ordered.Select(x => new TourStopRecord
+        {
+            Id = $"auftrag:{x.OrderId}",
+            Auftragsnummer = x.OrderId,
+            Name = x.Customer,
+            Address = x.Address,
+            Order = x.Position + 1,
+            Lat = x.Latitude,
+            Lon = x.Longitude,
+            Lng = x.Longitude,
+            ServiceMinutes = x.ServiceMinutes < 0 ? safeServiceMinutes : x.ServiceMinutes
+        }));
+
+        tourStops.Add(new TourStopRecord
+        {
+            Id = TourStopIdentity.CompanyEndStopId,
+            Auftragsnummer = TourStopIdentity.CompanyEndOrderNumber,
+            Name = $"{normalizedCompanyName} (Ende)",
+            Address = normalizedCompanyAddress,
+            Order = tourStops.Count + 1,
+            Lat = companyLocation?.Latitude,
+            Lon = companyLocation?.Longitude,
+            Lng = companyLocation?.Longitude,
+            ServiceMinutes = 0
+        });
 
         return new TourRecord
         {
@@ -98,18 +145,7 @@ public sealed class MapRouteService
             Date = normalizedDate,
             StartTime = normalizedStartTime,
             RouteMode = "car",
-            Stops = ordered.Select(x => new TourStopRecord
-            {
-                Id = $"auftrag:{x.OrderId}",
-                Auftragsnummer = x.OrderId,
-                Name = x.Customer,
-                Address = x.Address,
-                Order = x.Position,
-                Lat = x.Latitude,
-                Lon = x.Longitude,
-                Lng = x.Longitude,
-                ServiceMinutes = safeServiceMinutes
-            }).ToList()
+            Stops = tourStops
         };
     }
 

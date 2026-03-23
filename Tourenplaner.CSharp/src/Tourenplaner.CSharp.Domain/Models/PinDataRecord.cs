@@ -1,7 +1,8 @@
-﻿namespace Tourenplaner.CSharp.Domain.Models;
+namespace Tourenplaner.CSharp.Domain.Models;
 
-public sealed class SqlOrderRecord
+public sealed class PinDataRecord
 {
+    public string Typ { get; set; } = string.Empty;
     public string ImportID { get; set; } = string.Empty;
     public string Auftragsnummer { get; set; } = string.Empty;
     public string Bestelldatum { get; set; } = string.Empty;
@@ -27,6 +28,7 @@ public sealed class SqlOrderRecord
     public string Produkte { get; set; } = string.Empty;
     public string ProduktgewichtTotal { get; set; } = string.Empty;
     public string Notizen { get; set; } = string.Empty;
+    public string Liefercode { get; set; } = string.Empty;
     public string Lieferart { get; set; } = string.Empty;
     public string NichtKarteKategorie { get; set; } = string.Empty;
     public string Status { get; set; } = "nicht festgelegt";

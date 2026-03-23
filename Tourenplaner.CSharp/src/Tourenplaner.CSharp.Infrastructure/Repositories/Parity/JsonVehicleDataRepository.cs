@@ -18,7 +18,6 @@ public sealed class JsonVehicleDataRepository
     {
         var payload = await _store.LoadAsync(_path, () => new VehicleDataRecord(), createIfMissing: true, backupInvalid: true, cancellationToken: cancellationToken);
         var normalized = VehicleNormalizer.NormalizePayload(payload);
-        await _store.AtomicWriteAsync(_path, normalized, cancellationToken);
         return normalized;
     }
 

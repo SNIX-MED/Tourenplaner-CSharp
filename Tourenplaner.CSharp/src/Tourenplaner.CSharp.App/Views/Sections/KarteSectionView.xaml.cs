@@ -1,8 +1,11 @@
-using System.Collections.Specialized;
+﻿using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 
@@ -10,27 +13,75 @@ namespace Tourenplaner.CSharp.App.Views.Sections;
 
 public partial class KarteSectionView : UserControl
 {
+    private bool _viewInitialized;
     private bool _mapReady;
+    private bool _mapScriptReady;
     private INotifyPropertyChanged? _vmNotifier;
     private INotifyCollectionChanged? _ordersCollection;
     private INotifyCollectionChanged? _routeCollection;
     private bool _suppressSelectionSync;
+    private Point? _routeGridDragStart;
+    private RouteStopItem? _routeGridDragItem;
 
     public KarteSectionView()
     {
-        InitializeComponent();
+        try
+        {
+            InitializeComponent();
+            _viewInitialized = true;
+        }
+        catch (Exception ex)
+        {
+            _viewInitialized = false;
+            Content = new Border
+            {
+                Margin = new Thickness(16),
+                Padding = new Thickness(12),
+                BorderBrush = System.Windows.Media.Brushes.IndianRed,
+                BorderThickness = new Thickness(1),
+                Child = new TextBlock
+                {
+                    TextWrapping = TextWrapping.Wrap,
+                    Text = $"Karte konnte nicht initialisiert werden: {ex.Message}"
+                }
+            };
+        }
+
+        if (!_viewInitialized)
+        {
+            return;
+        }
+
         Loaded += OnLoaded;
         DataContextChanged += OnDataContextChanged;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        await EnsureMapInitializedAsync();
-        await PushMarkersToMapAsync();
+        if (!_viewInitialized)
+        {
+            return;
+        }
+
+        try
+        {
+            await EnsureMapInitializedAsync();
+            await PushMarkersToMapAsync();
+        }
+        catch
+        {
+            MapWebView.Visibility = Visibility.Collapsed;
+            MapFallbackNotice.Visibility = Visibility.Visible;
+        }
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        if (!_viewInitialized)
+        {
+            return;
+        }
+
         if (_vmNotifier is not null)
         {
             _vmNotifier.PropertyChanged -= OnViewModelPropertyChanged;
@@ -61,33 +112,81 @@ public partial class KarteSectionView : UserControl
 
     private async void OnOrdersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        await PushMarkersToMapAsync();
+        if (!_viewInitialized)
+        {
+            return;
+        }
+
+        try
+        {
+            await PushMarkersToMapAsync();
+        }
+        catch
+        {
+            MapWebView.Visibility = Visibility.Collapsed;
+            MapFallbackNotice.Visibility = Visibility.Visible;
+        }
     }
 
     private async void OnRouteCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        await PushMarkersToMapAsync();
-        await PushRouteToMapAsync();
+        if (!_viewInitialized)
+        {
+            return;
+        }
+
+        try
+        {
+            await PushMarkersToMapAsync();
+            await PushRouteToMapAsync();
+        }
+        catch
+        {
+            MapWebView.Visibility = Visibility.Collapsed;
+            MapFallbackNotice.Visibility = Visibility.Visible;
+        }
     }
 
     private async void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(KarteSectionViewModel.SelectedOrder) && !_suppressSelectionSync)
+        if (!_viewInitialized)
         {
-            await HighlightSelectedMarkerAsync();
+            return;
         }
-        else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedRouteStop))
+
+        try
         {
-            await HighlightSelectedRouteStopAsync();
+            if (e.PropertyName == nameof(KarteSectionViewModel.SelectedOrder) && !_suppressSelectionSync)
+            {
+                await HighlightSelectedMarkerAsync();
+            }
+            else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedRouteStop))
+            {
+                await HighlightSelectedRouteStopAsync();
+            }
+            else if (e.PropertyName == nameof(KarteSectionViewModel.RouteStops))
+            {
+                await PushRouteToMapAsync();
+            }
+            else if (e.PropertyName == nameof(KarteSectionViewModel.RouteGeometryPoints))
+            {
+                await PushRouteToMapAsync();
+            }
         }
-        else if (e.PropertyName == nameof(KarteSectionViewModel.RouteStops))
+        catch
         {
-            await PushRouteToMapAsync();
+            MapWebView.Visibility = Visibility.Collapsed;
+            MapFallbackNotice.Visibility = Visibility.Visible;
         }
     }
 
     private async Task EnsureMapInitializedAsync()
     {
+        if (!_viewInitialized)
+        {
+            return;
+        }
+
         if (_mapReady)
         {
             return;
@@ -97,6 +196,7 @@ public partial class KarteSectionView : UserControl
         {
             await MapWebView.EnsureCoreWebView2Async();
             MapWebView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+            MapWebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
             MapWebView.NavigateToString(BuildMapHtml());
             _mapReady = true;
             MapWebView.Visibility = Visibility.Visible;
@@ -114,9 +214,34 @@ public partial class KarteSectionView : UserControl
         }
     }
 
+    private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        if (!e.IsSuccess || MapWebView.CoreWebView2 is null)
+        {
+            _mapScriptReady = false;
+            return;
+        }
+
+        try
+        {
+            var ready = await MapWebView.CoreWebView2.ExecuteScriptAsync(
+                "(typeof window.gawelaSetMarkers === 'function' && typeof window.gawelaSetRoute === 'function' && typeof window.gawelaSetCompanyMarker === 'function').toString();");
+            _mapScriptReady = ready.Contains("true", StringComparison.OrdinalIgnoreCase);
+            if (_mapScriptReady)
+            {
+                await PushMarkersToMapAsync();
+                await PushRouteToMapAsync();
+            }
+        }
+        catch
+        {
+            _mapScriptReady = false;
+        }
+    }
+
     private async Task PushMarkersToMapAsync()
     {
-        if (!_mapReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
+        if (!_mapReady || !_mapScriptReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
         {
             return;
         }
@@ -132,14 +257,23 @@ public partial class KarteSectionView : UserControl
         }).ToList();
 
         var json = JsonSerializer.Serialize(markers);
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"window.gawelaSetMarkers({json});");
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"window.gawelaSetRoute({JsonSerializer.Serialize(vm.GetRouteSnapshot().Select(r => new { id = r.OrderId, lat = r.Latitude, lon = r.Longitude }))});");
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetMarkers === 'function') window.gawelaSetMarkers({json});");
+        var company = vm.CompanyMarker is null
+            ? null
+            : new
+            {
+                name = vm.CompanyMarker.Name,
+                address = vm.CompanyMarker.Address,
+                lat = vm.CompanyMarker.Latitude,
+                lon = vm.CompanyMarker.Longitude
+            };
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetCompanyMarker === 'function') window.gawelaSetCompanyMarker({JsonSerializer.Serialize(company)});");
         await HighlightSelectedMarkerAsync();
     }
 
     private async Task PushRouteToMapAsync()
     {
-        if (!_mapReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
+        if (!_mapReady || !_mapScriptReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
         {
             return;
         }
@@ -152,33 +286,37 @@ public partial class KarteSectionView : UserControl
                 lat = r.Latitude,
                 lon = r.Longitude
             }).ToList();
+        var geometry = vm.GetRouteGeometrySnapshot()
+            .Select(x => new { lat = x.Latitude, lon = x.Longitude })
+            .ToList();
 
-        var json = JsonSerializer.Serialize(route);
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"window.gawelaSetRoute({json});");
+        var routeJson = JsonSerializer.Serialize(route);
+        var geometryJson = JsonSerializer.Serialize(geometry);
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson});");
         await HighlightSelectedRouteStopAsync();
     }
 
     private async Task HighlightSelectedMarkerAsync()
     {
-        if (!_mapReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
+        if (!_mapReady || !_mapScriptReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
         {
             return;
         }
 
         var id = vm.SelectedOrder?.OrderId ?? string.Empty;
         var jsonId = JsonSerializer.Serialize(id);
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"window.gawelaHighlightMarker({jsonId});");
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaHighlightMarker === 'function') window.gawelaHighlightMarker({jsonId});");
     }
 
     private async Task HighlightSelectedRouteStopAsync()
     {
-        if (!_mapReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
+        if (!_mapReady || !_mapScriptReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
         {
             return;
         }
 
         var id = vm.SelectedRouteStop?.OrderId ?? string.Empty;
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"window.gawelaHighlightRouteStop({JsonSerializer.Serialize(id)});");
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaHighlightRouteStop === 'function') window.gawelaHighlightRouteStop({JsonSerializer.Serialize(id)});");
     }
 
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -247,6 +385,137 @@ public partial class KarteSectionView : UserControl
         }
     }
 
+    private void RouteStopsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        if (RouteStopsGrid.SelectedItem is not RouteStopItem)
+        {
+            return;
+        }
+
+        vm.EditSelectedRouteStopStayMinutes();
+    }
+
+    private void RouteStopsGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _routeGridDragStart = null;
+        _routeGridDragItem = null;
+
+        if (FindVisualParent<DataGridColumnHeader>(e.OriginalSource as DependencyObject) is not null)
+        {
+            return;
+        }
+
+        var row = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        if (row?.Item is not RouteStopItem item || item.IsCompanyAnchor)
+        {
+            return;
+        }
+
+        _routeGridDragStart = e.GetPosition(RouteStopsGrid);
+        _routeGridDragItem = item;
+    }
+
+    private void RouteStopsGrid_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_routeGridDragStart is null || _routeGridDragItem is null || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(RouteStopsGrid);
+        var delta = current - _routeGridDragStart.Value;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        var dragItem = _routeGridDragItem;
+        _routeGridDragStart = null;
+        _routeGridDragItem = null;
+        DragDrop.DoDragDrop(RouteStopsGrid, new DataObject(typeof(string), dragItem.OrderId), DragDropEffects.Move);
+    }
+
+    private void RouteStopsGrid_DragOver(object sender, DragEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            !e.Data.GetDataPresent(typeof(string)))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        var sourceOrderId = e.Data.GetData(typeof(string)) as string;
+        var targetRow = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        var targetStop = targetRow?.Item as RouteStopItem;
+        if (string.IsNullOrWhiteSpace(sourceOrderId) ||
+            targetStop is null ||
+            targetStop.IsCompanyAnchor)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        var sourceStop = vm.RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, sourceOrderId, StringComparison.OrdinalIgnoreCase));
+        if (sourceStop is null ||
+            sourceStop.IsCompanyAnchor ||
+            string.Equals(sourceStop.OrderId, targetStop.OrderId, StringComparison.OrdinalIgnoreCase))
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private void RouteStopsGrid_Drop(object sender, DragEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            !e.Data.GetDataPresent(typeof(string)))
+        {
+            return;
+        }
+
+        var sourceOrderId = e.Data.GetData(typeof(string)) as string;
+        var targetRow = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        var targetStop = targetRow?.Item as RouteStopItem;
+        if (string.IsNullOrWhiteSpace(sourceOrderId) || targetStop is null)
+        {
+            return;
+        }
+
+        var moved = vm.MoveRouteStopByOrderIds(sourceOrderId, targetStop.OrderId);
+        if (moved && vm.SelectedRouteStop is not null)
+        {
+            RouteStopsGrid.SelectedItem = vm.SelectedRouteStop;
+            RouteStopsGrid.ScrollIntoView(vm.SelectedRouteStop);
+        }
+    }
+
+    private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T match)
+            {
+                return match;
+            }
+
+            child = VisualTreeHelper.GetParent(child);
+        }
+
+        return null;
+    }
+
     private static string BuildMapHtml()
     {
         return """
@@ -266,20 +535,27 @@ public partial class KarteSectionView : UserControl
                  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                  <script>
                    const map = L.map('map').setView([47.3769, 8.5417], 10);
-                   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                     maxZoom: 19,
-                     attribution: '&copy; OpenStreetMap'
+                   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                     maxZoom: 20,
+                     subdomains: 'abcd',
+                     attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
                    }).addTo(map);
 
                    let markerMap = new Map();
                    let markerLayer = L.layerGroup().addTo(map);
+                   let companyMarkerLayer = L.layerGroup().addTo(map);
                    let routeLayer = L.layerGroup().addTo(map);
                    let routePolyline = null;
                    let routeMarkerMap = new Map();
+                   let hasInitialViewport = false;
 
                    function clearMarkers() {
                      markerLayer.clearLayers();
                      markerMap.clear();
+                   }
+
+                   function clearCompanyMarker() {
+                     companyMarkerLayer.clearLayers();
                    }
 
                    function clearRoute() {
@@ -315,8 +591,9 @@ public partial class KarteSectionView : UserControl
                        markerMap.set(m.id, marker);
                        bounds.push([m.lat, m.lon]);
                      });
-                     if (bounds.length > 0) {
+                     if (!hasInitialViewport && bounds.length > 0) {
                        map.fitBounds(bounds, { padding: [24, 24] });
+                       hasInitialViewport = true;
                      }
                    };
 
@@ -329,25 +606,75 @@ public partial class KarteSectionView : UserControl
                      map.panTo(marker.getLatLng());
                    };
 
-                   window.gawelaSetRoute = function(routeStops) {
+                   window.gawelaSetCompanyMarker = function(company) {
+                     clearCompanyMarker();
+                     if (!company || typeof company.lat !== 'number' || typeof company.lon !== 'number') {
+                       return;
+                     }
+
+                     const houseIcon = L.divIcon({
+                       className: 'gawela-company-marker',
+                       html: `<div style="width:28px;height:28px;border-radius:14px;background:#16a34a;color:#fff;font-size:16px;line-height:28px;text-align:center;border:2px solid #fff;box-shadow:0 0 0 1px #166534;">🏠</div>`,
+                       iconSize: [28, 28],
+                       iconAnchor: [14, 14]
+                     });
+
+                     const marker = L.marker([company.lat, company.lon], { icon: houseIcon })
+                       .addTo(companyMarkerLayer)
+                       .bindPopup(`<b>${company.name || 'Firma'}</b><br/>${company.address || ''}`);
+
+                     if (!hasInitialViewport && markerMap.size === 0) {
+                       map.setView([company.lat, company.lon], 12);
+                       hasInitialViewport = true;
+                       return;
+                     }
+
+                     if (!hasInitialViewport) {
+                       const points = [];
+                       markerMap.forEach(m => {
+                         const p = m.getLatLng();
+                         points.push([p.lat, p.lng]);
+                       });
+                       points.push([company.lat, company.lon]);
+                       map.fitBounds(points, { padding: [24, 24] });
+                       hasInitialViewport = true;
+                     }
+                   };
+
+                   window.gawelaSetRoute = function(routeStops, geometryPoints) {
                      clearRoute();
                      if (!routeStops || routeStops.length === 0) {
                        return;
                      }
-                     const points = routeStops.map(x => [x.lat, x.lon]);
-                     routePolyline = L.polyline(points, { color: '#f97316', weight: 4, opacity: 0.8 }).addTo(routeLayer);
+                     const toAlphaLabel = function(position) {
+                       let n = Number(position);
+                       if (!Number.isFinite(n) || n < 1) return '?';
+                       n = Math.floor(n);
+                       let label = '';
+                       while (n > 0) {
+                         const rem = (n - 1) % 26;
+                         label = String.fromCharCode(65 + rem) + label;
+                         n = Math.floor((n - 1) / 26);
+                       }
+                       return label;
+                     };
+                     const path = (geometryPoints && geometryPoints.length > 1)
+                       ? geometryPoints.map(x => [x.lat, x.lon])
+                       : routeStops.map(x => [x.lat, x.lon]);
+                     routePolyline = L.polyline(path, { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(routeLayer);
 
                      routeStops.forEach(stop => {
+                       const stopLabel = toAlphaLabel(stop.position);
                        const icon = L.divIcon({
                          className: 'gawela-route-stop',
-                         html: `<div style="width:20px;height:20px;border-radius:10px;background:#f97316;color:#fff;font-size:11px;line-height:20px;text-align:center;border:1px solid #fff;">${stop.position}</div>`,
+                         html: `<div style="width:20px;height:20px;border-radius:10px;background:#2563eb;color:#fff;font-size:11px;line-height:20px;text-align:center;border:1px solid #fff;">${stopLabel}</div>`,
                          iconSize: [20, 20],
                          iconAnchor: [10, 10]
                        });
 
                        const routeMarker = L.marker([stop.lat, stop.lon], { icon, draggable: true })
                          .addTo(routeLayer)
-                         .bindPopup(`Route stop ${stop.position}<br/>Order: ${stop.id}`);
+                         .bindPopup(`Route stop ${stopLabel}<br/>Order: ${stop.id}`);
 
                        routeMarker.on('click', () => {
                          if (window.chrome && window.chrome.webview) {

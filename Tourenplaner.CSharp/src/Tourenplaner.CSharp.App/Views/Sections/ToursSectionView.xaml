@@ -4,137 +4,118 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="760"
-             d:DesignWidth="1080">
-    <Grid Margin="16">
+             d:DesignHeight="900"
+             d:DesignWidth="1450">
+    <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="3*" />
+            <RowDefinition Height="3*" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="2*" />
-            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
-
-        <DockPanel Grid.Row="1" Margin="0,12,0,12">
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                <Button Width="180"
-                        Margin="8,0,0,0"
-                        Content="Reload Tours"
-                        Command="{Binding RefreshCommand}" />
-                <Button Width="220"
-                        Margin="8,0,0,0"
-                        Content="Recalculate ETA/ETD"
-                        Command="{Binding RecalculateCommand}" />
-            </StackPanel>
-            <TextBlock VerticalAlignment="Center"
-                       FontSize="13"
-                       Foreground="#334155"
-                       Text="{Binding StatusText}" />
-        </DockPanel>
-
-        <GroupBox Grid.Row="2" Header="Selected Tour Assignment" Margin="0,0,0,10">
-            <Grid Margin="8">
+        <Border Style="{StaticResource FlatCardStyle}" Padding="12">
+            <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="130" />
-                    <ColumnDefinition Width="170" />
-                    <ColumnDefinition Width="130" />
-                    <ColumnDefinition Width="170" />
-                    <ColumnDefinition Width="130" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="170" />
+                    <ColumnDefinition Width="130" />
                 </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" FontSize="31" FontWeight="Bold" Text="Gespeicherte Liefertouren" />
+                <Button Grid.Column="1" Height="34" Content="Aktualisieren" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding RefreshCommand}" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Margin="0,10,0,10" Style="{StaticResource FlatCardStyle}" Padding="10">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock FontWeight="SemiBold" FontSize="19" Text="Datumsfilter" />
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding FilterInfoText}" />
+                </Grid>
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Margin="0,0,8,0" Height="38" ToolTip="Von (DD.MM.YYYY)" Text="{Binding FromDateText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="1" Margin="8,0" Height="38" ToolTip="Bis (DD.MM.YYYY)" Text="{Binding ToDateText, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Grid.Column="2" Margin="8,0,0,0" Height="38" Content="Übernehmen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyDateFilterCommand}" />
+                </Grid>
+
+                <UniformGrid Margin="0,10,0,0" Rows="1" Columns="4">
+                    <Button Content="Heute" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding FilterTodayCommand}" />
+                    <Button Margin="8,0,0,0" Content="Morgen" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding FilterTomorrowCommand}" />
+                    <Button Margin="8,0,0,0" Content="Diese Woche" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding FilterThisWeekCommand}" />
+                    <Button Margin="8,0,0,0" Content="Reset" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ResetDateFilterCommand}" />
+                </UniformGrid>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="2" Style="{StaticResource FlatCardStyle}" Padding="10">
+            <GroupBox Header="Touren">
+                <DataGrid AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          ItemsSource="{Binding Tours}"
+                          SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
+                          SelectionMode="Single"
+                          SelectionUnit="FullRow">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Datum" Width="130" Binding="{Binding Date}" />
+                        <DataGridTextColumn Header="Name" Width="2*" Binding="{Binding Name}" />
+                        <DataGridTextColumn Header="Fahrzeug" Width="2*" Binding="{Binding VehicleId}" />
+                        <DataGridTextColumn Header="Mitarbeiter" Width="2*" Binding="{Binding Employees}" />
+                        <DataGridTextColumn Header="Stopps" Width="90" Binding="{Binding StopCount}" />
+                        <DataGridTextColumn Header="Totalgewicht" Width="130" Binding="{Binding TotalWeightKg}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </GroupBox>
+        </Border>
+
+        <Border Grid.Row="3" Margin="0,10,0,0" Style="{StaticResource FlatCardStyle}" Padding="10">
+            <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
+                <GroupBox Header="Stopps in ausgewählter Tour">
+                    <DataGrid AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding SelectedTourStops}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="#" Width="50" Binding="{Binding Order}" />
+                            <DataGridTextColumn Header="Auftragsnummer" Width="130" Binding="{Binding OrderNumber}" />
+                            <DataGridTextColumn Header="Adresse / Name" Width="*" Binding="{Binding Name}" />
+                            <DataGridTextColumn Header="Gewicht" Width="90" Binding="{Binding Weight}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </GroupBox>
 
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Date (dd.MM.yyyy)" />
-                <TextBox Grid.Column="1" Margin="6,0,0,0" Text="{Binding EditorDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                <TextBlock Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" Text="Start (HH:mm)" />
-                <TextBox Grid.Column="3" Margin="6,0,0,0" Text="{Binding EditorStartTime, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                <TextBlock Grid.Column="4" Margin="12,0,0,0" VerticalAlignment="Center" Text="Vehicle" />
-                <ComboBox Grid.Column="5"
-                          Margin="6,0,0,0"
-                          ItemsSource="{Binding AvailableVehicles}"
-                          SelectedItem="{Binding SelectedVehicle, Mode=TwoWay}"
-                          DisplayMemberPath="Label" />
-
-                <Button Grid.Column="6"
-                        Width="150"
-                        Margin="12,0,0,0"
-                        Content="Save Assignment"
-                        Command="{Binding SaveAssignmentCommand}" />
-
-                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,10,0,0" VerticalAlignment="Top" Text="Trailer" />
-                <ComboBox Grid.Row="1"
-                          Grid.Column="1"
-                          Margin="6,10,0,0"
-                          ItemsSource="{Binding AvailableTrailers}"
-                          SelectedItem="{Binding SelectedTrailer, Mode=TwoWay}"
-                          DisplayMemberPath="Label" />
-
-                <TextBlock Grid.Row="1" Grid.Column="2" Margin="12,10,0,0" VerticalAlignment="Top" Text="Employees (max 2)" />
-                <ScrollViewer Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="3" Margin="6,10,0,0" VerticalScrollBarVisibility="Auto" MaxHeight="90">
-                    <ItemsControl ItemsSource="{Binding AvailableEmployees}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <CheckBox Margin="0,2,0,2"
-                                          Content="{Binding Label}"
-                                          IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-
-                <TextBlock Grid.Row="1"
-                           Grid.Column="6"
-                           Margin="12,10,0,0"
-                           TextWrapping="Wrap"
-                           Foreground="#7C2D12"
-                           Text="{Binding EditorConflictText}" />
+                <TextBlock Grid.Row="1" Margin="4,10,0,0" FontWeight="SemiBold" Text="{Binding SelectedTourWeightText}" />
+                <TextBlock Grid.Row="2" Margin="4,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding SelectedTourVehicleText}" />
             </Grid>
-        </GroupBox>
+        </Border>
 
-        <DataGrid Grid.Row="3"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  ItemsSource="{Binding Tours}"
-                  SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
-                  SelectionMode="Single"
-                  SelectionUnit="FullRow">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="ID" Binding="{Binding TourId}" Width="60" />
-                <DataGridTextColumn Header="Tour" Binding="{Binding Name}" Width="2*" />
-                <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="110" />
-                <DataGridTextColumn Header="Start" Binding="{Binding Start}" Width="80" />
-                <DataGridTextColumn Header="End" Binding="{Binding End}" Width="80" />
-                <DataGridTextColumn Header="Vehicle" Binding="{Binding VehicleId}" Width="120" />
-                <DataGridTextColumn Header="Trailer" Binding="{Binding TrailerId}" Width="120" />
-                <DataGridTextColumn Header="Employees" Binding="{Binding Employees}" Width="2*" />
-                <DataGridTextColumn Header="Stops" Binding="{Binding StopCount}" Width="70" />
-                <DataGridTextColumn Header="Stop Conflicts" Binding="{Binding StopConflicts}" Width="120" />
-                <DataGridTextColumn Header="Assign Conflicts" Binding="{Binding AssignmentConflicts}" Width="140" />
-            </DataGrid.Columns>
-        </DataGrid>
-
-        <GroupBox Grid.Row="4" Margin="0,12,0,0" Header="Stops for Selected Tour">
-            <DataGrid AutoGenerateColumns="False"
-                      IsReadOnly="True"
-                      ItemsSource="{Binding SelectedTourStops}">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="#" Binding="{Binding Order}" Width="50" />
-                    <DataGridTextColumn Header="Stop" Binding="{Binding Name}" Width="2*" />
-                    <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="2*" />
-                    <DataGridTextColumn Header="Time Window" Binding="{Binding Window}" Width="130" />
-                    <DataGridTextColumn Header="ETA" Binding="{Binding Arrival}" Width="80" />
-                    <DataGridTextColumn Header="ETD" Binding="{Binding Departure}" Width="80" />
-                    <DataGridTextColumn Header="Conflict" Binding="{Binding Conflict}" Width="2*" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </GroupBox>
+        <Grid Grid.Row="4" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0"
+                    Height="40"
+                    Margin="0,0,8,0"
+                    Content="Tour auf Karte anzeigen"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding OpenTourOnMapCommand}" />
+            <Button Grid.Column="1" Height="40" Margin="8,0,8,0" Content="Tour bearbeiten" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding SaveAssignmentCommand}" />
+            <Button Grid.Column="2" Height="40" Margin="8,0,0,0" Content="Tour löschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteTourCommand}" />
+        </Grid>
     </Grid>
 </UserControl>

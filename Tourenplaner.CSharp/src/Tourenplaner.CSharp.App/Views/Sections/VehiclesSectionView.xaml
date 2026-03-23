@@ -4,67 +4,164 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="650"
-             d:DesignWidth="1000">
-    <Grid Margin="16">
+             d:DesignHeight="760"
+             d:DesignWidth="1200">
+    <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+        <Border Style="{StaticResource FlatCardStyle}" Padding="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="240" />
+                    <ColumnDefinition Width="130" />
+                </Grid.ColumnDefinitions>
 
-        <DockPanel Grid.Row="1" Margin="0,12,0,12">
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                <Button Width="140" Margin="8,0,0,0" Content="Neu Laden" Command="{Binding RefreshCommand}" />
-                <Button Width="130" Margin="8,0,0,0" Content="Speichern" Command="{Binding SaveCommand}" />
-                <Button Width="160" Margin="8,0,0,0" Content="Fahrzeug +" Command="{Binding AddVehicleCommand}" />
-                <Button Width="150" Margin="8,0,0,0" Content="Fahrzeug -" Command="{Binding RemoveVehicleCommand}" />
-                <Button Width="160" Margin="8,0,0,0" Content="Anhänger +" Command="{Binding AddTrailerCommand}" />
-                <Button Width="150" Margin="8,0,0,0" Content="Anhänger -" Command="{Binding RemoveTrailerCommand}" />
-            </StackPanel>
-            <TextBlock VerticalAlignment="Center"
-                       FontSize="13"
-                       Foreground="#334155"
-                       Text="{Binding StatusText}" />
-        </DockPanel>
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="32" FontWeight="Bold" Text="{Binding Title}" />
 
-        <GroupBox Grid.Row="2" Header="Fahrzeuge">
-            <DataGrid AutoGenerateColumns="False"
-                      CanUserAddRows="False"
-                      ItemsSource="{Binding Vehicles}"
-                      SelectedItem="{Binding SelectedVehicle, Mode=TwoWay}">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="ID" Width="2*" Binding="{Binding Id, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Typ" Width="90" Binding="{Binding Type, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Name" Width="2*" Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Kennzeichen" Width="120" Binding="{Binding LicensePlate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Nutzlast kg" Width="100" Binding="{Binding MaxPayloadKg, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Anhängelast kg" Width="120" Binding="{Binding MaxTrailerLoadKg, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Volumen m3" Width="90" Binding="{Binding VolumeM3, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridCheckBoxColumn Header="Aktiv" Width="70" Binding="{Binding Active, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Notizen" Width="2*" Binding="{Binding Notes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </GroupBox>
+                <Border Grid.Column="1"
+                        Margin="10,0,0,0"
+                        CornerRadius="12"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource Brush.BorderStrong}"
+                        Background="{DynamicResource Brush.CardSoft}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0"
+                                Margin="4"
+                                Height="34"
+                                Content="Zugfahrzeuge"
+                                Command="{Binding ShowVehiclesCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsVehicleMode}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                            <Setter Property="Foreground" Value="White" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Grid.Column="1"
+                                Margin="4"
+                                Height="34"
+                                Content="Anhänger"
+                                Command="{Binding ShowTrailersCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTrailerMode}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                            <Setter Property="Foreground" Value="White" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </Grid>
+                </Border>
 
-        <GroupBox Grid.Row="3" Margin="0,12,0,0" Header="Anhänger">
-            <DataGrid AutoGenerateColumns="False"
-                      CanUserAddRows="False"
-                      ItemsSource="{Binding Trailers}"
-                      SelectedItem="{Binding SelectedTrailer, Mode=TwoWay}">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="ID" Width="2*" Binding="{Binding Id, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Name" Width="2*" Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Kennzeichen" Width="120" Binding="{Binding LicensePlate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Nutzlast kg" Width="100" Binding="{Binding MaxPayloadKg, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Volumen m3" Width="90" Binding="{Binding VolumeM3, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridCheckBoxColumn Header="Aktiv" Width="70" Binding="{Binding Active, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    <DataGridTextColumn Header="Notizen" Width="2*" Binding="{Binding Notes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </GroupBox>
+                <Button Grid.Column="2"
+                        Margin="10,0,0,0"
+                        Height="34"
+                        Content="{Binding AddButtonText}"
+                        Style="{StaticResource SuccessButtonStyle}"
+                        Click="OnAddEntryClicked" />
+            </Grid>
+        </Border>
+
+        <TextBlock Grid.Row="1"
+                   Margin="2,12,0,10"
+                   Foreground="{DynamicResource Brush.TextMuted}"
+                   Text="{Binding ModeCountText}" />
+
+        <Border Grid.Row="2" Style="{StaticResource FlatCardStyle}" Padding="10">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding Entries}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,10" Padding="12" Style="{StaticResource SoftCardStyle}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Row="0" Grid.Column="0">
+                                        <TextBlock FontWeight="SemiBold" FontSize="19" Text="{Binding Name}" />
+                                        <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding HeaderTypeLabel}" />
+                                    </StackPanel>
+
+                                    <Border Grid.Row="0"
+                                            Grid.Column="1"
+                                            MinWidth="70"
+                                            Height="26"
+                                            Padding="12,0"
+                                            HorizontalAlignment="Right"
+                                            CornerRadius="13">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#EF4444" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Active}" Value="True">
+                                                        <Setter Property="Background" Value="#16A34A" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="White" Text="{Binding ActiveLabel}" />
+                                    </Border>
+
+                                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                                        <TextBlock Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" Text="{Binding DetailsLine}" />
+                                        <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" Text="{Binding Notes}" />
+                                    </StackPanel>
+
+                                    <Grid Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Height="36"
+                                                Margin="0,0,8,0"
+                                                Content="Bearbeiten"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Tag="{Binding}"
+                                                Click="OnEditEntryClicked" />
+                                        <Button Grid.Column="1"
+                                                Height="36"
+                                                Margin="8,0,0,0"
+                                                Content="Löschen"
+                                                Style="{StaticResource DangerButtonStyle}"
+                                                Tag="{Binding}"
+                                                Click="OnDeleteEntryClicked" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
     </Grid>
 </UserControl>

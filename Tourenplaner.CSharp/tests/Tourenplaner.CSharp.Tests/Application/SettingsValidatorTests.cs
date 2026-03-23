@@ -11,9 +11,6 @@ public class SettingsValidatorTests
         var validator = new SettingsValidator();
         var settings = new AppSettings
         {
-            SqlServerInstance = "",
-            SqlDataDir = "",
-            SqlDatabase = "",
             AppearanceMode = "Blue",
             BackupsEnabled = true,
             BackupDir = "",
@@ -27,9 +24,6 @@ public class SettingsValidatorTests
         var result = validator.Validate(settings);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Contains("SqlServerInstance"));
-        Assert.Contains(result.Errors, e => e.Contains("SqlDataDir"));
-        Assert.Contains(result.Errors, e => e.Contains("SqlDatabase"));
         Assert.Contains(result.Errors, e => e.Contains("AppearanceMode"));
         Assert.Contains(result.Errors, e => e.Contains("BackupModeDefault"));
         Assert.Contains(result.Errors, e => e.Contains("BackupRetentionDays"));
@@ -44,9 +38,6 @@ public class SettingsValidatorTests
         var validator = new SettingsValidator();
         var settings = new AppSettings
         {
-            SqlServerInstance = @".\SQLEXPRESS",
-            SqlDataDir = @"C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA",
-            SqlDatabase = "GAWELA_TP",
             AppearanceMode = "System",
             BackupsEnabled = true,
             BackupDir = @"C:\data\tourenplaner\backups",
@@ -54,7 +45,7 @@ public class SettingsValidatorTests
             BackupRetentionDays = 30,
             AutoBackupEnabled = true,
             AutoBackupIntervalDays = 7,
-            QuickAccessItems = new List<string> { "action:import_sql", "action:save_route" }
+            QuickAccessItems = new List<string> { "action:export_route", "action:save_route" }
         };
 
         var result = validator.Validate(settings);

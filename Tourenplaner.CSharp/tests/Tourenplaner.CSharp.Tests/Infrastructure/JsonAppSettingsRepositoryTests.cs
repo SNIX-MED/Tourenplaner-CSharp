@@ -14,7 +14,6 @@ public class JsonAppSettingsRepositoryTests
         {
             var repository = new JsonAppSettingsRepository(file);
             var settings = await repository.LoadAsync();
-            settings.SqlDatabase = "GAWELA_TP";
             settings.BackupsEnabled = true;
             settings.BackupDir = @"C:\Backups";
             settings.AppearanceMode = "Dark";
@@ -22,7 +21,6 @@ public class JsonAppSettingsRepositoryTests
             await repository.SaveAsync(settings);
             var loaded = await repository.LoadAsync();
 
-            Assert.Equal("GAWELA_TP", loaded.SqlDatabase);
             Assert.True(loaded.BackupsEnabled);
             Assert.Equal(@"C:\Backups", loaded.BackupDir);
             Assert.Equal("Dark", loaded.AppearanceMode);

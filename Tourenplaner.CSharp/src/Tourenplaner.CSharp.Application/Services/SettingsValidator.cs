@@ -22,21 +22,6 @@ public sealed class SettingsValidator
     {
         var errors = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(settings.SqlServerInstance))
-        {
-            errors.Add("SqlServerInstance is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(settings.SqlDataDir))
-        {
-            errors.Add("SqlDataDir is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(settings.SqlDatabase) || SqlDatabaseNameInference.InferDatabaseName($"Database={settings.SqlDatabase};") == "unknown_db")
-        {
-            errors.Add("SqlDatabase must be a valid database identifier.");
-        }
-
         if (!AllowedAppearanceModes.Contains(settings.AppearanceMode ?? string.Empty))
         {
             errors.Add("AppearanceMode must be one of: System, Light, Dark.");
@@ -60,6 +45,23 @@ public sealed class SettingsValidator
         if ((settings.BackupsEnabled || settings.AutoBackupEnabled) && string.IsNullOrWhiteSpace(settings.BackupDir))
         {
             errors.Add("BackupDir is required when backup is enabled.");
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.AvisoEmailSubjectTemplate))
+        {
+            errors.Add("AvisoEmailSubjectTemplate must not be empty.");
+        }
+
+        var hasAnyCompanyAddressPart =
+            !string.IsNullOrWhiteSpace(settings.CompanyStreet) ||
+            !string.IsNullOrWhiteSpace(settings.CompanyPostalCode) ||
+            !string.IsNullOrWhiteSpace(settings.CompanyCity);
+        if (hasAnyCompanyAddressPart &&
+            (string.IsNullOrWhiteSpace(settings.CompanyStreet) ||
+             string.IsNullOrWhiteSpace(settings.CompanyPostalCode) ||
+             string.IsNullOrWhiteSpace(settings.CompanyCity)))
+        {
+            errors.Add("Company address must include street, postal code and city when configured.");
         }
 
         if (settings.QuickAccessItems is null)

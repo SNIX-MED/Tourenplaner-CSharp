@@ -6,4 +6,5 @@ public sealed record MapRouteStop(
     string Customer,
     string Address,
     double Latitude,
-    double Longitude);
+    double Longitude,
+    int ServiceMinutes = 10);

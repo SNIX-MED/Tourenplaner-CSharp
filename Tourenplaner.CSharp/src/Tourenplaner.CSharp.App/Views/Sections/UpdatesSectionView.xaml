@@ -22,11 +22,16 @@
             </StackPanel>
             <TextBlock VerticalAlignment="Center"
                        FontSize="13"
-                       Foreground="#334155"
+                       Foreground="{DynamicResource Brush.TextMuted}"
                        Text="{Binding StatusText}" />
         </DockPanel>
 
-        <Border Grid.Row="2" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="8" Padding="12" Background="#F8FAFC">
+        <Border Grid.Row="2"
+                BorderBrush="{DynamicResource Brush.GlassStroke}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="12"
+                Background="{DynamicResource Brush.GlassSurfaceStrong}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

@@ -9,29 +9,21 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 public sealed class EmployeesSectionViewModel : SectionViewModelBase
 {
     private readonly JsonEmployeesRepository _repository;
-    private EmployeeItem? _selectedEmployee;
+    private readonly List<Employee> _employees = new();
     private string _statusText = "Lade Mitarbeiter...";
+    private string _countText = string.Empty;
 
     public EmployeesSectionViewModel(string employeesJsonPath)
-        : base("Employees", "Mitarbeiterverwaltung inklusive Aktiv/Inaktiv-Status.")
+        : base("Mitarbeiterverwaltung", "Mitarbeiter anlegen, bearbeiten und deaktivieren.")
     {
         _repository = new JsonEmployeesRepository(employeesJsonPath);
         RefreshCommand = new AsyncCommand(RefreshAsync);
-        SaveCommand = new AsyncCommand(SaveAsync, () => Employees.Count > 0);
-        AddCommand = new DelegateCommand(AddEmployee);
-        RemoveCommand = new DelegateCommand(RemoveSelectedEmployee, () => SelectedEmployee is not null);
         _ = RefreshAsync();
     }
 
-    public ObservableCollection<EmployeeItem> Employees { get; } = new();
+    public ObservableCollection<EmployeeCardItem> Entries { get; } = new();
 
     public ICommand RefreshCommand { get; }
-
-    public ICommand SaveCommand { get; }
-
-    public ICommand AddCommand { get; }
-
-    public ICommand RemoveCommand { get; }
 
     public string StatusText
     {
@@ -39,133 +31,129 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _statusText, value);
     }
 
-    public EmployeeItem? SelectedEmployee
+    public string CountText
     {
-        get => _selectedEmployee;
-        set
+        get => _countText;
+        private set => SetProperty(ref _countText, value);
+    }
+
+    public EmployeeEditorSeed CreateSeedForCreate()
+    {
+        return new EmployeeEditorSeed(
+            Id: null,
+            Name: string.Empty,
+            ShortCode: string.Empty,
+            Phone: string.Empty,
+            Active: true);
+    }
+
+    public EmployeeEditorSeed CreateSeedForEdit(EmployeeCardItem entry)
+    {
+        return new EmployeeEditorSeed(
+            Id: entry.Id,
+            Name: entry.Name,
+            ShortCode: entry.ShortCode,
+            Phone: entry.Phone,
+            Active: entry.Active);
+    }
+
+    public async Task ApplyEditorResultAsync(EmployeeEditorResult result)
+    {
+        var id = string.IsNullOrWhiteSpace(result.Id) ? Guid.NewGuid().ToString() : result.Id.Trim();
+        _employees.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+        _employees.Add(new Employee
         {
-            if (SetProperty(ref _selectedEmployee, value))
-            {
-                RaiseCommandStates();
-            }
-        }
+            Id = id,
+            DisplayName = result.Name.Trim(),
+            ShortCode = result.ShortCode.Trim(),
+            Phone = result.Phone.Trim(),
+            Role = result.ShortCode.Trim(),
+            Active = result.Active
+        });
+
+        await SaveCurrentStateAsync();
+    }
+
+    public async Task DeleteEntryAsync(EmployeeCardItem entry)
+    {
+        _employees.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+        await SaveCurrentStateAsync();
     }
 
     public async Task RefreshAsync()
     {
-        var items = await _repository.LoadAsync();
-        Employees.Clear();
+        _employees.Clear();
+        _employees.AddRange(await _repository.LoadAsync());
+        RebuildEntries();
+    }
 
-        foreach (var employee in items.OrderBy(e => e.DisplayName, StringComparer.OrdinalIgnoreCase))
+    private async Task SaveCurrentStateAsync()
+    {
+        await _repository.SaveAsync(_employees);
+        await RefreshAsync();
+    }
+
+    private void RebuildEntries()
+    {
+        Entries.Clear();
+        foreach (var employee in _employees.OrderBy(x => !x.Active).ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase))
         {
-            Employees.Add(new EmployeeItem
+            Entries.Add(new EmployeeCardItem
             {
                 Id = employee.Id,
-                DisplayName = employee.DisplayName,
-                Role = employee.Role,
+                Name = employee.DisplayName,
+                ShortCode = employee.ShortCode,
+                Phone = employee.Phone,
                 Active = employee.Active
             });
         }
 
-        SelectedEmployee = Employees.FirstOrDefault();
-        UpdateStatusText();
-        RaiseCommandStates();
-    }
-
-    public async Task SaveAsync()
-    {
-        var payload = Employees
-            .Where(e => !string.IsNullOrWhiteSpace(e.DisplayName))
-            .Select(e => new Employee
-            {
-                Id = string.IsNullOrWhiteSpace(e.Id) ? Guid.NewGuid().ToString() : e.Id.Trim(),
-                DisplayName = (e.DisplayName ?? string.Empty).Trim(),
-                Role = (e.Role ?? string.Empty).Trim(),
-                Active = e.Active
-            })
-            .ToList();
-
-        await _repository.SaveAsync(payload);
-        await RefreshAsync();
-    }
-
-    private void AddEmployee()
-    {
-        var item = new EmployeeItem
-        {
-            Id = Guid.NewGuid().ToString(),
-            DisplayName = "Neuer Mitarbeiter",
-            Role = "Driver",
-            Active = true
-        };
-
-        Employees.Add(item);
-        SelectedEmployee = item;
-        UpdateStatusText();
-        RaiseCommandStates();
-    }
-
-    private void RemoveSelectedEmployee()
-    {
-        if (SelectedEmployee is null)
-        {
-            return;
-        }
-
-        Employees.Remove(SelectedEmployee);
-        SelectedEmployee = Employees.FirstOrDefault();
-        UpdateStatusText();
-        RaiseCommandStates();
-    }
-
-    private void UpdateStatusText()
-    {
-        var active = Employees.Count(e => e.Active);
-        StatusText = $"Mitarbeiter: {Employees.Count} | Aktiv: {active} | Inaktiv: {Employees.Count - active}";
-    }
-
-    private void RaiseCommandStates()
-    {
-        if (SaveCommand is AsyncCommand save)
-        {
-            save.RaiseCanExecuteChanged();
-        }
-
-        if (RemoveCommand is DelegateCommand remove)
-        {
-            remove.RaiseCanExecuteChanged();
-        }
+        var active = Entries.Count(x => x.Active);
+        StatusText = $"Mitarbeiter: {Entries.Count} | Aktiv: {active} | Inaktiv: {Entries.Count - active}";
+        CountText = $"Mitarbeiter: {Entries.Count}";
     }
 }
 
-public sealed class EmployeeItem : ObservableObject
+public sealed class EmployeeCardItem : ObservableObject
 {
-    private string _id = string.Empty;
-    private string _displayName = string.Empty;
-    private string _role = string.Empty;
-    private bool _active = true;
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string ShortCode { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public bool Active { get; set; } = true;
 
-    public string Id
-    {
-        get => _id;
-        set => SetProperty(ref _id, value);
-    }
+    public string ActiveLabel => Active ? "Aktiv" : "Inaktiv";
 
-    public string DisplayName
+    public string DetailsLine
     {
-        get => _displayName;
-        set => SetProperty(ref _displayName, value);
-    }
+        get
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(ShortCode))
+            {
+                parts.Add($"Kürzel: {ShortCode}");
+            }
 
-    public string Role
-    {
-        get => _role;
-        set => SetProperty(ref _role, value);
-    }
+            if (!string.IsNullOrWhiteSpace(Phone))
+            {
+                parts.Add($"Telefon: {Phone}");
+            }
 
-    public bool Active
-    {
-        get => _active;
-        set => SetProperty(ref _active, value);
+            return string.Join(" | ", parts);
+        }
     }
 }
+
+public sealed record EmployeeEditorSeed(
+    string? Id,
+    string Name,
+    string ShortCode,
+    string Phone,
+    bool Active);
+
+public sealed record EmployeeEditorResult(
+    string? Id,
+    string Name,
+    string ShortCode,
+    string Phone,
+    bool Active);

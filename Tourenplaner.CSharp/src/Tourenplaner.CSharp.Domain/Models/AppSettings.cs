@@ -2,11 +2,16 @@
 
 public sealed class AppSettings
 {
-    public string SqlDataDir { get; set; } = @"C:\Program Files\Microsoft SQL Server\MSSQL15.SQLEXPRESS\MSSQL\DATA";
-    public string SqlServerInstance { get; set; } = @".\SQLEXPRESS";
-    public string SqlDatabase { get; set; } = string.Empty;
+    public const string DefaultAvisoEmailSubjectTemplate = "Lieferung von Auftrag X";
+
     public string AppearanceMode { get; set; } = "System";
-    public List<string> QuickAccessItems { get; set; } = new() { "action:export_route", "action:import_sql", string.Empty, string.Empty };
+    public string GoogleMapsApiKey { get; set; } = string.Empty;
+    public string AvisoEmailSubjectTemplate { get; set; } = DefaultAvisoEmailSubjectTemplate;
+    public string CompanyName { get; set; } = "Firma";
+    public string CompanyStreet { get; set; } = string.Empty;
+    public string CompanyPostalCode { get; set; } = string.Empty;
+    public string CompanyCity { get; set; } = string.Empty;
+    public List<string> QuickAccessItems { get; set; } = new() { "action:export_route", string.Empty, string.Empty, string.Empty };
     public bool BackupsEnabled { get; set; }
     public string BackupDir { get; set; } = string.Empty;
     public string BackupModeDefault { get; set; } = "full";

@@ -1,4 +1,4 @@
-<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.SettingsSectionView"
+﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.SettingsSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -6,7 +6,7 @@
              mc:Ignorable="d"
              d:DesignHeight="760"
              d:DesignWidth="1080">
-    <Grid Margin="16">
+    <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -15,22 +15,24 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+        <StackPanel>
+            <TextBlock FontSize="28" FontWeight="SemiBold" Text="{Binding Title}" />
+            <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="System configuration, appearance and backup policy." />
+        </StackPanel>
 
-        <DockPanel Grid.Row="1" Margin="0,12,0,12">
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                <Button Width="120" Margin="8,0,0,0" Content="Reload" Command="{Binding RefreshCommand}" />
-                <Button Width="120" Margin="8,0,0,0" Content="Validate" Command="{Binding ValidateCommand}" />
-                <Button Width="120" Margin="8,0,0,0" Content="Save" Command="{Binding SaveCommand}" />
-                <Button Width="140" Margin="8,0,0,0" Content="Create Backup" Command="{Binding CreateBackupCommand}" />
-                <Button Width="150" Margin="8,0,0,0" Content="Restore Latest" Command="{Binding RestoreLatestBackupCommand}" />
-                <Button Width="140" Margin="8,0,0,0" Content="Cleanup Backups" Command="{Binding CleanupBackupsCommand}" />
-            </StackPanel>
-            <TextBlock VerticalAlignment="Center"
-                       FontSize="13"
-                       Foreground="#334155"
-                       Text="{Binding StatusText}" />
-        </DockPanel>
+        <Border Grid.Row="1" Margin="0,12,0,10" Style="{StaticResource GlassPanelBorderStyle}" Padding="12">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <Button Width="110" Margin="8,0,0,0" Content="Reload" Command="{Binding RefreshCommand}" />
+                    <Button Width="110" Margin="8,0,0,0" Content="Validate" Command="{Binding ValidateCommand}" />
+                    <Button Width="100" Margin="8,0,0,0" Content="Save" Command="{Binding SaveCommand}" />
+                    <Button Width="130" Margin="8,0,0,0" Content="Create Backup" Command="{Binding CreateBackupCommand}" />
+                    <Button Width="140" Margin="8,0,0,0" Content="Restore Latest" Command="{Binding RestoreLatestBackupCommand}" />
+                    <Button Width="130" Margin="8,0,0,0" Content="Cleanup Backups" Command="{Binding CleanupBackupsCommand}" />
+                </StackPanel>
+                <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding StatusText}" />
+            </DockPanel>
+        </Border>
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
@@ -38,91 +40,134 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <GroupBox Grid.Column="0" Header="SQL &amp; Appearance" Margin="0,0,6,0">
-                <Grid Margin="8">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="180" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Margin="0,0,6,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="10">
+                <GroupBox Header="Appearance">
+                    <Grid Margin="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="SQL Server Instance" />
-                    <TextBox Grid.Row="0" Grid.Column="1" Margin="8,4,0,4" Text="{Binding SqlServerInstance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Appearance Mode" />
+                        <ComboBox Grid.Row="0"
+                                  Grid.Column="1"
+                                  Margin="8,4,0,4"
+                                  ItemsSource="{Binding AppearanceModes}"
+                                  SelectedItem="{Binding AppearanceMode, Mode=TwoWay}" />
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="SQL Data Directory" />
-                    <TextBox Grid.Row="1" Grid.Column="1" Margin="8,4,0,4" Text="{Binding SqlDataDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Google Maps API Key" />
+                        <TextBox Grid.Row="1"
+                                 Grid.Column="1"
+                                 Margin="8,4,0,4"
+                                 Text="{Binding GoogleMapsApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="SQL Database" />
-                    <TextBox Grid.Row="2" Grid.Column="1" Margin="8,4,0,4" Text="{Binding SqlDatabase, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Avisierung E-Mail Betreff" />
+                        <TextBox Grid.Row="2"
+                                 Grid.Column="1"
+                                 Margin="8,4,0,4"
+                                 ToolTip="Platzhalter X wird durch die Auftragsnummer ersetzt."
+                                 Text="{Binding AvisoEmailSubjectTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="Appearance Mode" />
-                    <ComboBox Grid.Row="3"
-                              Grid.Column="1"
-                              Margin="8,4,0,4"
-                              ItemsSource="{Binding AppearanceModes}"
-                              SelectedItem="{Binding AppearanceMode, Mode=TwoWay}" />
-                </Grid>
-            </GroupBox>
+                        <Separator Grid.Row="3" Grid.ColumnSpan="2" Margin="0,10,0,10" />
 
-            <GroupBox Grid.Column="1" Header="Backup &amp; Restore" Margin="6,0,0,0">
-                <Grid Margin="8">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="180" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Text="Firmenname" />
+                        <TextBox Grid.Row="4"
+                                 Grid.Column="1"
+                                 Margin="8,4,0,4"
+                                 Text="{Binding CompanyName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Backups Enabled" />
-                    <CheckBox Grid.Row="0" Grid.Column="1" Margin="8,6,0,6" IsChecked="{Binding BackupsEnabled, Mode=TwoWay}" />
+                        <TextBlock Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" Text="Firmenstrasse" />
+                        <TextBox Grid.Row="5"
+                                 Grid.Column="1"
+                                 Margin="8,4,0,4"
+                                 Text="{Binding CompanyStreet, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Backup Directory" />
-                    <TextBox Grid.Row="1" Grid.Column="1" Margin="8,4,0,4" Text="{Binding BackupDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="6" Grid.Column="0" VerticalAlignment="Center" Text="PLZ / Ort" />
+                        <Grid Grid.Row="6" Grid.Column="1" Margin="8,4,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Margin="0,0,8,0"
+                                     Text="{Binding CompanyPostalCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding CompanyCity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                    </Grid>
+                </GroupBox>
+            </Border>
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Backup Mode" />
-                    <ComboBox Grid.Row="2"
-                              Grid.Column="1"
-                              Margin="8,4,0,4"
-                              ItemsSource="{Binding BackupModes}"
-                              SelectedItem="{Binding BackupModeDefault, Mode=TwoWay}" />
+            <Border Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="10">
+                <GroupBox Header="Backup &amp; Restore">
+                    <Grid Margin="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="Retention Days" />
-                    <TextBox Grid.Row="3" Grid.Column="1" Margin="8,4,0,4" Text="{Binding BackupRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Backups Enabled" />
+                        <CheckBox Grid.Row="0" Grid.Column="1" Margin="8,6,0,6" IsChecked="{Binding BackupsEnabled, Mode=TwoWay}" />
 
-                    <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Text="Auto Backup Enabled" />
-                    <CheckBox Grid.Row="4" Grid.Column="1" Margin="8,6,0,6" IsChecked="{Binding AutoBackupEnabled, Mode=TwoWay}" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Backup Directory" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Margin="8,4,0,4" Text="{Binding BackupDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <StackPanel Grid.Row="5" Grid.ColumnSpan="2" Orientation="Horizontal">
-                        <TextBlock VerticalAlignment="Center" Text="Auto Backup Interval Days" />
-                        <TextBox Width="120" Margin="8,4,0,4" Text="{Binding AutoBackupIntervalDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="20,0,0,0" VerticalAlignment="Center" Text="Last Backup (ISO)" />
-                        <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding LastBackupIso}" />
-                    </StackPanel>
-                </Grid>
-            </GroupBox>
+                        <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Backup Mode" />
+                        <ComboBox Grid.Row="2"
+                                  Grid.Column="1"
+                                  Margin="8,4,0,4"
+                                  ItemsSource="{Binding BackupModes}"
+                                  SelectedItem="{Binding BackupModeDefault, Mode=TwoWay}" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="Retention Days" />
+                        <TextBox Grid.Row="3" Grid.Column="1" Margin="8,4,0,4" Text="{Binding BackupRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Text="Auto Backup Enabled" />
+                        <CheckBox Grid.Row="4" Grid.Column="1" Margin="8,6,0,6" IsChecked="{Binding AutoBackupEnabled, Mode=TwoWay}" />
+
+                        <StackPanel Grid.Row="5" Grid.ColumnSpan="2" Orientation="Horizontal">
+                            <TextBlock VerticalAlignment="Center" Text="Auto Backup Interval Days" />
+                            <TextBox Width="120" Margin="8,4,0,4" Text="{Binding AutoBackupIntervalDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="20,0,0,0" VerticalAlignment="Center" Text="Last Backup (ISO)" />
+                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding LastBackupIso}" />
+                        </StackPanel>
+                    </Grid>
+                </GroupBox>
+            </Border>
         </Grid>
 
-        <TextBlock Grid.Row="3"
-                   Margin="0,12,0,0"
-                   FontWeight="SemiBold"
-                   Text="Validation Result" />
-        <TextBox Grid.Row="4"
-                 Margin="0,4,0,0"
-                 Height="120"
-                 TextWrapping="Wrap"
-                 AcceptsReturn="True"
-                 IsReadOnly="True"
-                 Text="{Binding ValidationSummary}" />
+        <TextBlock Grid.Row="3" Margin="0,12,0,0" FontWeight="SemiBold" Text="Validation Result" />
+        <Border Grid.Row="4" Margin="0,6,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="8">
+            <TextBox Height="118"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="True"
+                     IsReadOnly="True"
+                     Text="{Binding ValidationSummary, Mode=OneWay}" />
+        </Border>
     </Grid>
 </UserControl>
+

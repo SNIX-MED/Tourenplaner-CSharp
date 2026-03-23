@@ -9,40 +9,31 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 public sealed class VehiclesSectionViewModel : SectionViewModelBase
 {
     private readonly JsonVehicleDataRepository _repository;
-    private VehicleItem? _selectedVehicle;
-    private TrailerItem? _selectedTrailer;
+    private readonly List<Vehicle> _vehicles = new();
+    private readonly List<TrailerRecord> _trailers = new();
+    private FleetDisplayMode _displayMode = FleetDisplayMode.Vehicles;
     private string _statusText = "Lade Fahrzeuge...";
+    private string _modeCountText = string.Empty;
 
     public VehiclesSectionViewModel(string vehiclesJsonPath)
-        : base("Vehicles", "Fahrzeuge und Anhänger mit Kapazitäten, Status und Notizen.")
+        : base("Fahrzeugverwaltung", "Zugfahrzeuge und Anhänger verwalten.")
     {
         _repository = new JsonVehicleDataRepository(vehiclesJsonPath);
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
-        SaveCommand = new AsyncCommand(SaveAsync, () => Vehicles.Count > 0 || Trailers.Count > 0);
-        AddVehicleCommand = new DelegateCommand(AddVehicle);
-        RemoveVehicleCommand = new DelegateCommand(RemoveSelectedVehicle, () => SelectedVehicle is not null);
-        AddTrailerCommand = new DelegateCommand(AddTrailer);
-        RemoveTrailerCommand = new DelegateCommand(RemoveSelectedTrailer, () => SelectedTrailer is not null);
+        ShowVehiclesCommand = new DelegateCommand(() => SetDisplayMode(FleetDisplayMode.Vehicles));
+        ShowTrailersCommand = new DelegateCommand(() => SetDisplayMode(FleetDisplayMode.Trailers));
 
         _ = RefreshAsync();
     }
 
-    public ObservableCollection<VehicleItem> Vehicles { get; } = new();
-
-    public ObservableCollection<TrailerItem> Trailers { get; } = new();
+    public ObservableCollection<FleetEntryCardItem> Entries { get; } = new();
 
     public ICommand RefreshCommand { get; }
 
-    public ICommand SaveCommand { get; }
+    public ICommand ShowVehiclesCommand { get; }
 
-    public ICommand AddVehicleCommand { get; }
-
-    public ICommand RemoveVehicleCommand { get; }
-
-    public ICommand AddTrailerCommand { get; }
-
-    public ICommand RemoveTrailerCommand { get; }
+    public ICommand ShowTrailersCommand { get; }
 
     public string StatusText
     {
@@ -50,309 +41,308 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _statusText, value);
     }
 
-    public VehicleItem? SelectedVehicle
+    public string ModeCountText
     {
-        get => _selectedVehicle;
-        set
-        {
-            if (SetProperty(ref _selectedVehicle, value))
-            {
-                RaiseCommandStates();
-            }
-        }
+        get => _modeCountText;
+        private set => SetProperty(ref _modeCountText, value);
     }
 
-    public TrailerItem? SelectedTrailer
+    public bool IsVehicleMode => _displayMode == FleetDisplayMode.Vehicles;
+
+    public bool IsTrailerMode => _displayMode == FleetDisplayMode.Trailers;
+
+    public string AddButtonText => IsVehicleMode ? "+ Fahrzeug" : "+ Anhänger";
+
+    public VehicleEditorSeed CreateSeedForCreate()
     {
-        get => _selectedTrailer;
-        set
+        var isTrailer = IsTrailerMode;
+        return new VehicleEditorSeed(
+            Id: null,
+            IsTrailer: isTrailer,
+            Type: isTrailer ? "trailer" : "truck",
+            Name: string.Empty,
+            LicensePlate: string.Empty,
+            MaxPayloadKg: 0,
+            MaxTrailerLoadKg: 0,
+            VolumeM3: 0,
+            LengthCm: 0,
+            WidthCm: 0,
+            HeightCm: 0,
+            Notes: string.Empty,
+            Active: true);
+    }
+
+    public VehicleEditorSeed CreateSeedForEdit(FleetEntryCardItem entry)
+    {
+        return new VehicleEditorSeed(
+            Id: entry.Id,
+            IsTrailer: entry.IsTrailer,
+            Type: entry.Type,
+            Name: entry.Name,
+            LicensePlate: entry.LicensePlate,
+            MaxPayloadKg: entry.MaxPayloadKg,
+            MaxTrailerLoadKg: entry.MaxTrailerLoadKg,
+            VolumeM3: entry.VolumeM3,
+            LengthCm: entry.LengthCm,
+            WidthCm: entry.WidthCm,
+            HeightCm: entry.HeightCm,
+            Notes: entry.Notes,
+            Active: entry.Active);
+    }
+
+    public async Task ApplyEditorResultAsync(VehicleEditorResult result)
+    {
+        var id = string.IsNullOrWhiteSpace(result.Id) ? Guid.NewGuid().ToString() : result.Id.Trim();
+
+        _vehicles.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+        _trailers.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+
+        var loadingArea = BuildDimensions(result.LengthCm, result.WidthCm, result.HeightCm);
+        if (result.IsTrailer)
         {
-            if (SetProperty(ref _selectedTrailer, value))
+            _trailers.Add(new TrailerRecord
             {
-                RaiseCommandStates();
-            }
+                Id = id,
+                Name = result.Name.Trim(),
+                LicensePlate = result.LicensePlate.Trim(),
+                MaxPayloadKg = Math.Max(0, result.MaxPayloadKg),
+                VolumeM3 = Math.Max(0, result.VolumeM3),
+                LoadingArea = loadingArea,
+                Active = result.Active,
+                Notes = result.Notes.Trim()
+            });
+            _displayMode = FleetDisplayMode.Trailers;
         }
+        else
+        {
+            _vehicles.Add(new Vehicle
+            {
+                Id = id,
+                Type = NormalizeVehicleType(result.Type),
+                Name = result.Name.Trim(),
+                LicensePlate = result.LicensePlate.Trim(),
+                MaxPayloadKg = Math.Max(0, result.MaxPayloadKg),
+                MaxTrailerLoadKg = Math.Max(0, result.MaxTrailerLoadKg),
+                VolumeM3 = Math.Max(0, result.VolumeM3),
+                LoadingArea = loadingArea,
+                Active = result.Active,
+                Notes = result.Notes.Trim()
+            });
+            _displayMode = FleetDisplayMode.Vehicles;
+        }
+
+        await SaveCurrentStateAsync();
+    }
+
+    public async Task DeleteEntryAsync(FleetEntryCardItem entry)
+    {
+        if (entry.IsTrailer)
+        {
+            _trailers.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            _vehicles.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+        }
+
+        await SaveCurrentStateAsync();
     }
 
     public async Task RefreshAsync()
     {
         var payload = await _repository.LoadAsync();
-        Vehicles.Clear();
-        Trailers.Clear();
-
-        foreach (var vehicle in payload.Vehicles)
-        {
-            Vehicles.Add(new VehicleItem
-            {
-                Id = vehicle.Id,
-                Type = vehicle.Type,
-                Name = vehicle.Name,
-                LicensePlate = vehicle.LicensePlate,
-                MaxPayloadKg = vehicle.MaxPayloadKg,
-                MaxTrailerLoadKg = vehicle.MaxTrailerLoadKg,
-                VolumeM3 = vehicle.VolumeM3,
-                Active = vehicle.Active,
-                Notes = vehicle.Notes
-            });
-        }
-
-        foreach (var trailer in payload.Trailers)
-        {
-            Trailers.Add(new TrailerItem
-            {
-                Id = trailer.Id,
-                Name = trailer.Name,
-                LicensePlate = trailer.LicensePlate,
-                MaxPayloadKg = trailer.MaxPayloadKg,
-                VolumeM3 = trailer.VolumeM3,
-                Active = trailer.Active,
-                Notes = trailer.Notes
-            });
-        }
-
-        SelectedVehicle = Vehicles.FirstOrDefault();
-        SelectedTrailer = Trailers.FirstOrDefault();
-        UpdateStatusText();
+        _vehicles.Clear();
+        _vehicles.AddRange(payload.Vehicles);
+        _trailers.Clear();
+        _trailers.AddRange(payload.Trailers);
+        RebuildEntries();
         RaiseCommandStates();
     }
 
-    public async Task SaveAsync()
+    private async Task SaveCurrentStateAsync()
     {
-        var payload = new VehicleDataRecord
+        await _repository.SaveAsync(new VehicleDataRecord
         {
-            Vehicles = Vehicles
-                .Where(v => !string.IsNullOrWhiteSpace(v.Name))
-                .Select(v => new Vehicle
-                {
-                    Id = string.IsNullOrWhiteSpace(v.Id) ? Guid.NewGuid().ToString() : v.Id.Trim(),
-                    Type = (v.Type ?? "other").Trim(),
-                    Name = (v.Name ?? string.Empty).Trim(),
-                    LicensePlate = (v.LicensePlate ?? string.Empty).Trim(),
-                    MaxPayloadKg = Math.Max(0, v.MaxPayloadKg),
-                    MaxTrailerLoadKg = Math.Max(0, v.MaxTrailerLoadKg),
-                    VolumeM3 = Math.Max(0, v.VolumeM3),
-                    Active = v.Active,
-                    Notes = (v.Notes ?? string.Empty).Trim()
-                })
-                .ToList(),
-            Trailers = Trailers
-                .Where(t => !string.IsNullOrWhiteSpace(t.Name))
-                .Select(t => new TrailerRecord
-                {
-                    Id = string.IsNullOrWhiteSpace(t.Id) ? Guid.NewGuid().ToString() : t.Id.Trim(),
-                    Name = (t.Name ?? string.Empty).Trim(),
-                    LicensePlate = (t.LicensePlate ?? string.Empty).Trim(),
-                    MaxPayloadKg = Math.Max(0, t.MaxPayloadKg),
-                    VolumeM3 = Math.Max(0, t.VolumeM3),
-                    Active = t.Active,
-                    Notes = (t.Notes ?? string.Empty).Trim()
-                })
-                .ToList()
-        };
-
-        await _repository.SaveAsync(payload);
+            Vehicles = _vehicles.ToList(),
+            Trailers = _trailers.ToList()
+        });
         await RefreshAsync();
     }
 
-    private void AddVehicle()
+    private void SetDisplayMode(FleetDisplayMode mode)
     {
-        var item = new VehicleItem
-        {
-            Id = Guid.NewGuid().ToString(),
-            Type = "truck",
-            Name = "Neues Fahrzeug",
-            Active = true
-        };
-
-        Vehicles.Add(item);
-        SelectedVehicle = item;
-        UpdateStatusText();
-        RaiseCommandStates();
-    }
-
-    private void RemoveSelectedVehicle()
-    {
-        if (SelectedVehicle is null)
+        if (_displayMode == mode)
         {
             return;
         }
 
-        Vehicles.Remove(SelectedVehicle);
-        SelectedVehicle = Vehicles.FirstOrDefault();
-        UpdateStatusText();
+        _displayMode = mode;
+        OnPropertyChanged(nameof(IsVehicleMode));
+        OnPropertyChanged(nameof(IsTrailerMode));
+        RebuildEntries();
         RaiseCommandStates();
     }
 
-    private void AddTrailer()
+    private void RebuildEntries()
     {
-        var item = new TrailerItem
-        {
-            Id = Guid.NewGuid().ToString(),
-            Name = "Neuer Anhänger",
-            Active = true
-        };
+        Entries.Clear();
 
-        Trailers.Add(item);
-        SelectedTrailer = item;
-        UpdateStatusText();
-        RaiseCommandStates();
-    }
-
-    private void RemoveSelectedTrailer()
-    {
-        if (SelectedTrailer is null)
+        if (_displayMode == FleetDisplayMode.Vehicles)
         {
-            return;
+            foreach (var vehicle in _vehicles.OrderBy(x => !x.Active).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                Entries.Add(new FleetEntryCardItem
+                {
+                    Id = vehicle.Id,
+                    IsTrailer = false,
+                    Type = NormalizeVehicleType(vehicle.Type),
+                    Name = vehicle.Name,
+                    LicensePlate = vehicle.LicensePlate,
+                    MaxPayloadKg = vehicle.MaxPayloadKg,
+                    MaxTrailerLoadKg = vehicle.MaxTrailerLoadKg,
+                    VolumeM3 = vehicle.VolumeM3,
+                    LengthCm = vehicle.LoadingArea?.LengthCm ?? 0,
+                    WidthCm = vehicle.LoadingArea?.WidthCm ?? 0,
+                    HeightCm = vehicle.LoadingArea?.HeightCm ?? 0,
+                    Notes = vehicle.Notes,
+                    Active = vehicle.Active
+                });
+            }
+        }
+        else
+        {
+            foreach (var trailer in _trailers.OrderBy(x => !x.Active).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                Entries.Add(new FleetEntryCardItem
+                {
+                    Id = trailer.Id,
+                    IsTrailer = true,
+                    Type = "trailer",
+                    Name = trailer.Name,
+                    LicensePlate = trailer.LicensePlate,
+                    MaxPayloadKg = trailer.MaxPayloadKg,
+                    MaxTrailerLoadKg = 0,
+                    VolumeM3 = trailer.VolumeM3,
+                    LengthCm = trailer.LoadingArea?.LengthCm ?? 0,
+                    WidthCm = trailer.LoadingArea?.WidthCm ?? 0,
+                    HeightCm = trailer.LoadingArea?.HeightCm ?? 0,
+                    Notes = trailer.Notes,
+                    Active = trailer.Active
+                });
+            }
         }
 
-        Trailers.Remove(SelectedTrailer);
-        SelectedTrailer = Trailers.FirstOrDefault();
-        UpdateStatusText();
-        RaiseCommandStates();
+        var activeVehicles = _vehicles.Count(x => x.Active);
+        var activeTrailers = _trailers.Count(x => x.Active);
+        StatusText = $"Zugfahrzeuge: {_vehicles.Count} (aktiv {activeVehicles}) | Anhänger: {_trailers.Count} (aktiv {activeTrailers})";
+        ModeCountText = IsVehicleMode ? $"Zugfahrzeuge: {Entries.Count}" : $"Anhänger: {Entries.Count}";
+        OnPropertyChanged(nameof(IsVehicleMode));
+        OnPropertyChanged(nameof(IsTrailerMode));
+        OnPropertyChanged(nameof(AddButtonText));
     }
 
-    private void UpdateStatusText()
+    private static VehicleDimensions? BuildDimensions(int lengthCm, int widthCm, int heightCm)
     {
-        var activeVehicles = Vehicles.Count(v => v.Active);
-        var activeTrailers = Trailers.Count(t => t.Active);
-        StatusText = $"Fahrzeuge: {Vehicles.Count} (aktiv {activeVehicles}) | Anhänger: {Trailers.Count} (aktiv {activeTrailers})";
+        lengthCm = Math.Max(0, lengthCm);
+        widthCm = Math.Max(0, widthCm);
+        heightCm = Math.Max(0, heightCm);
+        if (lengthCm == 0 && widthCm == 0 && heightCm == 0)
+        {
+            return null;
+        }
+
+        return new VehicleDimensions
+        {
+            LengthCm = lengthCm,
+            WidthCm = widthCm,
+            HeightCm = heightCm
+        };
+    }
+
+    private static string NormalizeVehicleType(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "truck" => "truck",
+            "van" => "van",
+            "car" => "car",
+            "other" => "other",
+            _ => "truck"
+        };
     }
 
     private void RaiseCommandStates()
     {
-        if (SaveCommand is AsyncCommand save)
+        if (ShowVehiclesCommand is DelegateCommand showVehicles)
         {
-            save.RaiseCanExecuteChanged();
+            showVehicles.RaiseCanExecuteChanged();
         }
 
-        if (RemoveVehicleCommand is DelegateCommand removeVehicle)
+        if (ShowTrailersCommand is DelegateCommand showTrailers)
         {
-            removeVehicle.RaiseCanExecuteChanged();
-        }
-
-        if (RemoveTrailerCommand is DelegateCommand removeTrailer)
-        {
-            removeTrailer.RaiseCanExecuteChanged();
+            showTrailers.RaiseCanExecuteChanged();
         }
     }
 }
 
-public sealed class VehicleItem : ObservableObject
+public sealed class FleetEntryCardItem : ObservableObject
 {
-    private string _id = string.Empty;
-    private string _type = "other";
-    private string _name = string.Empty;
-    private string _licensePlate = string.Empty;
-    private int _maxPayloadKg;
-    private int _maxTrailerLoadKg;
-    private int _volumeM3;
-    private bool _active = true;
-    private string _notes = string.Empty;
+    public string Id { get; set; } = string.Empty;
+    public bool IsTrailer { get; set; }
+    public string Type { get; set; } = "truck";
+    public string Name { get; set; } = string.Empty;
+    public string LicensePlate { get; set; } = string.Empty;
+    public int MaxPayloadKg { get; set; }
+    public int MaxTrailerLoadKg { get; set; }
+    public int VolumeM3 { get; set; }
+    public int LengthCm { get; set; }
+    public int WidthCm { get; set; }
+    public int HeightCm { get; set; }
+    public string Notes { get; set; } = string.Empty;
+    public bool Active { get; set; } = true;
 
-    public string Id
-    {
-        get => _id;
-        set => SetProperty(ref _id, value);
-    }
+    public string ActiveLabel => Active ? "Aktiv" : "Inaktiv";
 
-    public string Type
-    {
-        get => _type;
-        set => SetProperty(ref _type, value);
-    }
+    public string HeaderTypeLabel => IsTrailer ? "Anhänger" : "Zugfahrzeug";
 
-    public string Name
+    public string DetailsLine
     {
-        get => _name;
-        set => SetProperty(ref _name, value);
-    }
+        get
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(LicensePlate))
+            {
+                parts.Add($"Kennzeichen: {LicensePlate}");
+            }
 
-    public string LicensePlate
-    {
-        get => _licensePlate;
-        set => SetProperty(ref _licensePlate, value);
-    }
+            if (MaxPayloadKg > 0)
+            {
+                parts.Add($"Nutzlast: {MaxPayloadKg} kg");
+            }
 
-    public int MaxPayloadKg
-    {
-        get => _maxPayloadKg;
-        set => SetProperty(ref _maxPayloadKg, value);
-    }
+            if (!IsTrailer && MaxTrailerLoadKg > 0)
+            {
+                parts.Add($"Anhängelast: {MaxTrailerLoadKg} kg");
+            }
 
-    public int MaxTrailerLoadKg
-    {
-        get => _maxTrailerLoadKg;
-        set => SetProperty(ref _maxTrailerLoadKg, value);
-    }
+            if (VolumeM3 > 0)
+            {
+                parts.Add($"Volumen: {VolumeM3} m3");
+            }
 
-    public int VolumeM3
-    {
-        get => _volumeM3;
-        set => SetProperty(ref _volumeM3, value);
-    }
+            if (LengthCm > 0 || WidthCm > 0 || HeightCm > 0)
+            {
+                parts.Add($"Ladefläche: {LengthCm} x {WidthCm} x {HeightCm} cm");
+            }
 
-    public bool Active
-    {
-        get => _active;
-        set => SetProperty(ref _active, value);
-    }
-
-    public string Notes
-    {
-        get => _notes;
-        set => SetProperty(ref _notes, value);
+            return string.Join(" | ", parts);
+        }
     }
 }
 
-public sealed class TrailerItem : ObservableObject
+public enum FleetDisplayMode
 {
-    private string _id = string.Empty;
-    private string _name = string.Empty;
-    private string _licensePlate = string.Empty;
-    private int _maxPayloadKg;
-    private int _volumeM3;
-    private bool _active = true;
-    private string _notes = string.Empty;
-
-    public string Id
-    {
-        get => _id;
-        set => SetProperty(ref _id, value);
-    }
-
-    public string Name
-    {
-        get => _name;
-        set => SetProperty(ref _name, value);
-    }
-
-    public string LicensePlate
-    {
-        get => _licensePlate;
-        set => SetProperty(ref _licensePlate, value);
-    }
-
-    public int MaxPayloadKg
-    {
-        get => _maxPayloadKg;
-        set => SetProperty(ref _maxPayloadKg, value);
-    }
-
-    public int VolumeM3
-    {
-        get => _volumeM3;
-        set => SetProperty(ref _volumeM3, value);
-    }
-
-    public bool Active
-    {
-        get => _active;
-        set => SetProperty(ref _active, value);
-    }
-
-    public string Notes
-    {
-        get => _notes;
-        set => SetProperty(ref _notes, value);
-    }
+    Vehicles,
+    Trailers
 }

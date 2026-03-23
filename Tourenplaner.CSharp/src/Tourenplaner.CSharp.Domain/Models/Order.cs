@@ -9,4 +9,35 @@ public sealed class Order
     public OrderType Type { get; set; } = OrderType.Map;
     public GeoPoint? Location { get; set; }
     public string? AssignedTourId { get; set; }
+    public OrderAddressInfo OrderAddress { get; set; } = new();
+    public DeliveryAddressInfo DeliveryAddress { get; set; } = new();
+    public string Email { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
+    public List<OrderProductInfo> Products { get; set; } = new();
+    public string DeliveryType { get; set; } = "Frei Bordsteinkante";
+    public string OrderStatus { get; set; } = "nicht festgelegt";
+    public string Notes { get; set; } = string.Empty;
+}
+
+public sealed class OrderAddressInfo
+{
+    public string Name { get; set; } = string.Empty;
+    public string Street { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+}
+
+public sealed class DeliveryAddressInfo
+{
+    public string Name { get; set; } = string.Empty;
+    public string ContactPerson { get; set; } = string.Empty;
+    public string Street { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+}
+
+public sealed class OrderProductInfo
+{
+    public string Name { get; set; } = string.Empty;
+    public double WeightKg { get; set; }
 }

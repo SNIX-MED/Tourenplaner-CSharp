@@ -83,7 +83,7 @@ public sealed class UpdatesSectionViewModel : SectionViewModelBase
 
         var settings = await _settingsRepository.LoadAsync();
         LastBackupIso = string.IsNullOrWhiteSpace(settings.LastBackupIso) ? "n/a" : settings.LastBackupIso;
-        UpdateFeedUrl = $"https://github.com/search?q={Uri.EscapeDataString(settings.SqlDatabase)}";
+        UpdateFeedUrl = "https://github.com/";
 
         if (!string.IsNullOrWhiteSpace(settings.BackupDir) && Directory.Exists(settings.BackupDir))
         {

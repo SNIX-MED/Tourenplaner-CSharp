@@ -1,0 +1,39 @@
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Components.KpiCardControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="120"
+             d:DesignWidth="260">
+    <Border Style="{StaticResource KpiCardStyle}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock FontSize="12"
+                       Foreground="{DynamicResource Brush.TextMuted}"
+                       Text="{Binding Title, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+            <TextBlock Grid.Row="1"
+                       Margin="0,6,0,0"
+                       FontSize="26"
+                       FontWeight="SemiBold"
+                       Text="{Binding Value, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+            <StackPanel Grid.Row="2"
+                        Margin="0,8,0,0"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Bottom">
+                <Border Background="{DynamicResource Brush.AccentSoft}" CornerRadius="9" Padding="8,2">
+                    <TextBlock FontSize="11" Foreground="White" Text="{Binding Trend, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                </Border>
+                <TextBlock Margin="8,2,0,0"
+                           FontSize="11"
+                           Foreground="{DynamicResource Brush.TextMuted}"
+                           Text="{Binding Subtitle, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

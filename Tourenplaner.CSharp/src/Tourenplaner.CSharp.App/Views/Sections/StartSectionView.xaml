@@ -1,16 +1,136 @@
-﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.StartSectionView"
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.StartSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:components="clr-namespace:Tourenplaner.CSharp.App.Views.Components"
              mc:Ignorable="d"
-             d:DesignHeight="450"
-             d:DesignWidth="800">
-    <Border Margin="20" Padding="20" CornerRadius="8" BorderThickness="1" BorderBrush="#DDDDDD" Background="#FAFAFA">
+             d:DesignHeight="760"
+             d:DesignWidth="1080">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
         <StackPanel>
-            <TextBlock Text="{Binding Title}" FontSize="28" FontWeight="Bold" />
-            <TextBlock Margin="0,8,0,0" Text="{Binding Description}" TextWrapping="Wrap" FontSize="14" />
-            <TextBlock Margin="0,12,0,0" Text="{Binding Snapshot}" TextWrapping="Wrap" FontSize="13" />
+            <TextBlock FontSize="28" FontWeight="SemiBold" Text="{Binding Title}" />
+            <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding Description}" />
         </StackPanel>
-    </Border>
+
+        <UniformGrid Grid.Row="1" Margin="0,12,0,0" Rows="1" Columns="4">
+            <components:KpiCardControl Title="Orders" Value="{Binding KpiOrders}" Trend="+12%" Subtitle="since last week" />
+            <components:KpiCardControl Title="Tours" Value="{Binding KpiTours}" Trend="+6%" Subtitle="active plans" />
+            <components:KpiCardControl Title="Employees" Value="{Binding KpiEmployees}" Trend="+3%" Subtitle="available staff" />
+            <components:KpiCardControl Title="Vehicles" Value="{Binding KpiVehicles}" Trend="-2%" Subtitle="fleet utilization" />
+        </UniformGrid>
+
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="1*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Weekly Dispatch Activity" />
+                    <Grid Grid.Row="1" Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <ItemsControl ItemsSource="{Binding WeeklyBars}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Rows="1" Columns="7" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="6,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Border Grid.Row="0"
+                                                VerticalAlignment="Bottom"
+                                                CornerRadius="7"
+                                                Height="{Binding Value}"
+                                                MinHeight="18"
+                                                MaxHeight="180"
+                                                Background="{DynamicResource Brush.Accent}" />
+                                        <TextBlock Grid.Row="1"
+                                                   Margin="0,8,0,0"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="{Binding Label}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Grid.Row="1"
+                                   Margin="0,8,0,0"
+                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                   Text="{Binding Snapshot}" />
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                <Border Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+                    <StackPanel>
+                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="Team Pulse" />
+                        <TextBlock Margin="0,8,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="4 key roles online" />
+                        <TextBlock Margin="0,10,0,0" Text="Dispatch Lead: Online" />
+                        <TextBlock Margin="0,4,0,0" Text="Routing Analyst: Online" />
+                        <TextBlock Margin="0,4,0,0" Text="Fleet Ops: Busy" />
+                        <TextBlock Margin="0,4,0,0" Text="Support: Online" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="0,12,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+                    <StackPanel>
+                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="Fuhrpark" />
+                        <TextBlock Margin="0,8,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding FleetSubtitle}" />
+                        <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding FleetVehicles}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8"
+                                            Padding="8"
+                                            CornerRadius="10"
+                                            Background="{DynamicResource Brush.CardSoft}"
+                                            BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                            BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                                            <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding Meta}" />
+                                            <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding Kind}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="3" Margin="0,12,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" FontSize="15" FontWeight="SemiBold" Text="Operational Health" />
+                <TextBlock Grid.Column="1" Foreground="{DynamicResource Brush.TextMuted}" Text="System Sync: OK" />
+                <TextBlock Grid.Column="2" Foreground="{DynamicResource Brush.TextMuted}" Text="Backup Status: Ready" />
+            </Grid>
+        </Border>
+    </Grid>
 </UserControl>

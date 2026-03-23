@@ -21,8 +21,6 @@ public sealed class JsonToursRepository
             .Where(x => x is not null)
             .Select(TourNormalizer.NormalizeTour)
             .ToList();
-
-        await _store.AtomicWriteAsync(_path, normalized, cancellationToken);
         return normalized;
     }
 

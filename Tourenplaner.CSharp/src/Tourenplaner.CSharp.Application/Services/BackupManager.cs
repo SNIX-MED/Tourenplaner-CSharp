@@ -15,7 +15,6 @@ public sealed class BackupManager
         ["settings.json"] = "config/settings.json",
         ["pins.json"] = "data_root/pins.json",
         ["tours.json"] = "data_root/tours.json",
-        ["geocode_cache.json"] = "data_root/geocode_cache.json",
         ["config.json"] = "data_root/config.json"
     };
 
@@ -466,7 +465,7 @@ public sealed class BackupManager
         if (path == "config/settings.json") return "settings";
         if (path == "data_root/pins.json") return "orders";
         if (path == "data_root/tours.json") return "tours";
-        if (path == "data_root/geocode_cache.json" || path == "data_root/config.json") return "misc";
+        if (path == "data_root/config.json") return "misc";
         if (path == "data/employees.json") return "employees";
         if (path == "data/vehicles.json") return "vehicles";
         if (path.StartsWith("data/", StringComparison.OrdinalIgnoreCase)) return "other_data";

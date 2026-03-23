@@ -77,16 +77,23 @@ public class MapRouteServiceTests
             routeName: " ",
             routeDate: "invalid-date",
             routeStartTime: " ",
+            companyName: "GAWELA",
+            companyAddress: "Musterstrasse 1, 8000 Zuerich",
+            companyLocation: new GeoPoint(47.35, 8.52),
             defaultServiceMinutes: -5);
 
         Assert.Equal(12, tour.Id);
         Assert.Equal("Karte Tour 12", tour.Name);
         Assert.Equal("08:00", tour.StartTime);
         Assert.Equal("car", tour.RouteMode);
-        Assert.Equal("A-100", tour.Stops[0].Auftragsnummer);
-        Assert.Equal("B-200", tour.Stops[1].Auftragsnummer);
+        Assert.Equal("FIRMA-START", tour.Stops[0].Auftragsnummer);
+        Assert.Equal("A-100", tour.Stops[1].Auftragsnummer);
+        Assert.Equal("B-200", tour.Stops[2].Auftragsnummer);
+        Assert.Equal("FIRMA-ENDE", tour.Stops[3].Auftragsnummer);
         Assert.Equal(1, tour.Stops[0].Order);
         Assert.Equal(2, tour.Stops[1].Order);
+        Assert.Equal(3, tour.Stops[2].Order);
+        Assert.Equal(4, tour.Stops[3].Order);
         Assert.Equal(0, tour.Stops[0].ServiceMinutes);
     }
 

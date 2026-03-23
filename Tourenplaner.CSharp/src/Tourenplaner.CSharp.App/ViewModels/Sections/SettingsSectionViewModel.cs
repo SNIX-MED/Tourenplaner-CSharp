@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Windows.Input;
@@ -17,10 +17,13 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private readonly string _dataRoot;
 
     private string _statusText = "Loading settings...";
-    private string _sqlServerInstance = string.Empty;
-    private string _sqlDataDir = string.Empty;
-    private string _sqlDatabase = string.Empty;
     private string _appearanceMode = "System";
+    private string _googleMapsApiKey = string.Empty;
+    private string _avisoEmailSubjectTemplate = AppSettings.DefaultAvisoEmailSubjectTemplate;
+    private string _companyName = "Firma";
+    private string _companyStreet = string.Empty;
+    private string _companyPostalCode = string.Empty;
+    private string _companyCity = string.Empty;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
     private string _backupModeDefault = "full";
@@ -31,7 +34,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _validationSummary = string.Empty;
 
     public SettingsSectionViewModel(string settingsJsonPath, string dataRoot)
-        : base("Settings", "Appearance, SQL, backup policy and restore operations.")
+        : base("Settings", "Appearance, backup policy and restore operations.")
     {
         _repository = new JsonAppSettingsRepository(settingsJsonPath);
         _validator = new SettingsValidator();
@@ -89,28 +92,46 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _validationSummary, value);
     }
 
-    public string SqlServerInstance
-    {
-        get => _sqlServerInstance;
-        set => SetProperty(ref _sqlServerInstance, value);
-    }
-
-    public string SqlDataDir
-    {
-        get => _sqlDataDir;
-        set => SetProperty(ref _sqlDataDir, value);
-    }
-
-    public string SqlDatabase
-    {
-        get => _sqlDatabase;
-        set => SetProperty(ref _sqlDatabase, value);
-    }
-
     public string AppearanceMode
     {
         get => _appearanceMode;
         set => SetProperty(ref _appearanceMode, value);
+    }
+
+    public string GoogleMapsApiKey
+    {
+        get => _googleMapsApiKey;
+        set => SetProperty(ref _googleMapsApiKey, value);
+    }
+
+    public string AvisoEmailSubjectTemplate
+    {
+        get => _avisoEmailSubjectTemplate;
+        set => SetProperty(ref _avisoEmailSubjectTemplate, value);
+    }
+
+    public string CompanyName
+    {
+        get => _companyName;
+        set => SetProperty(ref _companyName, value);
+    }
+
+    public string CompanyStreet
+    {
+        get => _companyStreet;
+        set => SetProperty(ref _companyStreet, value);
+    }
+
+    public string CompanyPostalCode
+    {
+        get => _companyPostalCode;
+        set => SetProperty(ref _companyPostalCode, value);
+    }
+
+    public string CompanyCity
+    {
+        get => _companyCity;
+        set => SetProperty(ref _companyCity, value);
     }
 
     public bool BackupsEnabled
@@ -254,10 +275,15 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         return new AppSettings
         {
-            SqlServerInstance = (SqlServerInstance ?? string.Empty).Trim(),
-            SqlDataDir = (SqlDataDir ?? string.Empty).Trim(),
-            SqlDatabase = (SqlDatabase ?? string.Empty).Trim(),
             AppearanceMode = (AppearanceMode ?? string.Empty).Trim(),
+            GoogleMapsApiKey = (GoogleMapsApiKey ?? string.Empty).Trim(),
+            AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(AvisoEmailSubjectTemplate)
+                ? AppSettings.DefaultAvisoEmailSubjectTemplate
+                : AvisoEmailSubjectTemplate.Trim(),
+            CompanyName = string.IsNullOrWhiteSpace(CompanyName) ? "Firma" : CompanyName.Trim(),
+            CompanyStreet = (CompanyStreet ?? string.Empty).Trim(),
+            CompanyPostalCode = (CompanyPostalCode ?? string.Empty).Trim(),
+            CompanyCity = (CompanyCity ?? string.Empty).Trim(),
             BackupsEnabled = BackupsEnabled,
             BackupDir = (BackupDir ?? string.Empty).Trim(),
             BackupModeDefault = (BackupModeDefault ?? string.Empty).Trim(),
@@ -271,10 +297,15 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     private void ApplyModel(AppSettings settings)
     {
-        SqlServerInstance = settings.SqlServerInstance;
-        SqlDataDir = settings.SqlDataDir;
-        SqlDatabase = settings.SqlDatabase;
         AppearanceMode = settings.AppearanceMode;
+        GoogleMapsApiKey = settings.GoogleMapsApiKey;
+        AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(settings.AvisoEmailSubjectTemplate)
+            ? AppSettings.DefaultAvisoEmailSubjectTemplate
+            : settings.AvisoEmailSubjectTemplate;
+        CompanyName = string.IsNullOrWhiteSpace(settings.CompanyName) ? "Firma" : settings.CompanyName;
+        CompanyStreet = settings.CompanyStreet ?? string.Empty;
+        CompanyPostalCode = settings.CompanyPostalCode ?? string.Empty;
+        CompanyCity = settings.CompanyCity ?? string.Empty;
         BackupsEnabled = settings.BackupsEnabled;
         BackupDir = settings.BackupDir;
         BackupModeDefault = settings.BackupModeDefault;

@@ -1,42 +1,48 @@
-﻿<Application x:Class="Tourenplaner.CSharp.App.App"
+<Application x:Class="Tourenplaner.CSharp.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Tourenplaner.CSharp.App.ViewModels.Sections"
-             xmlns:v="clr-namespace:Tourenplaner.CSharp.App.Views.Sections"
-             StartupUri="MainWindow.xaml">
+             xmlns:v="clr-namespace:Tourenplaner.CSharp.App.Views.Sections">
     <Application.Resources>
-        <DataTemplate DataType="{x:Type vm:StartSectionViewModel}">
-            <v:StartSectionView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:KalenderSectionViewModel}">
-            <v:KalenderSectionView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:KarteSectionViewModel}">
-            <v:KarteSectionView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:GpsSectionViewModel}">
-            <v:GpsSectionView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:OrdersSectionViewModel}">
-            <v:OrdersSectionView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:NonMapOrdersSectionViewModel}">
-            <v:NonMapOrdersSectionView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:ToursSectionViewModel}">
-            <v:ToursSectionView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:EmployeesSectionViewModel}">
-            <v:EmployeesSectionView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:VehiclesSectionViewModel}">
-            <v:VehiclesSectionView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:SettingsSectionViewModel}">
-            <v:SettingsSectionView />
-        </DataTemplate>
-        <DataTemplate DataType="{x:Type vm:UpdatesSectionViewModel}">
-            <v:UpdatesSectionView />
-        </DataTemplate>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Theme.Controls.xaml" />
+                <ResourceDictionary Source="Themes/Theme.Dark.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <DataTemplate DataType="{x:Type vm:StartSectionViewModel}">
+                <v:StartSectionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:KalenderSectionViewModel}">
+                <v:KalenderSectionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:KarteSectionViewModel}">
+                <v:KarteSectionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:GpsSectionViewModel}">
+                <v:GpsSectionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:OrdersSectionViewModel}">
+                <v:OrdersSectionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:NonMapOrdersSectionViewModel}">
+                <v:NonMapOrdersSectionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ToursSectionViewModel}">
+                <v:ToursSectionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:EmployeesSectionViewModel}">
+                <v:EmployeesSectionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:VehiclesSectionViewModel}">
+                <v:VehiclesSectionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SettingsSectionViewModel}">
+                <v:SettingsSectionView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:UpdatesSectionViewModel}">
+                <v:UpdatesSectionView />
+            </DataTemplate>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>
