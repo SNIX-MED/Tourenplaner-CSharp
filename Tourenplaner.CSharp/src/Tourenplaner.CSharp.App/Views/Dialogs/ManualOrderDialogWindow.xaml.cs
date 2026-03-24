@@ -25,13 +25,12 @@ public partial class ManualOrderDialogWindow : Window
 
     private void OnSaveClicked(object sender, RoutedEventArgs e)
     {
-        var order = ViewModel.BuildOrder();
-        if (order is null)
+        if (!ViewModel.TryBuildOrder(out var order, out var validationError))
         {
             MessageBox.Show(
                 this,
-                "Bitte mindestens Auftragsnummer, Liefername und Lieferadresse ausfuellen.",
-                "Unvollstaendige Angaben",
+                validationError,
+                "Eingabe pruefen",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;
@@ -62,7 +61,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     private ProductLineInput? _selectedProductLine;
     private string _orderNumber = string.Empty;
-    private DateTime? _orderDate = DateTime.Today;
+    private string _orderDateText = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     private string _orderAddressName = string.Empty;
     private string _orderAddressStreet = string.Empty;
     private string _orderAddressPostalCode = string.Empty;
@@ -118,10 +117,10 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         set => SetProperty(ref _orderNumber, value);
     }
 
-    public DateTime? OrderDate
+    public string OrderDateText
     {
-        get => _orderDate;
-        set => SetProperty(ref _orderDate, value);
+        get => _orderDateText;
+        set => SetProperty(ref _orderDateText, value);
     }
 
     public string OrderAddressName
@@ -208,13 +207,17 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         set => SetProperty(ref _notes, value);
     }
 
-    public Order? BuildOrder()
+    public bool TryBuildOrder(out Order? order, out string error)
     {
+        order = null;
+        error = string.Empty;
+
         var id = (OrderNumber ?? string.Empty).Trim();
         var deliveryName = (DeliveryName ?? string.Empty).Trim();
         var deliveryStreet = (DeliveryStreet ?? string.Empty).Trim();
         var deliveryPostalCode = (DeliveryPostalCode ?? string.Empty).Trim();
         var deliveryCity = (DeliveryCity ?? string.Empty).Trim();
+        var normalizedOrderDateText = (OrderDateText ?? string.Empty).Trim();
 
         if (string.IsNullOrWhiteSpace(id) ||
             string.IsNullOrWhiteSpace(deliveryName) ||
@@ -222,7 +225,19 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             string.IsNullOrWhiteSpace(deliveryPostalCode) ||
             string.IsNullOrWhiteSpace(deliveryCity))
         {
-            return null;
+            error = "Bitte mindestens Auftragsnummer, Liefername und Lieferadresse ausfuellen.";
+            return false;
+        }
+
+        if (!DateTime.TryParseExact(
+                normalizedOrderDateText,
+                "dd.MM.yyyy",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsedOrderDate))
+        {
+            error = "Bitte ein gueltiges Auftragsdatum im Format DD.MM.YYYY eingeben.";
+            return false;
         }
 
         var products = ProductLines
@@ -234,10 +249,10 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             })
             .ToList();
 
-        return new Order
+        order = new Order
         {
             Id = id,
-            ScheduledDate = DateOnly.FromDateTime(OrderDate ?? DateTime.Today),
+            ScheduledDate = DateOnly.FromDateTime(parsedOrderDate),
             Type = OrderType.Map,
             CustomerName = deliveryName,
             Address = $"{deliveryStreet}, {deliveryPostalCode} {deliveryCity}",
@@ -260,11 +275,15 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Phone = (Phone ?? string.Empty).Trim(),
             Products = products,
             DeliveryType = (SelectedDeliveryType ?? DeliveryTypes[0]).Trim(),
-            OrderStatus = (SelectedStatus ?? Statuses[0]).Trim(),
+            OrderStatus = string.IsNullOrWhiteSpace(SelectedStatus)
+                ? Statuses[0]
+                : SelectedStatus.Trim(),
             Notes = (Notes ?? string.Empty).Trim(),
             AssignedTourId = _existingAssignedTourId,
             Location = _existingLocation
         };
+
+        return true;
     }
 
     private void ApplyExistingOrder(Order? existingOrder)
@@ -278,7 +297,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         _existingLocation = existingOrder.Location;
         _existingAssignedTourId = existingOrder.AssignedTourId;
         OrderNumber = existingOrder.Id;
-        OrderDate = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue);
+        OrderDateText = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         OrderAddressName = existingOrder.OrderAddress?.Name ?? string.Empty;
         OrderAddressStreet = existingOrder.OrderAddress?.Street ?? string.Empty;
         OrderAddressPostalCode = existingOrder.OrderAddress?.PostalCode ?? string.Empty;
@@ -293,7 +312,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         SelectedDeliveryType = string.IsNullOrWhiteSpace(existingOrder.DeliveryType)
             ? DeliveryTypes[0]
             : existingOrder.DeliveryType;
-        SelectedStatus = string.IsNullOrWhiteSpace(existingOrder.OrderStatus)
+        SelectedStatus = string.IsNullOrWhiteSpace(existingOrder.OrderStatus) ||
+                         string.Equals(existingOrder.OrderStatus, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase)
             ? Statuses[0]
             : existingOrder.OrderStatus;
         Notes = existingOrder.Notes ?? string.Empty;

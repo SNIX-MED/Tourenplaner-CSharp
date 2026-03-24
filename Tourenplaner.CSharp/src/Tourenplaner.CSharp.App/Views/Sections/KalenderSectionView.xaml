@@ -20,8 +20,6 @@
         </Style>
 
         <Style x:Key="CalendarDayBorderStyle" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="2" />
@@ -36,8 +34,8 @@
                     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
                     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                    <Setter Property="BorderThickness" Value="2" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -140,11 +138,14 @@
                                         </ListBox.ItemsPanel>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Style="{StaticResource CalendarDayBorderStyle}">
+                                                <Border Style="{StaticResource CalendarDayBorderStyle}"
+                                                        Background="{Binding LoadBackground}"
+                                                        BorderBrush="{Binding LoadBorderBrush}">
                                                     <Grid>
                                                         <TextBlock HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center"
                                                                    FontWeight="SemiBold"
+                                                                   Foreground="{Binding LoadForeground}"
                                                                    Text="{Binding DayLabel}" />
 
                                                         <Border HorizontalAlignment="Right"

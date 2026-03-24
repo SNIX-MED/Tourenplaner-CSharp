@@ -40,9 +40,6 @@
             <DataTemplate DataType="{x:Type vm:SettingsSectionViewModel}">
                 <v:SettingsSectionView />
             </DataTemplate>
-            <DataTemplate DataType="{x:Type vm:UpdatesSectionViewModel}">
-                <v:UpdatesSectionView />
-            </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

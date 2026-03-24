@@ -7,96 +7,41 @@
              mc:Ignorable="d"
              d:DesignHeight="640"
              d:DesignWidth="1020">
-    <Grid Margin="16">
+    <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
-
-        <DockPanel Grid.Row="1" Margin="0,12,0,12">
+        <DockPanel Margin="0,0,0,10">
+            <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                 <Button Width="110" Margin="8,0,0,0" Content="Reload" Command="{Binding RefreshCommand}" />
                 <Button Width="150" Margin="8,0,0,0" Content="Open in Browser" Command="{Binding OpenInBrowserCommand}" />
-                <Button Width="120" Margin="8,0,0,0" Content="Copy URL" Command="{Binding CopyUrlCommand}" />
             </StackPanel>
-            <TextBlock VerticalAlignment="Center"
-                       FontSize="13"
-                       Foreground="{DynamicResource Brush.TextMuted}"
-                       Text="{Binding StatusText}" />
         </DockPanel>
 
-        <Border Grid.Row="2"
+        <Border Grid.Row="1"
                 BorderBrush="{DynamicResource Brush.GlassStroke}"
                 BorderThickness="1"
                 CornerRadius="10"
-                Padding="12"
+                Padding="6"
                 Background="{DynamicResource Brush.GlassSurfaceStrong}">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="150" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="GPS URL" />
-                <TextBox Grid.Row="0"
-                         Grid.Column="1"
-                         Margin="8,4,0,4"
-                         Text="{Binding GpsUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Loaded URL" />
-                <TextBlock Grid.Row="1" Grid.Column="1" Margin="8,4,0,4" VerticalAlignment="Center" Text="{Binding LoadedUrl}" />
-
-                <TextBlock Grid.Row="2"
-                           Grid.ColumnSpan="2"
-                           x:Name="FallbackNotice"
-                           Margin="0,8,0,0"
+                
+                <TextBlock x:Name="FallbackNotice"
                            Foreground="{DynamicResource Brush.Accent}"
                            Visibility="Collapsed"
                            TextWrapping="Wrap"
-                           Text="WebView2 runtime not available. Open the GPS URL in the external browser." />
+                           Margin="12"
+                           Text="KTRAC konnte nicht eingebettet geladen werden. Bitte 'Open in Browser' verwenden." />
 
-                <Grid Grid.Row="3" Grid.ColumnSpan="2" Margin="0,12,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <wv2:WebView2 x:Name="GpsWebView"
-                                  Grid.Row="0"
-                                  MinHeight="220" />
-
-                    <StackPanel Grid.Row="1" Margin="0,8,0,0">
-                        <TextBlock Text="Embedded View Status" FontWeight="SemiBold" />
-                        <TextBlock Margin="0,4,0,0"
-                                   TextWrapping="Wrap"
-                                   Text="Embedded WebView2 is used when available; fallback actions remain available for restricted environments." />
-                        <TextBlock Margin="0,8,0,0">
-                            <Run Text="WebView2 Runtime Available: " />
-                            <Run Text="{Binding WebView2Available, Mode=OneWay}" />
-                        </TextBlock>
-                        <TextBlock Margin="0,2,0,0">
-                            <Run Text="Last Reload: " />
-                            <Run Text="{Binding LastReloadAt, Mode=OneWay}" />
-                        </TextBlock>
-                    </StackPanel>
-                </Grid>
-
+                <wv2:WebView2 x:Name="GpsWebView"
+                              MinHeight="220" />
             </Grid>
         </Border>
-
-        <TextBlock Grid.Row="3"
-                   Margin="0,10,0,0"
-                   Foreground="{DynamicResource Brush.TextMuted}"
-                   Text="Fallback behavior mirrors Python desktop mode when embedded browser dependencies are missing." />
     </Grid>
 </UserControl>

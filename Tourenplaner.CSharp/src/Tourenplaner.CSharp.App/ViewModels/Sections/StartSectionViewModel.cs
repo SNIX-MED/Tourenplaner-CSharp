@@ -1,154 +1,272 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Windows.Input;
+using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Common;
-using Tourenplaner.CSharp.Application.Services;
+using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class StartSectionViewModel : SectionViewModelBase
 {
-    private readonly AppSnapshotService _snapshotService;
-    private readonly JsonVehicleDataRepository _vehicleRepository;
-    private string _snapshot = "Loading snapshot...";
-    private string _kpiOrders = "-";
-    private string _kpiTours = "-";
-    private string _kpiEmployees = "-";
-    private string _kpiVehicles = "-";
-    private string _fleetSubtitle = "Keine Fahrzeuge erfasst.";
+    private static readonly CultureInfo UiCulture = new("de-CH");
+    private static readonly string[] SupportedDateFormats = ["dd.MM.yyyy", "yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy"];
+    private const int PreviewDayCount = 21;
 
-    public StartSectionViewModel(AppSnapshotService snapshotService, string vehiclesJsonPath)
-        : base("Start", "Operational cockpit with live planning indicators.")
+    private readonly JsonToursRepository _tourRepository;
+    private readonly JsonAppSettingsRepository _settingsRepository;
+    private readonly Func<Task>? _openMapAsync;
+    private readonly string _bannerImagePath;
+    private string _statusText = "Startseite wird geladen...";
+    private string _calendarHeadline = $"Kalender der nächsten {PreviewDayCount} Tage";
+    private string _calendarSubtitle = "Drei Wochen im Überblick, gruppiert nach Kalenderwochen.";
+    private string _dashboardSummary = "Tourenübersicht wird geladen...";
+    private string _nextPlannedDayText = "Noch kein Tourtag geplant";
+
+    public StartSectionViewModel(
+        string toursJsonPath,
+        string settingsJsonPath,
+        string bannerImagePath,
+        Func<Task>? openMapAsync = null)
+        : base("Start", "Schneller Einstieg in die Tourenplanung.")
     {
-        _snapshotService = snapshotService;
-        _vehicleRepository = new JsonVehicleDataRepository(vehiclesJsonPath);
+        _tourRepository = new JsonToursRepository(toursJsonPath);
+        _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
+        _openMapAsync = openMapAsync;
+        _bannerImagePath = bannerImagePath;
 
-        WeeklyBars =
-        [
-            new MetricPoint("Mon", 52),
-            new MetricPoint("Tue", 61),
-            new MetricPoint("Wed", 48),
-            new MetricPoint("Thu", 74),
-            new MetricPoint("Fri", 67),
-            new MetricPoint("Sat", 40),
-            new MetricPoint("Sun", 33)
-        ];
+        NewTourPlanCommand = new AsyncCommand(OpenMapAsync);
     }
 
-    public ObservableCollection<FleetVehicleOverviewItem> FleetVehicles { get; } = new();
+    public ObservableCollection<UpcomingDayCardItem> UpcomingDayCards { get; } = [];
 
-    public string Snapshot
+    public ObservableCollection<StartWeekGroupItem> UpcomingWeeks { get; } = [];
+
+    public ICommand NewTourPlanCommand { get; }
+
+    public string BannerImagePath => _bannerImagePath;
+
+    public string StatusText
     {
-        get => _snapshot;
-        private set => SetProperty(ref _snapshot, value);
+        get => _statusText;
+        private set => SetProperty(ref _statusText, value);
     }
 
-    public string KpiOrders
+    public string CalendarHeadline
     {
-        get => _kpiOrders;
-        private set => SetProperty(ref _kpiOrders, value);
+        get => _calendarHeadline;
+        private set => SetProperty(ref _calendarHeadline, value);
     }
 
-    public string KpiTours
+    public string CalendarSubtitle
     {
-        get => _kpiTours;
-        private set => SetProperty(ref _kpiTours, value);
+        get => _calendarSubtitle;
+        private set => SetProperty(ref _calendarSubtitle, value);
     }
 
-    public string KpiEmployees
+    public string DashboardSummary
     {
-        get => _kpiEmployees;
-        private set => SetProperty(ref _kpiEmployees, value);
+        get => _dashboardSummary;
+        private set => SetProperty(ref _dashboardSummary, value);
     }
 
-    public string KpiVehicles
+    public string NextPlannedDayText
     {
-        get => _kpiVehicles;
-        private set => SetProperty(ref _kpiVehicles, value);
+        get => _nextPlannedDayText;
+        private set => SetProperty(ref _nextPlannedDayText, value);
     }
-
-    public string FleetSubtitle
-    {
-        get => _fleetSubtitle;
-        private set => SetProperty(ref _fleetSubtitle, value);
-    }
-
-    public ObservableCollection<MetricPoint> WeeklyBars { get; }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
-        var snapshotTask = _snapshotService.CreateAsync(cancellationToken);
-        var vehiclesTask = _vehicleRepository.LoadAsync(cancellationToken);
-        await Task.WhenAll(snapshotTask, vehiclesTask);
+        var settingsTask = _settingsRepository.LoadAsync(cancellationToken);
+        var toursTask = _tourRepository.LoadAsync(cancellationToken);
+        await Task.WhenAll(settingsTask, toursTask);
 
-        AppSnapshot value = await snapshotTask;
-        KpiOrders = value.OrderCount.ToString();
-        KpiTours = value.TourCount.ToString();
-        KpiEmployees = value.EmployeeCount.ToString();
-        KpiVehicles = value.VehicleCount.ToString();
+        var settings = await settingsTask;
+        var warningColor = NormalizeHexColor(settings.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
+        var criticalColor = NormalizeHexColor(settings.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
+        var warningThreshold = settings.CalendarLoadWarningPeopleThreshold < 1 ? 1 : settings.CalendarLoadWarningPeopleThreshold;
+        var criticalThreshold = settings.CalendarLoadCriticalPeopleThreshold < warningThreshold
+            ? warningThreshold
+            : settings.CalendarLoadCriticalPeopleThreshold;
 
-        Snapshot =
-            $"Orders: {value.OrderCount} (Non-Map: {value.NonMapOrderCount}) | Tours: {value.TourCount} | Employees: {value.EmployeeCount} | Vehicles: {value.VehicleCount}";
+        var tours = await toursTask;
+        var toursByDate = tours
+            .Select(t => new { Tour = t, Date = ParseTourDate(t.Date) })
+            .Where(x => x.Date is not null)
+            .GroupBy(x => x.Date!.Value.Date)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(x => x.Tour)
+                    .OrderBy(t => ParseStartTimeMinutes(t.StartTime))
+                    .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList());
 
-        var payload = await vehiclesTask;
-        FleetVehicles.Clear();
-        foreach (var vehicle in payload.Vehicles
-                     .Where(v => v.Active)
-                     .OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
-                     .Take(6))
+        UpcomingDayCards.Clear();
+        UpcomingWeeks.Clear();
+        StartWeekGroupItem? currentWeek = null;
+        for (var i = 0; i < PreviewDayCount; i++)
         {
-            FleetVehicles.Add(new FleetVehicleOverviewItem
+            var date = DateTime.Today.AddDays(i).Date;
+            toursByDate.TryGetValue(date, out var toursForDay);
+            toursForDay ??= [];
+
+            var assignedPeopleCount = toursForDay.Sum(GetAssignedPeopleCount);
+            var card = new UpcomingDayCardItem
             {
-                Name = vehicle.Name,
-                Meta = BuildMeta(vehicle.LicensePlate, vehicle.MaxPayloadKg, vehicle.VolumeM3),
-                Kind = "Zugfahrzeug"
-            });
+                Date = date,
+                DateText = date.ToString("dd.MM.yyyy", UiCulture),
+                TourCountText = $"{toursForDay.Count} geplante Tour(en)",
+                SummaryText = toursForDay.Count == 0
+                    ? "Keine Tour geplant."
+                    : string.Join(" | ", toursForDay.Take(2).Select(BuildTourSummary)),
+                IsToday = date == DateTime.Today
+            };
+
+            ApplyDayLoadAppearance(card, assignedPeopleCount, warningThreshold, criticalThreshold, warningColor, criticalColor);
+            UpcomingDayCards.Add(card);
+
+            var weekLabel = BuildWeekLabel(date);
+            if (currentWeek is null || !string.Equals(currentWeek.Label, weekLabel, StringComparison.Ordinal))
+            {
+                currentWeek = new StartWeekGroupItem
+                {
+                    Label = weekLabel
+                };
+                UpcomingWeeks.Add(currentWeek);
+            }
+
+            currentWeek.Days.Add(card);
         }
 
-        foreach (var trailer in payload.Trailers
-                     .Where(t => t.Active)
-                     .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-                     .Take(6))
-        {
-            FleetVehicles.Add(new FleetVehicleOverviewItem
-            {
-                Name = trailer.Name,
-                Meta = BuildMeta(trailer.LicensePlate, trailer.MaxPayloadKg, trailer.VolumeM3),
-                Kind = "Anhänger"
-            });
-        }
+        var plannedCards = UpcomingDayCards
+            .Where(x => !string.Equals(x.TourCountText, "0 geplante Tour(en)", StringComparison.Ordinal))
+            .ToList();
+        var plannedDayCount = plannedCards.Count;
+        var plannedTourCount = plannedCards.Sum(x => toursByDate.TryGetValue(x.Date, out var toursForDay) ? toursForDay.Count : 0);
+        var nextPlannedDay = plannedCards.FirstOrDefault();
 
-        FleetSubtitle = FleetVehicles.Count == 0
-            ? "Keine aktiven Fahrzeuge verfügbar."
-            : $"{FleetVehicles.Count} aktive Fahrzeuge/Anhänger";
+        CalendarHeadline = $"Kalender der nächsten {PreviewDayCount} Tage";
+        CalendarSubtitle = "Drei Wochen im Überblick, gruppiert nach Kalenderwochen.";
+        DashboardSummary = plannedDayCount == 0
+            ? $"In den nächsten {PreviewDayCount} Tagen ist aktuell keine Tour geplant."
+            : $"{plannedTourCount} Tour(en) an {plannedDayCount} Tag(en) in den nächsten {PreviewDayCount} Tagen.";
+        NextPlannedDayText = nextPlannedDay is null
+            ? "Noch kein Tourtag geplant"
+            : $"Nächster geplanter Tag: {nextPlannedDay.Date:dddd, dd.MM.yyyy}";
+        StatusText = plannedDayCount == 0
+            ? $"In den nächsten {PreviewDayCount} Tagen ist aktuell keine Tour geplant."
+            : $"In den nächsten {PreviewDayCount} Tagen sind an {plannedDayCount} Tag(en) Touren eingeplant.";
     }
 
-    private static string BuildMeta(string? licensePlate, int payloadKg, int volumeM3)
+    private async Task OpenMapAsync()
     {
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(licensePlate))
+        if (_openMapAsync is null)
         {
-            parts.Add(licensePlate.Trim());
+            return;
         }
 
-        if (payloadKg > 0)
+        await _openMapAsync();
+    }
+
+    private static void ApplyDayLoadAppearance(
+        CalendarLoadItem item,
+        int assignedPeopleCount,
+        int warningThreshold,
+        int criticalThreshold,
+        string warningColor,
+        string criticalColor)
+    {
+        item.LoadBackground = "#FFFFFF";
+        item.LoadBorderBrush = "#D8DEE7";
+        item.LoadForeground = "#0F172A";
+
+        if (assignedPeopleCount >= criticalThreshold)
         {
-            parts.Add($"{payloadKg} kg");
+            item.LoadBackground = criticalColor;
+            item.LoadBorderBrush = criticalColor;
+            item.LoadForeground = "#FFFFFF";
+            return;
         }
 
-        if (volumeM3 > 0)
+        if (assignedPeopleCount >= warningThreshold)
         {
-            parts.Add($"{volumeM3} m3");
+            item.LoadBackground = warningColor;
+            item.LoadBorderBrush = warningColor;
+            item.LoadForeground = "#FFFFFF";
+        }
+    }
+
+    private static int GetAssignedPeopleCount(TourRecord tour)
+    {
+        return (tour.EmployeeIds ?? []).Count(x => !string.IsNullOrWhiteSpace(x));
+    }
+
+    private static string BuildTourSummary(TourRecord tour)
+    {
+        var stopCount = tour.Stops.Count(s => !TourStopIdentity.IsCompanyStop(s));
+        return $"{NormalizeStartTime(tour.StartTime)} {tour.Name} ({stopCount} Stopps)".Trim();
+    }
+
+    private static int ParseStartTimeMinutes(string? raw)
+    {
+        var value = NormalizeStartTime(raw);
+        return TimeSpan.TryParseExact(value, "hh\\:mm", CultureInfo.InvariantCulture, out var parsed)
+            ? (int)parsed.TotalMinutes
+            : int.MaxValue;
+    }
+
+    private static string NormalizeStartTime(string? raw)
+    {
+        var text = (raw ?? string.Empty).Trim();
+        if (TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed.ToString("hh\\:mm", CultureInfo.InvariantCulture);
         }
 
-        return string.Join(" | ", parts);
+        return string.IsNullOrWhiteSpace(text) ? "--:--" : text;
+    }
+
+    private static DateTime? ParseTourDate(string? raw)
+    {
+        var value = (raw ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        foreach (var format in SupportedDateFormats)
+        {
+            if (DateTime.TryParseExact(value, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out var exact))
+            {
+                return exact.Date;
+            }
+        }
+
+        return DateTime.TryParse(value, UiCulture, DateTimeStyles.AssumeLocal, out var parsed)
+            ? parsed.Date
+            : null;
+    }
+
+    private static string NormalizeHexColor(string? value, string fallback)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return normalized.Length == 7 && normalized.StartsWith('#') ? normalized.ToUpperInvariant() : fallback;
+    }
+
+    private static string BuildWeekLabel(DateTime date)
+    {
+        var week = UiCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+        var weekStart = date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+        var weekEnd = weekStart.AddDays(6);
+        return $"KW {week} · {weekStart:dd.MM} - {weekEnd:dd.MM}";
     }
 }
 
-public sealed record MetricPoint(string Label, double Value);
-
-public sealed class FleetVehicleOverviewItem
+public sealed class StartWeekGroupItem
 {
-    public string Name { get; set; } = string.Empty;
-    public string Meta { get; set; } = string.Empty;
-    public string Kind { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+
+    public ObservableCollection<UpcomingDayCardItem> Days { get; } = [];
 }

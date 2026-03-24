@@ -103,8 +103,10 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         }
 
         _name = routeName ?? string.Empty;
-        _selectedHour = HourOptions.Contains(routeStartHour ?? string.Empty) ? routeStartHour : "08";
-        _selectedMinute = MinuteOptions.Contains(routeStartMinute ?? string.Empty) ? routeStartMinute : "00";
+        var normalizedStartHour = routeStartHour ?? string.Empty;
+        var normalizedStartMinute = routeStartMinute ?? string.Empty;
+        _selectedHour = HourOptions.Contains(normalizedStartHour) ? normalizedStartHour : "08";
+        _selectedMinute = MinuteOptions.Contains(normalizedStartMinute) ? normalizedStartMinute : "00";
 
         VehicleOptions = new List<TourLookupOption> { new(string.Empty, "Bitte wählen") };
         VehicleOptions.AddRange(vehicleOptions ?? []);

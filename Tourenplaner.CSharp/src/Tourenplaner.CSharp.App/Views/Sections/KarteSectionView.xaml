@@ -8,6 +8,34 @@
              d:DesignHeight="860"
              d:DesignWidth="1500">
     <UserControl.Resources>
+        <Style x:Key="DetailsToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="104" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="DetailsHeaderToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="DetailsRailButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="Auto" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
         <Style x:Key="RouteStopsGridStyle" TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
             <Setter Property="Background" Value="#FFFFFF" />
             <Setter Property="BorderBrush" Value="#D8DEE7" />
@@ -97,7 +125,7 @@
 
         <Expander Grid.Row="1" IsExpanded="False" Header="Legende" Margin="0,0,0,10">
             <Border Style="{StaticResource FlatCardStyle}" Padding="10" Margin="0,6,0,0">
-                <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Blaue Marker: offene Aufträge | Graue Marker: zugewiesen | Blaue Linie: aktuelle Route" />
+                <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Pin-Form = Lieferart | Pin-Farbe = Auftragsstatus bzw. Tourstatus | Blaue Linie = aktuelle Route" />
             </Border>
         </Expander>
 
@@ -107,6 +135,7 @@
                     <ColumnDefinition Width="440" MinWidth="300" />
                     <ColumnDefinition Width="6" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
@@ -271,74 +300,169 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Column="3" Width="390" Padding="10" Margin="8,0,0,0">
+                <Border Grid.Column="3" Padding="4" Margin="0,0,8,0">
                     <Border.Style>
                         <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
-                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Visibility" Value="Visible" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsDetailsOpen}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible" />
+                                <DataTrigger Binding="{Binding IsDetailsOpen}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsDetailsPanelExpanded}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
                     <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <TextBlock Text="Details" FontSize="20" FontWeight="SemiBold" />
-
-                        <ScrollViewer Grid.Row="1" Margin="0,10,0,10" VerticalScrollBarVisibility="Auto">
-                            <StackPanel>
-                                <TextBlock FontWeight="SemiBold" Text="Auftragsadresse:" />
-                                <TextBlock Text="{Binding DetailAddress}" TextWrapping="Wrap" />
-
-                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Lieferadresse:" />
-                                <TextBlock Text="{Binding DetailCustomer}" TextWrapping="Wrap" />
-
-                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Auftragsnummer:" />
-                                <TextBlock Text="{Binding DetailOrderNumber}" />
-
-                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Produkte:" />
-                                <TextBlock Text="N/A" />
-
-                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Lieferart:" />
-                                <TextBlock Text="{Binding DetailDeliveryType}" />
-
-                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Status:" />
-                                <TextBlock Text="{Binding DetailStatus}" />
-
-                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="E-Mail:" />
-                                <TextBlock Text="{Binding DetailEmail}" />
-
-                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Telefon:" />
-                                <TextBlock Text="{Binding DetailPhone}" />
-                            </StackPanel>
-                        </ScrollViewer>
-
-                        <Button Grid.Row="2" Height="36" Margin="0,0,0,8" Content="Zu Tour hinzufügen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding AddToRouteCommand}" />
-                        <Button Grid.Row="3" Height="36" Margin="0,0,0,8" Content="E Mail senden" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SendEmailCommand}" />
-                        <Button Grid.Row="4" Height="36" Margin="0,0,0,10" Content="Auftrag bearbeiten" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding EditOrderCommand}" />
-
-                        <Grid Grid.Row="5">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="70" />
-                            </Grid.ColumnDefinitions>
-                            <ComboBox Grid.Column="0" Height="34">
-                                <ComboBoxItem Content="nicht festgelegt" />
-                                <ComboBoxItem Content="zugewiesen" />
-                            </ComboBox>
-                            <Button Grid.Column="1" Height="34" Margin="8,0,0,0" Content="Schließen" Style="{StaticResource DarkButtonStyle}" Command="{Binding CloseDetailsCommand}" />
-                        </Grid>
+                        <Button Command="{Binding ToggleDetailsPanelCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource DetailsRailButtonStyle}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDetailsPanelExpanded}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <TextBlock Text="{Binding DetailsToggleGlyph}"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="#334155"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Button>
                     </Grid>
                 </Border>
+
+                <Grid Grid.Column="4" Margin="-4,0,0,0">
+                    <Border Width="390" Padding="10" HorizontalAlignment="Right">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDetailsOpen}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsDetailsPanelExpanded}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="40" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Details" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button Grid.Column="1"
+                                        Style="{StaticResource DetailsHeaderToggleButtonStyle}"
+                                        Command="{Binding ToggleDetailsPanelCommand}">
+                                    <TextBlock Text="{Binding DetailsToggleGlyph}"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Foreground="#334155"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Button>
+                            </Grid>
+
+                            <Grid Grid.Row="1" Margin="0,10,0,0">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDetailsOpen}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <ScrollViewer Grid.Row="0" Margin="0,0,0,10" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" Text="Auftragsadresse:" />
+                                        <TextBlock Text="{Binding DetailAddress}" TextWrapping="Wrap" />
+
+                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Lieferadresse:" />
+                                        <TextBlock Text="{Binding DetailCustomer}" TextWrapping="Wrap" />
+
+                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Auftragsnummer:" />
+                                        <TextBlock Text="{Binding DetailOrderNumber}" />
+
+                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Produkte:" />
+                                        <TextBlock Text="N/A" />
+
+                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Lieferart:" />
+                                        <TextBlock Text="{Binding DetailDeliveryType}" />
+
+                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Auftragsstatus:" />
+                                        <TextBlock Text="{Binding DetailOrderStatus}" />
+
+                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Tourstatus:" />
+                                        <TextBlock Text="{Binding DetailTourStatus}" />
+
+                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="E-Mail:" />
+                                        <TextBlock Text="{Binding DetailEmail}" />
+
+                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Telefon:" />
+                                        <TextBlock Text="{Binding DetailPhone}" />
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <Grid Grid.Row="1" Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Height="36" Margin="0,0,4,0" Content="Zu Tour hinzufügen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding AddToRouteCommand}" />
+                                    <Button Grid.Column="1" Height="36" Margin="4,0,0,0" Content="Aus Tour entfernen" Style="{StaticResource DangerButtonStyle}" Command="{Binding RemoveOrderFromTourCommand}" />
+                                </Grid>
+                                <Button Grid.Row="2" Height="36" Margin="0,0,0,8" Content="E Mail senden" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SendEmailCommand}" />
+                                <Button Grid.Row="3" Height="36" Margin="0,0,0,10" Content="Auftrag bearbeiten" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding EditOrderCommand}" />
+
+                                <Grid Grid.Row="4">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="70" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox Grid.Column="0"
+                                                  Height="34"
+                                                  ToolTip="Auftragsstatus ändern"
+                                                  ItemsSource="{Binding OrderStatusOptions}"
+                                                  SelectedItem="{Binding DetailSelectedStatus, Mode=TwoWay}" />
+                                        <Button Grid.Column="1" Height="34" Margin="8,0,0,0" Content="Schließen" Style="{StaticResource DarkButtonStyle}" Command="{Binding CloseDetailsCommand}" />
+                                    </Grid>
+                                    <TextBlock Grid.Row="0"
+                                               Margin="0,0,0,6"
+                                               FontWeight="SemiBold"
+                                               Text="Auftragsstatus ändern" />
+                                </Grid>
+                            </Grid>
+
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
         </Border>
     </Grid>

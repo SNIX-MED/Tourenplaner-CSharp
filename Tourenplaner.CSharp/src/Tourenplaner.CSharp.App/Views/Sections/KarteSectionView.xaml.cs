@@ -251,7 +251,9 @@ public partial class KarteSectionView : UserControl
             id = x.OrderId,
             customer = x.Customer,
             address = x.Address,
-            isAssigned = x.IsAssigned,
+            status = x.StatusLabel,
+            color = vm.ResolveOrderStatusColor(x.StatusLabel, x.IsAssigned),
+            shape = ResolveDeliveryShape(x.DeliveryLabel),
             lat = x.Latitude,
             lon = x.Longitude
         }).ToList();
@@ -564,6 +566,34 @@ public partial class KarteSectionView : UserControl
                      routeMarkerMap.clear();
                    }
 
+                   function buildOrderMarkerHtml(shape, color) {
+                     const stroke = '#334155';
+                     if (shape === 'square') {
+                       return `<div style="width:14px;height:14px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px ${stroke};"></div>`;
+                     }
+                     if (shape === 'triangle') {
+                       return `<div style="position:relative;width:18px;height:18px;"><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:16px solid #fff;"></div><div style="position:absolute;left:2px;top:3px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:12px solid ${color};filter:drop-shadow(0 0 0 ${stroke});"></div></div>`;
+                     }
+                     return `<div style="width:18px;height:18px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px ${stroke};box-sizing:border-box;"></div>`;
+                   }
+
+                   function resolveMarkerColor(status) {
+                     const normalized = (status || '').trim().toLowerCase();
+                     if (normalized === 'bereits eingeplant') {
+                       return '#64748b';
+                     }
+                     if (normalized === 'bestellt') {
+                       return '#0ea5e9';
+                     }
+                     if (normalized === 'auf dem weg') {
+                       return '#f59e0b';
+                     }
+                     if (normalized === 'an lager') {
+                       return '#16a34a';
+                     }
+                     return '#a855f7';
+                   }
+
                    window.gawelaSetMarkers = function(markers) {
                      clearMarkers();
                      if (!markers || markers.length === 0) {
@@ -571,12 +601,12 @@ public partial class KarteSectionView : UserControl
                      }
                      const bounds = [];
                      markers.forEach(m => {
-                       const color = m.isAssigned ? '#64748b' : '#0ea5e9';
+                       const color = m.color || '#A855F7';
                        const icon = L.divIcon({
                          className: 'gawela-marker',
-                         html: `<div style="width:14px;height:14px;border-radius:7px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px #334155;"></div>`,
-                         iconSize: [14, 14],
-                         iconAnchor: [7, 7]
+                         html: buildOrderMarkerHtml(m.shape, color),
+                         iconSize: [18, 18],
+                         iconAnchor: [9, 9]
                        });
                        const marker = L.marker([m.lat, m.lon], { icon });
                        marker.bindPopup(
@@ -728,5 +758,21 @@ public partial class KarteSectionView : UserControl
                </body>
                </html>
                """;
+    }
+
+    private static string ResolveDeliveryShape(string? deliveryLabel)
+    {
+        var normalized = (deliveryLabel ?? string.Empty).Trim();
+        if (normalized.Contains("Montage", StringComparison.OrdinalIgnoreCase))
+        {
+            return "triangle";
+        }
+
+        if (normalized.Contains("Verteilung", StringComparison.OrdinalIgnoreCase))
+        {
+            return "square";
+        }
+
+        return "circle";
     }
 }

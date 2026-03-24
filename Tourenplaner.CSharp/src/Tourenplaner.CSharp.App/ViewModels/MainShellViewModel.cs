@@ -12,6 +12,7 @@ public sealed class MainShellViewModel : ObservableObject
     private bool _isDarkTheme = AppThemeManager.IsDarkTheme;
     private string _globalSearchText = string.Empty;
     private string _currentUserName = "Mike Weber";
+    private readonly NavigationItemViewModel _settingsNavigationItem;
 
     public MainShellViewModel(
         AppSnapshotService snapshotService,
@@ -22,8 +23,12 @@ public sealed class MainShellViewModel : ObservableObject
         string settingsJsonPath,
         string dataRootPath)
     {
-        var start = new StartSectionViewModel(snapshotService, vehiclesJsonPath);
         var map = new KarteSectionViewModel(ordersJsonPath, toursJsonPath, settingsJsonPath);
+        var start = new StartSectionViewModel(
+            toursJsonPath,
+            settingsJsonPath,
+            @"C:\Users\Verkauf_OG\Downloads\gawela Banner.png",
+            () => NavigateToMapAsync(map));
         var tours = new ToursSectionViewModel(
             toursJsonPath,
             employeesJsonPath,
@@ -32,6 +37,7 @@ public sealed class MainShellViewModel : ObservableObject
             tourId => NavigateToMapTourAsync(map, tourId));
         var calendar = new KalenderSectionViewModel(
             toursJsonPath,
+            settingsJsonPath,
             tourId => NavigateToTourAsync(tours, tourId),
             date => NavigateToTourDateAsync(tours, date));
         var orders = new OrdersSectionViewModel(ordersJsonPath);
@@ -40,24 +46,26 @@ public sealed class MainShellViewModel : ObservableObject
         var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath);
         var settings = new SettingsSectionViewModel(settingsJsonPath, dataRootPath);
         var gps = new GpsSectionViewModel();
-        var updates = new UpdatesSectionViewModel(settingsJsonPath);
 
         NavigationItems =
         [
-            new NavigationItemViewModel("Start", start),
-            new NavigationItemViewModel("Kalender", calendar),
-            new NavigationItemViewModel("Karte", map),
-            new NavigationItemViewModel("GPS", gps),
-            new NavigationItemViewModel("Auftragsliste", orders),
-            new NavigationItemViewModel("Nicht-Karten", nonMapOrders),
-            new NavigationItemViewModel("Liefertouren", tours),
-            new NavigationItemViewModel("Mitarbeiter", employees),
-            new NavigationItemViewModel("Fahrzeuge", vehicles),
-            new NavigationItemViewModel("Einstellungen", settings),
-            new NavigationItemViewModel("Updates", updates)
+            new NavigationItemViewModel("Start", start, "Planung"),
+            new NavigationItemViewModel("Kalender", calendar, "Planung"),
+            new NavigationItemViewModel("Karte", map, "Planung"),
+            new NavigationItemViewModel("Liefertouren", tours, "Planung"),
+            new NavigationItemViewModel("Auftragsliste", orders, "Stammdaten"),
+            new NavigationItemViewModel("Nicht-Karten", nonMapOrders, "Stammdaten"),
+            new NavigationItemViewModel("Mitarbeiter", employees, "Stammdaten"),
+            new NavigationItemViewModel("Fahrzeuge", vehicles, "Stammdaten"),
+            new NavigationItemViewModel("GPS", gps, "Tools"),
+            new NavigationItemViewModel("Einstellungen", settings, "Tools")
         ];
 
+        _settingsNavigationItem = NavigationItems.First(item => item.DisplayName == "Einstellungen");
+        SidebarNavigationItems = NavigationItems.Where(item => !ReferenceEquals(item, _settingsNavigationItem)).ToList();
+
         ToggleThemeCommand = new DelegateCommand(ToggleTheme);
+        OpenSettingsCommand = new DelegateCommand(OpenSettings);
         SelectedNavigationItem = NavigationItems[0];
 
         _ = start.RefreshAsync();
@@ -65,7 +73,11 @@ public sealed class MainShellViewModel : ObservableObject
 
     public IReadOnlyList<NavigationItemViewModel> NavigationItems { get; }
 
+    public IReadOnlyList<NavigationItemViewModel> SidebarNavigationItems { get; }
+
     public DelegateCommand ToggleThemeCommand { get; }
+
+    public DelegateCommand OpenSettingsCommand { get; }
 
     public bool IsDarkTheme
     {
@@ -130,10 +142,21 @@ public sealed class MainShellViewModel : ObservableObject
         await mapSection.FocusTourAsync(tourId);
     }
 
+    private async Task NavigateToMapAsync(KarteSectionViewModel mapSection)
+    {
+        SelectedNavigationItem = NavigationItems.FirstOrDefault(x => ReferenceEquals(x.Section, mapSection)) ?? SelectedNavigationItem;
+        await mapSection.RefreshAsync();
+    }
+
     private void ToggleTheme()
     {
         AppThemeManager.ToggleTheme();
         IsDarkTheme = AppThemeManager.IsDarkTheme;
+    }
+
+    private void OpenSettings()
+    {
+        SelectedNavigationItem = _settingsNavigationItem;
     }
 
     private static void TriggerSectionRefresh(object? section)
