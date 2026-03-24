@@ -271,8 +271,8 @@
                             </Grid.ColumnDefinitions>
                             <Button Grid.Column="0" Content="?" Command="{Binding MoveStopUpCommand}" Style="{StaticResource SecondaryButtonStyle}" />
                             <Button Grid.Column="1" Content="?" Margin="8,0,0,0" Command="{Binding MoveStopDownCommand}" Style="{StaticResource SecondaryButtonStyle}" />
-                            <Button Grid.Column="2" Content="Zeitfenster" Margin="8,0,0,0" Style="{StaticResource SecondaryButtonStyle}" />
-                            <Button Grid.Column="3" Content="Entfernen" Margin="8,0,0,0" Command="{Binding RemoveFromRouteCommand}" Style="{StaticResource DangerButtonStyle}" />
+                            <Button Grid.Column="2" Content="Entfernen" Margin="8,0,0,0" Command="{Binding RemoveFromRouteCommand}" Style="{StaticResource DangerButtonStyle}" />
+                            <Button Grid.Column="3" Content="Speichern" Margin="8,0,0,0" Command="{Binding SaveCurrentTourCommand}" Style="{StaticResource SuccessButtonStyle}" />
                         </Grid>
                     </Grid>
                 </Border>

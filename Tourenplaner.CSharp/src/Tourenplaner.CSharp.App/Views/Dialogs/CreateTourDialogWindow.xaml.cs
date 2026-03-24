@@ -17,7 +17,8 @@ public partial class CreateTourDialogWindow : Window
         IReadOnlyList<TourEmployeeOption> employeeOptions,
         string? selectedVehicleId = null,
         string? selectedTrailerId = null,
-        IReadOnlyList<string>? selectedEmployeeIds = null)
+        IReadOnlyList<string>? selectedEmployeeIds = null,
+        bool showOpenOnMapButton = false)
     {
         InitializeComponent();
         ViewModel = new CreateTourDialogViewModel(
@@ -32,11 +33,17 @@ public partial class CreateTourDialogWindow : Window
             selectedTrailerId,
             selectedEmployeeIds);
         DataContext = ViewModel;
+        ShowOpenOnMapButton = showOpenOnMapButton;
+        OpenOnMapButton.Visibility = showOpenOnMapButton ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public CreateTourDialogViewModel ViewModel { get; }
 
     public CreateTourDialogResult? Result { get; private set; }
+
+    public bool ShowOpenOnMapButton { get; }
+
+    public bool OpenOnMapRequested { get; private set; }
 
     private void OnCancelClicked(object sender, RoutedEventArgs e)
     {
@@ -69,6 +76,13 @@ public partial class CreateTourDialogWindow : Window
 
         Result = result;
         DialogResult = true;
+        Close();
+    }
+
+    private void OnOpenOnMapClicked(object sender, RoutedEventArgs e)
+    {
+        OpenOnMapRequested = true;
+        DialogResult = false;
         Close();
     }
 }

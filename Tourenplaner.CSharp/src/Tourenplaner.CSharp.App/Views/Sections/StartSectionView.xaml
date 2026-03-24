@@ -8,9 +8,9 @@
              d:DesignWidth="1280">
     <UserControl.Resources>
         <Style x:Key="StartUpcomingCardStyle" TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
-            <Setter Property="Padding" Value="8" />
-            <Setter Property="Height" Value="92" />
-            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Height" Value="62" />
+            <Setter Property="CornerRadius" Value="10" />
         </Style>
     </UserControl.Resources>
 
@@ -43,6 +43,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="320" />
                 <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="320" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -75,83 +76,59 @@
                                FontSize="14"
                                Text="{Binding CalendarSubtitle}" />
 
-                    <ItemsControl Margin="0,14,0,0" ItemsSource="{Binding UpcomingWeeks}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Rows="1" Columns="3" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Margin="0,0,10,0"
-                                        Padding="12"
-                                        CornerRadius="16"
-                                        Background="#F8FAFC"
-                                        BorderBrush="#DCE4EF"
-                                        BorderThickness="1">
-                                    <StackPanel>
-                                        <TextBlock FontSize="14"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#0F172A"
-                                                   Text="{Binding Label}" />
-                                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding Days}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <UniformGrid Columns="1" />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border Margin="0,0,0,6"
-                                                            Background="{Binding LoadBackground}"
-                                                            BorderBrush="{Binding LoadBorderBrush}">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="92" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
+                    <Border Margin="0,14,0,0"
+                            Padding="8"
+                            CornerRadius="12"
+                            Background="#F8FAFC"
+                            BorderBrush="#DCE4EF"
+                            BorderThickness="1">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Height="340">
+                            <ItemsControl ItemsSource="{Binding UpcomingDayCards}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,6"
+                                                Background="{Binding LoadBackground}"
+                                                BorderBrush="{Binding LoadBorderBrush}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="100" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
 
-                                                            <StackPanel Grid.Column="0">
-                                                                <TextBlock FontSize="13"
-                                                                           FontWeight="SemiBold"
-                                                                           Foreground="{Binding LoadForeground}"
-                                                                           Text="{Binding DateText}" />
-                                                                <TextBlock Margin="0,4,0,0"
-                                                                           FontSize="10"
-                                                                           Foreground="{Binding LoadForeground}"
-                                                                           Opacity="0.9"
-                                                                           Text="{Binding TourCountText}" />
-                                                            </StackPanel>
+                                                <TextBlock Grid.Column="0"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{Binding LoadForeground}"
+                                                           Text="{Binding DateText}" />
 
-                                                            <TextBlock Grid.Column="1"
-                                                                       Margin="10,0,0,0"
-                                                                       VerticalAlignment="Center"
-                                                                       TextWrapping="Wrap"
-                                                                       Foreground="{Binding LoadForeground}"
-                                                                       Opacity="0.9"
-                                                                       FontSize="10"
-                                                                       MaxHeight="32"
-                                                                       Text="{Binding SummaryText}" />
-                                                        </Grid>
-                                                        <Border.Style>
-                                                            <Style TargetType="Border" BasedOn="{StaticResource StartUpcomingCardStyle}">
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsToday}" Value="True">
-                                                                        <Setter Property="BorderThickness" Value="2" />
-                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Border.Style>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                                <TextBlock Grid.Column="1"
+                                                           Margin="8,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{Binding LoadForeground}"
+                                                           Opacity="0.9"
+                                                           FontSize="9"
+                                                           MaxHeight="24"
+                                                           Text="{Binding SummaryText}" />
+                                            </Grid>
+                                            <Border.Style>
+                                                <Style TargetType="Border" BasedOn="{StaticResource StartUpcomingCardStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
                 </StackPanel>
             </Border>
         </Grid>

@@ -12,16 +12,17 @@ public sealed class StartSectionViewModel : SectionViewModelBase
 {
     private static readonly CultureInfo UiCulture = new("de-CH");
     private static readonly string[] SupportedDateFormats = ["dd.MM.yyyy", "yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy"];
-    private const int PreviewDayCount = 21;
+    private const int PreviewDayCount = 14;
+    private const int InitiallyVisibleDayCount = 5;
 
     private readonly JsonToursRepository _tourRepository;
     private readonly JsonAppSettingsRepository _settingsRepository;
     private readonly Func<Task>? _openMapAsync;
     private readonly string _bannerImagePath;
     private string _statusText = "Startseite wird geladen...";
-    private string _calendarHeadline = $"Kalender der nächsten {PreviewDayCount} Tage";
-    private string _calendarSubtitle = "Drei Wochen im Überblick, gruppiert nach Kalenderwochen.";
-    private string _dashboardSummary = "Tourenübersicht wird geladen...";
+    private string _calendarHeadline = $"Kalender der naechsten {PreviewDayCount} Tage";
+    private string _calendarSubtitle = $"Heute + naechste {InitiallyVisibleDayCount - 1} Tage sichtbar. Nach unten scrollen fuer alle {PreviewDayCount} Tage.";
+    private string _dashboardSummary = "Tourenuebersicht wird geladen...";
     private string _nextPlannedDayText = "Noch kein Tourtag geplant";
 
     public StartSectionViewModel(
@@ -41,6 +42,7 @@ public sealed class StartSectionViewModel : SectionViewModelBase
 
     public ObservableCollection<UpcomingDayCardItem> UpcomingDayCards { get; } = [];
 
+    // Kept for compatibility with shared models used by other sections.
     public ObservableCollection<StartWeekGroupItem> UpcomingWeeks { get; } = [];
 
     public ICommand NewTourPlanCommand { get; }
@@ -105,7 +107,7 @@ public sealed class StartSectionViewModel : SectionViewModelBase
 
         UpcomingDayCards.Clear();
         UpcomingWeeks.Clear();
-        StartWeekGroupItem? currentWeek = null;
+
         for (var i = 0; i < PreviewDayCount; i++)
         {
             var date = DateTime.Today.AddDays(i).Date;
@@ -126,18 +128,6 @@ public sealed class StartSectionViewModel : SectionViewModelBase
 
             ApplyDayLoadAppearance(card, assignedPeopleCount, warningThreshold, criticalThreshold, warningColor, criticalColor);
             UpcomingDayCards.Add(card);
-
-            var weekLabel = BuildWeekLabel(date);
-            if (currentWeek is null || !string.Equals(currentWeek.Label, weekLabel, StringComparison.Ordinal))
-            {
-                currentWeek = new StartWeekGroupItem
-                {
-                    Label = weekLabel
-                };
-                UpcomingWeeks.Add(currentWeek);
-            }
-
-            currentWeek.Days.Add(card);
         }
 
         var plannedCards = UpcomingDayCards
@@ -147,17 +137,18 @@ public sealed class StartSectionViewModel : SectionViewModelBase
         var plannedTourCount = plannedCards.Sum(x => toursByDate.TryGetValue(x.Date, out var toursForDay) ? toursForDay.Count : 0);
         var nextPlannedDay = plannedCards.FirstOrDefault();
 
-        CalendarHeadline = $"Kalender der nächsten {PreviewDayCount} Tage";
-        CalendarSubtitle = "Drei Wochen im Überblick, gruppiert nach Kalenderwochen.";
+        var displayedDayCount = UpcomingDayCards.Count;
+        CalendarHeadline = $"Kalender der naechsten {PreviewDayCount} Tage";
+        CalendarSubtitle = $"Heute + naechste {InitiallyVisibleDayCount - 1} Tage sichtbar. Nach unten scrollen fuer alle {PreviewDayCount} Tage.";
         DashboardSummary = plannedDayCount == 0
-            ? $"In den nächsten {PreviewDayCount} Tagen ist aktuell keine Tour geplant."
-            : $"{plannedTourCount} Tour(en) an {plannedDayCount} Tag(en) in den nächsten {PreviewDayCount} Tagen.";
+            ? $"In den naechsten {displayedDayCount} Tagen ist aktuell keine Tour geplant."
+            : $"{plannedTourCount} Tour(en) an {plannedDayCount} Tag(en) in den naechsten {displayedDayCount} Tagen.";
         NextPlannedDayText = nextPlannedDay is null
             ? "Noch kein Tourtag geplant"
-            : $"Nächster geplanter Tag: {nextPlannedDay.Date:dddd, dd.MM.yyyy}";
+            : $"Naechster geplanter Tag: {nextPlannedDay.Date:dddd, dd.MM.yyyy}";
         StatusText = plannedDayCount == 0
-            ? $"In den nächsten {PreviewDayCount} Tagen ist aktuell keine Tour geplant."
-            : $"In den nächsten {PreviewDayCount} Tagen sind an {plannedDayCount} Tag(en) Touren eingeplant.";
+            ? $"In den naechsten {displayedDayCount} Tagen ist aktuell keine Tour geplant."
+            : $"In den naechsten {displayedDayCount} Tagen sind an {plannedDayCount} Tag(en) Touren eingeplant.";
     }
 
     private async Task OpenMapAsync()
@@ -253,14 +244,6 @@ public sealed class StartSectionViewModel : SectionViewModelBase
     {
         var normalized = (value ?? string.Empty).Trim();
         return normalized.Length == 7 && normalized.StartsWith('#') ? normalized.ToUpperInvariant() : fallback;
-    }
-
-    private static string BuildWeekLabel(DateTime date)
-    {
-        var week = UiCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
-        var weekStart = date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
-        var weekEnd = weekStart.AddDays(6);
-        return $"KW {week} · {weekStart:dd.MM} - {weekEnd:dd.MM}";
     }
 }
 

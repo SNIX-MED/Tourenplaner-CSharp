@@ -27,7 +27,7 @@ public sealed class MainShellViewModel : ObservableObject
         var start = new StartSectionViewModel(
             toursJsonPath,
             settingsJsonPath,
-            @"C:\Users\Verkauf_OG\Downloads\gawela Banner.png",
+            "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Banner.png",
             () => NavigateToMapAsync(map));
         var tours = new ToursSectionViewModel(
             toursJsonPath,

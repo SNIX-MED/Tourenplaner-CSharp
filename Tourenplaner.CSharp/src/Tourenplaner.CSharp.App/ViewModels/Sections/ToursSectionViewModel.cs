@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Input;
+using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
@@ -57,13 +58,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         RefreshCommand = new AsyncCommand(RefreshAsync);
         RecalculateCommand = new AsyncCommand(RecalculateAndSaveAsync, () => Tours.Count > 0);
         SaveAssignmentCommand = new AsyncCommand(SaveSelectedAssignmentAsync, () => SelectedTour is not null);
+        OpenTourOnMapCommand = new AsyncCommand(OpenSelectedTourOnMapAsync, () => SelectedTour is not null);
+        EditTourOnMapCommand = new AsyncCommand(OpenSelectedTourOnMapForEditAsync, () => SelectedTour is not null);
         ApplyDateFilterCommand = new DelegateCommand(ApplyDateFilter);
         FilterTodayCommand = new DelegateCommand(SetTodayFilter);
         FilterTomorrowCommand = new DelegateCommand(SetTomorrowFilter);
         FilterThisWeekCommand = new DelegateCommand(SetWeekFilter);
         ResetDateFilterCommand = new DelegateCommand(ResetDateFilter);
         DeleteTourCommand = new AsyncCommand(DeleteSelectedTourAsync, () => SelectedTour is not null);
-        OpenTourOnMapCommand = new AsyncCommand(OpenSelectedTourOnMapAsync, () => SelectedTour is not null);
         _ = RefreshAsync();
     }
 
@@ -96,6 +98,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     public ICommand DeleteTourCommand { get; }
 
     public ICommand OpenTourOnMapCommand { get; }
+
+    public ICommand EditTourOnMapCommand { get; }
 
     public string StatusText
     {
@@ -436,6 +440,106 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         await _openTourOnMapAsync(SelectedTour.TourId);
     }
 
+    private async Task OpenSelectedTourOnMapForEditAsync()
+    {
+        if (SelectedTour?.Source is null)
+        {
+            return;
+        }
+
+        var tour = SelectedTour.Source;
+        var (editHour, editMinute) = ParseStartTimeParts(tour.StartTime);
+        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync();
+
+        var dialog = new CreateTourDialogWindow(
+            routeDate: string.IsNullOrWhiteSpace(tour.Date) ? DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : tour.Date.Trim(),
+            routeName: string.IsNullOrWhiteSpace(tour.Name) ? $"Tour {tour.Id}" : tour.Name.Trim(),
+            routeStartHour: editHour,
+            routeStartMinute: editMinute,
+            vehicleOptions: vehicles,
+            trailerOptions: trailers,
+            employeeOptions: employees,
+            selectedVehicleId: tour.VehicleId,
+            selectedTrailerId: tour.TrailerId,
+            selectedEmployeeIds: tour.EmployeeIds,
+            showOpenOnMapButton: true)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow,
+            Title = "Tour bearbeiten"
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            if (dialog.OpenOnMapRequested && _openTourOnMapAsync is not null)
+            {
+                await _openTourOnMapAsync(tour.Id);
+            }
+            return;
+        }
+
+        if (dialog.Result is null)
+        {
+            return;
+        }
+
+        var result = dialog.Result;
+        tour.Name = result.RouteName;
+        tour.Date = result.RouteDate;
+        tour.StartTime = result.StartTime;
+        tour.VehicleId = string.IsNullOrWhiteSpace(result.VehicleId) ? null : result.VehicleId.Trim();
+        tour.TrailerId = string.IsNullOrWhiteSpace(result.TrailerId) ? null : result.TrailerId.Trim();
+        tour.EmployeeIds = (result.EmployeeIds ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .ToList();
+
+        _scheduleService.ApplySchedule(tour);
+        await _tourRepository.SaveAsync(_loadedTours);
+        await RefreshAsync();
+        await FocusTourAsync(tour.Id);
+        StatusText = $"Tour {tour.Id} wurde aktualisiert.";
+    }
+
+    private async Task<(List<TourEmployeeOption> Employees, List<TourLookupOption> Vehicles, List<TourLookupOption> Trailers)> LoadTourDialogOptionsAsync()
+    {
+        var employeesTask = _employeeRepository.LoadAsync();
+        var vehiclesTask = _vehicleRepository.LoadAsync();
+        await Task.WhenAll(employeesTask, vehiclesTask);
+
+        var employees = (await employeesTask)
+            .Where(x => x.Active)
+            .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new TourEmployeeOption(x.Id, x.DisplayName))
+            .ToList();
+
+        var vehicleData = await vehiclesTask;
+        var vehicles = vehicleData.Vehicles
+            .Where(x => x.Active)
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
+            .ToList();
+        var trailers = vehicleData.Trailers
+            .Where(x => x.Active)
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
+            .ToList();
+
+        return (employees, vehicles, trailers);
+    }
+
+    private static (string Hour, string Minute) ParseStartTimeParts(string? startTime)
+    {
+        var value = (startTime ?? string.Empty).Trim();
+        if (TimeOnly.TryParseExact(value, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        {
+            return (parsed.Hour.ToString("00", CultureInfo.InvariantCulture), parsed.Minute.ToString("00", CultureInfo.InvariantCulture));
+        }
+
+        return ("08", "00");
+    }
+
     private void RebuildTourRowsWithCurrentFilter(int? keepSelectionTourId = null)
     {
         var filtered = ApplyDateFilterToTours(_loadedTours);
@@ -749,6 +853,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         if (OpenTourOnMapCommand is AsyncCommand openOnMap)
         {
             openOnMap.RaiseCanExecuteChanged();
+        }
+
+        if (EditTourOnMapCommand is AsyncCommand editTour)
+        {
+            editTour.RaiseCanExecuteChanged();
         }
     }
 

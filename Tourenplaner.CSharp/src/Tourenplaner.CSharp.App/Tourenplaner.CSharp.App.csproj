@@ -24,4 +24,9 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3065.39" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="Assets\Banner.png" />
+    <Resource Include="Assets\Einstellungen.png" />
+  </ItemGroup>
+
 </Project>

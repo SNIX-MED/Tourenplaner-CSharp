@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.KalenderSectionView"
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.KalenderSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -7,49 +7,15 @@
              d:DesignHeight="920"
              d:DesignWidth="1400">
     <UserControl.Resources>
-        <Style x:Key="CalendarDayItemContainerStyle" TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin" Value="2" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Stretch" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
-                    <Setter Property="IsHitTestVisible" Value="False" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="CalendarDayBorderStyle" TargetType="Border">
-            <Setter Property="BorderThickness" Value="1" />
+        <Style x:Key="StartUpcomingCardStyle" TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="Height" Value="62" />
             <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="2" />
-            <Setter Property="MinHeight" Value="38" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
-                    <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="BorderBrush" Value="Transparent" />
-                    <Setter Property="BorderThickness" Value="0" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsToday}" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                    <Setter Property="BorderThickness" Value="2" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="UpcomingCardStyle" TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="Width" Value="255" />
-            <Setter Property="Height" Value="110" />
         </Style>
     </UserControl.Resources>
 
     <Grid Margin="8">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -62,191 +28,101 @@
                        Text="{Binding Description}" />
         </StackPanel>
 
-        <Border Grid.Row="1" Margin="0,14,0,0" Style="{StaticResource SoftCardStyle}" Padding="12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+        <Border Grid.Row="1" Margin="0,14,0,0" Style="{StaticResource SoftCardStyle}" Padding="14">
+            <StackPanel>
+                <TextBlock FontSize="31" FontWeight="SemiBold" Text="Kalender der naechsten 4 Wochen" />
+                <TextBlock Margin="0,4,0,0"
+                           Foreground="{DynamicResource Brush.TextMuted}"
+                           Text="Vier Wochen im Ueberblick, gruppiert nach Kalenderwochen." />
 
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="42" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="42" />
-                    </Grid.ColumnDefinitions>
-                    <Button Grid.Column="0"
-                            Width="34"
-                            Height="34"
-                            Content="&lt;"
-                            Command="{Binding PreviousRangeCommand}" />
-                    <TextBlock Grid.Column="1"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Center"
-                               FontSize="27"
-                               FontWeight="SemiBold"
-                               Text="{Binding RangeTitleText}" />
-                    <Button Grid.Column="2"
-                            Width="34"
-                            Height="34"
-                            HorizontalAlignment="Right"
-                            Content="&gt;"
-                            Command="{Binding NextRangeCommand}" />
-                </Grid>
-
-                <ItemsControl Grid.Row="1" Margin="0,10,0,0" ItemsSource="{Binding VisibleMonths}">
+                <ItemsControl Margin="0,14,0,0" ItemsSource="{Binding UpcomingWeeks}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <UniformGrid Rows="1" Columns="2" />
+                            <UniformGrid Rows="1" Columns="4" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Margin="4,0" Style="{StaticResource FlatCardStyle}" Padding="10">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-
-                                    <TextBlock FontSize="25"
+                            <Border Margin="0,0,6,0"
+                                    Padding="8"
+                                    CornerRadius="12"
+                                    Background="#F8FAFC"
+                                    BorderBrush="#DCE4EF"
+                                    BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock FontSize="14"
                                                FontWeight="SemiBold"
-                                               Text="{Binding MonthTitle}" />
+                                               Foreground="#0F172A"
+                                               Text="{Binding Label}" />
 
-                                    <UniformGrid Grid.Row="1" Margin="0,14,0,6" Rows="1" Columns="7">
-                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="Mo" />
-                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="Di" />
-                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="Mi" />
-                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="Do" />
-                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="Fr" />
-                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="Sa" />
-                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="So" />
-                                    </UniformGrid>
-
-                                    <ListBox Grid.Row="2"
-                                             MouseDoubleClick="CalendarDayList_MouseDoubleClick"
-                                             ItemsSource="{Binding DayCells}"
-                                             SelectedItem="{Binding DataContext.SelectedDay, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
-                                             ItemContainerStyle="{StaticResource CalendarDayItemContainerStyle}"
+                                    <ListBox Margin="0,8,0,0"
                                              BorderThickness="0"
-                                             Background="Transparent">
-                                        <ListBox.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <UniformGrid Columns="7" />
-                                            </ItemsPanelTemplate>
-                                        </ListBox.ItemsPanel>
+                                             Background="Transparent"
+                                             ItemsSource="{Binding Days}"
+                                             SelectedItem="{Binding DataContext.SelectedUpcomingDay, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="Margin" Value="0,0,0,6" />
+                                                <Setter Property="Padding" Value="0" />
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Style="{StaticResource CalendarDayBorderStyle}"
-                                                        Background="{Binding LoadBackground}"
+                                                <Border Background="{Binding LoadBackground}"
                                                         BorderBrush="{Binding LoadBorderBrush}">
                                                     <Grid>
-                                                        <TextBlock HorizontalAlignment="Center"
-                                                                   VerticalAlignment="Center"
-                                                                   FontWeight="SemiBold"
-                                                                   Foreground="{Binding LoadForeground}"
-                                                                   Text="{Binding DayLabel}" />
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="84" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
 
-                                                        <Border HorizontalAlignment="Right"
-                                                                VerticalAlignment="Top"
-                                                                Margin="0,2,2,0"
-                                                                Width="16"
-                                                                Height="16"
-                                                                CornerRadius="8"
-                                                                Background="{DynamicResource Brush.Accent}"
-                                                                Visibility="Collapsed">
-                                                            <TextBlock HorizontalAlignment="Center"
-                                                                       VerticalAlignment="Center"
-                                                                       FontSize="10"
-                                                                       Foreground="White"
-                                                                       Text="{Binding TourCountBadge}" />
-                                                            <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding HasTours}" Value="True">
-                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                        </DataTrigger>
-                                                                        <DataTrigger Binding="{Binding IsPlaceholder}" Value="True">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Border.Style>
-                                                        </Border>
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock FontSize="12"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{Binding LoadForeground}"
+                                                                       Text="{Binding DateText}" />
+                                                        </StackPanel>
+
+                                                        <TextBlock Grid.Column="1"
+                                                                   Margin="8,0,0,0"
+                                                                   VerticalAlignment="Center"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{Binding LoadForeground}"
+                                                                   Opacity="0.9"
+                                                                   FontSize="9"
+                                                                   MaxHeight="24"
+                                                                   Text="{Binding SummaryText}" />
                                                     </Grid>
+                                                    <Border.Style>
+                                                        <Style TargetType="Border" BasedOn="{StaticResource StartUpcomingCardStyle}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                                    <Setter Property="BorderThickness" Value="2" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="BorderThickness" Value="2" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                    <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
                                                 </Border>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
-                                </Grid>
+                                </StackPanel>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </Grid>
-        </Border>
-
-        <Border Grid.Row="2" Margin="0,14,0,0" Style="{StaticResource SoftCardStyle}" Padding="14">
-            <StackPanel>
-                <TextBlock FontSize="31" FontWeight="SemiBold" Text="Geplante Touren der naechsten 10 Tage" />
-                <TextBlock Margin="0,4,0,0"
-                           Foreground="{DynamicResource Brush.TextMuted}"
-                           Text="5 Tage gleichzeitig sichtbar. Mit Scrollbalken oder Mausrad horizontal weiterblaettern." />
-
-                <ListBox Margin="0,12,0,0"
-                         ItemsSource="{Binding UpcomingDayCards}"
-                         SelectedItem="{Binding SelectedUpcomingDay, Mode=TwoWay}"
-                         BorderThickness="0"
-                         Background="Transparent"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                         ScrollViewer.VerticalScrollBarVisibility="Disabled">
-                    <ListBox.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ListBox.ItemsPanel>
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="Margin" Value="0,0,10,0" />
-                            <Setter Property="Padding" Value="0" />
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Setter Property="VerticalContentAlignment" Value="Stretch" />
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Border>
-                                <StackPanel>
-                                    <TextBlock FontSize="23" FontWeight="SemiBold" Text="{Binding DateText}" />
-                                    <TextBlock Margin="0,8,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding TourCountText}" />
-                                    <TextBlock Margin="0,8,0,0"
-                                               TextWrapping="Wrap"
-                                               Foreground="{DynamicResource Brush.TextMuted}"
-                                               Text="{Binding SummaryText}" />
-                                </StackPanel>
-                                <Border.Style>
-                                    <Style TargetType="Border" BasedOn="{StaticResource UpcomingCardStyle}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsToday}" Value="True">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
-                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                            </Border>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="3" Margin="0,14,0,0" Style="{StaticResource FlatCardStyle}" Padding="14">
+        <Border Grid.Row="2" Margin="0,14,0,0" Style="{StaticResource FlatCardStyle}" Padding="14">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

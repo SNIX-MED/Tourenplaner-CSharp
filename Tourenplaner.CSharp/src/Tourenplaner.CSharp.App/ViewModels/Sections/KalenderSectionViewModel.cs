@@ -12,6 +12,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 {
     private static readonly CultureInfo UiCulture = new("de-CH");
     private static readonly string[] SupportedDateFormats = ["dd.MM.yyyy", "yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy"];
+    private const int PreviewWeekCount = 4;
 
     private readonly JsonToursRepository _repository;
     private readonly JsonAppSettingsRepository _settingsRepository;
@@ -59,6 +60,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     public ObservableCollection<CalendarTourItem> SelectedDayTours { get; } = [];
 
     public ObservableCollection<UpcomingDayCardItem> UpcomingDayCards { get; } = [];
+    public ObservableCollection<StartWeekGroupItem> UpcomingWeeks { get; } = [];
 
     public ICommand PreviousRangeCommand { get; }
 
@@ -262,6 +264,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private void BuildUpcomingCards()
     {
         UpcomingDayCards.Clear();
+        UpcomingWeeks.Clear();
 
         var toursByDate = _allTours
             .Select(t => new { Tour = t, Date = ParseTourDate(t.Date) })
@@ -269,7 +272,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             .GroupBy(x => x.Date!.Value.Date)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Tour).OrderBy(t => t.StartTime).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList());
 
-        for (var i = 0; i < 10; i++)
+        StartWeekGroupItem? currentWeek = null;
+        for (var i = 0; i < 60; i++)
         {
             var date = DateTime.Today.AddDays(i).Date;
             toursByDate.TryGetValue(date, out var toursForDay);
@@ -288,6 +292,23 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             };
             ApplyDayLoadAppearance(card, assignedPeopleCount);
             UpcomingDayCards.Add(card);
+
+            var weekLabel = BuildWeekLabel(date);
+            if (currentWeek is null || !string.Equals(currentWeek.Label, weekLabel, StringComparison.Ordinal))
+            {
+                if (UpcomingWeeks.Count >= PreviewWeekCount)
+                {
+                    break;
+                }
+
+                currentWeek = new StartWeekGroupItem
+                {
+                    Label = weekLabel
+                };
+                UpcomingWeeks.Add(currentWeek);
+            }
+
+            currentWeek.Days.Add(card);
         }
     }
 
@@ -554,6 +575,14 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     {
         var normalized = (value ?? string.Empty).Trim();
         return normalized.Length == 7 && normalized.StartsWith('#') ? normalized.ToUpperInvariant() : fallback;
+    }
+
+    private static string BuildWeekLabel(DateTime date)
+    {
+        var week = UiCulture.Calendar.GetWeekOfYear(date, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+        var weekStart = date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
+        var weekEnd = weekStart.AddDays(6);
+        return $"KW {week} · {weekStart:dd.MM} - {weekEnd:dd.MM}";
     }
 }
 
