@@ -355,6 +355,60 @@
                         </StackPanel>
                     </Border>
                 </Expander>
+
+                <Expander IsExpanded="False" Margin="0,0,0,4">
+                    <Expander.Header>
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="SQL Server Import" />
+                            <TextBlock Margin="0,2,0,0"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="Konfigurieren und Importieren von Aufträgen aus der Business11 Datenbank." />
+                        </StackPanel>
+                    </Expander.Header>
+                    <Border Margin="0,8,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+                        <StackPanel>
+                            <WrapPanel Margin="0,0,0,10">
+                                <Button Width="140" Content="Verbindung testen" Command="{Binding TestSqlConnectionCommand}" />
+                                <Button Width="170" Margin="8,0,0,0" Content="Aufträge importieren" Command="{Binding ImportOrdersCommand}" 
+                                        Foreground="White"
+                                        Style="{StaticResource SuccessButtonStyle}" />
+                            </WrapPanel>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="190" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="SQL Server" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Margin="10,4,0,4" 
+                                         ToolTip="Format: ServerName oder .\SQLEXPRESS für lokal"
+                                         Text="{Binding SqlServer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Datenbank" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Margin="10,4,0,4" Text="{Binding SqlDatabase, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Windows-Auth" />
+                                <CheckBox Grid.Row="2" Grid.Column="1" Margin="10,6,0,6" IsChecked="{Binding SqlUseWindowsAuth, Mode=TwoWay}" 
+                                          ToolTip="Verwendet Windows-Authentifizierung, wenn aktiviert" />
+                            </Grid>
+
+                            <Border Margin="0,12,0,0"
+                                    Padding="10"
+                                    CornerRadius="10"
+                                    Background="{DynamicResource Brush.GlassSurfaceSoft}"
+                                    BorderBrush="{DynamicResource Brush.GlassStroke}"
+                                    BorderThickness="1">
+                                <TextBlock TextWrapping="Wrap" Text="{Binding ImportStatusMessage}" />
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Expander>
             </StackPanel>
         </ScrollViewer>
 

@@ -2,6 +2,7 @@ using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.Application.Services;
+using Tourenplaner.CSharp.Infrastructure.Repositories;
 
 namespace Tourenplaner.CSharp.App.ViewModels;
 
@@ -51,7 +52,16 @@ public sealed class MainShellViewModel : ObservableObject
         var nonMapOrders = new NonMapOrdersSectionViewModel(ordersJsonPath, dataSyncService);
         var employees = new EmployeesSectionViewModel(employeesJsonPath, dataSyncService);
         var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath, dataSyncService);
-        var settings = new SettingsSectionViewModel(settingsJsonPath, dataRootPath);
+        
+        // Repositories für SQL Import
+        var orderRepository = new JsonOrderRepository(ordersJsonPath);
+        var settingsRepository = new JsonSettingsRepository(settingsJsonPath);
+        var settings = new SettingsSectionViewModel(
+            settingsJsonPath,
+            dataRootPath,
+            orderRepository,
+            settingsRepository,
+            dataSyncService);
         var gps = new GpsSectionViewModel();
 
         NavigationItems =

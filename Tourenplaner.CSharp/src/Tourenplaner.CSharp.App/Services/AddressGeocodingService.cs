@@ -9,7 +9,10 @@ public static class AddressGeocodingService
 {
     private const double SwitzerlandCenterLat = 46.798562;
     private const double SwitzerlandCenterLon = 8.231974;
+    private static readonly TimeSpan MinRequestInterval = TimeSpan.FromMilliseconds(1100);
     private static readonly HttpClient Client = CreateClient();
+    private static readonly SemaphoreSlim RequestGate = new(1, 1);
+    private static DateTime _lastRequestUtc = DateTime.MinValue;
 
     public static async Task<GeoPoint?> TryGeocodeOrderAsync(Order order)
     {
@@ -109,48 +112,84 @@ public static class AddressGeocodingService
     private static async Task<GeoPoint?> TryGeocodeQueryAsync(string query)
     {
         var uri = $"https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q={Uri.EscapeDataString(query)}";
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try
+            {
+                using var response = await SendThrottledAsync(uri);
+                if (!response.IsSuccessStatusCode)
+                {
+                    if ((int)response.StatusCode == 429 && attempt == 0)
+                    {
+                        await Task.Delay(2000);
+                        continue;
+                    }
+
+                    return null;
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync();
+                var payload = await JsonSerializer.DeserializeAsync<List<NominatimSearchItem>>(stream);
+                var first = payload?.FirstOrDefault();
+                if (first is null)
+                {
+                    return null;
+                }
+
+                if (!string.IsNullOrWhiteSpace(first.addresstype) &&
+                    string.Equals(first.addresstype, "country", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                if (first.place_rank is <= 8 and > 0)
+                {
+                    return null;
+                }
+
+                if (!double.TryParse(first.lat, NumberStyles.Float, CultureInfo.InvariantCulture, out var lat))
+                {
+                    return null;
+                }
+
+                if (!double.TryParse(first.lon, NumberStyles.Float, CultureInfo.InvariantCulture, out var lon))
+                {
+                    return null;
+                }
+
+                return new GeoPoint(lat, lon);
+            }
+            catch
+            {
+                if (attempt == 0)
+                {
+                    await Task.Delay(700);
+                    continue;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static async Task<HttpResponseMessage> SendThrottledAsync(string uri)
+    {
+        await RequestGate.WaitAsync();
         try
         {
-            using var response = await Client.GetAsync(uri);
-            if (!response.IsSuccessStatusCode)
+            var now = DateTime.UtcNow;
+            var wait = MinRequestInterval - (now - _lastRequestUtc);
+            if (wait > TimeSpan.Zero)
             {
-                return null;
+                await Task.Delay(wait);
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync();
-            var payload = await JsonSerializer.DeserializeAsync<List<NominatimSearchItem>>(stream);
-            var first = payload?.FirstOrDefault();
-            if (first is null)
-            {
-                return null;
-            }
-
-            if (!string.IsNullOrWhiteSpace(first.addresstype) &&
-                string.Equals(first.addresstype, "country", StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            if (first.place_rank is <= 8 and > 0)
-            {
-                return null;
-            }
-
-            if (!double.TryParse(first.lat, NumberStyles.Float, CultureInfo.InvariantCulture, out var lat))
-            {
-                return null;
-            }
-
-            if (!double.TryParse(first.lon, NumberStyles.Float, CultureInfo.InvariantCulture, out var lon))
-            {
-                return null;
-            }
-
-            return new GeoPoint(lat, lon);
+            _lastRequestUtc = DateTime.UtcNow;
+            return await Client.GetAsync(uri);
         }
-        catch
+        finally
         {
-            return null;
+            RequestGate.Release();
         }
     }
 

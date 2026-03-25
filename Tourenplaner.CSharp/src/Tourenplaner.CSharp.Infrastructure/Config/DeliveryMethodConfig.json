@@ -1,0 +1,52 @@
+{
+  "mapOrders": [
+    {
+      "articleId": "9314dcad-f0ed-11eb-8a5a-40b076de1f8f",
+      "name": "Frei Bordsteinkante",
+      "method": "Fracht_o_vert"
+    },
+    {
+      "articleId": "1be04ec6-080a-11ec-8a64-40b076de1f8f",
+      "name": "Mit Verteilung",
+      "method": "Fracht_m_vert"
+    },
+    {
+      "articleId": "57E8F414-080C-11EC-8A64-40B076DE1F8F",
+      "name": "Mit Verteilung & Montage",
+      "method": "Fracht_m_vert_mont"
+    },
+    {
+      "articleId": "f874e760-16f4-11ec-8a67-40b076de1f8f",
+      "name": "Mit Verteilung & Montage",
+      "method": "Fracht_m_vert_mont"
+    }
+  ],
+  "forceUpgradeArticleId": "973d1a2f-155b-11ec-8a65-40b076de1f8f",
+  "nonMapOrders": [
+    {
+      "articleId": "55db6564-16f1-11ec-8a67-40b076de1f8f",
+      "name": "Spediteur",
+      "method": "Fracht_mit_Spediteur"
+    },
+    {
+      "articleId": "3259a7b5-0810-11ec-8a64-40b076de1f8f",
+      "name": "Post",
+      "method": "Fracht_mit_Spediteur"
+    },
+    {
+      "articleId": "EE37146F-0810-11EC-8A64-40B076DE1F8F",
+      "name": "Tresor-Bordstein",
+      "method": "Fracht_Tresor_Bordstein"
+    },
+    {
+      "articleId": "BAE3AFC3-0813-11EC-8A64-40B076DE1F8F",
+      "name": "Tresor-Verwendung",
+      "method": "Fracht_Tresor_Verwendung"
+    },
+    {
+      "articleId": "D06B905E-16F7-11EC-8A67-40B076DE1F8F",
+      "name": "Selbstabholung",
+      "method": "Selbstabholung"
+    }
+  ]
+}

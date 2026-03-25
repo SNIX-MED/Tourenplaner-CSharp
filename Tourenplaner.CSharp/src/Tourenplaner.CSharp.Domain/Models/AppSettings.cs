@@ -4,7 +4,7 @@ public sealed class AppSettings
 {
     public const string DefaultAvisoEmailSubjectTemplate = "Lieferung von Auftrag X";
     public const string DefaultUpdateFeedUrl = "https://github.com/SNIX-MED/Tourenplaner-CSharp/releases";
-    public const string DefaultStatusColorNotSpecified = "#A855F7";
+    public const string DefaultStatusColorNotSpecified = "#A3A3A3";
     public const string DefaultStatusColorOrdered = "#0EA5E9";
     public const string DefaultStatusColorOnTheWay = "#F59E0B";
     public const string DefaultStatusColorInStock = "#16A34A";
@@ -37,4 +37,9 @@ public sealed class AppSettings
     public int AutoBackupIntervalDays { get; set; } = 7;
     public string LastBackupIso { get; set; } = string.Empty;
     public string UpdateFeedUrl { get; set; } = DefaultUpdateFeedUrl;
+    
+    // SQL Server Import Settings
+    public SqlConnectionSettings SqlImportSettings { get; set; } = new();
+    public DateTime? LastSqlImportDate { get; set; }
+    public bool SqlImportEnabled { get; set; } = false;
 }

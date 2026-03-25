@@ -11,7 +11,7 @@ public static class TourPdfHtmlBuilder
         var meta = BuildMeta(snapshot);
         var stops = string.Join(Environment.NewLine, snapshot.Stops.Select(BuildStopHtml));
         var mapContent = string.IsNullOrWhiteSpace(mapImageBase64Png)
-            ? "<div class=\"map-fallback\">Kartenbild konnte fuer diesen Export nicht erzeugt werden.</div>"
+            ? "<div class=\"map-fallback\">Kartenbild konnte f&uuml;r diesen Export nicht erzeugt werden.</div>"
             : $"<img class=\"map-image\" src=\"data:image/png;base64,{mapImageBase64Png}\" alt=\"Tourkarte\" />";
 
         return $$"""
@@ -25,40 +25,40 @@ public static class TourPdfHtmlBuilder
                      * { box-sizing: border-box; }
                      body {
                        margin: 0;
-                       font-family: "Segoe UI", Arial, sans-serif;
+                       font-family: "Segoe UI", "Arial Unicode MS", Arial, sans-serif;
                        color: #0f172a;
                        background: #ffffff;
                      }
                      .page {
                        display: flex;
                        flex-direction: column;
-                       gap: 18px;
+                       gap: 10px;
                      }
                      .header {
                        display: flex;
                        justify-content: space-between;
                        align-items: flex-start;
-                       gap: 24px;
-                       border-bottom: 2px solid #e2e8f0;
-                       padding-bottom: 12px;
+                       gap: 14px;
+                       border-bottom: 1px solid #d9e2ec;
+                       padding-bottom: 6px;
                      }
                      .title {
-                       font-size: 28px;
+                       font-size: 24px;
                        font-weight: 700;
                        color: #0f172a;
                        margin: 0;
                      }
                      .subtitle {
-                       margin-top: 6px;
-                       font-size: 14px;
+                       margin-top: 2px;
+                       font-size: 12px;
                        color: #475569;
                      }
                      .meta {
-                       min-width: 300px;
+                       min-width: 520px;
                        display: grid;
-                       grid-template-columns: 130px 1fr;
-                       gap: 8px 12px;
-                       font-size: 13px;
+                       grid-template-columns: 90px 1fr 90px 1fr;
+                       gap: 4px 10px;
+                       font-size: 12px;
                      }
                      .meta-label {
                        color: #475569;
@@ -66,8 +66,8 @@ public static class TourPdfHtmlBuilder
                      }
                      .content {
                        display: grid;
-                       grid-template-columns: 0.95fr 1.35fr;
-                       gap: 18px;
+                       grid-template-columns: 0.75fr 1.55fr;
+                       gap: 12px;
                        min-height: 520px;
                      }
                      .panel {
@@ -157,7 +157,7 @@ public static class TourPdfHtmlBuilder
                      <div class="header">
                        <div>
                          <h1 class="title">{{Html(title)}}</h1>
-                         <div class="subtitle">Tour-Export fuer die aktuell geladene Route</div>
+                         <div class="subtitle">Tour-Export f&uuml;r die aktuell geladene Route</div>
                        </div>
                        <div class="meta">
                          {{meta}}
@@ -248,6 +248,22 @@ public static class TourPdfHtmlBuilder
 
     private static string Html(string? value)
     {
-        return WebUtility.HtmlEncode(value ?? string.Empty);
+        var encoded = WebUtility.HtmlEncode(value ?? string.Empty);
+        var sb = new StringBuilder(encoded.Length);
+        foreach (var ch in encoded)
+        {
+            if (ch > 127)
+            {
+                sb.Append("&#");
+                sb.Append((int)ch);
+                sb.Append(';');
+            }
+            else
+            {
+                sb.Append(ch);
+            }
+        }
+
+        return sb.ToString();
     }
 }

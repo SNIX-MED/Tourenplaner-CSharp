@@ -74,7 +74,7 @@
                     Margin="0,18,0,0"
                     HorizontalAlignment="Right"
                     Content="Abbrechen"
-                    Style="{StaticResource DarkButtonStyle}"
+                    Style="{StaticResource SecondaryButtonStyle}"
                     IsCancel="True" />
         </Grid>
     </Border>

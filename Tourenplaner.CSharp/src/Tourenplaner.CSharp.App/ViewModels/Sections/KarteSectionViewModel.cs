@@ -2568,7 +2568,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     public string ResolveOrderStatusColor(string? orderStatus, bool isAssigned)
     {
-        if (isAssigned)
+        var rawStatus = (orderStatus ?? string.Empty).Trim();
+        if (string.Equals(rawStatus, PlannedTourStatus, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(rawStatus, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase))
         {
             return _statusColorPlanned;
         }
@@ -2587,6 +2589,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         if (string.Equals(normalized, "An Lager", StringComparison.OrdinalIgnoreCase))
         {
             return _statusColorInStock;
+        }
+
+        if (isAssigned && string.IsNullOrWhiteSpace(rawStatus))
+        {
+            return _statusColorPlanned;
         }
 
         return _statusColorNotSpecified;

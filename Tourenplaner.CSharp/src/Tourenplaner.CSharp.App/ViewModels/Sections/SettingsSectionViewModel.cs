@@ -7,20 +7,37 @@ using System.Reflection;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Services;
+using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
+using Tourenplaner.CSharp.Infrastructure.Services;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class SettingsSectionViewModel : SectionViewModelBase
 {
+    private readonly Guid _instanceId = Guid.NewGuid();
     private readonly JsonAppSettingsRepository _repository;
     private readonly SettingsValidator _validator;
     private readonly BackupManager _backupManager;
     private readonly GitHubReleaseUpdateService _updateService;
+    private readonly IOrderRepository _orderRepository;
+    private readonly ISettingsRepository _settingsRepository;
+    private readonly AppDataSyncService? _dataSyncService;
     private readonly string _dataRoot;
+    private bool _isBackgroundGeocodingRunning;
 
     private string _statusText = "Loading settings...";
+    
+    // SQL Import Settings
+    private string _sqlServer = ".\\SQLEXPRESS";
+    private string _sqlDatabase = "Business11";
+    private bool _sqlUseWindowsAuth = true;
+    private bool _sqlImportEnabled = false;
+    private bool _isTestingConnection = false;
+    private bool _isImportingOrders = false;
+    private string _importStatusMessage = "";
+    
     private string _avisoEmailSubjectTemplate = AppSettings.DefaultAvisoEmailSubjectTemplate;
     private string _companyName = "Firma";
     private string _companyStreet = string.Empty;
@@ -56,13 +73,21 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private GitHubReleaseInfo? _latestRelease;
     private string _validationSummary = string.Empty;
 
-    public SettingsSectionViewModel(string settingsJsonPath, string dataRoot)
+    public SettingsSectionViewModel(
+        string settingsJsonPath,
+        string dataRoot,
+        IOrderRepository orderRepository = null,
+        ISettingsRepository settingsRepository = null,
+        AppDataSyncService? dataSyncService = null)
         : base("Settings", "Appearance, backup policy and restore operations.")
     {
         _repository = new JsonAppSettingsRepository(settingsJsonPath);
         _validator = new SettingsValidator();
         _backupManager = new BackupManager();
         _updateService = new GitHubReleaseUpdateService();
+        _orderRepository = orderRepository;
+        _settingsRepository = settingsRepository;
+        _dataSyncService = dataSyncService;
         _dataRoot = dataRoot;
 
         BackupModes =
@@ -81,6 +106,14 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         OpenUpdateFeedCommand = new DelegateCommand(OpenUpdateFeed);
         CheckForUpdatesCommand = new AsyncCommand(CheckForUpdatesAsync);
         DownloadLatestUpdateCommand = new AsyncCommand(DownloadLatestUpdateAsync);
+        
+        // SQL Import Commands
+        TestSqlConnectionCommand = new AsyncCommand(
+            TestConnectionAsync,
+            canExecute: () => !IsTestingConnection && !IsImportingOrders);
+        ImportOrdersCommand = new AsyncCommand(
+            ImportOrdersAsync,
+            canExecute: () => SqlImportEnabled && !IsTestingConnection && !IsImportingOrders);
 
         _ = RefreshAsync();
     }
@@ -106,6 +139,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public ICommand CheckForUpdatesCommand { get; }
 
     public ICommand DownloadLatestUpdateCommand { get; }
+    
+    public AsyncCommand TestSqlConnectionCommand { get; }
+
+    public AsyncCommand ImportOrdersCommand { get; }
 
     public string StatusText
     {
@@ -303,6 +340,48 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _latestReleaseAsset;
         private set => SetProperty(ref _latestReleaseAsset, value);
+    }
+
+    public string SqlServer
+    {
+        get => _sqlServer;
+        set => SetProperty(ref _sqlServer, value);
+    }
+
+    public string SqlDatabase
+    {
+        get => _sqlDatabase;
+        set => SetProperty(ref _sqlDatabase, value);
+    }
+
+    public bool SqlUseWindowsAuth
+    {
+        get => _sqlUseWindowsAuth;
+        set => SetProperty(ref _sqlUseWindowsAuth, value);
+    }
+
+    public bool SqlImportEnabled
+    {
+        get => _sqlImportEnabled;
+        set => SetProperty(ref _sqlImportEnabled, value);
+    }
+
+    public bool IsTestingConnection
+    {
+        get => _isTestingConnection;
+        set => SetProperty(ref _isTestingConnection, value);
+    }
+
+    public bool IsImportingOrders
+    {
+        get => _isImportingOrders;
+        set => SetProperty(ref _isImportingOrders, value);
+    }
+
+    public string ImportStatusMessage
+    {
+        get => _importStatusMessage;
+        set => SetProperty(ref _importStatusMessage, value);
     }
 
     public async Task RefreshAsync()
@@ -552,6 +631,13 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             AutoBackupIntervalDays = AutoBackupIntervalDays,
             LastBackupIso = LastBackupIso,
             UpdateFeedUrl = string.IsNullOrWhiteSpace(UpdateFeedUrl) ? AppSettings.DefaultUpdateFeedUrl : UpdateFeedUrl.Trim(),
+            SqlImportSettings = new SqlConnectionSettings
+            {
+                Server = SqlServer,
+                Database = SqlDatabase,
+                UseWindowsAuthentication = SqlUseWindowsAuth
+            },
+            SqlImportEnabled = SqlImportEnabled,
             QuickAccessItems = new List<string>()
         };
     }
@@ -583,6 +669,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         AutoBackupIntervalDays = settings.AutoBackupIntervalDays;
         LastBackupIso = settings.LastBackupIso;
         UpdateFeedUrl = string.IsNullOrWhiteSpace(settings.UpdateFeedUrl) ? AppSettings.DefaultUpdateFeedUrl : settings.UpdateFeedUrl;
+        
+        // SQL Settings
+        SqlServer = settings.SqlImportSettings?.Server ?? ".\\SQLEXPRESS";
+        SqlDatabase = settings.SqlImportSettings?.Database ?? "Business11";
+        SqlUseWindowsAuth = settings.SqlImportSettings?.UseWindowsAuthentication ?? true;
+        SqlImportEnabled = settings.SqlImportEnabled;
     }
 
     private void UpdateBackupStatus(string? backupDir)
@@ -610,5 +702,168 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         LatestReleasePublishedAt = "n/a";
         LatestReleaseAsset = "n/a";
         UpdateCheckResult = "Noch nicht geprüft.";
+    }
+
+    private async Task TestConnectionAsync()
+    {
+        IsTestingConnection = true;
+        ImportStatusMessage = "🔌 Verbindung wird getestet...";
+
+        try
+        {
+            var settings = new SqlConnectionSettings
+            {
+                Server = SqlServer,
+                Database = SqlDatabase,
+                UseWindowsAuthentication = SqlUseWindowsAuth
+            };
+
+            var service = new SqlServerOrderService(settings);
+            await service.TestConnectionAsync();
+
+            ImportStatusMessage = "✓ Verbindung erfolgreich!";
+            SqlImportEnabled = true;
+            StatusText = "SQL Server Verbindung erfolgreich getestet.";
+            
+            // Aktualisiere Button-Status
+            ImportOrdersCommand.RaiseCanExecuteChanged();
+        }
+        catch (Exception ex)
+        {
+            ImportStatusMessage = $"✗ Fehler: {ex.Message}";
+            SqlImportEnabled = false;
+            StatusText = "SQL Server Verbindung fehlgeschlagen.";
+        }
+        finally
+        {
+            IsTestingConnection = false;
+            TestSqlConnectionCommand.RaiseCanExecuteChanged();
+            ImportOrdersCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private async Task ImportOrdersAsync()
+    {
+        if (_orderRepository == null || _settingsRepository == null)
+        {
+            ImportStatusMessage = "✗ Fehler: Repositories nicht initialisiert.";
+            return;
+        }
+
+        IsImportingOrders = true;
+        ImportStatusMessage = "⏳ Importiere Aufträge aus SQL Server...";
+
+        try
+        {
+            var appSettings = await _settingsRepository.GetAsync();
+            appSettings.SqlImportSettings = new SqlConnectionSettings
+            {
+                Server = SqlServer,
+                Database = SqlDatabase,
+                UseWindowsAuthentication = SqlUseWindowsAuth
+            };
+
+            var sqlService = new SqlServerOrderService(appSettings.SqlImportSettings);
+            // Always run a full sync here so delivery-type rule changes (ArticleID mapping)
+            // are re-applied to existing orders as well.
+            var sqlOrders = await sqlService.GetNewAndUpdatedOrdersAsync(null);
+
+            if (sqlOrders.Count == 0)
+            {
+                ImportStatusMessage = "ℹ Keine importierbaren Aufträge gefunden.";
+                StatusText = "SQL Import: Keine Daten gefunden.";
+                return;
+            }
+
+            var importService = new SqlOrderImportService();
+            var result = await importService.ImportOrdersAsync(
+                sqlOrders,
+                _orderRepository,
+                _settingsRepository);
+            _dataSyncService?.PublishOrders(_instanceId);
+            StartBackgroundPinGeocoding();
+
+            var message = $"✓ Import abgeschlossen:\n" +
+                          $"  • Neue Aufträge: {result.CreatedOrders}\n" +
+                          $"  • Aktualisiert: {result.UpdatedOrders}\n" +
+                          $"  • Pin-Erstellung: läuft im Hintergrund";
+
+            if (result.Errors.Any())
+            {
+                message += $"\n\n⚠ Fehler bei {result.Errors.Count} Aufträgen";
+            }
+
+            ImportStatusMessage = message;
+            StatusText = $"SQL Import erfolgreich: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert.";
+        }
+        catch (Exception ex)
+        {
+            ImportStatusMessage = $"✗ Importfehler: {ex.Message}";
+            StatusText = $"SQL Import fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            IsImportingOrders = false;
+            TestSqlConnectionCommand.RaiseCanExecuteChanged();
+            ImportOrdersCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private async Task<int> GeocodeMapOrdersAfterSqlImportAsync()
+    {
+        if (_orderRepository is null)
+        {
+            return 0;
+        }
+
+        var allOrders = (await _orderRepository.GetAllAsync()).ToList();
+        var geocoded = 0;
+
+        foreach (var order in allOrders.Where(x => x.Type == OrderType.Map))
+        {
+            var needsGeocoding = order.Location is null || AddressGeocodingService.IsLikelyCountryCentroid(order.Location);
+            if (!needsGeocoding)
+            {
+                continue;
+            }
+
+            var location = await AddressGeocodingService.TryGeocodeOrderAsync(order);
+            if (location is null)
+            {
+                continue;
+            }
+
+            order.Location = location;
+            geocoded++;
+            await _orderRepository.SaveAllAsync(allOrders);
+            _dataSyncService?.PublishOrders(_instanceId, order.Id, order.Id);
+        }
+
+        return geocoded;
+    }
+
+    private void StartBackgroundPinGeocoding()
+    {
+        if (_isBackgroundGeocodingRunning)
+        {
+            return;
+        }
+
+        _isBackgroundGeocodingRunning = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var geocoded = await GeocodeMapOrdersAfterSqlImportAsync();
+                if (geocoded > 0)
+                {
+                    _dataSyncService?.PublishOrders(_instanceId);
+                }
+            }
+            finally
+            {
+                _isBackgroundGeocodingRunning = false;
+            }
+        });
     }
 }

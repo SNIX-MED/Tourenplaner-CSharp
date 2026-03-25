@@ -118,7 +118,9 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private async Task AddManualOrderAsync()
     {
-        var dialog = new ManualOrderDialogWindow
+        var dialog = new ManualOrderDialogWindow(
+            deliveryTypes: DeliveryMethodExtensions.MapDeliveryTypeOptions,
+            defaultOrderType: OrderType.Map)
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
@@ -158,7 +160,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
 
         var originalId = existing.Id;
-        var dialog = new ManualOrderDialogWindow(existing)
+        var dialog = new ManualOrderDialogWindow(
+            existing,
+            deliveryTypes: DeliveryMethodExtensions.MapDeliveryTypeOptions,
+            defaultOrderType: OrderType.Map)
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };

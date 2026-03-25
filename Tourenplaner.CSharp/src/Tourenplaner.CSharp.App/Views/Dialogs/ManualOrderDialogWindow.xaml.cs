@@ -11,10 +11,13 @@ namespace Tourenplaner.CSharp.App.Views.Dialogs;
 
 public partial class ManualOrderDialogWindow : Window
 {
-    public ManualOrderDialogWindow(Order? existingOrder = null)
+    public ManualOrderDialogWindow(
+        Order? existingOrder = null,
+        IReadOnlyList<string>? deliveryTypes = null,
+        OrderType defaultOrderType = OrderType.Map)
     {
         InitializeComponent();
-        ViewModel = new ManualOrderDialogViewModel(existingOrder);
+        ViewModel = new ManualOrderDialogViewModel(existingOrder, deliveryTypes, defaultOrderType);
         DataContext = ViewModel;
         Title = existingOrder is null ? "Kundenkartei" : $"Auftrag bearbeiten - {existingOrder.Id}";
     }
@@ -90,13 +93,6 @@ public partial class ManualOrderDialogWindow : Window
 
 public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 {
-    private static readonly IReadOnlyList<string> DeliveryTypes =
-    [
-        "Frei Bordsteinkante",
-        "Mit Verteilung",
-        "Mit Verteilung & Montage"
-    ];
-
     private static readonly IReadOnlyList<string> Statuses =
     [
         "nicht festgelegt",
@@ -105,6 +101,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         "An Lager"
     ];
 
+    private readonly IReadOnlyList<string> _deliveryTypes;
+    private readonly OrderType _defaultOrderType;
     private ProductLineInput? _selectedProductLine;
     private string _orderNumber = string.Empty;
     private string _orderDateText = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
@@ -119,15 +117,30 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _deliveryCity = string.Empty;
     private string _email = string.Empty;
     private string _phone = string.Empty;
-    private string _selectedDeliveryType = DeliveryTypes[0];
+    private string _selectedDeliveryType = string.Empty;
     private string _selectedStatus = Statuses[0];
     private string _notes = string.Empty;
 
     private GeoPoint? _existingLocation;
     private string? _existingAssignedTourId;
 
-    public ManualOrderDialogViewModel(Order? existingOrder = null)
+    public ManualOrderDialogViewModel(
+        Order? existingOrder = null,
+        IReadOnlyList<string>? deliveryTypes = null,
+        OrderType defaultOrderType = OrderType.Map)
     {
+        _deliveryTypes = (deliveryTypes ?? DeliveryMethodExtensions.MapDeliveryTypeOptions)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (_deliveryTypes.Count == 0)
+        {
+            _deliveryTypes = DeliveryMethodExtensions.MapDeliveryTypeOptions;
+        }
+
+        _defaultOrderType = defaultOrderType;
+        _selectedDeliveryType = _deliveryTypes[0];
         ApplyExistingOrder(existingOrder);
     }
 
@@ -135,7 +148,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     public ObservableCollection<ProductLineInput> ProductLines { get; } = new();
 
-    public IReadOnlyList<string> DeliveryTypeOptions => DeliveryTypes;
+    public IReadOnlyList<string> DeliveryTypeOptions => _deliveryTypes;
 
     public IReadOnlyList<string> StatusOptions => Statuses;
 
@@ -291,7 +304,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         {
             Id = id,
             ScheduledDate = DateOnly.FromDateTime(parsedOrderDate),
-            Type = OrderType.Map,
+            Type = _defaultOrderType,
             CustomerName = deliveryName,
             Address = $"{deliveryStreet}, {deliveryPostalCode} {deliveryCity}",
             OrderAddress = new OrderAddressInfo
@@ -312,7 +325,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Email = (Email ?? string.Empty).Trim(),
             Phone = (Phone ?? string.Empty).Trim(),
             Products = products,
-            DeliveryType = (SelectedDeliveryType ?? DeliveryTypes[0]).Trim(),
+            DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(
+                (SelectedDeliveryType ?? _deliveryTypes[0]).Trim()),
             OrderStatus = string.IsNullOrWhiteSpace(SelectedStatus)
                 ? Statuses[0]
                 : SelectedStatus.Trim(),
@@ -381,9 +395,10 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         DeliveryCity = existingOrder.DeliveryAddress?.City ?? string.Empty;
         Email = existingOrder.Email ?? string.Empty;
         Phone = existingOrder.Phone ?? string.Empty;
-        SelectedDeliveryType = string.IsNullOrWhiteSpace(existingOrder.DeliveryType)
-            ? DeliveryTypes[0]
-            : existingOrder.DeliveryType;
+        var normalizedDeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(existingOrder.DeliveryType);
+        SelectedDeliveryType = _deliveryTypes.Any(x => string.Equals(x, normalizedDeliveryType, StringComparison.OrdinalIgnoreCase))
+            ? _deliveryTypes.First(x => string.Equals(x, normalizedDeliveryType, StringComparison.OrdinalIgnoreCase))
+            : _deliveryTypes[0];
         SelectedStatus = string.IsNullOrWhiteSpace(existingOrder.OrderStatus) ||
                          string.Equals(existingOrder.OrderStatus, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase)
             ? Statuses[0]
