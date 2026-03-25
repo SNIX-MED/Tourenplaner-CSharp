@@ -12,7 +12,7 @@ public sealed class AppSettings
     public const string DefaultCalendarLoadWarningColor = "#F59E0B";
     public const string DefaultCalendarLoadCriticalColor = "#DC2626";
 
-    public string AppearanceMode { get; set; } = "System";
+    public string AppearanceMode { get; set; } = "Light";
     public string AvisoEmailSubjectTemplate { get; set; } = DefaultAvisoEmailSubjectTemplate;
     public string CompanyName { get; set; } = "Firma";
     public string CompanyStreet { get; set; } = string.Empty;

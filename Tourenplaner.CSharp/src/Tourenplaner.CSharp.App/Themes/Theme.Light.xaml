@@ -28,6 +28,7 @@
     <SolidColorBrush x:Key="Brush.BorderSoft" Color="#E6EAF0" />
     <SolidColorBrush x:Key="Brush.GlassSurface" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="Brush.GlassSurfaceStrong" Color="#F7F8FB" />
+    <SolidColorBrush x:Key="Brush.GlassSurfaceSoft" Color="#F7F8FB" />
     <SolidColorBrush x:Key="Brush.GlassStroke" Color="#E6EAF0" />
     <SolidColorBrush x:Key="Brush.AccentSoft" Color="#F3E8FF" />
 

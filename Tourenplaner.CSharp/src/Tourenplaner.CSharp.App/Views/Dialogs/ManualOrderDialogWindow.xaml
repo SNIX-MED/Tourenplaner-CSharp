@@ -148,17 +148,45 @@
                                       Margin="0,10,0,8"
                                       AutoGenerateColumns="False"
                                       CanUserAddRows="False"
+                                      IsReadOnly="True"
+                                      MouseDoubleClick="OnProductGridDoubleClick"
                                       ItemsSource="{Binding ProductLines}"
                                       SelectedItem="{Binding SelectedProductLine}">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Produkt" Width="*" Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <DataGridTextColumn Header="Gewicht (kg)" Width="160" Binding="{Binding WeightKgText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <DataGridTextColumn Header="Produkt" Width="*" Binding="{Binding Name}" />
+                                    <DataGridTextColumn Header="Menge" Width="90" Binding="{Binding Quantity}" />
+                                    <DataGridTextColumn Header="Gewicht/Stk (kg)" Width="140" Binding="{Binding UnitWeightKg}" />
+                                    <DataGridTextColumn Header="Totalgewicht (kg)" Width="150" Binding="{Binding TotalWeightKg}" />
+                                    <DataGridTextColumn Header="Masse" Width="180" Binding="{Binding Dimensions}" />
                                 </DataGrid.Columns>
                             </DataGrid>
 
                             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="+ Hinzufuegen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding AddProductLineCommand}" />
-                                <Button Margin="8,0,0,0" Content="Ausgewaehlte entfernen" Style="{StaticResource DangerButtonStyle}" Command="{Binding RemoveProductLineCommand}" />
+                                <Button Content="+ Produkt hinzufügen" Style="{StaticResource SuccessButtonStyle}" Click="OnAddProductClicked" />
+                                <Button Margin="8,0,0,0" Content="Produkt bearbeiten" Click="OnEditProductClicked">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                            <Setter Property="IsEnabled" Value="False" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CanEditOrRemoveProductLine}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="True" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Margin="8,0,0,0" Content="Produkt entfernen" Click="OnRemoveProductClicked">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource DangerButtonStyle}">
+                                            <Setter Property="IsEnabled" Value="False" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CanEditOrRemoveProductLine}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="True" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -195,7 +223,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" Content="Schliessen" Style="{StaticResource DarkButtonStyle}" Margin="0,0,8,0" IsCancel="True" />
+                <Button Grid.Column="0" Content="Schließen" Style="{StaticResource DarkButtonStyle}" Margin="0,0,8,0" IsCancel="True" />
                 <Button Grid.Column="1" Content="Speichern" Style="{StaticResource SuccessButtonStyle}" Margin="8,0,0,0" IsDefault="True" Click="OnSaveClicked" />
             </Grid>
         </Grid>

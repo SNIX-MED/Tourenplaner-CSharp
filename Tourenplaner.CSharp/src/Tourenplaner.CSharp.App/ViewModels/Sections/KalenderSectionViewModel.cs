@@ -1,9 +1,11 @@
 ﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Input;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -15,11 +17,14 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private const int PreviewWeekCount = 4;
 
     private readonly JsonToursRepository _repository;
+    private readonly JsonOrderRepository _orderRepository;
     private readonly JsonAppSettingsRepository _settingsRepository;
+    private readonly AppDataSyncService _dataSyncService;
     private readonly Func<int, Task>? _openTourAsync;
     private readonly Func<DateTime, Task>? _openDayInToursAsync;
     private readonly List<TourRecord> _allTours = [];
     private readonly List<CalendarDayItem> _interactiveDays = [];
+    private readonly Guid _instanceId = Guid.NewGuid();
 
     private DateTime _rangeStartMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private string _rangeTitleText = string.Empty;
@@ -35,13 +40,17 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
     public KalenderSectionViewModel(
         string toursJsonPath,
+        string ordersJsonPath,
         string settingsJsonPath,
         Func<int, Task>? openTourAsync = null,
-        Func<DateTime, Task>? openDayInToursAsync = null)
-        : base("Kalender", "Uebersicht aller geplanten Touren. Ein Doppelklick oeffnet den Tag in den Liefertouren.")
+        Func<DateTime, Task>? openDayInToursAsync = null,
+        AppDataSyncService? dataSyncService = null)
+        : base("Kalender", "Übersicht aller geplanten Touren. Ein Doppelklick öffnet den Tag in den Liefertouren.")
     {
         _repository = new JsonToursRepository(toursJsonPath);
+        _orderRepository = new JsonOrderRepository(ordersJsonPath);
         _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
+        _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _openTourAsync = openTourAsync;
         _openDayInToursAsync = openDayInToursAsync;
 
@@ -51,6 +60,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         OpenSelectedTourCommand = new AsyncCommand(OpenSelectedTourAsync, () => SelectedDayTour is not null);
         DeleteSelectedTourCommand = new AsyncCommand(DeleteSelectedTourAsync, () => SelectedDayTour is not null);
         OpenSelectedDayInToursCommand = new AsyncCommand(OpenSelectedDayInToursAsync, CanOpenSelectedDayInTours);
+        _dataSyncService.DataChanged += OnDataChanged;
 
         _ = RefreshAsync();
     }
@@ -392,6 +402,9 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
         _allTours.Remove(toRemove);
         await _repository.SaveAsync(_allTours);
+        await ClearAssignedTourReferencesAsync(toRemove.Id);
+        _dataSyncService.PublishTours(_instanceId, toRemove.Id.ToString(CultureInfo.InvariantCulture), null);
+        _dataSyncService.PublishOrders(_instanceId);
 
         var keepDate = SelectedDay?.Date ?? DateTime.Today;
         BuildCalendarRange(keepDate);
@@ -538,6 +551,34 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         if (OpenSelectedDayInToursCommand is AsyncCommand openDay)
         {
             openDay.RaiseCanExecuteChanged();
+        }
+    }
+
+    private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
+    {
+        if (args.SourceId == _instanceId || !args.Kinds.HasFlag(AppDataKind.Tours))
+        {
+            return;
+        }
+
+        _ = RefreshAsync();
+    }
+
+    private async Task ClearAssignedTourReferencesAsync(int tourId)
+    {
+        var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
+        var orders = (await _orderRepository.GetAllAsync()).ToList();
+        var changed = false;
+
+        foreach (var order in orders.Where(x => string.Equals(x.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            order.AssignedTourId = string.Empty;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await _orderRepository.SaveAllAsync(orders);
         }
     }
 

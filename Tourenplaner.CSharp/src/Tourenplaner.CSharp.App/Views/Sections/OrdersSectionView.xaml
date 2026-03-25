@@ -50,8 +50,8 @@
                 </Border>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Width="110" Margin="8,0,0,0" Content="Zurueck" Command="{Binding UndoDeleteCommand}" />
-                    <Button Width="170" Margin="8,0,0,0" Content="Manuell hinzufuegen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AddManualOrderCommand}" />
+                    <Button Width="110" Margin="8,0,0,0" Content="Zurück" Command="{Binding UndoDeleteCommand}" />
+                    <Button Width="170" Margin="8,0,0,0" Content="Manuell hinzufügen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding AddManualOrderCommand}" />
                     <Button Width="110" Margin="8,0,0,0" Content="Loeschen" Command="{Binding RemoveCommand}" />
                 </StackPanel>
             </Grid>

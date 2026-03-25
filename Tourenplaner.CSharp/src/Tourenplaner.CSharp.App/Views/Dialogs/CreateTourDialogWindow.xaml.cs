@@ -214,7 +214,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         var normalizedDateText = (DateText ?? string.Empty).Trim();
         if (!DateTime.TryParseExact(normalizedDateText, "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
         {
-            error = "Bitte ein gueltiges Datum im Format DD.MM.YYYY eingeben.";
+            error = "Bitte ein gültiges Datum im Format DD.MM.YYYY eingeben.";
             return false;
         }
 

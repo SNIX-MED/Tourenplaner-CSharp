@@ -19,6 +19,24 @@ public partial class VehiclesSectionView : UserControl
             return;
         }
 
+        if (vm.IsCombinationMode)
+        {
+            var combinationDialog = new VehicleCombinationEditorDialogWindow(
+                vm.CreateCombinationSeedForCreate(),
+                vm.BuildCombinationOptions(),
+                vm.BuildTrailerOptions())
+            {
+                Owner = System.Windows.Application.Current?.MainWindow
+            };
+
+            if (combinationDialog.ShowDialog() == true && combinationDialog.Result is not null)
+            {
+                await vm.ApplyCombinationEditorResultAsync(combinationDialog.Result);
+            }
+
+            return;
+        }
+
         var dialog = new VehicleEditorDialogWindow(vm.CreateSeedForCreate())
         {
             Owner = System.Windows.Application.Current?.MainWindow
@@ -26,7 +44,14 @@ public partial class VehiclesSectionView : UserControl
 
         if (dialog.ShowDialog() == true && dialog.Result is not null)
         {
-            await vm.ApplyEditorResultAsync(dialog.Result);
+            try
+            {
+                await vm.ApplyEditorResultAsync(dialog.Result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(ex.Message, "Fahrzeug speichern", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
     }
 
@@ -38,6 +63,31 @@ public partial class VehiclesSectionView : UserControl
             return;
         }
 
+        if (entry.IsCombination)
+        {
+            var combinationDialog = new VehicleCombinationEditorDialogWindow(
+                vm.CreateCombinationSeedForEdit(entry),
+                vm.BuildCombinationOptions(),
+                vm.BuildTrailerOptions())
+            {
+                Owner = System.Windows.Application.Current?.MainWindow
+            };
+
+            if (combinationDialog.ShowDialog() == true && combinationDialog.Result is not null)
+            {
+                try
+                {
+                    await vm.ApplyCombinationEditorResultAsync(combinationDialog.Result);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    MessageBox.Show(ex.Message, "Fahrzeugkombination speichern", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+
+            return;
+        }
+
         var dialog = new VehicleEditorDialogWindow(vm.CreateSeedForEdit(entry))
         {
             Owner = System.Windows.Application.Current?.MainWindow
@@ -45,7 +95,14 @@ public partial class VehiclesSectionView : UserControl
 
         if (dialog.ShowDialog() == true && dialog.Result is not null)
         {
-            await vm.ApplyEditorResultAsync(dialog.Result);
+            try
+            {
+                await vm.ApplyEditorResultAsync(dialog.Result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(ex.Message, "Fahrzeug speichern", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
     }
 
@@ -59,7 +116,7 @@ public partial class VehiclesSectionView : UserControl
 
         var confirm = MessageBox.Show(
             $"\"{entry.Name}\" wirklich löschen?",
-            "Fahrzeug löschen",
+            entry.IsCombination ? "Fahrzeugkombination löschen" : "Fahrzeug löschen",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
         if (confirm != MessageBoxResult.Yes)

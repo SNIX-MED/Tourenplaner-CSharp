@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
-using Tourenplaner.CSharp.App.ViewModels.Commands;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Views.Dialogs;
@@ -30,7 +30,7 @@ public partial class ManualOrderDialogWindow : Window
             MessageBox.Show(
                 this,
                 validationError,
-                "Eingabe pruefen",
+                "Eingabe prüfen",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;
@@ -39,6 +39,52 @@ public partial class ManualOrderDialogWindow : Window
         CreatedOrder = order;
         DialogResult = true;
         Close();
+    }
+
+    private void OnAddProductClicked(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OrderProductDialogWindow
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() == true && dialog.Result is not null)
+        {
+            ViewModel.AddProductLine(dialog.Result);
+        }
+    }
+
+    private void OnEditProductClicked(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.SelectedProductLine is null)
+        {
+            return;
+        }
+
+        var dialog = new OrderProductDialogWindow(ViewModel.SelectedProductLine)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() == true && dialog.Result is not null)
+        {
+            ViewModel.UpdateSelectedProductLine(dialog.Result);
+        }
+    }
+
+    private void OnRemoveProductClicked(object sender, RoutedEventArgs e)
+    {
+        ViewModel.RemoveSelectedProductLine();
+    }
+
+    private void OnProductGridDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (ViewModel.SelectedProductLine is null)
+        {
+            return;
+        }
+
+        OnEditProductClicked(sender, new RoutedEventArgs());
     }
 }
 
@@ -82,18 +128,12 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     public ManualOrderDialogViewModel(Order? existingOrder = null)
     {
-        AddProductLineCommand = new DelegateCommand(AddProductLine);
-        RemoveProductLineCommand = new DelegateCommand(RemoveSelectedProductLine, () => SelectedProductLine is not null);
         ApplyExistingOrder(existingOrder);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<ProductLineInput> ProductLines { get; } = new();
-
-    public ICommand AddProductLineCommand { get; }
-
-    public ICommand RemoveProductLineCommand { get; }
 
     public IReadOnlyList<string> DeliveryTypeOptions => DeliveryTypes;
 
@@ -104,12 +144,14 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         get => _selectedProductLine;
         set
         {
-            if (SetProperty(ref _selectedProductLine, value) && RemoveProductLineCommand is DelegateCommand remove)
+            if (SetProperty(ref _selectedProductLine, value))
             {
-                remove.RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(CanEditOrRemoveProductLine));
             }
         }
     }
+
+    public bool CanEditOrRemoveProductLine => SelectedProductLine is not null;
 
     public string OrderNumber
     {
@@ -225,7 +267,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             string.IsNullOrWhiteSpace(deliveryPostalCode) ||
             string.IsNullOrWhiteSpace(deliveryCity))
         {
-            error = "Bitte mindestens Auftragsnummer, Liefername und Lieferadresse ausfuellen.";
+            error = "Bitte mindestens Auftragsnummer, Liefername und Lieferadresse ausfüllen.";
             return false;
         }
 
@@ -236,17 +278,13 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
                 DateTimeStyles.None,
                 out var parsedOrderDate))
         {
-            error = "Bitte ein gueltiges Auftragsdatum im Format DD.MM.YYYY eingeben.";
+            error = "Bitte ein gültiges Auftragsdatum im Format DD.MM.YYYY eingeben.";
             return false;
         }
 
         var products = ProductLines
             .Where(x => !string.IsNullOrWhiteSpace(x.Name))
-            .Select(x => new OrderProductInfo
-            {
-                Name = x.Name.Trim(),
-                WeightKg = ParseWeight(x.WeightKgText)
-            })
+            .Select(x => x.ToOrderProductInfo())
             .ToList();
 
         order = new Order
@@ -286,11 +324,45 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         return true;
     }
 
+    public void AddProductLine(ProductLineInput line)
+    {
+        ProductLines.Add(line);
+        SelectedProductLine = line;
+    }
+
+    public void UpdateSelectedProductLine(ProductLineInput line)
+    {
+        if (SelectedProductLine is null)
+        {
+            return;
+        }
+
+        var index = ProductLines.IndexOf(SelectedProductLine);
+        if (index < 0)
+        {
+            return;
+        }
+
+        ProductLines[index] = line;
+        SelectedProductLine = line;
+    }
+
+    public void RemoveSelectedProductLine()
+    {
+        if (SelectedProductLine is null)
+        {
+            return;
+        }
+
+        var index = ProductLines.IndexOf(SelectedProductLine);
+        ProductLines.Remove(SelectedProductLine);
+        SelectedProductLine = ProductLines.ElementAtOrDefault(Math.Max(0, index - 1)) ?? ProductLines.FirstOrDefault();
+    }
+
     private void ApplyExistingOrder(Order? existingOrder)
     {
         if (existingOrder is null)
         {
-            ProductLines.Add(new ProductLineInput());
             return;
         }
 
@@ -321,48 +393,10 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         ProductLines.Clear();
         foreach (var product in existingOrder.Products ?? [])
         {
-            ProductLines.Add(new ProductLineInput
-            {
-                Name = product.Name ?? string.Empty,
-                WeightKgText = product.WeightKg.ToString("0.###", CultureInfo.InvariantCulture)
-            });
-        }
-
-        if (ProductLines.Count == 0)
-        {
-            ProductLines.Add(new ProductLineInput());
-        }
-    }
-
-    private void AddProductLine()
-    {
-        var line = new ProductLineInput();
-        ProductLines.Add(line);
-        SelectedProductLine = line;
-    }
-
-    private void RemoveSelectedProductLine()
-    {
-        if (SelectedProductLine is null)
-        {
-            return;
-        }
-
-        ProductLines.Remove(SelectedProductLine);
-        if (ProductLines.Count == 0)
-        {
-            ProductLines.Add(new ProductLineInput());
+            ProductLines.Add(ProductLineInput.FromOrderProductInfo(product));
         }
 
         SelectedProductLine = ProductLines.FirstOrDefault();
-    }
-
-    private static double ParseWeight(string? text)
-    {
-        var value = (text ?? string.Empty).Trim().Replace(",", ".", StringComparison.Ordinal);
-        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
-            ? Math.Max(0, parsed)
-            : 0d;
     }
 
     private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
@@ -376,35 +410,116 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         return true;
     }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 }
 
 public sealed class ProductLineInput : INotifyPropertyChanged
 {
     private string _name = string.Empty;
-    private string _weightKgText = "0";
+    private int _quantity = 1;
+    private double _unitWeightKg;
+    private string _dimensions = string.Empty;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public string Name
     {
         get => _name;
-        set => SetProperty(ref _name, value);
+        set
+        {
+            if (SetProperty(ref _name, value))
+            {
+                OnPropertyChanged(nameof(TotalWeightKg));
+                OnPropertyChanged(nameof(Summary));
+            }
+        }
     }
 
-    public string WeightKgText
+    public int Quantity
     {
-        get => _weightKgText;
-        set => SetProperty(ref _weightKgText, value);
+        get => _quantity;
+        set
+        {
+            var normalized = Math.Max(1, value);
+            if (SetProperty(ref _quantity, normalized))
+            {
+                OnPropertyChanged(nameof(TotalWeightKg));
+                OnPropertyChanged(nameof(Summary));
+            }
+        }
     }
 
-    private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    public double UnitWeightKg
+    {
+        get => _unitWeightKg;
+        set
+        {
+            var normalized = Math.Max(0d, value);
+            if (SetProperty(ref _unitWeightKg, normalized))
+            {
+                OnPropertyChanged(nameof(TotalWeightKg));
+                OnPropertyChanged(nameof(Summary));
+            }
+        }
+    }
+
+    public string Dimensions
+    {
+        get => _dimensions;
+        set
+        {
+            if (SetProperty(ref _dimensions, value))
+            {
+                OnPropertyChanged(nameof(Summary));
+            }
+        }
+    }
+
+    public double TotalWeightKg => Quantity * UnitWeightKg;
+
+    public string Summary => OrderProductFormatter.BuildDetails([ToOrderProductInfo()]);
+
+    public OrderProductInfo ToOrderProductInfo()
+    {
+        return new OrderProductInfo
+        {
+            Name = (Name ?? string.Empty).Trim(),
+            Quantity = Math.Max(1, Quantity),
+            UnitWeightKg = Math.Max(0d, UnitWeightKg),
+            WeightKg = Math.Max(1, Quantity) * Math.Max(0d, UnitWeightKg),
+            Dimensions = (Dimensions ?? string.Empty).Trim()
+        };
+    }
+
+    public static ProductLineInput FromOrderProductInfo(OrderProductInfo product)
+    {
+        return new ProductLineInput
+        {
+            Name = product.Name ?? string.Empty,
+            Quantity = Math.Max(1, product.Quantity),
+            UnitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(product),
+            Dimensions = product.Dimensions ?? string.Empty
+        };
+    }
+
+    private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

@@ -21,7 +21,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private readonly string _dataRoot;
 
     private string _statusText = "Loading settings...";
-    private string _appearanceMode = "System";
     private string _avisoEmailSubjectTemplate = AppSettings.DefaultAvisoEmailSubjectTemplate;
     private string _companyName = "Firma";
     private string _companyStreet = string.Empty;
@@ -66,13 +65,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         _updateService = new GitHubReleaseUpdateService();
         _dataRoot = dataRoot;
 
-        AppearanceModes =
-        [
-            "System",
-            "Light",
-            "Dark"
-        ];
-
         BackupModes =
         [
             "full",
@@ -92,8 +84,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
         _ = RefreshAsync();
     }
-
-    public ObservableCollection<string> AppearanceModes { get; }
 
     public ObservableCollection<string> BackupModes { get; }
 
@@ -127,12 +117,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _validationSummary;
         private set => SetProperty(ref _validationSummary, value);
-    }
-
-    public string AppearanceMode
-    {
-        get => _appearanceMode;
-        set => SetProperty(ref _appearanceMode, value);
     }
 
     public string AvisoEmailSubjectTemplate
@@ -542,7 +526,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         return new AppSettings
         {
-            AppearanceMode = (AppearanceMode ?? string.Empty).Trim(),
+            AppearanceMode = "Light",
             AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(AvisoEmailSubjectTemplate)
                 ? AppSettings.DefaultAvisoEmailSubjectTemplate
                 : AvisoEmailSubjectTemplate.Trim(),
@@ -574,7 +558,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     private void ApplyModel(AppSettings settings)
     {
-        AppearanceMode = settings.AppearanceMode;
         AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(settings.AvisoEmailSubjectTemplate)
             ? AppSettings.DefaultAvisoEmailSubjectTemplate
             : settings.AvisoEmailSubjectTemplate;

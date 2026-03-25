@@ -1,7 +1,6 @@
 using System.IO;
 using System.Linq;
 using System.Windows;
-using Tourenplaner.CSharp.App.Themes;
 using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
@@ -27,7 +26,7 @@ public partial class App : System.Windows.Application
         Directory.CreateDirectory(dataRoot);
         _logPath = Path.Combine(dataRoot, "app-crash.log");
         AttachGlobalExceptionLogging();
-        AppThemeManager.Initialize(dataRoot);
+        var settingsPath = Path.Combine(dataRoot, "settings.json");
 
         var orderRepository = new JsonOrderRepository(Path.Combine(dataRoot, "orders.json"));
         var tourRepository = new JsonTourRepository(Path.Combine(dataRoot, "tours.json"));
@@ -39,7 +38,7 @@ public partial class App : System.Windows.Application
         var toursJsonPath = Path.Combine(dataRoot, "tours.json");
         var employeesJsonPath = Path.Combine(dataRoot, "employees.json");
         var vehiclesJsonPath = Path.Combine(dataRoot, "vehicles.json");
-        var settingsJsonPath = Path.Combine(dataRoot, "settings.json");
+        var settingsJsonPath = settingsPath;
         _ = await RunTourIntegrityCheckOnStartup(toursJsonPath, settingsJsonPath);
 
         var mainWindow = new MainWindow

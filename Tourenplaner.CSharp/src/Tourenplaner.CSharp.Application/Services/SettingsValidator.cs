@@ -8,13 +8,6 @@ public sealed class SettingsValidator
 {
     private static readonly Regex HexColorRegex = new("^#[0-9A-Fa-f]{6}$", RegexOptions.Compiled);
 
-    private static readonly HashSet<string> AllowedAppearanceModes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "System",
-        "Light",
-        "Dark"
-    };
-
     private static readonly HashSet<string> AllowedBackupModes = new(StringComparer.OrdinalIgnoreCase)
     {
         "full",
@@ -24,11 +17,6 @@ public sealed class SettingsValidator
     public ValidationResult Validate(AppSettings settings)
     {
         var errors = new List<string>();
-
-        if (!AllowedAppearanceModes.Contains(settings.AppearanceMode ?? string.Empty))
-        {
-            errors.Add("AppearanceMode must be one of: System, Light, Dark.");
-        }
 
         if (!AllowedBackupModes.Contains(settings.BackupModeDefault ?? string.Empty))
         {

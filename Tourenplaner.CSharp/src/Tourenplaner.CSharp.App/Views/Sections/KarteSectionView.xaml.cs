@@ -1,5 +1,6 @@
 ﻿using System.Collections.Specialized;
 using System.ComponentModel;
+using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,6 +8,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Win32;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 
 namespace Tourenplaner.CSharp.App.Views.Sections;
@@ -22,6 +25,7 @@ public partial class KarteSectionView : UserControl
     private bool _suppressSelectionSync;
     private Point? _routeGridDragStart;
     private RouteStopItem? _routeGridDragItem;
+    private readonly WebViewRouteExportService _routeExportService = new();
 
     public KarteSectionView()
     {
@@ -96,6 +100,11 @@ public partial class KarteSectionView : UserControl
             _routeCollection.CollectionChanged -= OnRouteCollectionChanged;
         }
 
+        if (e.OldValue is KarteSectionViewModel oldVm)
+        {
+            oldVm.PdfExportHandler = null;
+        }
+
         if (DataContext is KarteSectionViewModel vm)
         {
             _vmNotifier = vm;
@@ -104,6 +113,7 @@ public partial class KarteSectionView : UserControl
             _ordersCollection.CollectionChanged += OnOrdersCollectionChanged;
             _routeCollection = vm.RouteStops;
             _routeCollection.CollectionChanged += OnRouteCollectionChanged;
+            vm.PdfExportHandler = ExportRoutePdfAsync;
         }
 
         _ = PushMarkersToMapAsync();
@@ -774,5 +784,47 @@ public partial class KarteSectionView : UserControl
         }
 
         return "circle";
+    }
+
+    private async Task<RoutePdfExportResult> ExportRoutePdfAsync(RouteExportSnapshot snapshot)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Tour als PDF exportieren",
+            Filter = "PDF-Datei (*.pdf)|*.pdf",
+            FileName = BuildDefaultPdfFileName(snapshot),
+            AddExtension = true,
+            DefaultExt = ".pdf",
+            OverwritePrompt = true
+        };
+
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+        {
+            return RoutePdfExportResult.UserCancelled();
+        }
+
+        try
+        {
+            var mapImageBytes = await _routeExportService.CaptureMapImageAsync(snapshot);
+            var mapImageBase64 = mapImageBytes is null || mapImageBytes.Length == 0
+                ? null
+                : Convert.ToBase64String(mapImageBytes);
+            var html = TourPdfHtmlBuilder.Build(snapshot, mapImageBase64);
+            await _routeExportService.ExportPdfAsync(html, dialog.FileName);
+            return RoutePdfExportResult.Success($"Tour-PDF gespeichert: {dialog.FileName}");
+        }
+        catch (Exception ex)
+        {
+            return RoutePdfExportResult.Failure($"Der PDF-Export ist fehlgeschlagen.\n{ex.Message}");
+        }
+    }
+
+    private static string BuildDefaultPdfFileName(RouteExportSnapshot snapshot)
+    {
+        var name = string.IsNullOrWhiteSpace(snapshot.TourName) ? "Tour-Export" : snapshot.TourName.Trim();
+        var date = string.IsNullOrWhiteSpace(snapshot.TourDate) ? DateTime.Today.ToString("yyyy-MM-dd") : snapshot.TourDate.Trim();
+        var raw = $"{name}_{date}.pdf";
+        var invalid = Path.GetInvalidFileNameChars();
+        return string.Concat(raw.Select(ch => invalid.Contains(ch) ? '_' : ch));
     }
 }

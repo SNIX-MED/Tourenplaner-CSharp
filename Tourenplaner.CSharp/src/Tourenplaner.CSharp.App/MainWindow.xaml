@@ -41,8 +41,10 @@
                     <Border Style="{StaticResource SoftCardStyle}" Padding="8">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold" Text="Schnellzugriff" Margin="0,0,0,8" />
-                            <Button Content="Route exportieren" Style="{StaticResource SuccessButtonStyle}" Margin="0,0,0,6" />
-                            <Button Content="Theme wechseln" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ToggleThemeCommand}" />
+                            <Button Content="Route exportieren"
+                                    Style="{StaticResource SuccessButtonStyle}"
+                                    Margin="0,0,0,6"
+                                    Command="{Binding ExportCurrentRouteCommand}" />
                         </StackPanel>
                     </Border>
                     <TextBlock Margin="4,8,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="© GAWELA" />

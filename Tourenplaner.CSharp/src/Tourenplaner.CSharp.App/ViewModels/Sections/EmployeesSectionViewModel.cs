@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
@@ -9,15 +10,19 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 public sealed class EmployeesSectionViewModel : SectionViewModelBase
 {
     private readonly JsonEmployeesRepository _repository;
+    private readonly AppDataSyncService _dataSyncService;
     private readonly List<Employee> _employees = new();
+    private readonly Guid _instanceId = Guid.NewGuid();
     private string _statusText = "Lade Mitarbeiter...";
     private string _countText = string.Empty;
 
-    public EmployeesSectionViewModel(string employeesJsonPath)
+    public EmployeesSectionViewModel(string employeesJsonPath, AppDataSyncService dataSyncService)
         : base("Mitarbeiterverwaltung", "Mitarbeiter anlegen, bearbeiten und deaktivieren.")
     {
         _repository = new JsonEmployeesRepository(employeesJsonPath);
+        _dataSyncService = dataSyncService;
         RefreshCommand = new AsyncCommand(RefreshAsync);
+        _dataSyncService.DataChanged += OnDataChanged;
         _ = RefreshAsync();
     }
 
@@ -90,7 +95,18 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
     private async Task SaveCurrentStateAsync()
     {
         await _repository.SaveAsync(_employees);
+        _dataSyncService.PublishEmployees(_instanceId);
         await RefreshAsync();
+    }
+
+    private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
+    {
+        if (args.SourceId == _instanceId || !args.Kinds.HasFlag(AppDataKind.Employees))
+        {
+            return;
+        }
+
+        _ = RefreshAsync();
     }
 
     private void RebuildEntries()

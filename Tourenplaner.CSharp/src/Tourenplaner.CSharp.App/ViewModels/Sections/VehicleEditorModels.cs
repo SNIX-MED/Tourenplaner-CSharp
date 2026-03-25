@@ -29,3 +29,21 @@ public sealed record VehicleEditorResult(
     int HeightCm,
     string Notes,
     bool Active);
+
+public sealed record VehicleCombinationEditorSeed(
+    string? Id,
+    string VehicleId,
+    string TrailerId,
+    int VehiclePayloadKg,
+    int TrailerLoadKg,
+    string Notes,
+    bool Active);
+
+public sealed record VehicleCombinationEditorResult(
+    string? Id,
+    string VehicleId,
+    string TrailerId,
+    int VehiclePayloadKg,
+    int TrailerLoadKg,
+    string Notes,
+    bool Active);

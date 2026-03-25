@@ -36,6 +36,19 @@ internal static class VehicleNormalizer
         return source;
     }
 
+    public static VehicleCombinationRecord NormalizeVehicleCombination(VehicleCombinationRecord source)
+    {
+        source.Id = string.IsNullOrWhiteSpace(source.Id) ? Guid.NewGuid().ToString() : source.Id.Trim();
+        source.VehicleId = (source.VehicleId ?? string.Empty).Trim();
+        source.TrailerId = (source.TrailerId ?? string.Empty).Trim();
+        source.VehiclePayloadKg = NonNegative(source.VehiclePayloadKg, "Ladegewicht Zugfahrzeug");
+        source.TrailerLoadKg = NonNegative(source.TrailerLoadKg, "Anhaengelast");
+        source.CreatedAt = string.IsNullOrWhiteSpace(source.CreatedAt) ? Timestamp() : source.CreatedAt.Trim();
+        source.UpdatedAt = Timestamp();
+        source.Notes = (source.Notes ?? string.Empty).Trim();
+        return source;
+    }
+
     public static VehicleDataRecord NormalizePayload(VehicleDataRecord payload)
     {
         var normalized = new VehicleDataRecord();
@@ -101,6 +114,47 @@ internal static class VehicleNormalizer
         normalized.Trailers = normalized.Trailers
             .OrderBy(v => !v.Active)
             .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var validVehicleIds = normalized.Vehicles
+            .Select(x => x.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var validTrailerIds = normalized.Trailers
+            .Select(x => x.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var combinationIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var combinationKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var raw in payload.VehicleCombinations ?? new List<VehicleCombinationRecord>())
+        {
+            var item = NormalizeVehicleCombination(raw);
+            if (string.IsNullOrWhiteSpace(item.VehicleId) ||
+                string.IsNullOrWhiteSpace(item.TrailerId) ||
+                !validVehicleIds.Contains(item.VehicleId) ||
+                !validTrailerIds.Contains(item.TrailerId))
+            {
+                continue;
+            }
+
+            if (!combinationIds.Add(item.Id))
+            {
+                item.Id = Guid.NewGuid().ToString();
+                combinationIds.Add(item.Id);
+            }
+
+            var key = $"{item.VehicleId}::{item.TrailerId}";
+            if (!combinationKeys.Add(key))
+            {
+                continue;
+            }
+
+            normalized.VehicleCombinations.Add(item);
+        }
+
+        normalized.VehicleCombinations = normalized.VehicleCombinations
+            .OrderBy(v => !v.Active)
+            .ThenBy(v => v.VehicleId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(v => v.TrailerId, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         return normalized;

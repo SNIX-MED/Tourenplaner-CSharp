@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Input;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
@@ -17,8 +18,10 @@ public sealed class StartSectionViewModel : SectionViewModelBase
 
     private readonly JsonToursRepository _tourRepository;
     private readonly JsonAppSettingsRepository _settingsRepository;
+    private readonly AppDataSyncService _dataSyncService;
     private readonly Func<Task>? _openMapAsync;
     private readonly string _bannerImagePath;
+    private readonly Guid _instanceId = Guid.NewGuid();
     private string _statusText = "Startseite wird geladen...";
     private string _calendarHeadline = $"Kalender der naechsten {PreviewDayCount} Tage";
     private string _calendarSubtitle = $"Heute + naechste {InitiallyVisibleDayCount - 1} Tage sichtbar. Nach unten scrollen fuer alle {PreviewDayCount} Tage.";
@@ -29,15 +32,18 @@ public sealed class StartSectionViewModel : SectionViewModelBase
         string toursJsonPath,
         string settingsJsonPath,
         string bannerImagePath,
-        Func<Task>? openMapAsync = null)
+        Func<Task>? openMapAsync = null,
+        AppDataSyncService? dataSyncService = null)
         : base("Start", "Schneller Einstieg in die Tourenplanung.")
     {
         _tourRepository = new JsonToursRepository(toursJsonPath);
         _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
+        _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _openMapAsync = openMapAsync;
         _bannerImagePath = bannerImagePath;
 
         NewTourPlanCommand = new AsyncCommand(OpenMapAsync);
+        _dataSyncService.DataChanged += OnDataChanged;
     }
 
     public ObservableCollection<UpcomingDayCardItem> UpcomingDayCards { get; } = [];
@@ -159,6 +165,16 @@ public sealed class StartSectionViewModel : SectionViewModelBase
         }
 
         await _openMapAsync();
+    }
+
+    private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
+    {
+        if (args.SourceId == _instanceId || !args.Kinds.HasFlag(AppDataKind.Tours))
+        {
+            return;
+        }
+
+        _ = RefreshAsync();
     }
 
     private static void ApplyDayLoadAppearance(

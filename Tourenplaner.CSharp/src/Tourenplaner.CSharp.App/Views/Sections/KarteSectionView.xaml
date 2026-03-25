@@ -37,13 +37,13 @@
         </Style>
 
         <Style x:Key="RouteStopsGridStyle" TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
-            <Setter Property="Background" Value="#FFFFFF" />
-            <Setter Property="BorderBrush" Value="#D8DEE7" />
+            <Setter Property="Background" Value="{DynamicResource Brush.TableBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="RowBackground" Value="#FFFFFF" />
-            <Setter Property="AlternatingRowBackground" Value="#F7F9FC" />
+            <Setter Property="RowBackground" Value="{DynamicResource Brush.TableRow}" />
+            <Setter Property="AlternatingRowBackground" Value="{DynamicResource Brush.TableAltRow}" />
             <Setter Property="GridLinesVisibility" Value="Horizontal" />
-            <Setter Property="HorizontalGridLinesBrush" Value="#E6EAF0" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Brush.TableGrid}" />
             <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
             <Setter Property="ColumnHeaderHeight" Value="36" />
             <Setter Property="RowHeight" Value="34" />
@@ -53,24 +53,25 @@
         </Style>
 
         <Style x:Key="RouteStopsHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-            <Setter Property="Background" Value="#EEF2F7" />
-            <Setter Property="Foreground" Value="#111827" />
+            <Setter Property="Background" Value="{DynamicResource Brush.CardSoft}" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             <Setter Property="Padding" Value="10,8" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="BorderBrush" Value="#E0E6EF" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
         </Style>
 
         <Style x:Key="RouteStopsRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
-            <Setter Property="Foreground" Value="#0F172A" />
-            <Setter Property="BorderBrush" Value="#E6EAF0" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#EAF0F9" />
+                    <Setter Property="Background" Value="{DynamicResource Brush.RowHover}" />
                 </Trigger>
                 <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#C7D6EA" />
+                    <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -85,6 +86,7 @@
         <Style x:Key="RouteStopsCenterTextStyle" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
         </Style>
     </UserControl.Resources>
 
@@ -211,10 +213,10 @@
                         </Grid>
 
                         <Border Grid.Row="2"
-                                BorderBrush="#D8DEE7"
+                                BorderBrush="{DynamicResource Brush.BorderStrong}"
                                 BorderThickness="1"
                                 CornerRadius="6"
-                                Background="White"
+                                Background="{DynamicResource Brush.TableBackground}"
                                 ClipToBounds="True">
                             <DataGrid x:Name="RouteStopsGrid"
                                       AutoGenerateColumns="False"
@@ -244,9 +246,20 @@
                         </Border>
 
                         <StackPanel Grid.Row="3" Margin="0,10,0,8">
-                            <TextBlock FontWeight="SemiBold">
-                                <Run Text="Totalgewicht: " />
-                                <Run Text="0 kg" />
+                            <TextBlock FontWeight="SemiBold" Text="{Binding RouteTotalWeightText}" />
+                            <TextBlock Margin="0,4,0,0"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding RouteLoadSummaryText}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RouteLoadSummaryText}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
                             </TextBlock>
                             <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Margin="0,4,0,0" Text="{Binding RouteTimingSummary}" />
                         </StackPanel>
@@ -288,7 +301,7 @@
 
                 <Border Grid.Column="2" Style="{StaticResource SoftCardStyle}" Padding="4" Margin="4,0,8,0">
                     <Grid>
-                        <Border BorderBrush="{DynamicResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="12" Background="White" />
+                        <Border BorderBrush="{DynamicResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="12" Background="{DynamicResource Brush.Card}" />
                         <wv2:WebView2 x:Name="MapWebView" Margin="1" />
                         <TextBlock x:Name="MapFallbackNotice"
                                    Margin="16"
@@ -329,7 +342,7 @@
                             <TextBlock Text="{Binding DetailsToggleGlyph}"
                                        FontSize="18"
                                        FontWeight="SemiBold"
-                                       Foreground="#334155"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center" />
                         </Button>
@@ -369,7 +382,7 @@
                                     <TextBlock Text="{Binding DetailsToggleGlyph}"
                                                FontSize="18"
                                                FontWeight="SemiBold"
-                                               Foreground="#334155"
+                                               Foreground="{DynamicResource Brush.TextMuted}"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
                                 </Button>
@@ -406,7 +419,7 @@
                                         <TextBlock Text="{Binding DetailOrderNumber}" />
 
                                         <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Produkte:" />
-                                        <TextBlock Text="N/A" />
+                                        <TextBlock Text="{Binding DetailProducts}" TextWrapping="Wrap" />
 
                                         <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Lieferart:" />
                                         <TextBlock Text="{Binding DetailDeliveryType}" />

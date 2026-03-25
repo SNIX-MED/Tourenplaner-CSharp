@@ -23,8 +23,8 @@
 
         <Border Grid.Row="0"
                 CornerRadius="24"
-                Background="#F4F7FB"
-                BorderBrush="#DCE4EF"
+                Background="{DynamicResource Brush.CardSoft}"
+                BorderBrush="{DynamicResource Brush.BorderSoft}"
                 BorderThickness="1"
                 Padding="8">
             <Grid>
@@ -79,8 +79,8 @@
                     <Border Margin="0,14,0,0"
                             Padding="8"
                             CornerRadius="12"
-                            Background="#F8FAFC"
-                            BorderBrush="#DCE4EF"
+                            Background="{DynamicResource Brush.CardSoft}"
+                            BorderBrush="{DynamicResource Brush.BorderSoft}"
                             BorderThickness="1">
                         <ScrollViewer VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"

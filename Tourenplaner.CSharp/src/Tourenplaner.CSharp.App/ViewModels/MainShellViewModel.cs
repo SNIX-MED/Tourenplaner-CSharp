@@ -1,4 +1,4 @@
-using Tourenplaner.CSharp.App.Themes;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.Application.Services;
@@ -7,9 +7,9 @@ namespace Tourenplaner.CSharp.App.ViewModels;
 
 public sealed class MainShellViewModel : ObservableObject
 {
+    private readonly KarteSectionViewModel _mapSection;
     private NavigationItemViewModel? _selectedNavigationItem;
     private object? _currentSection;
-    private bool _isDarkTheme = AppThemeManager.IsDarkTheme;
     private string _globalSearchText = string.Empty;
     private string _currentUserName = "Mike Weber";
     private readonly NavigationItemViewModel _settingsNavigationItem;
@@ -23,27 +23,34 @@ public sealed class MainShellViewModel : ObservableObject
         string settingsJsonPath,
         string dataRootPath)
     {
-        var map = new KarteSectionViewModel(ordersJsonPath, toursJsonPath, settingsJsonPath);
+        var dataSyncService = new AppDataSyncService();
+        var map = new KarteSectionViewModel(ordersJsonPath, toursJsonPath, settingsJsonPath, dataSyncService);
+        _mapSection = map;
         var start = new StartSectionViewModel(
             toursJsonPath,
             settingsJsonPath,
             "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Banner.png",
-            () => NavigateToMapAsync(map));
+            () => NavigateToMapAsync(map),
+            dataSyncService);
         var tours = new ToursSectionViewModel(
             toursJsonPath,
+            ordersJsonPath,
             employeesJsonPath,
             vehiclesJsonPath,
             settingsJsonPath,
-            tourId => NavigateToMapTourAsync(map, tourId));
+            tourId => NavigateToMapTourAsync(map, tourId),
+            dataSyncService);
         var calendar = new KalenderSectionViewModel(
             toursJsonPath,
+            ordersJsonPath,
             settingsJsonPath,
             tourId => NavigateToTourAsync(tours, tourId),
-            date => NavigateToTourDateAsync(tours, date));
-        var orders = new OrdersSectionViewModel(ordersJsonPath);
-        var nonMapOrders = new NonMapOrdersSectionViewModel(ordersJsonPath);
-        var employees = new EmployeesSectionViewModel(employeesJsonPath);
-        var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath);
+            date => NavigateToTourDateAsync(tours, date),
+            dataSyncService);
+        var orders = new OrdersSectionViewModel(ordersJsonPath, dataSyncService);
+        var nonMapOrders = new NonMapOrdersSectionViewModel(ordersJsonPath, dataSyncService);
+        var employees = new EmployeesSectionViewModel(employeesJsonPath, dataSyncService);
+        var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath, dataSyncService);
         var settings = new SettingsSectionViewModel(settingsJsonPath, dataRootPath);
         var gps = new GpsSectionViewModel();
 
@@ -64,8 +71,9 @@ public sealed class MainShellViewModel : ObservableObject
         _settingsNavigationItem = NavigationItems.First(item => item.DisplayName == "Einstellungen");
         SidebarNavigationItems = NavigationItems.Where(item => !ReferenceEquals(item, _settingsNavigationItem)).ToList();
 
-        ToggleThemeCommand = new DelegateCommand(ToggleTheme);
         OpenSettingsCommand = new DelegateCommand(OpenSettings);
+        ExportCurrentRouteCommand = new DelegateCommand(ExportCurrentRoute, CanExportCurrentRoute);
+        _mapSection.ExportRouteCommand.CanExecuteChanged += (_, _) => ExportCurrentRouteCommand.RaiseCanExecuteChanged();
         SelectedNavigationItem = NavigationItems[0];
 
         _ = start.RefreshAsync();
@@ -75,23 +83,9 @@ public sealed class MainShellViewModel : ObservableObject
 
     public IReadOnlyList<NavigationItemViewModel> SidebarNavigationItems { get; }
 
-    public DelegateCommand ToggleThemeCommand { get; }
-
     public DelegateCommand OpenSettingsCommand { get; }
 
-    public bool IsDarkTheme
-    {
-        get => _isDarkTheme;
-        private set
-        {
-            if (SetProperty(ref _isDarkTheme, value))
-            {
-                OnPropertyChanged(nameof(ThemeToggleText));
-            }
-        }
-    }
-
-    public string ThemeToggleText => IsDarkTheme ? "Light Mode" : "Dark Mode";
+    public DelegateCommand ExportCurrentRouteCommand { get; }
 
     public string GlobalSearchText
     {
@@ -114,6 +108,7 @@ public sealed class MainShellViewModel : ObservableObject
             {
                 CurrentSection = value?.Section;
                 TriggerSectionRefresh(value?.Section);
+                ExportCurrentRouteCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -148,15 +143,24 @@ public sealed class MainShellViewModel : ObservableObject
         await mapSection.RefreshAsync();
     }
 
-    private void ToggleTheme()
-    {
-        AppThemeManager.ToggleTheme();
-        IsDarkTheme = AppThemeManager.IsDarkTheme;
-    }
-
     private void OpenSettings()
     {
         SelectedNavigationItem = _settingsNavigationItem;
+    }
+
+    private bool CanExportCurrentRoute()
+    {
+        return ReferenceEquals(CurrentSection, _mapSection) && _mapSection.ExportRouteCommand.CanExecute(null);
+    }
+
+    private void ExportCurrentRoute()
+    {
+        if (!CanExportCurrentRoute())
+        {
+            return;
+        }
+
+        _mapSection.ExportRouteCommand.Execute(null);
     }
 
     private static void TriggerSectionRefresh(object? section)

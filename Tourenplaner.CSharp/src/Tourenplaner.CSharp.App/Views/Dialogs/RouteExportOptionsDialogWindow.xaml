@@ -1,0 +1,81 @@
+<Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.RouteExportOptionsDialogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Route exportieren"
+        Width="560"
+        Height="360"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource Brush.WindowBackground}">
+    <Border Margin="12" Style="{StaticResource FlatCardStyle}" Padding="18">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel>
+                <TextBlock FontSize="24" FontWeight="Bold" Text="Route exportieren" />
+                <TextBlock Margin="0,8,0,0"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource Brush.TextMuted}"
+                           Text="Bitte wähle aus, wie die aktuell geladene Tour exportiert werden soll." />
+            </StackPanel>
+
+            <Grid Grid.Row="1" Margin="0,18,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        MinHeight="132"
+                        Padding="16"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Click="OnGoogleMapsClicked">
+                    <StackPanel>
+                        <TextBlock FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Text="In Google Maps öffnen" />
+                        <TextBlock Margin="0,8,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                   Text="Öffnet die aktuelle Stoppreihenfolge direkt in Google Maps." />
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="2"
+                        MinHeight="132"
+                        Padding="16"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        Style="{StaticResource SuccessButtonStyle}"
+                        Click="OnPdfClicked">
+                    <StackPanel>
+                        <TextBlock FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   Text="Als PDF exportieren" />
+                        <TextBlock Margin="0,8,0,0"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Top"
+                                   Foreground="#E2FBE8"
+                                   Text="Erstellt eine PDF mit Stoppliste links und kompletter Kartenansicht rechts." />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <Button Grid.Row="2"
+                    Width="140"
+                    Margin="0,18,0,0"
+                    HorizontalAlignment="Right"
+                    Content="Abbrechen"
+                    Style="{StaticResource DarkButtonStyle}"
+                    IsCancel="True" />
+        </Grid>
+    </Border>
+</Window>

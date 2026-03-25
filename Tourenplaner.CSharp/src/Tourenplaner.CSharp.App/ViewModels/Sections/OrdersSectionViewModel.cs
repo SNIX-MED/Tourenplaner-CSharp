@@ -13,7 +13,9 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 public sealed class OrdersSectionViewModel : SectionViewModelBase
 {
     private readonly JsonOrderRepository _repository;
+    private readonly AppDataSyncService _dataSyncService;
     private readonly List<Order> _allOrders = new();
+    private readonly Guid _instanceId = Guid.NewGuid();
     private Order? _lastDeletedOrder;
     private int _lastDeletedIndex = -1;
 
@@ -21,10 +23,11 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private string _statusText = "Loading map orders...";
     private OrderItem? _selectedOrder;
 
-    public OrdersSectionViewModel(string ordersJsonPath)
+    public OrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService)
         : base("Orders", "Map orders with address, assignment and filtering.")
     {
         _repository = new JsonOrderRepository(ordersJsonPath);
+        _dataSyncService = dataSyncService;
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SaveCommand = new AsyncCommand(SaveAsync, () => MapOrders.Count > 0);
@@ -33,6 +36,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         EditSelectedOrderCommand = new AsyncCommand(EditSelectedOrderAsync, () => SelectedOrder is not null);
         UndoDeleteCommand = new AsyncCommand(UndoDeleteAsync, () => _lastDeletedOrder is not null);
         RemoveCommand = new AsyncCommand(RemoveSelectedOrderAsync, () => SelectedOrder is not null);
+        _dataSyncService.OrdersChanged += OnOrdersChanged;
         _ = RefreshAsync();
     }
 
@@ -84,14 +88,13 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     public async Task RefreshAsync()
     {
-        _allOrders.Clear();
-        _allOrders.AddRange(await _repository.GetAllAsync());
-        RebuildGrid();
+        await RefreshFromRepositoryAsync();
     }
 
     public async Task SaveAsync()
     {
         await _repository.SaveAllAsync(_allOrders);
+        PublishOrderChange(SelectedOrder?.Id, SelectedOrder?.Id);
         StatusText = $"Aufträge gespeichert: {_allOrders.Count(x => x.Type == OrderType.Map)}";
     }
 
@@ -132,9 +135,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         _allOrders.Add(createdOrder);
 
         await _repository.SaveAllAsync(_allOrders);
-        await RefreshAsync();
+        await RefreshFromRepositoryAsync(createdOrder.Id);
 
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.Id, createdOrder.Id, StringComparison.OrdinalIgnoreCase));
+        PublishOrderChange(null, createdOrder.Id);
         StatusText = createdOrder.Location is null
             ? $"Auftrag {createdOrder.Id} gespeichert, aber Adresse konnte nicht automatisch geokodiert werden."
             : $"Auftrag {createdOrder.Id} wurde gespeichert.";
@@ -175,8 +179,9 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         _allOrders.Add(updated);
 
         await _repository.SaveAllAsync(_allOrders);
-        await RefreshAsync();
+        await RefreshFromRepositoryAsync(updated.Id);
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
+        PublishOrderChange(originalId, updated.Id);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
     }
 
@@ -195,18 +200,23 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
+        var removedOrderId = SelectedOrder.Id;
         _lastDeletedOrder = CloneOrder(_allOrders[index]);
         _lastDeletedIndex = index;
         _allOrders.RemoveAt(index);
 
         await _repository.SaveAllAsync(_allOrders);
-        await RefreshAsync();
-        StatusText = $"Auftrag {SelectedOrder.Id} wurde gelöscht. Mit 'Zurück' wiederherstellen.";
+        await RefreshFromRepositoryAsync();
+        PublishOrderChange(removedOrderId, null);
+        StatusText = $"Auftrag {removedOrderId} wurde gelöscht. Mit 'Zurück' wiederherstellen.";
         RaiseCommandStates();
     }
 
-    private void RebuildGrid()
+    private void RebuildGrid(string? preferredSelectedId = null)
     {
+        var selectedOrderId = string.IsNullOrWhiteSpace(preferredSelectedId)
+            ? SelectedOrder?.Id
+            : preferredSelectedId;
         var query = (_searchText ?? string.Empty).Trim();
         var map = _allOrders.Where(o => o.Type == OrderType.Map);
         if (!string.IsNullOrWhiteSpace(query))
@@ -243,12 +253,15 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 Phone = order.Phone ?? string.Empty,
                 DeliveryType = order.DeliveryType ?? string.Empty,
                 OrderStatus = order.OrderStatus ?? string.Empty,
-                ProductsSummary = string.Join(", ", (order.Products ?? []).Select(p => $"{p.Name} ({p.WeightKg:0.##} kg)")),
+                ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
                 Notes = order.Notes ?? string.Empty
             });
         }
 
-        SelectedOrder = MapOrders.FirstOrDefault();
+        SelectedOrder = string.IsNullOrWhiteSpace(selectedOrderId)
+            ? MapOrders.FirstOrDefault()
+            : MapOrders.FirstOrDefault(x => string.Equals(x.Id, selectedOrderId, StringComparison.OrdinalIgnoreCase))
+                ?? MapOrders.FirstOrDefault();
         UpdateStatusText();
         RaiseCommandStates();
     }
@@ -330,12 +343,46 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         _lastDeletedOrder = null;
         _lastDeletedIndex = -1;
         await _repository.SaveAllAsync(_allOrders);
-        await RefreshAsync();
+        await RefreshFromRepositoryAsync(restoreOrder.Id);
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.Id, restoreOrder.Id, StringComparison.OrdinalIgnoreCase));
+        PublishOrderChange(null, restoreOrder.Id);
         StatusText = $"Auftrag {restoreOrder.Id} wurde wiederhergestellt.";
         RaiseCommandStates();
     }
 
+    private async Task RefreshFromRepositoryAsync(string? preferredSelectedId = null)
+    {
+        _allOrders.Clear();
+        _allOrders.AddRange(await _repository.GetAllAsync());
+        RebuildGrid(preferredSelectedId);
+    }
+
+    private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)
+    {
+        if (args.SourceId == _instanceId)
+        {
+            return;
+        }
+
+        _ = RefreshFromRepositoryAsync(ResolvePreferredSelectedId(args));
+    }
+
+    private string? ResolvePreferredSelectedId(OrderChangedEventArgs args)
+    {
+        var selectedOrderId = SelectedOrder?.Id;
+        if (!string.IsNullOrWhiteSpace(selectedOrderId) &&
+            string.Equals(selectedOrderId, args.PreviousOrderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return args.CurrentOrderId;
+        }
+
+        return selectedOrderId;
+    }
+
+    private void PublishOrderChange(string? previousOrderId, string? currentOrderId)
+    {
+        _dataSyncService.PublishOrders(_instanceId, previousOrderId, currentOrderId);
+    }
     private static Order CloneOrder(Order source)
     {
         return new Order
@@ -367,7 +414,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             Products = (source.Products ?? []).Select(p => new OrderProductInfo
             {
                 Name = p.Name,
-                WeightKg = p.WeightKg
+                Quantity = p.Quantity,
+                UnitWeightKg = p.UnitWeightKg,
+                WeightKg = p.WeightKg,
+                Dimensions = p.Dimensions
             }).ToList(),
             DeliveryType = source.DeliveryType,
             OrderStatus = source.OrderStatus,
@@ -533,3 +583,4 @@ public sealed class OrderItem : ObservableObject
         set => SetProperty(ref _notes, value);
     }
 }
+

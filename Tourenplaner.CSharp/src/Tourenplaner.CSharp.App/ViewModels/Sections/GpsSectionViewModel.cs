@@ -57,7 +57,7 @@ public sealed class GpsSectionViewModel : SectionViewModelBase
         LoadedUrl = KtracUrl;
         StatusText = _webView2Available
             ? "KTRAC geladen."
-            : "WebView2 nicht verfuegbar. Bitte KTRAC im Browser oeffnen.";
+            : "WebView2 nicht verfügbar. Bitte KTRAC im Browser öffnen.";
     }
 
     private void OpenInBrowser()
@@ -69,6 +69,6 @@ public sealed class GpsSectionViewModel : SectionViewModelBase
         }
 
         Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
-        StatusText = "KTRAC im Browser geoeffnet.";
+        StatusText = "KTRAC im Browser geöffnet.";
     }
 }

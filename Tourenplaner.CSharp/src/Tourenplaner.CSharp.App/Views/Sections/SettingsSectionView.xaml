@@ -54,18 +54,10 @@
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Appearance Mode" />
-                            <ComboBox Grid.Row="0"
-                                      Grid.Column="1"
-                                      Margin="10,4,0,4"
-                                      ItemsSource="{Binding AppearanceModes}"
-                                      SelectedItem="{Binding AppearanceMode, Mode=TwoWay}" />
-
-                            <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Avisierung E-Mail Betreff" />
-                            <TextBox Grid.Row="1"
+                            <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Avisierung E-Mail Betreff" />
+                            <TextBox Grid.Row="0"
                                      Grid.Column="1"
                                      Margin="10,4,0,4"
                                      ToolTip="Platzhalter X wird durch die Auftragsnummer ersetzt."

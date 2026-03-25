@@ -39,5 +39,8 @@ public sealed class DeliveryAddressInfo
 public sealed class OrderProductInfo
 {
     public string Name { get; set; } = string.Empty;
+    public int Quantity { get; set; } = 1;
+    public double UnitWeightKg { get; set; }
     public double WeightKg { get; set; }
+    public string Dimensions { get; set; } = string.Empty;
 }

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Threading;
+using System.Windows;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.App.Services;
@@ -33,6 +34,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private readonly JsonEmployeesRepository _employeeRepository;
     private readonly JsonVehicleDataRepository _vehicleRepository;
     private readonly JsonAppSettingsRepository _settingsRepository;
+    private readonly AppDataSyncService _dataSyncService;
     private readonly RouteOptimizationService _optimizationService;
     private readonly MapRouteService _mapRouteService;
     private readonly OsrmRoutingService _osrmRoutingService;
@@ -42,6 +44,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private readonly List<OsrmRouteLeg> _routeLegs = new();
     private readonly List<RouteStopItem> _timedStops = new();
     private static readonly IReadOnlyList<string> _filterOptions = ["Alle", "Nur offen", "Nur zugewiesen"];
+    private VehicleDataRecord _vehicleData = new();
 
     private string _searchText = string.Empty;
     private string _selectedFilter = "Alle";
@@ -55,6 +58,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _statusText = "Loading map orders...";
     private string _routeTimingSummary = "Noch keine Stopps geplant.";
     private string _driveTimesText = "Noch keine Stopps geplant.";
+    private string _routeTotalWeightText = "Totalgewicht: 0 kg";
+    private string _routeLoadSummaryText = string.Empty;
     private string _avisoEmailSubjectTemplate = AppSettings.DefaultAvisoEmailSubjectTemplate;
     private string _companyName = "Firma";
     private string _companyAddress = string.Empty;
@@ -72,10 +77,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _hasUnsavedRouteChanges;
     private int _routeGeometryRevision;
     private int _activeTourId;
+    private string _currentRouteVehicleId = string.Empty;
+    private string _currentRouteTrailerId = string.Empty;
     private SavedTourLookupItem? _selectedSavedTour;
     private string _detailSelectedStatus = "nicht festgelegt";
+    private readonly Guid _instanceId = Guid.NewGuid();
 
-    public KarteSectionViewModel(string ordersJsonPath, string toursJsonPath, string settingsJsonPath)
+    public KarteSectionViewModel(string ordersJsonPath, string toursJsonPath, string settingsJsonPath, AppDataSyncService dataSyncService)
         : base("Karte", "Map order review, marker filters, route panel and save-to-tour workflow.")
     {
         _orderRepository = new JsonOrderRepository(ordersJsonPath);
@@ -84,6 +92,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _employeeRepository = new JsonEmployeesRepository(Path.Combine(dataRoot, "employees.json"));
         _vehicleRepository = new JsonVehicleDataRepository(Path.Combine(dataRoot, "vehicles.json"));
         _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
+        _dataSyncService = dataSyncService;
         _optimizationService = new RouteOptimizationService();
         _mapRouteService = new MapRouteService();
         _osrmRoutingService = new OsrmRoutingService();
@@ -97,7 +106,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OptimizeRouteCommand = new DelegateCommand(OptimizeRoute, () => RouteStops.Count(x => !IsCompanyStop(x)) > 2);
         OpenCreateTourDialogCommand = new AsyncCommand(OpenCreateTourDialogAsync);
         EditSelectedTourCommand = new AsyncCommand(OpenEditSelectedTourDialogAsync, CanEditOrLeaveSelectedTour);
-        ExportRouteCommand = new DelegateCommand(ExportRouteToGoogleMaps, CanExportRoute);
+        ExportRouteCommand = new AsyncCommand(ExportRouteAsync, CanExportRoute);
         SaveRouteAsTourCommand = new AsyncCommand(SaveRouteAsTourAsync, () => RouteStops.Any(x => !IsCompanyStop(x)));
         SaveCurrentTourCommand = new AsyncCommand(SaveCurrentTourAsync, CanSaveCurrentTour);
         ClearRouteCommand = new DelegateCommand(ClearRoute, () => RouteStops.Any(x => !IsCompanyStop(x)));
@@ -107,6 +116,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         CloseDetailsCommand = new DelegateCommand(CloseDetails, () => SelectedOrder is not null);
         SendEmailCommand = new DelegateCommand(SendEmailToSelectedOrder, () => SelectedOrder is not null);
         EditOrderCommand = new AsyncCommand(EditSelectedOrderAsync, () => SelectedOrder is not null);
+        _dataSyncService.OrdersChanged += OnOrdersChanged;
+        _dataSyncService.DataChanged += OnDataChanged;
 
         EnsureCompanyAnchors();
         _ = RefreshAsync();
@@ -137,6 +148,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public ICommand EditSelectedTourCommand { get; }
 
     public ICommand ExportRouteCommand { get; }
+
+    public Func<RouteExportSnapshot, Task<RoutePdfExportResult>>? PdfExportHandler { get; set; }
 
     public ICommand SaveRouteAsTourCommand { get; }
 
@@ -275,6 +288,18 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _driveTimesText, value);
     }
 
+    public string RouteTotalWeightText
+    {
+        get => _routeTotalWeightText;
+        private set => SetProperty(ref _routeTotalWeightText, value);
+    }
+
+    public string RouteLoadSummaryText
+    {
+        get => _routeLoadSummaryText;
+        private set => SetProperty(ref _routeLoadSummaryText, value);
+    }
+
     public IReadOnlyList<string> OrderStatusOptions => _orderStatusOptions;
 
     public string DetailSelectedStatus
@@ -340,6 +365,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(DetailOrderNumber));
                 OnPropertyChanged(nameof(DetailOrderStatus));
                 OnPropertyChanged(nameof(DetailTourStatus));
+                OnPropertyChanged(nameof(DetailProducts));
                 OnPropertyChanged(nameof(DetailEmail));
                 OnPropertyChanged(nameof(DetailPhone));
                 OnPropertyChanged(nameof(DetailDeliveryType));
@@ -364,9 +390,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         var settingsTask = _settingsRepository.LoadAsync();
         var ordersTask = _orderRepository.GetAllAsync();
-        await Task.WhenAll(settingsTask, ordersTask);
+        var vehiclesTask = _vehicleRepository.LoadAsync();
+        await Task.WhenAll(settingsTask, ordersTask, vehiclesTask);
 
         var settings = await settingsTask;
+        _vehicleData = await vehiclesTask;
         _avisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(settings.AvisoEmailSubjectTemplate)
             ? AppSettings.DefaultAvisoEmailSubjectTemplate
             : settings.AvisoEmailSubjectTemplate.Trim();
@@ -394,15 +422,17 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         RebuildOrderGrid();
-        await LoadSavedToursAsync(0);
+        await LoadSavedToursAsync();
         _ = RebuildRouteGeometryAsync();
+        UpdateRouteSummary();
     }
 
-    public string DetailAddress => SelectedOrder?.Address ?? "Keine Auswahl";
-    public string DetailCustomer => SelectedOrder?.Customer ?? "Keine Auswahl";
+    public string DetailAddress => FormatOrderAddress(FindSelectedOrderModel());
+    public string DetailCustomer => FormatDeliveryAddress(FindSelectedOrderModel());
     public string DetailOrderNumber => SelectedOrder?.OrderId ?? "n/a";
     public string DetailOrderStatus => FindSelectedOrderModel()?.OrderStatus ?? SelectedOrder?.StatusLabel ?? "nicht festgelegt";
     public string DetailTourStatus => SelectedOrder?.TourStatusLabel ?? "Offen";
+    public string DetailProducts => OrderProductFormatter.BuildDetails(FindSelectedOrderModel()?.Products);
     public string DetailEmail => FindSelectedOrderModel()?.Email ?? "n/a";
     public string DetailPhone => FindSelectedOrderModel()?.Phone ?? "n/a";
     public string DetailDeliveryType => FindSelectedOrderModel()?.DeliveryType ?? SelectedOrder?.DeliveryLabel ?? "Frei Bordsteinkante";
@@ -411,6 +441,57 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _companyLocation is null
             ? null
             : new CompanyMarkerInfo(_companyName, _companyAddress, _companyLocation.Latitude, _companyLocation.Longitude);
+
+    private static string FormatOrderAddress(Order? order)
+    {
+        if (order is null)
+        {
+            return "Keine Auswahl";
+        }
+
+        var lines = new[]
+        {
+            (order.OrderAddress?.Name ?? string.Empty).Trim(),
+            (order.OrderAddress?.Street ?? string.Empty).Trim(),
+            string.Join(' ', new[]
+            {
+                (order.OrderAddress?.PostalCode ?? string.Empty).Trim(),
+                (order.OrderAddress?.City ?? string.Empty).Trim()
+            }.Where(x => !string.IsNullOrWhiteSpace(x)))
+        }
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .ToList();
+
+        return lines.Count == 0
+            ? (string.IsNullOrWhiteSpace(order.Address) ? "Keine Auswahl" : order.Address)
+            : string.Join(Environment.NewLine, lines);
+    }
+
+    private static string FormatDeliveryAddress(Order? order)
+    {
+        if (order is null)
+        {
+            return "Keine Auswahl";
+        }
+
+        var lines = new[]
+        {
+            (order.DeliveryAddress?.Name ?? string.Empty).Trim(),
+            (order.DeliveryAddress?.ContactPerson ?? string.Empty).Trim(),
+            (order.DeliveryAddress?.Street ?? string.Empty).Trim(),
+            string.Join(' ', new[]
+            {
+                (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim(),
+                (order.DeliveryAddress?.City ?? string.Empty).Trim()
+            }.Where(x => !string.IsNullOrWhiteSpace(x)))
+        }
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .ToList();
+
+        return lines.Count == 0
+            ? (string.IsNullOrWhiteSpace(order.CustomerName) ? "Keine Auswahl" : order.CustomerName)
+            : string.Join(Environment.NewLine, lines);
+    }
 
     public void AddOrderToRouteById(string orderId)
     {
@@ -547,9 +628,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         StatusText = $"Aufenthaltszeit für Auftrag {SelectedRouteStop.OrderId} gesetzt: {SelectedRouteStop.PlannedStayMinutes} min.";
     }
 
-    private void RebuildOrderGrid()
+    private void RebuildOrderGrid(string? preferredSelectedId = null)
     {
-        var previousSelectedId = SelectedOrder?.OrderId;
+        var previousSelectedId = string.IsNullOrWhiteSpace(preferredSelectedId)
+            ? SelectedOrder?.OrderId
+            : preferredSelectedId;
         var routeOrderIds = RouteStops.Select(s => s.OrderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var query = (_searchText ?? string.Empty).Trim();
@@ -673,10 +756,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             }
 
             await _tourRepository.SaveAsync(tours);
+            _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
         }
 
         order.AssignedTourId = string.Empty;
         await _orderRepository.SaveAllAsync(_allOrders);
+        _dataSyncService.PublishOrders(_instanceId, selectedOrderId, selectedOrderId);
 
         var currentTourId = ResolveCurrentTourId();
         await RefreshAsync();
@@ -979,6 +1064,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
+        if (!ConfirmCapacityWarning(vehicleId, trailerId))
+        {
+            return;
+        }
+
         var tours = (await _tourRepository.LoadAsync()).ToList();
         var nextId = _mapRouteService.DetermineNextTourId(tours);
         var tour = _mapRouteService.BuildTour(
@@ -1002,6 +1092,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         tours.Add(tour);
         await _tourRepository.SaveAsync(tours);
+        _dataSyncService.PublishTours(_instanceId, nextId.ToString(CultureInfo.InvariantCulture), nextId.ToString(CultureInfo.InvariantCulture));
 
         var routeOrderIds = _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops());
         foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
@@ -1010,6 +1101,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         await _orderRepository.SaveAllAsync(_allOrders);
+        _dataSyncService.PublishOrders(_instanceId);
         await RefreshAsync();
         await FocusTourAsync(nextId);
         SetRouteChanged(false);
@@ -1028,10 +1120,15 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         if (!RouteStops.Any(x => !IsCompanyStop(x)))
         {
             System.Windows.MessageBox.Show(
-                "Bitte zuerst mindestens einen Auftrag zur Route hinzufuegen.",
+                "Bitte zuerst mindestens einen Auftrag zur Route hinzufügen.",
                 "Tour bearbeiten",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Information);
+            return;
+        }
+
+        if (!ConfirmCapacityWarning(vehicleId, trailerId))
+        {
             return;
         }
 
@@ -1069,6 +1166,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         tours[index] = updated;
         await _tourRepository.SaveAsync(tours);
+        _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
 
         var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
         foreach (var order in _allOrders.Where(o => string.Equals(o.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase)))
@@ -1083,6 +1181,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         await _orderRepository.SaveAllAsync(_allOrders);
+        _dataSyncService.PublishOrders(_instanceId);
         await RefreshAsync();
         await FocusTourAsync(tourId);
         SetRouteChanged(false);
@@ -1112,7 +1211,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             });
         }
 
-        var keepId = preferredTourId.GetValueOrDefault();
+        var keepId = preferredTourId ?? ResolveCurrentTourId();
         var selected = SavedTours.FirstOrDefault(x => x.TourId == keepId) ?? SavedTours.FirstOrDefault();
         _savedTourSelectionSync = true;
         try
@@ -1154,6 +1253,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         _activeTourId = tour.Id;
+        _currentRouteVehicleId = (tour.VehicleId ?? string.Empty).Trim();
+        _currentRouteTrailerId = (tour.TrailerId ?? string.Empty).Trim();
         _suppressRouteChangeTracking = true;
         try
         {
@@ -1175,6 +1276,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         SetRouteChanged(false);
         StatusText = "Tour auf Karte geladen.";
         RaiseCommandStates();
+        UpdateRouteSummary();
     }
 
     private void ApplyTourStopsToRoute(TourRecord tour)
@@ -1336,6 +1438,221 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             .ToList();
     }
 
+    private async Task ExportRouteAsync()
+    {
+        if (!TryBuildRouteExportSnapshot(out var snapshot, out var error))
+        {
+            System.Windows.MessageBox.Show(
+                error,
+                "Route exportieren",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new RouteExportOptionsDialogWindow
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        if (dialog.ShowDialog() != true || dialog.SelectedOption is null)
+        {
+            return;
+        }
+
+        if (dialog.SelectedOption == RouteExportOption.GoogleMaps)
+        {
+            ExportRouteToGoogleMaps(snapshot);
+            return;
+        }
+
+        if (PdfExportHandler is null)
+        {
+            System.Windows.MessageBox.Show(
+                "Der PDF-Export ist momentan nicht verfügbar.",
+                "Route exportieren",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+            return;
+        }
+
+        var result = await PdfExportHandler(snapshot);
+        if (result.Cancelled)
+        {
+            return;
+        }
+
+        if (result.Succeeded)
+        {
+            StatusText = result.Message;
+            return;
+        }
+
+        System.Windows.MessageBox.Show(
+            result.Message,
+            "Route exportieren",
+            System.Windows.MessageBoxButton.OK,
+            System.Windows.MessageBoxImage.Error);
+    }
+
+    private void ExportRouteToGoogleMaps(RouteExportSnapshot snapshot)
+    {
+        if (!GoogleMapsRouteExportService.TryBuildUrl(snapshot.GoogleMapsPoints, out var url, out var error))
+        {
+            System.Windows.MessageBox.Show(
+                error,
+                "Route exportieren",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(url)
+            {
+                UseShellExecute = true
+            });
+            StatusText = "Route in Google Maps geöffnet.";
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"Google Maps konnte nicht geöffnet werden.\n{ex.Message}",
+                "Route exportieren",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+        }
+    }
+
+    private bool TryBuildRouteExportSnapshot(out RouteExportSnapshot snapshot, out string error)
+    {
+        error = string.Empty;
+        snapshot = default!;
+
+        var googleMapsPoints = GetExportPoints();
+        if (googleMapsPoints.Count < 2)
+        {
+            error = "Für den Export werden mindestens zwei Stopps mit Koordinaten benötigt.";
+            return false;
+        }
+
+        var routeStops = RouteStops.Where(x => !IsCompanyStop(x)).ToList();
+        if (routeStops.Count == 0)
+        {
+            error = "Es ist aktuell keine gültige Tour geladen.";
+            return false;
+        }
+
+        var stops = routeStops.Select((stop, index) => new RouteExportStopInfo(
+            stop.Position,
+            ToAlphaLabel(index + 1),
+            string.IsNullOrWhiteSpace(stop.Customer) ? stop.Address : stop.Customer,
+            stop.Address,
+            stop.OrderId,
+            stop.Latitude,
+            stop.Longitude,
+            ResolveTimeWindow(stop.OrderId),
+            stop.EtaText,
+            ResolveWeightText(stop.OrderId)))
+            .ToList();
+
+        snapshot = new RouteExportSnapshot(
+            string.IsNullOrWhiteSpace(RouteName) ? "Aktuelle Route" : RouteName.Trim(),
+            string.IsNullOrWhiteSpace(RouteDate) ? string.Empty : RouteDate.Trim(),
+            $"{NormalizeTimePart(RouteStartHour, 23)}:{NormalizeTimePart(RouteStartMinute, 59)}",
+            ResolveVehicleLabel(_currentRouteVehicleId),
+            ResolveTrailerLabel(_currentRouteTrailerId),
+            stops,
+            googleMapsPoints,
+            _routeGeometryPoints.ToList(),
+            _companyLocation is null
+                ? null
+                : new RouteExportCompanyInfo(_companyName, _companyAddress, _companyLocation.Latitude, _companyLocation.Longitude));
+
+        return true;
+    }
+
+    private string ResolveTimeWindow(string orderId)
+    {
+        var stop = _savedTours
+            .SelectMany(x => x.Stops ?? [])
+            .FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(x.Auftragsnummer, orderId, StringComparison.OrdinalIgnoreCase));
+
+        if (stop is null)
+        {
+            return string.Empty;
+        }
+
+        if (!string.IsNullOrWhiteSpace(stop.TimeWindowStart) && !string.IsNullOrWhiteSpace(stop.TimeWindowEnd))
+        {
+            return $"{stop.TimeWindowStart} - {stop.TimeWindowEnd}";
+        }
+
+        return stop.TimeWindowStart ?? stop.TimeWindowEnd ?? string.Empty;
+    }
+
+    private string ResolveWeightText(string orderId)
+    {
+        var stop = _savedTours
+            .SelectMany(x => x.Stops ?? [])
+            .FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(x.Auftragsnummer, orderId, StringComparison.OrdinalIgnoreCase));
+
+        return stop?.Gewicht ?? string.Empty;
+    }
+
+    private string? ResolveVehicleLabel(string? vehicleId)
+    {
+        if (string.IsNullOrWhiteSpace(vehicleId))
+        {
+            return null;
+        }
+
+        var vehicle = _vehicleData.Vehicles.FirstOrDefault(x => string.Equals(x.Id, vehicleId, StringComparison.OrdinalIgnoreCase));
+        if (vehicle is null)
+        {
+            return vehicleId;
+        }
+
+        return string.IsNullOrWhiteSpace(vehicle.LicensePlate)
+            ? vehicle.Name
+            : $"{vehicle.Name} [{vehicle.LicensePlate}]";
+    }
+
+    private string? ResolveTrailerLabel(string? trailerId)
+    {
+        if (string.IsNullOrWhiteSpace(trailerId))
+        {
+            return null;
+        }
+
+        var trailer = _vehicleData.Trailers.FirstOrDefault(x => string.Equals(x.Id, trailerId, StringComparison.OrdinalIgnoreCase));
+        if (trailer is null)
+        {
+            return trailerId;
+        }
+
+        return string.IsNullOrWhiteSpace(trailer.LicensePlate)
+            ? trailer.Name
+            : $"{trailer.Name} [{trailer.LicensePlate}]";
+    }
+
+    private static string ToAlphaLabel(int index)
+    {
+        var value = Math.Max(1, index);
+        var label = string.Empty;
+        while (value > 0)
+        {
+            var remainder = (value - 1) % 26;
+            label = (char)('A' + remainder) + label;
+            value = (value - 1) / 26;
+        }
+
+        return label;
+    }
+
     private IReadOnlyList<MapRouteStop> ToMapRouteStops()
     {
         return RouteStops
@@ -1395,6 +1712,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private void ClearRoute()
     {
         _activeTourId = 0;
+        _currentRouteVehicleId = string.Empty;
+        _currentRouteTrailerId = string.Empty;
         _suppressRouteChangeTracking = true;
         ResetRouteToCompanyAnchors();
         SelectedRouteStop = RouteStops.FirstOrDefault(x => !x.IsCompanyAnchor);
@@ -1413,6 +1732,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RebuildPositions();
         RebuildOrderGrid();
         SetRouteChanged(false);
+        UpdateRouteSummary();
     }
 
     private void ResetRouteToCompanyAnchors()
@@ -1478,6 +1798,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             RouteTimingSummary = "Fahrzeiten werden berechnet...";
             DriveTimesText = "Fahrzeiten werden berechnet...";
         }
+        UpdateRouteSummary();
         _ = RebuildRouteGeometryAsync();
         UpdateStatus();
         RaiseCommandStates();
@@ -1487,6 +1808,65 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         var routeStopCount = RouteStops.Count(x => !IsCompanyStop(x));
         StatusText = $"Map orders: {MapOrders.Count} | Route stops: {routeStopCount} | Route distance: {RouteDistanceKm:0.##} km";
+    }
+
+    private void UpdateRouteSummary()
+    {
+        var totalWeightKg = RouteStops
+            .Where(x => !IsCompanyStop(x))
+            .Select(x => FindOrderWeightKg(x.OrderId))
+            .Sum();
+        RouteTotalWeightText = $"Totalgewicht: {totalWeightKg} kg";
+
+        var display = VehicleCombinationDisplayResolver.Resolve(_vehicleData, _currentRouteVehicleId, _currentRouteTrailerId);
+        var loadSummaryParts = new List<string>();
+        if (display.HasVehiclePayload)
+        {
+            loadSummaryParts.Add($"Ladegewicht: {display.VehiclePayloadKg} kg");
+        }
+
+        if (display.TrailerLoadKg.HasValue)
+        {
+            loadSummaryParts.Add($"Anhängelast: {display.TrailerLoadKg} kg");
+        }
+
+        RouteLoadSummaryText = string.Join(" | ", loadSummaryParts);
+    }
+
+    private bool ConfirmCapacityWarning(string? vehicleId, string? trailerId)
+    {
+        var totalWeightKg = RouteStops
+            .Where(x => !IsCompanyStop(x))
+            .Select(x => FindOrderWeightKg(x.OrderId))
+            .Sum();
+        var warning = TourCapacityWarningService.Evaluate(_vehicleData, vehicleId, trailerId, totalWeightKg);
+        if (!warning.IsOverCapacity)
+        {
+            return true;
+        }
+
+        return MessageBox.Show(
+                   warning.BuildWarningMessage(),
+                   "Kapazitätswarnung",
+                   MessageBoxButton.YesNo,
+                   MessageBoxImage.Warning) == MessageBoxResult.Yes;
+    }
+
+    private int FindOrderWeightKg(string? orderId)
+    {
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedOrderId))
+        {
+            return 0;
+        }
+
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, normalizedOrderId, StringComparison.OrdinalIgnoreCase));
+        if (order is null)
+        {
+            return 0;
+        }
+
+        return (int)Math.Max(0, Math.Round((order.Products ?? []).Sum(x => Math.Max(0d, x.WeightKg)), MidpointRounding.AwayFromZero));
     }
 
     private void RaiseCommandStates()
@@ -1531,7 +1911,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             editTour.RaiseCanExecuteChanged();
         }
 
-        if (ExportRouteCommand is DelegateCommand exportRoute)
+        if (ExportRouteCommand is AsyncCommand exportRoute)
         {
             exportRoute.RaiseCanExecuteChanged();
         }
@@ -1713,6 +2093,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await _orderRepository.SaveAllAsync(_allOrders);
         await RefreshAsync();
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, updated.Id, StringComparison.OrdinalIgnoreCase));
+        PublishOrderChange(originalId, updated.Id);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
     }
 
@@ -1765,9 +2146,98 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var selectedOrderId = order.Id;
         await RefreshAsync();
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, selectedOrderId, StringComparison.OrdinalIgnoreCase));
-        StatusText = $"Status für Auftrag {selectedOrderId} gespeichert.";
+        PublishOrderChange(selectedOrderId, selectedOrderId);
+        StatusText = $"Status fuer Auftrag {selectedOrderId} gespeichert.";
     }
 
+    private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)
+    {
+        if (args.SourceId == _instanceId)
+        {
+            return;
+        }
+
+        _ = ApplyExternalOrderChangeAsync(args);
+    }
+
+    private async Task ApplyExternalOrderChangeAsync(OrderChangedEventArgs args)
+    {
+        var preferredSelectedOrderId = ResolvePreferredOrderId(args, SelectedOrder?.OrderId);
+        var preferredRouteStopOrderId = ResolvePreferredOrderId(args, SelectedRouteStop?.OrderId);
+
+        _allOrders.Clear();
+        _allOrders.AddRange(await _orderRepository.GetAllAsync());
+
+        RefreshRouteStopsFromOrders(args);
+        RebuildOrderGrid(preferredSelectedOrderId);
+
+        if (string.IsNullOrWhiteSpace(preferredRouteStopOrderId))
+        {
+            SelectedRouteStop = null;
+        }
+        else
+        {
+            SelectedRouteStop = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, preferredRouteStopOrderId, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void RefreshRouteStopsFromOrders(OrderChangedEventArgs args)
+    {
+        foreach (var stop in RouteStops.Where(x => !IsCompanyStop(x)))
+        {
+            if (!string.IsNullOrWhiteSpace(args.PreviousOrderId) &&
+                string.Equals(stop.OrderId, args.PreviousOrderId, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(args.CurrentOrderId))
+            {
+                stop.OrderId = args.CurrentOrderId;
+            }
+
+            var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, stop.OrderId, StringComparison.OrdinalIgnoreCase));
+            if (order is null)
+            {
+                continue;
+            }
+
+            stop.Customer = order.CustomerName;
+            stop.Address = order.Address;
+            stop.Latitude = order.Location?.Latitude ?? stop.Latitude;
+            stop.Longitude = order.Location?.Longitude ?? stop.Longitude;
+        }
+
+        _ = RebuildRouteGeometryAsync();
+    }
+
+    private static string? ResolvePreferredOrderId(OrderChangedEventArgs args, string? currentOrderId)
+    {
+        if (!string.IsNullOrWhiteSpace(currentOrderId) &&
+            string.Equals(currentOrderId, args.PreviousOrderId, StringComparison.OrdinalIgnoreCase))
+        {
+            return args.CurrentOrderId;
+        }
+
+        return currentOrderId;
+    }
+
+    private void PublishOrderChange(string? previousOrderId, string? currentOrderId)
+    {
+        _dataSyncService.PublishOrders(_instanceId, previousOrderId, currentOrderId);
+    }
+
+    private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
+    {
+        if (args.SourceId == _instanceId || args.Kinds == AppDataKind.Orders)
+        {
+            return;
+        }
+
+        var relevantKinds = AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees;
+        if ((args.Kinds & relevantKinds) == AppDataKind.None)
+        {
+            return;
+        }
+
+        _ = RefreshAsync();
+    }
     private string BuildAvisoEmailSubject(string orderId)
     {
         var template = string.IsNullOrWhiteSpace(_avisoEmailSubjectTemplate)
@@ -2285,3 +2755,6 @@ public sealed class SavedTourLookupItem
         return Label;
     }
 }
+
+
+

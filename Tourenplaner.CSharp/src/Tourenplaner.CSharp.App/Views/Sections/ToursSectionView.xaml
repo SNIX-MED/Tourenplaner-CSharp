@@ -143,7 +143,25 @@
                 </GroupBox>
 
                 <TextBlock Grid.Row="1" Margin="4,10,0,0" FontWeight="SemiBold" Text="{Binding SelectedTourWeightText}" />
-                <TextBlock Grid.Row="2" Margin="4,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding SelectedTourVehicleText}" />
+                <StackPanel Grid.Row="2" Margin="4,4,0,0">
+                    <TextBlock FontWeight="SemiBold"
+                               TextWrapping="Wrap"
+                               Text="{Binding SelectedTourLoadSummaryText}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedTourLoadSummaryText}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
+                               TextWrapping="Wrap"
+                               Text="{Binding SelectedTourVehicleText}" />
+                </StackPanel>
             </Grid>
         </Border>
 

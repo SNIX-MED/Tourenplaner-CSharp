@@ -33,10 +33,7 @@
                         Height="34"
                         Margin="0,0,8,0"
                         Content="Abbrechen"
-                        Background="White"
-                        Foreground="#0f172a"
-                        BorderBrush="#cbd5e1"
-                        BorderThickness="1"
+                        Style="{StaticResource SecondaryButtonStyle}"
                         Click="OnCancelClicked" />
                 <Button Grid.Column="1" Height="34" Margin="8,0,0,0" Content="Speichern" Style="{StaticResource SuccessButtonStyle}" Click="OnSaveClicked" />
             </Grid>

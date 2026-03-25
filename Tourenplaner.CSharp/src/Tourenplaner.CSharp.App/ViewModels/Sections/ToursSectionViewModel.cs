@@ -1,11 +1,14 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Windows;
 using System.Windows.Input;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -13,17 +16,21 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 public sealed class ToursSectionViewModel : SectionViewModelBase
 {
     private readonly JsonToursRepository _tourRepository;
+    private readonly JsonOrderRepository _orderRepository;
     private readonly JsonEmployeesRepository _employeeRepository;
     private readonly JsonVehicleDataRepository _vehicleRepository;
     private readonly JsonAppSettingsRepository _settingsRepository;
+    private readonly AppDataSyncService _dataSyncService;
     private readonly TourScheduleService _scheduleService;
     private readonly TourConflictService _conflictService;
+    private VehicleDataRecord _vehicleData = new();
 
     private readonly List<TourRecord> _loadedTours = new();
     private readonly Dictionary<string, string> _vehicleLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _trailerLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _employeeLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Func<int, Task>? _openTourOnMapAsync;
+    private readonly Guid _instanceId = Guid.NewGuid();
     private bool _editorSyncInProgress;
 
     private string _statusText = "Lade Touren...";
@@ -34,6 +41,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private string _toDateText = string.Empty;
     private string _filterInfoText = "Alle Touren | Treffer: 0";
     private string _selectedTourWeightText = "Totalgewicht: 0 kg";
+    private string _selectedTourLoadSummaryText = string.Empty;
     private string _selectedTourVehicleText = "Fahrzeug: -";
     private LookupItem? _selectedVehicle;
     private LookupItem? _selectedTrailer;
@@ -41,16 +49,20 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     public ToursSectionViewModel(
         string toursJsonPath,
+        string ordersJsonPath,
         string employeesJsonPath,
         string vehiclesJsonPath,
         string settingsJsonPath,
-        Func<int, Task>? openTourOnMapAsync = null)
+        Func<int, Task>? openTourOnMapAsync = null,
+        AppDataSyncService? dataSyncService = null)
         : base("Tours", "Tour creation, stop sequencing, ETA/ETD and assignment conflict checks.")
     {
         _tourRepository = new JsonToursRepository(toursJsonPath);
+        _orderRepository = new JsonOrderRepository(ordersJsonPath);
         _employeeRepository = new JsonEmployeesRepository(employeesJsonPath);
         _vehicleRepository = new JsonVehicleDataRepository(vehiclesJsonPath);
         _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
+        _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _scheduleService = new TourScheduleService();
         _conflictService = new TourConflictService(_scheduleService);
         _openTourOnMapAsync = openTourOnMapAsync;
@@ -66,6 +78,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         FilterThisWeekCommand = new DelegateCommand(SetWeekFilter);
         ResetDateFilterCommand = new DelegateCommand(ResetDateFilter);
         DeleteTourCommand = new AsyncCommand(DeleteSelectedTourAsync, () => SelectedTour is not null);
+        _dataSyncService.DataChanged += OnDataChanged;
         _ = RefreshAsync();
     }
 
@@ -139,6 +152,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             if (SetProperty(ref _selectedVehicle, value))
             {
                 UpdateEditorConflictPreview();
+                UpdateSelectedTourSummary();
             }
         }
     }
@@ -151,6 +165,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             if (SetProperty(ref _selectedTrailer, value))
             {
                 UpdateEditorConflictPreview();
+                UpdateSelectedTourSummary();
             }
         }
     }
@@ -185,6 +200,12 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _selectedTourWeightText, value);
     }
 
+    public string SelectedTourLoadSummaryText
+    {
+        get => _selectedTourLoadSummaryText;
+        private set => SetProperty(ref _selectedTourLoadSummaryText, value);
+    }
+
     public string SelectedTourVehicleText
     {
         get => _selectedTourVehicleText;
@@ -215,6 +236,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         if (NormalizeCompanyStops(_loadedTours, settings))
         {
             await _tourRepository.SaveAsync(_loadedTours);
+            _dataSyncService.PublishTours(_instanceId);
         }
 
         RebuildTourRowsWithCurrentFilter(keepSelectionTourId: SelectedTour?.TourId);
@@ -230,6 +252,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         await _tourRepository.SaveAsync(tours);
+        _dataSyncService.PublishTours(_instanceId);
         await RefreshAsync();
     }
 
@@ -256,8 +279,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Take(2)
             .ToList();
 
+        if (!ConfirmCapacityWarning(target.VehicleId, target.TrailerId, CalculateTourWeightKg(target)))
+        {
+            return;
+        }
+
         _scheduleService.ApplySchedule(target);
         await _tourRepository.SaveAsync(_loadedTours);
+        _dataSyncService.PublishTours(_instanceId, target.Id.ToString(CultureInfo.InvariantCulture), target.Id.ToString(CultureInfo.InvariantCulture));
         await RefreshAsync();
     }
 
@@ -344,6 +373,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     {
         var employees = await _employeeRepository.LoadAsync();
         var vehicles = await _vehicleRepository.LoadAsync();
+        _vehicleData = vehicles;
 
         _vehicleLabelsById.Clear();
         _trailerLabelsById.Clear();
@@ -427,6 +457,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         _loadedTours.Remove(target);
         await _tourRepository.SaveAsync(_loadedTours);
+        await ClearAssignedTourReferencesAsync(target.Id);
+        _dataSyncService.PublishTours(_instanceId, target.Id.ToString(CultureInfo.InvariantCulture), null);
+        _dataSyncService.PublishOrders(_instanceId);
         RebuildTourRowsWithCurrentFilter();
     }
 
@@ -495,8 +528,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Take(2)
             .ToList();
 
+        if (!ConfirmCapacityWarning(tour.VehicleId, tour.TrailerId, CalculateTourWeightKg(tour)))
+        {
+            return;
+        }
+
         _scheduleService.ApplySchedule(tour);
         await _tourRepository.SaveAsync(_loadedTours);
+        _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
         await RefreshAsync();
         await FocusTourAsync(tour.Id);
         StatusText = $"Tour {tour.Id} wurde aktualisiert.";
@@ -538,6 +577,24 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         return ("08", "00");
+    }
+
+    private async Task ClearAssignedTourReferencesAsync(int tourId)
+    {
+        var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
+        var orders = (await _orderRepository.GetAllAsync()).ToList();
+        var changed = false;
+
+        foreach (var order in orders.Where(x => string.Equals(x.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            order.AssignedTourId = string.Empty;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await _orderRepository.SaveAllAsync(orders);
+        }
     }
 
     private void RebuildTourRowsWithCurrentFilter(int? keepSelectionTourId = null)
@@ -688,6 +745,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         if (SelectedTour?.Source is null)
         {
             SelectedTourWeightText = "Totalgewicht: 0 kg";
+            SelectedTourLoadSummaryText = string.Empty;
             SelectedTourVehicleText = "Fahrzeug: -";
             return;
         }
@@ -696,7 +754,41 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Where(s => !IsCompanyStop(s))
             .Sum(s => ParseWeightKg(s.Gewicht));
         SelectedTourWeightText = $"Totalgewicht: {totalWeight} kg";
-        SelectedTourVehicleText = $"Fahrzeug: {ResolveVehicleLabel(SelectedTour.Source.VehicleId)}";
+
+        var display = VehicleCombinationDisplayResolver.Resolve(
+            _vehicleData,
+            SelectedVehicle?.Id,
+            SelectedTrailer?.Id);
+        var vehicleLabel = string.IsNullOrWhiteSpace(display.VehicleLabel)
+            ? ResolveVehicleLabel(SelectedTour.Source.VehicleId)
+            : display.VehicleLabel;
+        var trailerLabel = string.IsNullOrWhiteSpace(display.TrailerLabel)
+            ? ResolveTrailerLabel(SelectedTour.Source.TrailerId)
+            : display.TrailerLabel;
+
+        var summaryLines = new List<string>
+        {
+            $"Fahrzeug: {(!string.IsNullOrWhiteSpace(vehicleLabel) ? vehicleLabel : "-")}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(trailerLabel))
+        {
+            summaryLines.Add($"Anhänger: {trailerLabel}");
+        }
+
+        var loadSummaryLines = new List<string>();
+        if (display.HasVehiclePayload)
+        {
+            loadSummaryLines.Add($"Ladegewicht: {display.VehiclePayloadKg} kg");
+        }
+
+        if (display.TrailerLoadKg.HasValue)
+        {
+            loadSummaryLines.Add($"Anhängelast: {display.TrailerLoadKg} kg");
+        }
+
+        SelectedTourLoadSummaryText = string.Join(Environment.NewLine, loadSummaryLines);
+        SelectedTourVehicleText = string.Join(Environment.NewLine, summaryLines);
     }
 
     private static int ParseWeightKg(string? raw)
@@ -861,6 +953,44 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
     }
 
+    private bool ConfirmCapacityWarning(string? vehicleId, string? trailerId, int totalWeightKg)
+    {
+        var warning = TourCapacityWarningService.Evaluate(_vehicleData, vehicleId, trailerId, totalWeightKg);
+        if (!warning.IsOverCapacity)
+        {
+            return true;
+        }
+
+        return MessageBox.Show(
+                   warning.BuildWarningMessage(),
+                   "Kapazitätswarnung",
+                   MessageBoxButton.YesNo,
+                   MessageBoxImage.Warning) == MessageBoxResult.Yes;
+    }
+
+    private static int CalculateTourWeightKg(TourRecord tour)
+    {
+        return (tour.Stops ?? [])
+            .Where(s => !IsCompanyStop(s))
+            .Sum(s => ParseWeightKg(s.Gewicht));
+    }
+
+    private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
+    {
+        if (args.SourceId == _instanceId)
+        {
+            return;
+        }
+
+        var relevantKinds = AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees;
+        if ((args.Kinds & relevantKinds) == AppDataKind.None)
+        {
+            return;
+        }
+
+        _ = RefreshAsync();
+    }
+
     private static bool NormalizeCompanyStops(IReadOnlyList<TourRecord> tours, AppSettings settings)
     {
         var changed = false;
@@ -1001,3 +1131,4 @@ public sealed class SelectableEmployeeItem : ObservableObject
         set => SetProperty(ref _isSelected, value);
     }
 }
+
