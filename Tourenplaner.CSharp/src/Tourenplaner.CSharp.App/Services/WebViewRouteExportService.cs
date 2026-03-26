@@ -1,9 +1,11 @@
 using System.IO;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
+using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Services;
 
@@ -11,46 +13,80 @@ public sealed class WebViewRouteExportService
 {
     public async Task<byte[]?> CaptureMapImageAsync(RouteExportSnapshot snapshot)
     {
-        return await ExecuteInHiddenWebViewAsync(async webView =>
+        try
         {
-            await webView.CoreWebView2.ExecuteScriptAsync(
-                $"window.gawelaSetExportData({BuildMapDataJson(snapshot)});");
+            return await ExecuteInHiddenWebViewAsync(async webView =>
+            {
+                await webView.CoreWebView2.ExecuteScriptAsync(
+                    $"window.gawelaSetExportData({BuildMapDataJson(snapshot)});");
 
-            await WaitUntilAsync(
-                webView,
-                "window.gawelaExportReady === true",
-                TimeSpan.FromSeconds(10));
+                await WaitUntilAsync(
+                    webView,
+                    "window.gawelaExportReady === true",
+                    TimeSpan.FromSeconds(10));
 
-            await Task.Delay(700);
+                await Task.Delay(700);
 
-            using var stream = new MemoryStream();
-            await webView.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream);
-            return stream.ToArray();
-        }, BuildMapHtml(), 1400, 900);
+                using var stream = new MemoryStream();
+                await webView.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream);
+                return stream.ToArray();
+            }, BuildMapHtml(), 1400, 900);
+        }
+        catch
+        {
+            // PDF export should still work even if map preview rendering fails.
+            return null;
+        }
     }
 
     public async Task ExportPdfAsync(string html, string outputPath)
     {
-        await ExecuteInHiddenWebViewAsync(async webView =>
+        try
         {
-            var settings = webView.CoreWebView2.Environment.CreatePrintSettings();
-            settings.Orientation = CoreWebView2PrintOrientation.Landscape;
-            settings.ScaleFactor = 1.0;
-            settings.ShouldPrintBackgrounds = true;
-            settings.ShouldPrintHeaderAndFooter = false;
-            settings.MarginTop = 0.35;
-            settings.MarginBottom = 0.35;
-            settings.MarginLeft = 0.35;
-            settings.MarginRight = 0.35;
-
-            var success = await webView.CoreWebView2.PrintToPdfAsync(outputPath, settings);
-            if (!success)
+            await ExecuteInHiddenWebViewAsync(async webView =>
             {
-                throw new InvalidOperationException("Die PDF-Datei konnte nicht erzeugt werden.");
+                var success = false;
+                try
+                {
+                    var settings = webView.CoreWebView2.Environment.CreatePrintSettings();
+                    settings.Orientation = CoreWebView2PrintOrientation.Landscape;
+                    settings.ScaleFactor = 1.0;
+                    settings.ShouldPrintBackgrounds = true;
+                    settings.ShouldPrintHeaderAndFooter = false;
+                    settings.MarginTop = 0.35;
+                    settings.MarginBottom = 0.35;
+                    settings.MarginLeft = 0.35;
+                    settings.MarginRight = 0.35;
+                    success = await webView.CoreWebView2.PrintToPdfAsync(outputPath, settings);
+                }
+                catch (ArgumentException)
+                {
+                    // Some WebView2 runtimes reject custom print settings with "Value does not fall within the expected range".
+                    success = await webView.CoreWebView2.PrintToPdfAsync(outputPath);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Retry with default print settings as a compatibility fallback.
+                    success = await webView.CoreWebView2.PrintToPdfAsync(outputPath);
+                }
+
+                if (!success)
+                {
+                    throw new InvalidOperationException("Die PDF-Datei konnte nicht erzeugt werden.");
+                }
+
+                return 0;
+            }, html, 1600, 1000);
+        }
+        catch
+        {
+            if (await TryExportPdfViaEdgeAsync(html, outputPath))
+            {
+                return;
             }
 
-            return 0;
-        }, html, 1600, 1000);
+            throw;
+        }
     }
 
     private static async Task<T> ExecuteInHiddenWebViewAsync<T>(Func<WebView2, Task<T>> action, string html, double width, double height)
@@ -134,6 +170,11 @@ public sealed class WebViewRouteExportService
 
     private static string BuildMapDataJson(RouteExportSnapshot snapshot)
     {
+        var sanitizedStops = snapshot.Stops
+            .Where(x => IsFinite(x.Latitude) && IsFinite(x.Longitude))
+            .ToList();
+        var simplifiedGeometry = SimplifyGeometry(snapshot.GeometryPoints, maxPoints: 420);
+
         var payload = new
         {
             company = snapshot.Company is null
@@ -145,7 +186,7 @@ public sealed class WebViewRouteExportService
                     lat = snapshot.Company.Latitude,
                     lon = snapshot.Company.Longitude
                 },
-            stops = snapshot.Stops.Select(x => new
+            stops = sanitizedStops.Select(x => new
             {
                 x.Position,
                 x.Label,
@@ -154,7 +195,7 @@ public sealed class WebViewRouteExportService
                 lat = x.Latitude,
                 lon = x.Longitude
             }),
-            geometry = snapshot.GeometryPoints.Select(x => new
+            geometry = simplifiedGeometry.Select(x => new
             {
                 lat = x.Latitude,
                 lon = x.Longitude
@@ -162,6 +203,131 @@ public sealed class WebViewRouteExportService
         };
 
         return JsonSerializer.Serialize(payload);
+    }
+
+    private static List<GeoPoint> SimplifyGeometry(IReadOnlyList<GeoPoint> points, int maxPoints)
+    {
+        if (points is null || points.Count == 0)
+        {
+            return new List<GeoPoint>();
+        }
+
+        var finite = points.Where(x => IsFinite(x.Latitude) && IsFinite(x.Longitude)).ToList();
+        if (finite.Count <= maxPoints)
+        {
+            return finite;
+        }
+
+        var result = new List<GeoPoint>(maxPoints);
+        var step = (finite.Count - 1d) / (maxPoints - 1d);
+        for (var i = 0; i < maxPoints; i++)
+        {
+            var idx = (int)Math.Round(i * step, MidpointRounding.AwayFromZero);
+            idx = Math.Clamp(idx, 0, finite.Count - 1);
+            result.Add(finite[idx]);
+        }
+
+        return result;
+    }
+
+    private static bool IsFinite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
+
+    private static async Task<bool> TryExportPdfViaEdgeAsync(string html, string outputPath)
+    {
+        var edgePath = ResolveEdgePath();
+        if (string.IsNullOrWhiteSpace(edgePath))
+        {
+            return false;
+        }
+
+        var tempHtmlPath = Path.Combine(Path.GetTempPath(), $"tourenplaner-export-{Guid.NewGuid():N}.html");
+        try
+        {
+            await File.WriteAllTextAsync(tempHtmlPath, html);
+            if (File.Exists(outputPath))
+            {
+                File.Delete(outputPath);
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = edgePath,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.ArgumentList.Add("--headless=new");
+            psi.ArgumentList.Add("--disable-gpu");
+            psi.ArgumentList.Add("--allow-file-access-from-files");
+            psi.ArgumentList.Add($"--print-to-pdf={outputPath}");
+            psi.ArgumentList.Add(new Uri(tempHtmlPath).AbsoluteUri);
+
+            using var process = Process.Start(psi);
+            if (process is null)
+            {
+                return false;
+            }
+
+            var waitTask = process.WaitForExitAsync();
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(45));
+            var completed = await Task.WhenAny(waitTask, timeoutTask);
+            if (completed != waitTask)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                }
+
+                return false;
+            }
+
+            await waitTask;
+            if (process.ExitCode != 0)
+            {
+                return false;
+            }
+
+            var file = new FileInfo(outputPath);
+            return file.Exists && file.Length > 0;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempHtmlPath))
+                {
+                    File.Delete(tempHtmlPath);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static string? ResolveEdgePath()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Edge", "Application", "msedge.exe")
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     private static string BuildMapHtml()
@@ -183,7 +349,12 @@ public sealed class WebViewRouteExportService
                  <div id="map"></div>
                  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                  <script>
-                   const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([47.3769, 8.5417], 10);
+                   const map = L.map('map', {
+                     zoomControl: false,
+                     attributionControl: false,
+                     zoomSnap: 0.1,
+                     zoomDelta: 0.5
+                   }).setView([47.3769, 8.5417], 10);
                    const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                      maxZoom: 20,
                      subdomains: 'abcd'
@@ -243,7 +414,7 @@ public sealed class WebViewRouteExportService
                      }
 
                      if (bounds.length > 0) {
-                       map.fitBounds(bounds, { padding: [36, 36] });
+                       map.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 });
                      }
 
                      setTimeout(() => {

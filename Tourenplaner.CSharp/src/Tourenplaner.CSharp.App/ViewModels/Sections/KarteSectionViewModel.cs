@@ -1059,6 +1059,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         string? trailerId,
         IReadOnlyList<string> employeeIds)
     {
+        try
+        {
         if (!RouteStops.Any(x => !IsCompanyStop(x)))
         {
             return;
@@ -1106,6 +1108,16 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await FocusTourAsync(nextId);
         SetRouteChanged(false);
         StatusText = "Route gespeichert und auf Karte geladen.";
+        }
+        catch (IOException ioEx)
+        {
+            MessageBox.Show(
+                $"Die Tour konnte nicht gespeichert werden, weil eine Datendatei gerade gesperrt ist.\n\nDetails: {ioEx.Message}",
+                "Speichern fehlgeschlagen",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            StatusText = "Speichern fehlgeschlagen: Datendatei gesperrt.";
+        }
     }
 
     private async Task UpdateExistingTourAsync(
@@ -1117,6 +1129,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         string? trailerId,
         IReadOnlyList<string> employeeIds)
     {
+        try
+        {
         if (!RouteStops.Any(x => !IsCompanyStop(x)))
         {
             System.Windows.MessageBox.Show(
@@ -1186,6 +1200,16 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await FocusTourAsync(tourId);
         SetRouteChanged(false);
         StatusText = "Tour aktualisiert und auf Karte geladen.";
+        }
+        catch (IOException ioEx)
+        {
+            MessageBox.Show(
+                $"Die Tour konnte nicht gespeichert werden, weil eine Datendatei gerade gesperrt ist.\n\nDetails: {ioEx.Message}",
+                "Speichern fehlgeschlagen",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            StatusText = "Speichern fehlgeschlagen: Datendatei gesperrt.";
+        }
     }
 
     private async Task LoadSavedToursAsync(int? preferredTourId = null)

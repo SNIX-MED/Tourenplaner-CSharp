@@ -21,8 +21,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private readonly SettingsValidator _validator;
     private readonly BackupManager _backupManager;
     private readonly GitHubReleaseUpdateService _updateService;
-    private readonly IOrderRepository _orderRepository;
-    private readonly ISettingsRepository _settingsRepository;
+    private readonly IOrderRepository? _orderRepository;
+    private readonly ISettingsRepository? _settingsRepository;
     private readonly AppDataSyncService? _dataSyncService;
     private readonly string _dataRoot;
     private bool _isBackgroundGeocodingRunning;
@@ -79,8 +79,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public SettingsSectionViewModel(
         string settingsJsonPath,
         string dataRoot,
-        IOrderRepository orderRepository = null,
-        ISettingsRepository settingsRepository = null,
+        IOrderRepository? orderRepository = null,
+        ISettingsRepository? settingsRepository = null,
         AppDataSyncService? dataSyncService = null)
         : base("Settings", "Appearance, backup policy and restore operations.")
     {

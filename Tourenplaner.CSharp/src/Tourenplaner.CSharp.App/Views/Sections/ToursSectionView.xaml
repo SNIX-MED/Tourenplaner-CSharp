@@ -16,33 +16,33 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Margin="0,0,0,10" Style="{StaticResource FlatCardStyle}" Padding="10">
+        <Border Grid.Row="0" Margin="0,0,0,12" Style="{StaticResource FilterBarCardStyle}">
             <StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock FontWeight="SemiBold" FontSize="19" Text="Datumsfilter" />
-                    <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding FilterInfoText}" />
+                    <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="Datumsfilter" />
+                    <Border Grid.Column="1" Style="{StaticResource InfoBadgeStyle}" VerticalAlignment="Center">
+                        <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding FilterInfoText}" />
+                    </Border>
                 </Grid>
 
-                <Grid Margin="0,10,0,0">
+                <Grid Margin="0,12,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="180" />
                     </Grid.ColumnDefinitions>
                     <Grid Grid.Column="0" Margin="0,0,8,0">
                         <TextBox x:Name="FromDateTextBox"
-                                 Height="38"
-                                 Padding="8,0"
-                                 VerticalContentAlignment="Center"
+                                 Height="40"
                                  ToolTip="Von (DD.MM.YYYY)"
                                  Text="{Binding FromDateText, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="10,0,0,0"
+                        <TextBlock Margin="12,0,0,0"
                                    VerticalAlignment="Center"
-                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                   Foreground="{DynamicResource Brush.TextSubtle}"
                                    IsHitTestVisible="False"
                                    Text="{Binding Source={x:Static sys:DateTime.Now}, StringFormat={}{0:dd.MM.yyyy}}">
                             <TextBlock.Style>
@@ -59,14 +59,12 @@
                     </Grid>
                     <Grid Grid.Column="1" Margin="8,0">
                         <TextBox x:Name="ToDateTextBox"
-                                 Height="38"
-                                 Padding="8,0"
-                                 VerticalContentAlignment="Center"
+                                 Height="40"
                                  ToolTip="Bis (DD.MM.YYYY)"
                                  Text="{Binding ToDateText, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="10,0,0,0"
+                        <TextBlock Margin="12,0,0,0"
                                    VerticalAlignment="Center"
-                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                   Foreground="{DynamicResource Brush.TextSubtle}"
                                    IsHitTestVisible="False"
                                    Text="{Binding Source={x:Static sys:DateTime.Now}, StringFormat={}{0:dd.MM.yyyy}}">
                             <TextBlock.Style>
@@ -81,7 +79,7 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </Grid>
-                    <Button Grid.Column="2" Margin="8,0,0,0" Height="38" Content="Übernehmen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyDateFilterCommand}" />
+                    <Button Grid.Column="2" Margin="10,0,0,0" Height="40" Content="Uebernehmen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyDateFilterCommand}" />
                 </Grid>
 
                 <UniformGrid Margin="0,10,0,0" Rows="1" Columns="4">
@@ -93,7 +91,7 @@
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="1" Style="{StaticResource FlatCardStyle}" Padding="10">
+        <Border Grid.Row="1" Style="{StaticResource FlatCardStyle}" Padding="12">
             <GroupBox Header="Touren">
                 <DataGrid AutoGenerateColumns="False"
                           IsReadOnly="True"
@@ -122,14 +120,13 @@
                       ResizeDirection="Rows"
                       Background="{DynamicResource Brush.BorderSoft}" />
 
-        <Border Grid.Row="3" Margin="0,10,0,0" Style="{StaticResource FlatCardStyle}" Padding="10">
+        <Border Grid.Row="3" Margin="0,12,0,0" Style="{StaticResource FlatCardStyle}" Padding="12">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <GroupBox Header="Stopps in ausgewählter Tour">
+                <GroupBox Header="Stopps in ausgewaehlter Tour">
                     <DataGrid AutoGenerateColumns="False"
                               IsReadOnly="True"
                               ItemsSource="{Binding SelectedTourStops}">
@@ -142,30 +139,34 @@
                     </DataGrid>
                 </GroupBox>
 
-                <TextBlock Grid.Row="1" Margin="4,10,0,0" FontWeight="SemiBold" Text="{Binding SelectedTourWeightText}" />
-                <StackPanel Grid.Row="2" Margin="4,4,0,0">
-                    <TextBlock FontWeight="SemiBold"
-                               TextWrapping="Wrap"
-                               Text="{Binding SelectedTourLoadSummaryText}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedTourLoadSummaryText}" Value="">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
-                               TextWrapping="Wrap"
-                               Text="{Binding SelectedTourVehicleText}" />
-                </StackPanel>
+                <Border Grid.Row="1" Margin="0,10,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourWeightText}" />
+                        <TextBlock Margin="0,4,0,0"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding SelectedTourLoadSummaryText}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedTourLoadSummaryText}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Margin="0,4,0,0"
+                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                   TextWrapping="Wrap"
+                                   Text="{Binding SelectedTourVehicleText}" />
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="4" Margin="0,10,0,0">
+        <Grid Grid.Row="4" Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
@@ -178,7 +179,7 @@
                     Style="{StaticResource PrimaryButtonStyle}"
                     Command="{Binding OpenTourOnMapCommand}" />
             <Button Grid.Column="1" Height="40" Margin="8,0,8,0" Content="Tour bearbeiten" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding EditTourOnMapCommand}" />
-            <Button Grid.Column="2" Height="40" Margin="8,0,0,0" Content="Tour löschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteTourCommand}" />
+            <Button Grid.Column="2" Height="40" Margin="8,0,0,0" Content="Tour loeschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteTourCommand}" />
         </Grid>
     </Grid>
 </UserControl>

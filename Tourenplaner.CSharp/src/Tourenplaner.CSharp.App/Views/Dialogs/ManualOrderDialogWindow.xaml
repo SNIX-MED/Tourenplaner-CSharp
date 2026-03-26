@@ -10,6 +10,27 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
         Background="{DynamicResource Brush.WindowBackground}">
+    <Window.Resources>
+        <Style x:Key="ProductsGridRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ProductsGridCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                    <Setter Property="Background" Value="Transparent" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
     <Border Margin="12" Style="{StaticResource FlatCardStyle}" Padding="14">
         <Grid>
             <Grid.RowDefinitions>
@@ -37,7 +58,7 @@
                 </Grid>
             </StackPanel>
 
-            <ScrollViewer Grid.Row="1" Margin="0,14,0,12" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="ContentScrollViewer" Grid.Row="1" Margin="0,14,0,12" VerticalScrollBarVisibility="Auto">
                 <StackPanel>
                     <Border Style="{StaticResource SoftCardStyle}" Padding="12" Margin="0,0,0,10">
                         <Grid>
@@ -149,6 +170,9 @@
                                       AutoGenerateColumns="False"
                                       CanUserAddRows="False"
                                       IsReadOnly="True"
+                                      RowStyle="{StaticResource ProductsGridRowStyle}"
+                                      CellStyle="{StaticResource ProductsGridCellStyle}"
+                                      PreviewMouseWheel="OnProductGridPreviewMouseWheel"
                                       MouseDoubleClick="OnProductGridDoubleClick"
                                       ItemsSource="{Binding ProductLines}"
                                       SelectedItem="{Binding SelectedProductLine}">

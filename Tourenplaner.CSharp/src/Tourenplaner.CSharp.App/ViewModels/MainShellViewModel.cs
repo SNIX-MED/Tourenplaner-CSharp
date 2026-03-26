@@ -1,7 +1,9 @@
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
+using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.Application.Services;
+using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
 
 namespace Tourenplaner.CSharp.App.ViewModels;
@@ -9,6 +11,9 @@ namespace Tourenplaner.CSharp.App.ViewModels;
 public sealed class MainShellViewModel : ObservableObject
 {
     private readonly KarteSectionViewModel _mapSection;
+    private readonly AppDataSyncService _dataSyncService;
+    private readonly string _ordersJsonPath;
+    private readonly Guid _instanceId = Guid.NewGuid();
     private NavigationItemViewModel? _selectedNavigationItem;
     private object? _currentSection;
     private string _globalSearchText = string.Empty;
@@ -25,6 +30,8 @@ public sealed class MainShellViewModel : ObservableObject
         string dataRootPath)
     {
         var dataSyncService = new AppDataSyncService();
+        _dataSyncService = dataSyncService;
+        _ordersJsonPath = ordersJsonPath;
         var map = new KarteSectionViewModel(ordersJsonPath, toursJsonPath, settingsJsonPath, dataSyncService);
         _mapSection = map;
         var start = new StartSectionViewModel(
@@ -46,7 +53,9 @@ public sealed class MainShellViewModel : ObservableObject
             ordersJsonPath,
             settingsJsonPath,
             tourId => NavigateToTourAsync(tours, tourId),
+            tourId => NavigateToMapTourAsync(map, tourId),
             date => NavigateToTourDateAsync(tours, date),
+            orderId => OpenOrderEditorFromCalendarAsync(orderId),
             dataSyncService);
         var orders = new OrdersSectionViewModel(ordersJsonPath, dataSyncService);
         var nonMapOrders = new NonMapOrdersSectionViewModel(ordersJsonPath, dataSyncService);
@@ -199,5 +208,51 @@ public sealed class MainShellViewModel : ObservableObject
                 _ = nonMap.RefreshAsync();
                 break;
         }
+    }
+
+    private async Task OpenOrderEditorFromCalendarAsync(string orderId)
+    {
+        var normalizedId = (orderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedId))
+        {
+            return;
+        }
+
+        var repository = new JsonOrderRepository(_ordersJsonPath);
+        var orders = (await repository.GetAllAsync()).ToList();
+        var existing = orders.FirstOrDefault(x => string.Equals(x.Id, normalizedId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            return;
+        }
+
+        var dialog = new ManualOrderDialogWindow(
+            existing,
+            deliveryTypes: existing.Type == OrderType.NonMap
+                ? DeliveryMethodExtensions.NonMapDeliveryTypeOptions
+                : DeliveryMethodExtensions.MapDeliveryTypeOptions,
+            defaultOrderType: existing.Type)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        if (dialog.ShowDialog() != true || dialog.CreatedOrder is null)
+        {
+            return;
+        }
+
+        var updated = dialog.CreatedOrder;
+        updated.Type = existing.Type;
+        updated.AssignedTourId = existing.AssignedTourId;
+        updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated) ?? existing.Location;
+
+        var originalId = existing.Id;
+        orders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
+        orders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
+                              string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
+        orders.Add(updated);
+
+        await repository.SaveAllAsync(orders);
+        _dataSyncService.PublishOrders(_instanceId, originalId, updated.Id);
     }
 }

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Linq;
 using System.Windows;
 using Tourenplaner.CSharp.App.ViewModels;
@@ -26,37 +26,52 @@ public partial class App : System.Windows.Application
         Directory.CreateDirectory(dataRoot);
         _logPath = Path.Combine(dataRoot, "app-crash.log");
         AttachGlobalExceptionLogging();
-        var settingsPath = Path.Combine(dataRoot, "settings.json");
 
-        var orderRepository = new JsonOrderRepository(Path.Combine(dataRoot, "orders.json"));
-        var tourRepository = new JsonTourRepository(Path.Combine(dataRoot, "tours.json"));
-        var employeeRepository = new JsonEmployeeRepository(Path.Combine(dataRoot, "employees.json"));
-        var vehicleRepository = new JsonVehicleRepository(Path.Combine(dataRoot, "vehicles.json"));
-
-        var snapshotService = new AppSnapshotService(orderRepository, tourRepository, employeeRepository, vehicleRepository);
-        var ordersJsonPath = Path.Combine(dataRoot, "orders.json");
-        var toursJsonPath = Path.Combine(dataRoot, "tours.json");
-        var employeesJsonPath = Path.Combine(dataRoot, "employees.json");
-        var vehiclesJsonPath = Path.Combine(dataRoot, "vehicles.json");
-        var settingsJsonPath = settingsPath;
-        _ = RunTourIntegrityCheckOnStartup(toursJsonPath, settingsJsonPath);
-
-        var mainWindow = new MainWindow
+        try
         {
-            DataContext = new MainShellViewModel(
-                snapshotService,
-                ordersJsonPath,
-                toursJsonPath,
-                employeesJsonPath,
-                vehiclesJsonPath,
-                settingsJsonPath,
-                dataRoot)
-        };
+            var settingsPath = Path.Combine(dataRoot, "settings.json");
+            var ordersJsonPath = Path.Combine(dataRoot, "orders.json");
+            var toursJsonPath = Path.Combine(dataRoot, "tours.json");
+            var employeesJsonPath = Path.Combine(dataRoot, "employees.json");
+            var vehiclesJsonPath = Path.Combine(dataRoot, "vehicles.json");
 
-        mainWindow.Show();
+            var orderRepository = new JsonOrderRepository(ordersJsonPath);
+            var tourRepository = new JsonTourRepository(toursJsonPath);
+            var employeeRepository = new JsonEmployeeRepository(employeesJsonPath);
+            var vehicleRepository = new JsonVehicleRepository(vehiclesJsonPath);
+
+            var snapshotService = new AppSnapshotService(orderRepository, tourRepository, employeeRepository, vehicleRepository);
+            _ = RunTourIntegrityCheckOnStartup(toursJsonPath, settingsPath);
+
+            var mainWindow = new MainWindow
+            {
+                DataContext = new MainShellViewModel(
+                    snapshotService,
+                    ordersJsonPath,
+                    toursJsonPath,
+                    employeesJsonPath,
+                    vehiclesJsonPath,
+                    settingsPath,
+                    dataRoot)
+            };
+
+            mainWindow.Show();
+        }
+        catch (Exception ex)
+        {
+            TryLogException("StartupFailed", ex);
+            MessageBox.Show(
+                $"Die App konnte nicht gestartet werden.{Environment.NewLine}{Environment.NewLine}" +
+                $"Fehler: {ex.Message}{Environment.NewLine}{Environment.NewLine}" +
+                $"Details: {_logPath}",
+                "GAWELA Tourenplaner - Startfehler",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(-1);
+        }
     }
 
-    private async Task<string?> RunTourIntegrityCheckOnStartup(string toursJsonPath, string settingsJsonPath)
+    private async Task RunTourIntegrityCheckOnStartup(string toursJsonPath, string settingsJsonPath)
     {
         try
         {
@@ -179,23 +194,16 @@ public partial class App : System.Windows.Application
 
             if (touchedTours == 0)
             {
-                return null;
+                return;
             }
 
             await toursRepository.SaveAsync(tours);
-            return
-                $"Tour-Integritätscheck abgeschlossen.{Environment.NewLine}" +
-                $"Reparierte Touren: {touchedTours}{Environment.NewLine}" +
-                $"Start ergänzt: {insertedStart}{Environment.NewLine}" +
-                $"Ziel ergänzt: {insertedEnd}{Environment.NewLine}" +
-                $"Duplikate entfernt: {removedDuplicateCompanyStops}{Environment.NewLine}" +
-                $"Pflichtfelder repariert: {repairedRequiredFields}{Environment.NewLine}" +
-                $"Reihenfolge neu gesetzt: {reindexedTours}";
+            return;
         }
         catch (Exception ex)
         {
             TryLogException("RunTourIntegrityCheckOnStartup", ex);
-            return null;
+            return;
         }
     }
 
@@ -279,3 +287,5 @@ public partial class App : System.Windows.Application
         }
     }
 }
+
+

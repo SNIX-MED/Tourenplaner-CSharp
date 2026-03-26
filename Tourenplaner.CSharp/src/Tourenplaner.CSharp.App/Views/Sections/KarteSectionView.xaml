@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.KarteSectionView"
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.KarteSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -9,7 +9,7 @@
              d:DesignWidth="1500">
     <UserControl.Resources>
         <Style x:Key="DetailsToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-            <Setter Property="Width" Value="34" />
+            <Setter Property="Width" Value="36" />
             <Setter Property="Height" Value="104" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalAlignment" Value="Center" />
@@ -19,15 +19,15 @@
         </Style>
 
         <Style x:Key="DetailsHeaderToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-            <Setter Property="Width" Value="32" />
-            <Setter Property="Height" Value="32" />
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
 
         <Style x:Key="DetailsRailButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-            <Setter Property="Width" Value="28" />
+            <Setter Property="Width" Value="30" />
             <Setter Property="Height" Value="Auto" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalAlignment" Value="Center" />
@@ -37,50 +37,7 @@
         </Style>
 
         <Style x:Key="RouteStopsGridStyle" TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
-            <Setter Property="Background" Value="{DynamicResource Brush.TableBackground}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="RowBackground" Value="{DynamicResource Brush.TableRow}" />
-            <Setter Property="AlternatingRowBackground" Value="{DynamicResource Brush.TableAltRow}" />
-            <Setter Property="GridLinesVisibility" Value="Horizontal" />
-            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Brush.TableGrid}" />
-            <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
-            <Setter Property="ColumnHeaderHeight" Value="36" />
-            <Setter Property="RowHeight" Value="34" />
-            <Setter Property="CanUserResizeRows" Value="False" />
             <Setter Property="CanUserSortColumns" Value="False" />
-            <Setter Property="SelectionUnit" Value="FullRow" />
-        </Style>
-
-        <Style x:Key="RouteStopsHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-            <Setter Property="Background" Value="{DynamicResource Brush.CardSoft}" />
-            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-            <Setter Property="Padding" Value="10,8" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
-            <Setter Property="BorderThickness" Value="0,0,0,1" />
-        </Style>
-
-        <Style x:Key="RouteStopsRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
-            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
-            <Setter Property="BorderThickness" Value="0,0,0,1" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource Brush.RowHover}" />
-                </Trigger>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
-                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="RouteStopsCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="Background" Value="Transparent" />
         </Style>
 
         <Style x:Key="RouteStopsCenterTextStyle" TargetType="TextBlock">
@@ -97,36 +54,41 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Style="{StaticResource FlatCardStyle}" Padding="10" Margin="0,0,0,10">
+        <Border Grid.Row="0" Style="{StaticResource FilterBarCardStyle}" Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="130" />
-                    <ColumnDefinition Width="170" />
-                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="190" />
+                    <ColumnDefinition Width="160" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0" Text="Karte" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,14,0" />
+                <TextBlock Grid.Column="0"
+                           Text="Karte"
+                           FontSize="24"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Margin="0,0,14,0" />
                 <TextBox Grid.Column="1"
-                         Height="38"
+                         Height="40"
                          VerticalAlignment="Center"
                          Margin="0,0,10,0"
                          ToolTip="Ort suchen (Enter)..."
                          Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                <Button Grid.Column="2" Height="38" Margin="0,0,10,0" Content="Suchen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding RefreshCommand}" />
+                <Button Grid.Column="2" Height="40" Margin="0,0,10,0" Content="Suchen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding RefreshCommand}" />
                 <ComboBox Grid.Column="3"
-                          Height="38"
+                          Height="40"
                           Margin="0,0,10,0"
                           ItemsSource="{Binding FilterOptions}"
                           SelectedItem="{Binding SelectedFilter, Mode=TwoWay}"
                           VerticalAlignment="Center" />
-                <Button Grid.Column="4" Height="38" Content="Route exportieren" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ExportRouteCommand}" />
+                <Button Grid.Column="4" Height="40" Content="Route exportieren" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ExportRouteCommand}" />
             </Grid>
         </Border>
 
         <Expander Grid.Row="1" IsExpanded="False" Header="Legende" Margin="0,0,0,10">
-            <Border Style="{StaticResource FlatCardStyle}" Padding="10" Margin="0,6,0,0">
+            <Border Style="{StaticResource SoftCardStyle}" Padding="12" Margin="0,6,0,0">
                 <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Pin-Form = Lieferart | Pin-Farbe = Auftragsstatus bzw. Tourstatus | Blaue Linie = aktuelle Route" />
             </Border>
         </Expander>
@@ -134,48 +96,48 @@
         <Border Grid.Row="2" Style="{StaticResource FlatCardStyle}" Padding="10">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="440" MinWidth="300" />
+                    <ColumnDefinition Width="460" MinWidth="320" />
                     <ColumnDefinition Width="6" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Style="{StaticResource SoftCardStyle}" Padding="10" Margin="0,0,4,0">
+                <Border Grid.Column="0" Style="{StaticResource SoftCardStyle}" Padding="12" Margin="0,0,6,0">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="200" />
+                            <RowDefinition Height="210" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="164" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Aktuelle Route" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="0" Text="Aktuelle Route" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
                             <ComboBox Grid.Column="1"
                                       Margin="8,0,6,0"
-                                      Height="32"
+                                      Height="34"
                                       MinWidth="140"
                                       ItemsSource="{Binding SavedTours}"
                                       SelectedItem="{Binding SelectedSavedTour, Mode=TwoWay}"
                                       DisplayMemberPath="Label" />
                             <Button Grid.Column="2"
-                                    Height="32"
+                                    Height="34"
                                     Content="Bearbeiten"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding EditSelectedTourCommand}" />
                             <Button Grid.Column="3"
-                                    Height="32"
-                                    MinWidth="36"
+                                    Height="34"
+                                    MinWidth="38"
                                     Margin="4,0,0,0"
                                     Padding="0"
                                     Style="{StaticResource SuccessButtonStyle}"
@@ -188,34 +150,36 @@
                                            VerticalAlignment="Center" />
                             </Button>
                             <Button Grid.Column="4"
-                                    Height="32"
+                                    Height="34"
                                     Margin="4,0,0,0"
                                     Content="X"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding LeaveSelectedTourCommand}" />
                         </Grid>
 
-                        <Grid Grid.Row="1" Margin="0,10,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="64" />
-                                <ColumnDefinition Width="14" />
-                                <ColumnDefinition Width="64" />
-                                <ColumnDefinition Width="100" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Startzeit" Margin="0,0,8,0" />
-                            <TextBox Grid.Column="1" Height="32" Text="{Binding RouteStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
-                            <TextBlock Grid.Column="2" Text=":" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                            <TextBox Grid.Column="3" Height="32" Text="{Binding RouteStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
-                            <Button Grid.Column="4" Height="32" Margin="10,0,8,0" Content="Übernehmen" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ApplyStartTimeCommand}" />
-                            <Button Grid.Column="5" Height="32" Content="Route optimieren" Style="{StaticResource SuccessButtonStyle}" Command="{Binding OptimizeRouteCommand}" />
-                        </Grid>
+                        <Border Grid.Row="1" Margin="0,10,0,10" Style="{StaticResource FlatCardStyle}" Padding="10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="68" />
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="68" />
+                                    <ColumnDefinition Width="108" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Startzeit" Margin="0,0,8,0" />
+                                <TextBox Grid.Column="1" Height="34" Text="{Binding RouteStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text=":" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                <TextBox Grid.Column="3" Height="34" Text="{Binding RouteStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
+                                <Button Grid.Column="4" Height="34" Margin="10,0,8,0" Content="Uebernehmen" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ApplyStartTimeCommand}" />
+                                <Button Grid.Column="5" Height="34" Content="Route optimieren" Style="{StaticResource SuccessButtonStyle}" Command="{Binding OptimizeRouteCommand}" />
+                            </Grid>
+                        </Border>
 
                         <Border Grid.Row="2"
-                                BorderBrush="{DynamicResource Brush.BorderStrong}"
+                                BorderBrush="{DynamicResource Brush.BorderSoft}"
                                 BorderThickness="1"
-                                CornerRadius="6"
+                                CornerRadius="12"
                                 Background="{DynamicResource Brush.TableBackground}"
                                 ClipToBounds="True">
                             <DataGrid x:Name="RouteStopsGrid"
@@ -231,10 +195,7 @@
                                       MouseMove="RouteStopsGrid_MouseMove"
                                       DragOver="RouteStopsGrid_DragOver"
                                       Drop="RouteStopsGrid_Drop"
-                                      Style="{StaticResource RouteStopsGridStyle}"
-                                      ColumnHeaderStyle="{StaticResource RouteStopsHeaderStyle}"
-                                      RowStyle="{StaticResource RouteStopsRowStyle}"
-                                      CellStyle="{StaticResource RouteStopsCellStyle}">
+                                      Style="{StaticResource RouteStopsGridStyle}">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="#" Width="42" Binding="{Binding DisplayPosition}" ElementStyle="{StaticResource RouteStopsCenterTextStyle}" />
                                     <DataGridTextColumn Header="Adresse / Name" Width="*" Binding="{Binding DisplayName}" ElementStyle="{StaticResource RouteStopsCenterTextStyle}" />
@@ -245,37 +206,45 @@
                             </DataGrid>
                         </Border>
 
-                        <StackPanel Grid.Row="3" Margin="0,10,0,8">
-                            <TextBlock FontWeight="SemiBold" Text="{Binding RouteTotalWeightText}" />
-                            <TextBlock Margin="0,4,0,0"
-                                       FontWeight="SemiBold"
-                                       Text="{Binding RouteLoadSummaryText}">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding RouteLoadSummaryText}" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Margin="0,4,0,0" Text="{Binding RouteTimingSummary}" />
-                        </StackPanel>
+                        <Border Grid.Row="3" Margin="0,10,0,8" Style="{StaticResource SoftCardStyle}" Padding="10">
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold" Text="{Binding RouteTotalWeightText}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           FontWeight="SemiBold"
+                                           Text="{Binding RouteLoadSummaryText}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RouteLoadSummaryText}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Margin="0,4,0,0" Text="{Binding RouteTimingSummary}" />
+                            </StackPanel>
+                        </Border>
 
-                        <Border Grid.Row="4" Style="{StaticResource SoftCardStyle}" Padding="10">
+                        <Border Grid.Row="4" Style="{StaticResource FlatCardStyle}" Padding="10">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
                                 <TextBlock Text="Fahrzeiten" FontWeight="SemiBold" />
-                                <TextBox Grid.Row="1" Margin="0,8,0,0" IsReadOnly="True" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" Text="{Binding DriveTimesText, Mode=OneWay}" />
+                                <TextBox Grid.Row="1"
+                                         Margin="0,8,0,0"
+                                         IsReadOnly="True"
+                                         AcceptsReturn="True"
+                                         VerticalScrollBarVisibility="Auto"
+                                         TextWrapping="Wrap"
+                                         Text="{Binding DriveTimesText, Mode=OneWay}" />
                             </Grid>
                         </Border>
 
-                        <Grid Grid.Row="5" Margin="0,8,0,0">
+                        <Grid Grid.Row="5" Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
@@ -297,11 +266,11 @@
                               ResizeBehavior="PreviousAndNext"
                               ResizeDirection="Columns"
                               ShowsPreview="True"
-                              Background="{DynamicResource Brush.BorderStrong}" />
+                              Background="{DynamicResource Brush.BorderSoft}" />
 
-                <Border Grid.Column="2" Style="{StaticResource SoftCardStyle}" Padding="4" Margin="4,0,8,0">
+                <Border Grid.Column="2" Style="{StaticResource FlatCardStyle}" Padding="4" Margin="6,0,10,0">
                     <Grid>
-                        <Border BorderBrush="{DynamicResource Brush.BorderStrong}" BorderThickness="1" CornerRadius="12" Background="{DynamicResource Brush.Card}" />
+                        <Border BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1" CornerRadius="14" Background="{DynamicResource Brush.Card}" />
                         <wv2:WebView2 x:Name="MapWebView" Margin="1" />
                         <TextBlock x:Name="MapFallbackNotice"
                                    Margin="16"
@@ -309,7 +278,7 @@
                                    Foreground="{DynamicResource Brush.TextMuted}"
                                    TextWrapping="Wrap"
                                    Visibility="Collapsed"
-                                   Text="Karte nicht verfügbar. Der Workflow bleibt über die Liste nutzbar." />
+                                   Text="Karte nicht verfuegbar. Der Workflow bleibt ueber die Liste nutzbar." />
                     </Grid>
                 </Border>
 
@@ -350,7 +319,7 @@
                 </Border>
 
                 <Grid Grid.Column="4" Margin="-4,0,0,0">
-                    <Border Width="390" Padding="10" HorizontalAlignment="Right">
+                    <Border Width="390" Padding="12" HorizontalAlignment="Right">
                         <Border.Style>
                             <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
                                 <Setter Property="Visibility" Value="Visible" />
@@ -375,7 +344,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="40" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Details" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="0" Text="Details" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
                                 <Button Grid.Column="1"
                                         Style="{StaticResource DetailsHeaderToggleButtonStyle}"
                                         Command="{Binding ToggleDetailsPanelCommand}">
@@ -443,7 +412,7 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Height="36" Margin="0,0,4,0" Content="Zu Tour hinzufügen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding AddToRouteCommand}" />
+                                    <Button Grid.Column="0" Height="36" Margin="0,0,4,0" Content="Zu Tour hinzufuegen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding AddToRouteCommand}" />
                                     <Button Grid.Column="1" Height="36" Margin="4,0,0,0" Content="Aus Tour entfernen" Style="{StaticResource DangerButtonStyle}" Command="{Binding RemoveOrderFromTourCommand}" />
                                 </Grid>
                                 <Button Grid.Row="2" Height="36" Margin="0,0,0,8" Content="E Mail senden" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SendEmailCommand}" />
@@ -457,22 +426,21 @@
                                     <Grid Grid.Row="1">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="86" />
                                         </Grid.ColumnDefinitions>
                                         <ComboBox Grid.Column="0"
-                                                  Height="34"
-                                                  ToolTip="Auftragsstatus ändern"
+                                                  Height="36"
+                                                  ToolTip="Auftragsstatus aendern"
                                                   ItemsSource="{Binding OrderStatusOptions}"
                                                   SelectedItem="{Binding DetailSelectedStatus, Mode=TwoWay}" />
-                                        <Button Grid.Column="1" Height="34" Margin="8,0,0,0" Content="Schließen" Style="{StaticResource DarkButtonStyle}" Command="{Binding CloseDetailsCommand}" />
+                                        <Button Grid.Column="1" Height="36" Margin="8,0,0,0" Content="Schliessen" Style="{StaticResource DarkButtonStyle}" Command="{Binding CloseDetailsCommand}" />
                                     </Grid>
                                     <TextBlock Grid.Row="0"
                                                Margin="0,0,0,6"
                                                FontWeight="SemiBold"
-                                               Text="Auftragsstatus ändern" />
+                                               Text="Auftragsstatus aendern" />
                                 </Grid>
                             </Grid>
-
                         </Grid>
                     </Border>
                 </Grid>
@@ -480,4 +448,3 @@
         </Border>
     </Grid>
 </UserControl>
-

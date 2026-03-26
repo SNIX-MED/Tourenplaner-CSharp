@@ -21,8 +21,11 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private readonly JsonAppSettingsRepository _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly Func<int, Task>? _openTourAsync;
+    private readonly Func<int, Task>? _openTourOnMapAsync;
     private readonly Func<DateTime, Task>? _openDayInToursAsync;
+    private readonly Func<string, Task>? _openOrderEditorAsync;
     private readonly List<TourRecord> _allTours = [];
+    private readonly List<Order> _allOrders = [];
     private readonly List<CalendarDayItem> _interactiveDays = [];
     private readonly Guid _instanceId = Guid.NewGuid();
 
@@ -43,7 +46,9 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         string ordersJsonPath,
         string settingsJsonPath,
         Func<int, Task>? openTourAsync = null,
+        Func<int, Task>? openTourOnMapAsync = null,
         Func<DateTime, Task>? openDayInToursAsync = null,
+        Func<string, Task>? openOrderEditorAsync = null,
         AppDataSyncService? dataSyncService = null)
         : base("Kalender", "Übersicht aller geplanten Touren. Ein Doppelklick öffnet den Tag in den Liefertouren.")
     {
@@ -52,7 +57,9 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
         _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _openTourAsync = openTourAsync;
+        _openTourOnMapAsync = openTourOnMapAsync;
         _openDayInToursAsync = openDayInToursAsync;
+        _openOrderEditorAsync = openOrderEditorAsync;
 
         PreviousRangeCommand = new DelegateCommand(ShowPreviousRange);
         NextRangeCommand = new DelegateCommand(ShowNextRange);
@@ -154,7 +161,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     {
         var settingsTask = _settingsRepository.LoadAsync();
         var toursTask = _repository.LoadAsync();
-        await Task.WhenAll(settingsTask, toursTask);
+        var ordersTask = _orderRepository.GetAllAsync();
+        await Task.WhenAll(settingsTask, toursTask, ordersTask);
 
         var settings = await settingsTask;
         _calendarLoadWarningColor = NormalizeHexColor(settings.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
@@ -166,6 +174,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
         _allTours.Clear();
         _allTours.AddRange(await toursTask);
+        _allOrders.Clear();
+        _allOrders.AddRange(await ordersTask);
         BuildCalendarRange(preserveSelectionDate: SelectedDay?.Date ?? DateTime.Today);
     }
 
@@ -297,7 +307,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 TourCountText = $"{toursForDay.Count} geplante Tour(en)",
                 SummaryText = toursForDay.Count == 0
                     ? "Keine Tour geplant."
-                    : string.Join(" | ", toursForDay.Take(2).Select(t => BuildTourSummary(t, includeName: true))),
+                    : string.Join(Environment.NewLine, toursForDay.Select(t => BuildTourSummary(t, includeName: true))),
                 IsToday = date == DateTime.Today
             };
             ApplyDayLoadAppearance(card, assignedPeopleCount);
@@ -342,15 +352,18 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
         foreach (var tour in dayTours)
         {
+            var stops = BuildTourStopCards(tour);
             SelectedDayTours.Add(new CalendarTourItem
             {
                 TourId = tour.Id,
+                DateText = selectedDate.ToString("dd.MM.yyyy", UiCulture),
                 Name = tour.Name,
                 StartTime = NormalizeStartTime(tour.StartTime),
                 VehicleId = string.IsNullOrWhiteSpace(tour.VehicleId) ? "-" : tour.VehicleId!,
                 Employees = string.Join(", ", tour.EmployeeIds),
                 StopCount = tour.Stops.Count(s => !TourStopIdentity.IsCompanyStop(s)),
-                Summary = BuildTourSummary(tour, includeName: false)
+                Summary = BuildTourSummary(tour, includeName: false),
+                Stops = stops
             });
         }
 
@@ -377,6 +390,17 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         await _openDayInToursAsync(selectedDate);
     }
 
+    public async Task OpenOrderEditorAsync(string? orderId)
+    {
+        var normalized = (orderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized) || _openOrderEditorAsync is null)
+        {
+            return;
+        }
+
+        await _openOrderEditorAsync(normalized);
+    }
+
     private async Task OpenSelectedTourAsync()
     {
         if (SelectedDayTour is null || _openTourAsync is null)
@@ -385,6 +409,16 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         }
 
         await _openTourAsync(SelectedDayTour.TourId);
+    }
+
+    public async Task OpenTourOnMapAsync(int tourId)
+    {
+        if (_openTourOnMapAsync is null || tourId <= 0)
+        {
+            return;
+        }
+
+        await _openTourOnMapAsync(tourId);
     }
 
     private async Task DeleteSelectedTourAsync()
@@ -475,6 +509,187 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         return $"{lead} ({stopCount} Stopps)";
     }
 
+    private List<CalendarTourStopCardItem> BuildTourStopCards(TourRecord tour)
+    {
+        var cards = new List<CalendarTourStopCardItem>();
+        var letterIndex = 1; // Start with B to keep A implicitly reserved for depot/company.
+        foreach (var stop in tour.Stops
+                     .Where(s => !TourStopIdentity.IsCompanyStop(s))
+                     .OrderBy(s => s.Order))
+        {
+            var stopLabel = ToStopLetter(letterIndex);
+            letterIndex++;
+
+            var order = ResolveOrderForStop(stop, tour.Id);
+            cards.Add(new CalendarTourStopCardItem
+            {
+                StopLetter = stopLabel,
+                OrderId = ResolveOrderId(order, stop),
+                OrderAddress = FormatOrderAddress(order, stop),
+                DeliveryAddress = FormatDeliveryAddress(order, stop),
+                ProductLines = BuildProductLines(order, stop),
+                WeightText = BuildWeightText(order, stop)
+            });
+        }
+
+        return cards;
+    }
+
+    private Order? ResolveOrderForStop(TourStopRecord stop, int tourId)
+    {
+        var byNumber = (stop.Auftragsnummer ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(byNumber))
+        {
+            var byId = _allOrders.FirstOrDefault(o => string.Equals(o.Id, byNumber, StringComparison.OrdinalIgnoreCase));
+            if (byId is not null)
+            {
+                return byId;
+            }
+        }
+
+        var byStopId = (stop.Id ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(byStopId))
+        {
+            var byId = _allOrders.FirstOrDefault(o => string.Equals(o.Id, byStopId, StringComparison.OrdinalIgnoreCase));
+            if (byId is not null)
+            {
+                return byId;
+            }
+        }
+
+        var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
+        if (!string.IsNullOrWhiteSpace(byNumber))
+        {
+            return _allOrders.FirstOrDefault(o =>
+                string.Equals(o.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(o.Id, byNumber, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return null;
+    }
+
+    private static string FormatOrderAddress(Order? order, TourStopRecord stop)
+    {
+        if (order is not null)
+        {
+            var line = string.Join(", ", new[]
+            {
+                (order.OrderAddress?.Name ?? string.Empty).Trim(),
+                (order.OrderAddress?.Street ?? string.Empty).Trim(),
+                string.Join(" ", new[]
+                {
+                    (order.OrderAddress?.PostalCode ?? string.Empty).Trim(),
+                    (order.OrderAddress?.City ?? string.Empty).Trim()
+                }.Where(x => !string.IsNullOrWhiteSpace(x)))
+            }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                return line;
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(stop.Auftragsnummer) ? "-" : $"Auftrag {stop.Auftragsnummer}";
+    }
+
+    private static string FormatDeliveryAddress(Order? order, TourStopRecord stop)
+    {
+        if (order is not null)
+        {
+            var line = string.Join(", ", new[]
+            {
+                (order.DeliveryAddress?.Name ?? string.Empty).Trim(),
+                (order.DeliveryAddress?.Street ?? string.Empty).Trim(),
+                string.Join(" ", new[]
+                {
+                    (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim(),
+                    (order.DeliveryAddress?.City ?? string.Empty).Trim()
+                }.Where(x => !string.IsNullOrWhiteSpace(x)))
+            }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                return line;
+            }
+        }
+
+        return (stop.Address ?? string.Empty).Trim();
+    }
+
+    private static List<string> BuildProductLines(Order? order, TourStopRecord stop)
+    {
+        if (order?.Products is not null && order.Products.Count > 0)
+        {
+            return order.Products
+                .Select(p =>
+                {
+                    var name = (p.Name ?? string.Empty).Trim();
+                    var quantity = Math.Max(1, p.Quantity);
+                    var weight = Math.Max(0d, p.WeightKg);
+                    return string.IsNullOrWhiteSpace(name)
+                        ? $"{quantity}x ({weight:0.##} kg)"
+                        : $"{quantity}x {name} ({weight:0.##} kg)";
+                })
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+        }
+
+        var fallback = ParseStopWeight(stop.Gewicht);
+        return fallback > 0
+            ? [$"Gewicht: {fallback} kg"]
+            : [];
+    }
+
+    private static string BuildWeightText(Order? order, TourStopRecord stop)
+    {
+        if (order?.Products is not null && order.Products.Count > 0)
+        {
+            var total = order.Products.Sum(p => Math.Max(0d, p.WeightKg));
+            return $"Total: {total:0.##} kg";
+        }
+
+        var parsed = ParseStopWeight(stop.Gewicht);
+        return parsed > 0 ? $"Total: {parsed:0.##} kg" : string.Empty;
+    }
+
+    private static string ResolveOrderId(Order? order, TourStopRecord stop)
+    {
+        if (!string.IsNullOrWhiteSpace(order?.Id))
+        {
+            return order.Id.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(stop.Auftragsnummer))
+        {
+            return stop.Auftragsnummer.Trim();
+        }
+
+        return string.Empty;
+    }
+
+    private static double ParseStopWeight(string? raw)
+    {
+        var text = (raw ?? string.Empty).Trim().Replace(',', '.');
+        return double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
+            ? Math.Max(0d, parsed)
+            : 0d;
+    }
+
+    private static string ToStopLetter(int index)
+    {
+        // 1 -> B, 2 -> C, ... 25 -> Z, 26 -> AA
+        var value = index + 1;
+        var label = string.Empty;
+        while (value > 0)
+        {
+            var remainder = (value - 1) % 26;
+            label = (char)('A' + remainder) + label;
+            value = (value - 1) / 26;
+        }
+
+        return label;
+    }
+
     private Dictionary<DateTime, CalendarDayLoad> BuildDayLoadByDate()
     {
         return _allTours
@@ -490,9 +705,9 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
     private void ApplyDayLoadAppearance(CalendarLoadItem item, int assignedPeopleCount)
     {
-        item.LoadBackground = string.Empty;
-        item.LoadBorderBrush = string.Empty;
-        item.LoadForeground = string.Empty;
+        item.LoadBackground = "#FFFFFF";
+        item.LoadBorderBrush = "#D8DEE7";
+        item.LoadForeground = "#0F172A";
 
         if (assignedPeopleCount >= _calendarLoadCriticalPeopleThreshold)
         {
@@ -690,6 +905,8 @@ public sealed class CalendarTourItem
 {
     public int TourId { get; set; }
 
+    public string DateText { get; set; } = string.Empty;
+
     public string Name { get; set; } = string.Empty;
 
     public string StartTime { get; set; } = string.Empty;
@@ -701,6 +918,23 @@ public sealed class CalendarTourItem
     public int StopCount { get; set; }
 
     public string Summary { get; set; } = string.Empty;
+
+    public IReadOnlyList<CalendarTourStopCardItem> Stops { get; set; } = [];
+}
+
+public sealed class CalendarTourStopCardItem
+{
+    public string OrderId { get; set; } = string.Empty;
+
+    public string StopLetter { get; set; } = string.Empty;
+
+    public string OrderAddress { get; set; } = string.Empty;
+
+    public string DeliveryAddress { get; set; } = string.Empty;
+
+    public IReadOnlyList<string> ProductLines { get; set; } = [];
+
+    public string WeightText { get; set; } = string.Empty;
 }
 
 public sealed class UpcomingDayCardItem : CalendarLoadItem

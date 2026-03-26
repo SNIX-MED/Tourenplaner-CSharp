@@ -13,35 +13,37 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Style="{StaticResource FlatCardStyle}" Padding="12">
+        <Border Style="{StaticResource FilterBarCardStyle}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="170" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="32" FontWeight="Bold" Text="{Binding Title}" />
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="{Binding Title}" />
+                    <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Teamdaten verwalten und aktiv halten." />
+                </StackPanel>
 
                 <Button Grid.Column="1"
                         Margin="10,0,0,0"
-                        Height="34"
+                        Height="38"
                         Content="+ Mitarbeiter"
                         Style="{StaticResource SuccessButtonStyle}"
                         Click="OnAddEntryClicked" />
             </Grid>
         </Border>
 
-        <TextBlock Grid.Row="1"
-                   Margin="2,12,0,10"
-                   Foreground="{DynamicResource Brush.TextMuted}"
-                   Text="{Binding CountText}" />
+        <Border Grid.Row="1" Margin="0,12,0,10" Style="{StaticResource SoftCardStyle}" Padding="10">
+            <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding CountText}" />
+        </Border>
 
-        <Border Grid.Row="2" Style="{StaticResource FlatCardStyle}" Padding="10">
+        <Border Grid.Row="2" Style="{StaticResource FlatCardStyle}" Padding="12">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding Entries}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Margin="0,0,0,10" Padding="12" Style="{StaticResource SoftCardStyle}">
+                            <Border Margin="0,0,0,10" Padding="14" Style="{StaticResource SoftCardStyle}">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -57,32 +59,36 @@
 
                                     <Border Grid.Row="0"
                                             Grid.Column="1"
-                                            MinWidth="70"
-                                            Height="26"
+                                            MinWidth="78"
+                                            Height="28"
                                             Padding="12,0"
                                             HorizontalAlignment="Right"
-                                            CornerRadius="13">
+                                            CornerRadius="14">
                                         <Border.Style>
                                             <Style TargetType="Border">
-                                                <Setter Property="Background" Value="#EF4444" />
+                                                <Setter Property="Background" Value="{DynamicResource Brush.DangerSoft}" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Active}" Value="True">
-                                                        <Setter Property="Background" Value="#16A34A" />
+                                                        <Setter Property="Background" Value="{DynamicResource Brush.SuccessSoft}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="White" Text="{Binding ActiveLabel}" />
+                                        <TextBlock HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Brush.TextPrimary}"
+                                                   Text="{Binding ActiveLabel}" />
                                     </Border>
 
                                     <TextBlock Grid.Row="1"
                                                Grid.ColumnSpan="2"
-                                               Margin="0,8,0,0"
+                                               Margin="0,10,0,0"
                                                Foreground="{DynamicResource Brush.TextMuted}"
                                                TextWrapping="Wrap"
                                                Text="{Binding DetailsLine}" />
 
-                                    <Grid Grid.Row="2" Grid.ColumnSpan="2" Margin="0,10,0,0">
+                                    <Grid Grid.Row="2" Grid.ColumnSpan="2" Margin="0,12,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
@@ -97,7 +103,7 @@
                                         <Button Grid.Column="1"
                                                 Height="36"
                                                 Margin="8,0,0,0"
-                                                Content="Löschen"
+                                                Content="Loeschen"
                                                 Style="{StaticResource DangerButtonStyle}"
                                                 Tag="{Binding}"
                                                 Click="OnDeleteEntryClicked" />

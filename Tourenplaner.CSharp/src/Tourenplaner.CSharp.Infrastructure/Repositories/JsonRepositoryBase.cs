@@ -4,6 +4,7 @@ namespace Tourenplaner.CSharp.Infrastructure.Repositories;
 
 public abstract class JsonRepositoryBase<T>
 {
+    private const int FileOpenRetryAttempts = 6;
     private readonly JsonSerializerOptions _serializerOptions;
 
     protected JsonRepositoryBase(string filePath)
@@ -26,7 +27,12 @@ public abstract class JsonRepositoryBase<T>
             await File.WriteAllTextAsync(FilePath, "[]", cancellationToken);
         }
 
-        await using var stream = File.Open(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await using var stream = await OpenFileWithRetryAsync(
+            FilePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            cancellationToken);
         var result = await JsonSerializer.DeserializeAsync<List<T>>(stream, _serializerOptions, cancellationToken);
         return result ?? new List<T>();
     }
@@ -34,7 +40,12 @@ public abstract class JsonRepositoryBase<T>
     protected async Task WriteListAsync(IEnumerable<T> values, CancellationToken cancellationToken)
     {
         EnsureParentDirectory();
-        await using var stream = File.Open(FilePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        await using var stream = await OpenFileWithRetryAsync(
+            FilePath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            cancellationToken);
         await JsonSerializer.SerializeAsync(stream, values.ToList(), _serializerOptions, cancellationToken);
     }
 
@@ -47,7 +58,12 @@ public abstract class JsonRepositoryBase<T>
             return fallback;
         }
 
-        await using var stream = File.Open(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await using var stream = await OpenFileWithRetryAsync(
+            FilePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            cancellationToken);
         var value = await JsonSerializer.DeserializeAsync<T>(stream, _serializerOptions, cancellationToken);
         return value ?? fallback;
     }
@@ -55,8 +71,34 @@ public abstract class JsonRepositoryBase<T>
     protected async Task WriteSingleAsync(T value, CancellationToken cancellationToken)
     {
         EnsureParentDirectory();
-        await using var stream = File.Open(FilePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        await using var stream = await OpenFileWithRetryAsync(
+            FilePath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            cancellationToken);
         await JsonSerializer.SerializeAsync(stream, value, _serializerOptions, cancellationToken);
+    }
+
+    private static async Task<FileStream> OpenFileWithRetryAsync(
+        string path,
+        FileMode mode,
+        FileAccess access,
+        FileShare share,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return File.Open(path, mode, access, share);
+            }
+            catch (IOException) when (attempt < FileOpenRetryAttempts)
+            {
+                await Task.Delay(40 * attempt, cancellationToken);
+            }
+        }
     }
 
     private void EnsureParentDirectory()

@@ -14,7 +14,6 @@ public sealed class StartSectionViewModel : SectionViewModelBase
     private static readonly CultureInfo UiCulture = new("de-CH");
     private static readonly string[] SupportedDateFormats = ["dd.MM.yyyy", "yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy"];
     private const int PreviewDayCount = 14;
-    private const int InitiallyVisibleDayCount = 5;
 
     private readonly JsonToursRepository _tourRepository;
     private readonly JsonAppSettingsRepository _settingsRepository;
@@ -23,8 +22,7 @@ public sealed class StartSectionViewModel : SectionViewModelBase
     private readonly string _bannerImagePath;
     private readonly Guid _instanceId = Guid.NewGuid();
     private string _statusText = "Startseite wird geladen...";
-    private string _calendarHeadline = $"Kalender der naechsten {PreviewDayCount} Tage";
-    private string _calendarSubtitle = $"Heute + naechste {InitiallyVisibleDayCount - 1} Tage sichtbar. Nach unten scrollen fuer alle {PreviewDayCount} Tage.";
+    private string _calendarHeadline = "Kalender";
     private string _dashboardSummary = "Tourenuebersicht wird geladen...";
     private string _nextPlannedDayText = "Noch kein Tourtag geplant";
 
@@ -65,12 +63,6 @@ public sealed class StartSectionViewModel : SectionViewModelBase
     {
         get => _calendarHeadline;
         private set => SetProperty(ref _calendarHeadline, value);
-    }
-
-    public string CalendarSubtitle
-    {
-        get => _calendarSubtitle;
-        private set => SetProperty(ref _calendarSubtitle, value);
     }
 
     public string DashboardSummary
@@ -144,8 +136,7 @@ public sealed class StartSectionViewModel : SectionViewModelBase
         var nextPlannedDay = plannedCards.FirstOrDefault();
 
         var displayedDayCount = UpcomingDayCards.Count;
-        CalendarHeadline = $"Kalender der naechsten {PreviewDayCount} Tage";
-        CalendarSubtitle = $"Heute + naechste {InitiallyVisibleDayCount - 1} Tage sichtbar. Nach unten scrollen fuer alle {PreviewDayCount} Tage.";
+        CalendarHeadline = "Kalender";
         DashboardSummary = plannedDayCount == 0
             ? $"In den naechsten {displayedDayCount} Tagen ist aktuell keine Tour geplant."
             : $"{plannedTourCount} Tour(en) an {plannedDayCount} Tag(en) in den naechsten {displayedDayCount} Tagen.";

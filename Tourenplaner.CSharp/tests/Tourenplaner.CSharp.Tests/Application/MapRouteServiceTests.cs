@@ -83,7 +83,8 @@ public class MapRouteServiceTests
             defaultServiceMinutes: -5);
 
         Assert.Equal(12, tour.Id);
-        Assert.Equal("Karte Tour 12", tour.Name);
+        Assert.StartsWith("Karte Tour ", tour.Name);
+        Assert.Equal($"Karte Tour {DateOnly.FromDateTime(DateTime.Today):dd.MM.yyyy}", tour.Name);
         Assert.Equal("08:00", tour.StartTime);
         Assert.Equal("car", tour.RouteMode);
         Assert.Equal("FIRMA-START", tour.Stops[0].Auftragsnummer);

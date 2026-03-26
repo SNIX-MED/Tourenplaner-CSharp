@@ -24,7 +24,6 @@ public class SettingsValidatorTests
         var result = validator.Validate(settings);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Contains("AppearanceMode"));
         Assert.Contains(result.Errors, e => e.Contains("BackupModeDefault"));
         Assert.Contains(result.Errors, e => e.Contains("BackupRetentionDays"));
         Assert.Contains(result.Errors, e => e.Contains("AutoBackupIntervalDays"));

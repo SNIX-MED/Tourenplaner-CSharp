@@ -4,6 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(UseBinaryReferences)' != 'true'">
@@ -27,6 +28,7 @@
   <ItemGroup>
     <Resource Include="Assets\Banner.png" />
     <Resource Include="Assets\Einstellungen.png" />
+    <Resource Include="Assets\Pin.png" />
   </ItemGroup>
 
 </Project>

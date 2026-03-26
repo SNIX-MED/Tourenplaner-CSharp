@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.Domain.Models;
@@ -88,6 +89,17 @@ public partial class ManualOrderDialogWindow : Window
         }
 
         OnEditProductClicked(sender, new RoutedEventArgs());
+    }
+
+    private void OnProductGridPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (ContentScrollViewer is null)
+        {
+            return;
+        }
+
+        ContentScrollViewer.ScrollToVerticalOffset(ContentScrollViewer.VerticalOffset - (e.Delta / 3d));
+        e.Handled = true;
     }
 }
 

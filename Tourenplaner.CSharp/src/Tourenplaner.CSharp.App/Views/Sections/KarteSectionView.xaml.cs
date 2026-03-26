@@ -577,14 +577,17 @@ public partial class KarteSectionView : UserControl
                    }
 
                    function buildOrderMarkerHtml(shape, color) {
-                     const stroke = '#334155';
+                     const stroke = '#1e293b';
+                     const coreSize = 22;
+                     const border = 2;
+                     const shadow = '0 4px 12px rgba(15, 23, 42, 0.28)';
                      if (shape === 'square') {
-                       return `<div style="width:14px;height:14px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px ${stroke};"></div>`;
+                       return `<div style="width:${coreSize}px;height:${coreSize}px;background:${color};border:${border}px solid #fff;border-radius:7px;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;"></div>`;
                      }
                      if (shape === 'triangle') {
-                       return `<div style="position:relative;width:18px;height:18px;"><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:16px solid #fff;"></div><div style="position:absolute;left:2px;top:3px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:12px solid ${color};filter:drop-shadow(0 0 0 ${stroke});"></div></div>`;
+                       return `<div style="position:relative;width:24px;height:24px;filter:drop-shadow(0 3px 8px rgba(15, 23, 42, 0.28));"><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid #fff;"></div><div style="position:absolute;left:2px;top:3px;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:18px solid ${color};"></div><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid transparent;filter:drop-shadow(0 0 0 ${stroke});"></div></div>`;
                      }
-                     return `<div style="width:18px;height:18px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px ${stroke};box-sizing:border-box;"></div>`;
+                     return `<div style="width:${coreSize}px;height:${coreSize}px;border-radius:50%;background:${color};border:${border}px solid #fff;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;"></div>`;
                    }
 
                    function resolveMarkerColor(status) {
@@ -615,8 +618,8 @@ public partial class KarteSectionView : UserControl
                        const icon = L.divIcon({
                          className: 'gawela-marker',
                          html: buildOrderMarkerHtml(m.shape, color),
-                         iconSize: [18, 18],
-                         iconAnchor: [9, 9]
+                         iconSize: [24, 24],
+                         iconAnchor: [12, 12]
                        });
                        const marker = L.marker([m.lat, m.lon], { icon });
                        marker.bindPopup(
