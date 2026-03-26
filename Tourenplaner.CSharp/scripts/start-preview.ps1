@@ -5,6 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $exePath = Join-Path $ProjectRoot "src\Tourenplaner.CSharp.App\bin\Debug\net8.0-windows\Tourenplaner.CSharp.App.exe"
+$currentSessionId = (Get-Process -Id $PID).SessionId
 
 if (-not (Test-Path $exePath)) {
     throw "App executable not found: $exePath"
@@ -19,15 +20,50 @@ namespace Win32
     {
         [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
         [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+        [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
     }
 }
 "@
 
+function Wait-ForMainWindow {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [int]$TimeoutMilliseconds = 15000
+    )
+
+    if ($null -eq $Process) { return $null }
+
+    $deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMilliseconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        try {
+            if ($Process.HasExited) { return $null }
+            $Process.Refresh()
+        }
+        catch {
+            return $null
+        }
+
+        if ($Process.MainWindowHandle -ne 0 -and [Win32.NativeMethods]::IsWindowVisible($Process.MainWindowHandle)) {
+            return $Process
+        }
+
+        Start-Sleep -Milliseconds 200
+    }
+
+    return $null
+}
+
 function Show-And-FocusWindow {
-    param([System.Diagnostics.Process]$Process)
+    param(
+        [System.Diagnostics.Process]$Process,
+        [int]$TimeoutMilliseconds = 15000
+    )
 
     if ($null -eq $Process) { return $false }
     if ($Process.HasExited) { return $false }
+
+    $Process = Wait-ForMainWindow -Process $Process -TimeoutMilliseconds $TimeoutMilliseconds
+    if ($null -eq $Process) { return $false }
 
     $handle = $Process.MainWindowHandle
     if ($handle -eq 0) { return $false }
@@ -39,35 +75,43 @@ function Show-And-FocusWindow {
     return $true
 }
 
-$running = Get-Process -Name "Tourenplaner.CSharp.App" -ErrorAction SilentlyContinue
+$running = Get-Process -Name "Tourenplaner.CSharp.App" -ErrorAction SilentlyContinue |
+    Where-Object { $_.SessionId -eq $currentSessionId }
+
 if ($running) {
     foreach ($proc in $running) {
-        if (Show-And-FocusWindow -Process $proc) {
+        if (Show-And-FocusWindow -Process $proc -TimeoutMilliseconds 2000) {
             Write-Output "Focused existing Tourenplaner window (PID $($proc.Id))."
             exit 0
         }
     }
 
-    # No visible window found (stale/background process). Clean up and relaunch.
+    # No visible window found in the current interactive session. Clean up and relaunch.
     $running | Stop-Process -Force
-    Start-Sleep -Milliseconds 200
+    Start-Sleep -Milliseconds 500
 }
 
 $started = Start-Process -FilePath $exePath -WorkingDirectory (Split-Path $exePath) -PassThru
 
-for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Milliseconds 200
-    try {
-        $started.Refresh()
-    }
-    catch {
-        break
-    }
-
-    if (Show-And-FocusWindow -Process $started) {
-        Write-Output "Started and focused Tourenplaner window (PID $($started.Id))."
-        exit 0
-    }
+if (Show-And-FocusWindow -Process $started -TimeoutMilliseconds 20000) {
+    Write-Output "Started and focused Tourenplaner window (PID $($started.Id), Session $($started.SessionId))."
+    exit 0
 }
 
-Write-Output "Started process (PID $($started.Id)), but no window handle detected yet."
+try {
+    $started.Refresh()
+}
+catch {
+}
+
+if ($started.HasExited) {
+    throw "Tourenplaner exited before opening a main window. ExitCode: $($started.ExitCode)"
+}
+
+try {
+    $started | Stop-Process -Force
+}
+catch {
+}
+
+throw "Tourenplaner started (PID $($started.Id)) but did not create a visible main window within 20 seconds."

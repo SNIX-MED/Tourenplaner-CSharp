@@ -1,21 +1,41 @@
 using System.Text;
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Tourenplaner.CSharp.Domain.Models;
 
 public class SqlConnectionSettings
 {
-    public string Server { get; set; } = ".\\SQLEXPRESS";
+    public const string DefaultServer = @"DESKTOP-K4DH1NL\PROFITEX";
+    public const string DefaultBusiness11DatabasePath = @"L:\Business11\Custom\Database\Business11";
+    public const string DefaultBusiness11DatabaseFileName = "Business11.mdf";
+
+    public string Server { get; set; } = DefaultServer;
+    public string DatabasePath { get; set; } = DefaultBusiness11DatabasePath;
     public string Database { get; set; } = "Business11";
     public bool UseWindowsAuthentication { get; set; } = true;
     public string UserId { get; set; } = "";
     public string Password { get; set; } = "";
     public int CommandTimeoutSeconds { get; set; } = 30;
+    public int ConnectionTimeoutSeconds { get; set; } = 4;
     
     public string GetConnectionString()
     {
+        var server = string.IsNullOrWhiteSpace(Server) ? DefaultServer : Server.Trim();
+        return BuildConnectionString(server, attachDbFile: ShouldAttachDatabaseFile(), connectionTimeoutSeconds: ConnectionTimeoutSeconds);
+    }
+
+    public string BuildConnectionString(string server, bool attachDbFile, int? connectionTimeoutSeconds = null)
+    {
         var sb = new StringBuilder();
-        sb.Append($"Server={Server};");
-        sb.Append($"Database={Database};");
+        sb.Append($"Server={server};");
+        sb.Append($"Database={GetDatabaseName()};");
+
+        if (attachDbFile)
+        {
+            sb.Append($"AttachDbFilename={GetDatabaseFilePath()};");
+        }
 
         if (UseWindowsAuthentication)
         {
@@ -29,9 +49,105 @@ public class SqlConnectionSettings
 
         sb.Append("TrustServerCertificate=true;");
         sb.Append("Encrypt=false;");
-        sb.Append($"Connection Timeout={CommandTimeoutSeconds};");
+        var timeout = connectionTimeoutSeconds ?? ConnectionTimeoutSeconds;
+        sb.Append($"Connection Timeout={timeout};");
 
         return sb.ToString();
+    }
+
+    public string GetDatabaseName()
+    {
+        return string.IsNullOrWhiteSpace(Database) ? "Business11" : Database.Trim();
+    }
+
+    public string GetDatabaseFilePath()
+    {
+        var configuredPath = (DatabasePath ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            configuredPath = DefaultBusiness11DatabasePath;
+        }
+
+        return configuredPath.EndsWith(".mdf", StringComparison.OrdinalIgnoreCase)
+            ? configuredPath
+            : Path.Combine(configuredPath, DefaultBusiness11DatabaseFileName);
+    }
+
+    public bool HasDatabasePath()
+    {
+        return !string.IsNullOrWhiteSpace((DatabasePath ?? string.Empty).Trim());
+    }
+
+    public bool ShouldAttachDatabaseFile()
+    {
+        if (!HasDatabasePath())
+        {
+            return false;
+        }
+
+        var path = GetDatabaseFilePath();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        if (path.StartsWith(@"\\", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var root = Path.GetPathRoot(path);
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return true;
+        }
+
+        try
+        {
+            var drive = new DriveInfo(root);
+            return drive.DriveType == DriveType.Fixed;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public IEnumerable<string> GetConnectionAttemptDescriptions()
+    {
+        foreach (var server in GetServerCandidates().Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            yield return $"{server} / DB={GetDatabaseName()}";
+            if (ShouldAttachDatabaseFile())
+            {
+                yield return $"{server} / DB={GetDatabaseName()} / Attach={GetDatabaseFilePath()}";
+            }
+        }
+    }
+
+    public IEnumerable<string> GetServerCandidates()
+    {
+        var explicitServer = (Server ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(explicitServer))
+        {
+            yield return explicitServer;
+        }
+
+        if (!string.Equals(explicitServer, @".\SQLEXPRESS", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return @".\SQLEXPRESS";
+        }
+
+        if (!string.Equals(explicitServer, @"(LocalDB)\MSSQLLocalDB", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return @"(LocalDB)\MSSQLLocalDB";
+        }
+
+        if (!string.Equals(explicitServer, @".", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return @".";
+        }
     }
 }
 

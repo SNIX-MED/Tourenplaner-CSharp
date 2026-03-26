@@ -14,7 +14,7 @@ public partial class App : System.Windows.Application
 {
     private string _logPath = string.Empty;
 
-    protected override async void OnStartup(StartupEventArgs e)
+    protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -39,7 +39,7 @@ public partial class App : System.Windows.Application
         var employeesJsonPath = Path.Combine(dataRoot, "employees.json");
         var vehiclesJsonPath = Path.Combine(dataRoot, "vehicles.json");
         var settingsJsonPath = settingsPath;
-        _ = await RunTourIntegrityCheckOnStartup(toursJsonPath, settingsJsonPath);
+        _ = RunTourIntegrityCheckOnStartup(toursJsonPath, settingsJsonPath);
 
         var mainWindow = new MainWindow
         {

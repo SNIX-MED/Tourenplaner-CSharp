@@ -383,19 +383,37 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="SQL Server" />
-                                <TextBox Grid.Row="0" Grid.Column="1" Margin="10,4,0,4" 
-                                         ToolTip="Format: ServerName oder .\SQLEXPRESS für lokal"
+                                <TextBox Grid.Row="0" Grid.Column="1" Margin="10,4,0,4"
+                                         ToolTip="z.B. .\SQLEXPRESS, . oder SERVER\INSTANZ"
                                          Text="{Binding SqlServer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Datenbank" />
-                                <TextBox Grid.Row="1" Grid.Column="1" Margin="10,4,0,4" Text="{Binding SqlDatabase, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Datenbankname" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Margin="10,4,0,4"
+                                         ToolTip="z.B. Business11"
+                                         Text="{Binding SqlDatabase, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Windows-Auth" />
-                                <CheckBox Grid.Row="2" Grid.Column="1" Margin="10,6,0,6" IsChecked="{Binding SqlUseWindowsAuth, Mode=TwoWay}" 
+                                <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Datenbankpfad" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Margin="10,4,0,4"
+                                         ToolTip="Ordner oder .mdf-Datei der Business11-Datenbank"
+                                         Text="{Binding SqlDatabasePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="Windows-Auth" />
+                                <CheckBox Grid.Row="3" Grid.Column="1" Margin="10,6,0,6" IsChecked="{Binding SqlUseWindowsAuth, Mode=TwoWay}" 
                                           ToolTip="Verwendet Windows-Authentifizierung, wenn aktiviert" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Text="SQL Benutzer" />
+                                <TextBox Grid.Row="4" Grid.Column="1" Margin="10,4,0,4"
+                                         Text="{Binding SqlUserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" Text="SQL Passwort" />
+                                <TextBox Grid.Row="5" Grid.Column="1" Margin="10,4,0,4"
+                                         Text="{Binding SqlPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             </Grid>
 
                             <Border Margin="0,12,0,0"

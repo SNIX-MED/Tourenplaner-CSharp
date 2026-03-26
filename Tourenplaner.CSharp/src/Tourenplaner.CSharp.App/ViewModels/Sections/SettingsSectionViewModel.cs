@@ -30,9 +30,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _statusText = "Loading settings...";
     
     // SQL Import Settings
-    private string _sqlServer = ".\\SQLEXPRESS";
+    private string _sqlServer = SqlConnectionSettings.DefaultServer;
     private string _sqlDatabase = "Business11";
+    private string _sqlDatabasePath = string.Empty;
     private bool _sqlUseWindowsAuth = true;
+    private string _sqlUserId = string.Empty;
+    private string _sqlPassword = string.Empty;
     private bool _sqlImportEnabled = false;
     private bool _isTestingConnection = false;
     private bool _isImportingOrders = false;
@@ -342,6 +345,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _latestReleaseAsset, value);
     }
 
+    public string SqlDatabasePath
+    {
+        get => _sqlDatabasePath;
+        set => SetProperty(ref _sqlDatabasePath, value);
+    }
+
     public string SqlServer
     {
         get => _sqlServer;
@@ -358,6 +367,18 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _sqlUseWindowsAuth;
         set => SetProperty(ref _sqlUseWindowsAuth, value);
+    }
+
+    public string SqlUserId
+    {
+        get => _sqlUserId;
+        set => SetProperty(ref _sqlUserId, value);
+    }
+
+    public string SqlPassword
+    {
+        get => _sqlPassword;
+        set => SetProperty(ref _sqlPassword, value);
     }
 
     public bool SqlImportEnabled
@@ -633,9 +654,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             UpdateFeedUrl = string.IsNullOrWhiteSpace(UpdateFeedUrl) ? AppSettings.DefaultUpdateFeedUrl : UpdateFeedUrl.Trim(),
             SqlImportSettings = new SqlConnectionSettings
             {
-                Server = SqlServer,
-                Database = SqlDatabase,
-                UseWindowsAuthentication = SqlUseWindowsAuth
+                Server = string.IsNullOrWhiteSpace(SqlServer) ? SqlConnectionSettings.DefaultServer : SqlServer.Trim(),
+                Database = string.IsNullOrWhiteSpace(SqlDatabase) ? "Business11" : SqlDatabase.Trim(),
+                DatabasePath = SqlDatabasePath,
+                UseWindowsAuthentication = SqlUseWindowsAuth,
+                UserId = (SqlUserId ?? string.Empty).Trim(),
+                Password = SqlPassword ?? string.Empty
             },
             SqlImportEnabled = SqlImportEnabled,
             QuickAccessItems = new List<string>()
@@ -671,9 +695,18 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         UpdateFeedUrl = string.IsNullOrWhiteSpace(settings.UpdateFeedUrl) ? AppSettings.DefaultUpdateFeedUrl : settings.UpdateFeedUrl;
         
         // SQL Settings
-        SqlServer = settings.SqlImportSettings?.Server ?? ".\\SQLEXPRESS";
-        SqlDatabase = settings.SqlImportSettings?.Database ?? "Business11";
+        SqlServer = string.IsNullOrWhiteSpace(settings.SqlImportSettings?.Server)
+            ? SqlConnectionSettings.DefaultServer
+            : settings.SqlImportSettings.Server;
+        SqlDatabase = string.IsNullOrWhiteSpace(settings.SqlImportSettings?.Database)
+            ? "Business11"
+            : settings.SqlImportSettings.Database;
+        SqlDatabasePath = string.IsNullOrWhiteSpace(settings.SqlImportSettings?.DatabasePath)
+            ? string.Empty
+            : settings.SqlImportSettings.DatabasePath;
         SqlUseWindowsAuth = settings.SqlImportSettings?.UseWindowsAuthentication ?? true;
+        SqlUserId = settings.SqlImportSettings?.UserId ?? string.Empty;
+        SqlPassword = settings.SqlImportSettings?.Password ?? string.Empty;
         SqlImportEnabled = settings.SqlImportEnabled;
     }
 
@@ -713,9 +746,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         {
             var settings = new SqlConnectionSettings
             {
-                Server = SqlServer,
-                Database = SqlDatabase,
-                UseWindowsAuthentication = SqlUseWindowsAuth
+                Server = string.IsNullOrWhiteSpace(SqlServer) ? SqlConnectionSettings.DefaultServer : SqlServer.Trim(),
+                Database = string.IsNullOrWhiteSpace(SqlDatabase) ? "Business11" : SqlDatabase.Trim(),
+                DatabasePath = SqlDatabasePath,
+                UseWindowsAuthentication = SqlUseWindowsAuth,
+                UserId = (SqlUserId ?? string.Empty).Trim(),
+                Password = SqlPassword ?? string.Empty
             };
 
             var service = new SqlServerOrderService(settings);
@@ -730,7 +766,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         }
         catch (Exception ex)
         {
-            ImportStatusMessage = $"✗ Fehler: {ex.Message}";
+            var hint = BuildSqlConnectionHint();
+            ImportStatusMessage = string.IsNullOrWhiteSpace(hint)
+                ? $"✗ Fehler: {ex.Message}"
+                : $"✗ Fehler: {ex.Message}{Environment.NewLine}{hint}";
             SqlImportEnabled = false;
             StatusText = "SQL Server Verbindung fehlgeschlagen.";
         }
@@ -758,9 +797,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             var appSettings = await _settingsRepository.GetAsync();
             appSettings.SqlImportSettings = new SqlConnectionSettings
             {
-                Server = SqlServer,
-                Database = SqlDatabase,
-                UseWindowsAuthentication = SqlUseWindowsAuth
+                Server = string.IsNullOrWhiteSpace(SqlServer) ? SqlConnectionSettings.DefaultServer : SqlServer.Trim(),
+                Database = string.IsNullOrWhiteSpace(SqlDatabase) ? "Business11" : SqlDatabase.Trim(),
+                DatabasePath = SqlDatabasePath,
+                UseWindowsAuthentication = SqlUseWindowsAuth,
+                UserId = (SqlUserId ?? string.Empty).Trim(),
+                Password = SqlPassword ?? string.Empty
             };
 
             var sqlService = new SqlServerOrderService(appSettings.SqlImportSettings);
@@ -798,7 +840,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         }
         catch (Exception ex)
         {
-            ImportStatusMessage = $"✗ Importfehler: {ex.Message}";
+            var hint = BuildSqlConnectionHint();
+            ImportStatusMessage = string.IsNullOrWhiteSpace(hint)
+                ? $"✗ Importfehler: {ex.Message}"
+                : $"✗ Importfehler: {ex.Message}{Environment.NewLine}{hint}";
             StatusText = $"SQL Import fehlgeschlagen: {ex.Message}";
         }
         finally
@@ -865,5 +910,35 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
                 _isBackgroundGeocodingRunning = false;
             }
         });
+    }
+
+    private string BuildSqlConnectionHint()
+    {
+        var trimmedPath = (SqlDatabasePath ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(trimmedPath))
+        {
+            return "Hinweis: Bitte SQL Server, Datenbankname und bei Bedarf den MDF-Pfad prüfen.";
+        }
+
+        if (trimmedPath.Length >= 2 && char.IsLetter(trimmedPath[0]) && trimmedPath[1] == ':')
+        {
+            try
+            {
+                var root = Path.GetPathRoot(trimmedPath);
+                if (!string.IsNullOrWhiteSpace(root))
+                {
+                    var drive = new DriveInfo(root);
+                    if (drive.DriveType is DriveType.Network or DriveType.NoRootDirectory)
+                    {
+                        return "Hinweis: Der angegebene Pfad liegt auf einem Netzlaufwerk. SQL Server-Dienste können gemappte Laufwerke wie L: oft nicht verwenden. In diesem Fall direkt mit Server + Datenbankname verbinden oder einen lokalen/UNC-Pfad verwenden, auf den der SQL-Dienst Zugriff hat.";
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        return "Hinweis: Falls die Datenbank bereits an eine SQL-Instanz angehängt ist, reichen meist SQL Server und Datenbankname. Der MDF-Pfad ist dann optional.";
     }
 }

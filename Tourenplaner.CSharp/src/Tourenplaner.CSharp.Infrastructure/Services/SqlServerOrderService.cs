@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Tourenplaner.CSharp.Domain.Models;
+using System.IO;
 
 namespace Tourenplaner.CSharp.Infrastructure.Services;
 
@@ -12,6 +13,7 @@ public interface ISqlServerOrderService
 public class SqlServerOrderService : ISqlServerOrderService
 {
     private readonly SqlConnectionSettings _settings;
+    private string? _resolvedServer;
 
     private sealed record DeliveryRule(string Label, DeliveryMethodType Type, int Priority);
 
@@ -71,10 +73,10 @@ public class SqlServerOrderService : ISqlServerOrderService
 
     public async Task TestConnectionAsync()
     {
-        using var connection = new SqlConnection(_settings.GetConnectionString());
+        EnsureDatabaseFileExistsWhenRequired();
         try
         {
-            await connection.OpenAsync();
+            await using var connection = await OpenConnectionAsync();
         }
         catch (SqlException ex)
         {
@@ -85,6 +87,7 @@ public class SqlServerOrderService : ISqlServerOrderService
 
     public async Task<List<SqlOrderImportData>> GetNewAndUpdatedOrdersAsync(DateTime? lastImportDate)
     {
+        EnsureDatabaseFileExistsWhenRequired();
         var orders = new List<SqlOrderImportData>();
         var whereClause = lastImportDate.HasValue
             ? """
@@ -99,8 +102,7 @@ public class SqlServerOrderService : ISqlServerOrderService
               """
             : string.Empty;
 
-        using var connection = new SqlConnection(_settings.GetConnectionString());
-        await connection.OpenAsync();
+        await using var connection = await OpenConnectionAsync();
 
         var availableArticleIdColumns = await ResolveAvailableArticleIdColumnsAsync(connection);
         if (availableArticleIdColumns.Count == 0)
@@ -252,6 +254,79 @@ public class SqlServerOrderService : ISqlServerOrderService
         }
 
         return orders;
+    }
+
+    private void EnsureDatabaseFileExistsWhenRequired()
+    {
+        if (!_settings.ShouldAttachDatabaseFile())
+        {
+            return;
+        }
+
+        var dbFilePath = _settings.GetDatabaseFilePath();
+        if (!File.Exists(dbFilePath))
+        {
+            throw new InvalidOperationException(
+                $"Business11.mdf wurde nicht gefunden unter: {dbFilePath}");
+        }
+    }
+
+    private async Task<SqlConnection> OpenConnectionAsync()
+    {
+        var candidates = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_resolvedServer))
+        {
+            candidates.Add(_resolvedServer);
+        }
+
+        foreach (var candidate in _settings.GetServerCandidates())
+        {
+            if (!candidates.Any(x => string.Equals(x, candidate, StringComparison.OrdinalIgnoreCase)))
+            {
+                candidates.Add(candidate);
+            }
+        }
+
+        var failures = new List<string>();
+        var connectTimeout = Math.Clamp(_settings.ConnectionTimeoutSeconds, 1, 10);
+        var attachDbFile = _settings.ShouldAttachDatabaseFile();
+
+        foreach (var server in candidates)
+        {
+            foreach (var useAttach in GetAttachModes(attachDbFile))
+            {
+                var connectionString = _settings.BuildConnectionString(server, useAttach, connectTimeout);
+                var connection = new SqlConnection(connectionString);
+                try
+                {
+                    await connection.OpenAsync();
+                    _resolvedServer = server;
+                    _settings.Server = server;
+                    return connection;
+                }
+                catch (Exception ex) when (ex is SqlException or InvalidOperationException)
+                {
+                    var mode = useAttach
+                        ? $"AttachDbFilename={_settings.GetDatabaseFilePath()}"
+                        : $"Database={_settings.GetDatabaseName()}";
+                    failures.Add($"{server} [{mode}]: {ex.Message.Split(Environment.NewLine)[0]}");
+                    await connection.DisposeAsync();
+                }
+            }
+        }
+
+        throw new InvalidOperationException(
+            "SQL Server Verbindung fehlgeschlagen. Geprüfte Instanzen: " +
+            string.Join(" | ", failures));
+    }
+
+    private static IEnumerable<bool> GetAttachModes(bool attachDbFile)
+    {
+        yield return false;
+        if (attachDbFile)
+        {
+            yield return true;
+        }
     }
 
     private static async Task<List<string>> ResolveAvailableArticleIdColumnsAsync(SqlConnection connection)
