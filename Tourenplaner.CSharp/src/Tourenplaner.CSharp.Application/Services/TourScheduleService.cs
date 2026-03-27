@@ -40,7 +40,7 @@ public sealed class TourScheduleService
                 windowStart > windowEnd)
             {
                 hasConflict = true;
-                conflictText = "Ungueltiges Zeitfenster: Start liegt nach Ende.";
+                conflictText = "Ungültiges Zeitfenster: Start liegt nach Ende.";
             }
             else if (TryParseTime(arrival.Date, stop.TimeWindowEnd, out windowEnd) && arrival > windowEnd)
             {

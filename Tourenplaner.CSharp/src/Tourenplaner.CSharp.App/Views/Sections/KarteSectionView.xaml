@@ -171,7 +171,7 @@
                                 <TextBox Grid.Column="1" Height="34" Text="{Binding RouteStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
                                 <TextBlock Grid.Column="2" Text=":" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                 <TextBox Grid.Column="3" Height="34" Text="{Binding RouteStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
-                                <Button Grid.Column="4" Height="34" Margin="10,0,8,0" Content="Uebernehmen" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ApplyStartTimeCommand}" />
+                                <Button Grid.Column="4" Height="34" Margin="10,0,8,0" Content="Übernehmen" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ApplyStartTimeCommand}" />
                                 <Button Grid.Column="5" Height="34" Content="Route optimieren" Style="{StaticResource SuccessButtonStyle}" Command="{Binding OptimizeRouteCommand}" />
                             </Grid>
                         </Border>
@@ -278,7 +278,7 @@
                                    Foreground="{DynamicResource Brush.TextMuted}"
                                    TextWrapping="Wrap"
                                    Visibility="Collapsed"
-                                   Text="Karte nicht verfuegbar. Der Workflow bleibt ueber die Liste nutzbar." />
+                                   Text="Karte nicht verfügbar. Der Workflow bleibt über die Liste nutzbar." />
                     </Grid>
                 </Border>
 
@@ -396,6 +396,9 @@
                                         <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Auftragsstatus:" />
                                         <TextBlock Text="{Binding DetailOrderStatus}" />
 
+                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Avisierungsstatus:" />
+                                        <TextBlock Text="{Binding DetailAvisoStatus}" />
+
                                         <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Tourstatus:" />
                                         <TextBlock Text="{Binding DetailTourStatus}" />
 
@@ -407,16 +410,61 @@
                                     </StackPanel>
                                 </ScrollViewer>
 
-                                <Grid Grid.Row="1" Margin="0,0,0,8">
+                                <Grid Grid.Row="1" Margin="0,0,0,10" IsSharedSizeScope="True">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Height="36" Margin="0,0,4,0" Content="Zu Tour hinzufuegen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding AddToRouteCommand}" />
-                                    <Button Grid.Column="1" Height="36" Margin="4,0,0,0" Content="Aus Tour entfernen" Style="{StaticResource DangerButtonStyle}" Command="{Binding RemoveOrderFromTourCommand}" />
+                                    <Button Grid.Column="0"
+                                            Height="36"
+                                            Margin="0,0,4,0"
+                                            Content="E Mail senden"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Command="{Binding SendEmailCommand}" />
+                                    <ComboBox Grid.Column="1"
+                                              Height="36"
+                                              Margin="4,0,0,0"
+                                              VerticalAlignment="Top"
+                                              ItemsSource="{Binding AvisoStatusOptions}"
+                                              IsEnabled="{Binding CanEditDetailAvisoStatus}"
+                                              ToolTip="Nur verfügbar bei zugeordneter Tour."
+                                              SelectedItem="{Binding DetailSelectedAvisoStatus, Mode=TwoWay}" />
                                 </Grid>
-                                <Button Grid.Row="2" Height="36" Margin="0,0,0,8" Content="E Mail senden" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding SendEmailCommand}" />
-                                <Button Grid.Row="3" Height="36" Margin="0,0,0,10" Content="Auftrag bearbeiten" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding EditOrderCommand}" />
+                                <Grid Grid.Row="2" Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Height="36" Margin="0,0,4,0" Content="Zu Tour hinzufügen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding AddToRouteCommand}" />
+                                    <Button Grid.Column="1"
+                                            Height="36"
+                                            Margin="4,0,0,0"
+                                            Content="Aus Tour entfernen"
+                                            IsEnabled="{Binding CanEditDetailAvisoStatus}"
+                                            ToolTip="Nur verfügbar bei zugeordneter Tour."
+                                            Style="{StaticResource DangerButtonStyle}"
+                                            Command="{Binding RemoveOrderFromTourCommand}" />
+                                </Grid>
+                                <Grid Grid.Row="3" Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                            Height="36"
+                                            Margin="0,0,4,0"
+                                            Content="Tour anzeigen"
+                                            IsEnabled="{Binding CanEditDetailAvisoStatus}"
+                                            ToolTip="Nur verfügbar bei zugeordneter Tour."
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Command="{Binding ShowSelectedOrderTourCommand}" />
+                                    <Button Grid.Column="1"
+                                            Height="36"
+                                            Margin="4,0,0,0"
+                                            Content="Auftrag bearbeiten"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Command="{Binding EditOrderCommand}" />
+                                </Grid>
 
                                 <Grid Grid.Row="4">
                                     <Grid.RowDefinitions>
@@ -430,7 +478,7 @@
                                         </Grid.ColumnDefinitions>
                                         <ComboBox Grid.Column="0"
                                                   Height="36"
-                                                  ToolTip="Auftragsstatus aendern"
+                                                  ToolTip="Auftragsstatus ändern"
                                                   ItemsSource="{Binding OrderStatusOptions}"
                                                   SelectedItem="{Binding DetailSelectedStatus, Mode=TwoWay}" />
                                         <Button Grid.Column="1" Height="36" Margin="8,0,0,0" Content="Schliessen" Style="{StaticResource DarkButtonStyle}" Command="{Binding CloseDetailsCommand}" />
@@ -438,7 +486,7 @@
                                     <TextBlock Grid.Row="0"
                                                Margin="0,0,0,6"
                                                FontWeight="SemiBold"
-                                               Text="Auftragsstatus aendern" />
+                                               Text="Auftragsstatus ändern" />
                                 </Grid>
                             </Grid>
                         </Grid>
@@ -448,3 +496,4 @@
         </Border>
     </Grid>
 </UserControl>
+

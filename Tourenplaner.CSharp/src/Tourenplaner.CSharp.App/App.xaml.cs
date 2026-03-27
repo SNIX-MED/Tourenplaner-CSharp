@@ -197,7 +197,14 @@ public partial class App : System.Windows.Application
                 return;
             }
 
+            var backupPath = CreateStartupRepairBackup(toursJsonPath);
             await toursRepository.SaveAsync(tours);
+            TryLogInfo(
+                "RunTourIntegrityCheckOnStartup",
+                $"Tour-Integritätsprüfung hat {touchedTours} Tour(en) aktualisiert. Backup: {backupPath}. " +
+                $"Startstopps eingefügt: {insertedStart}, Endstopps eingefügt: {insertedEnd}, " +
+                $"Pflichtfelder repariert: {repairedRequiredFields}, doppelte Firmenstopps entfernt: {removedDuplicateCompanyStops}, " +
+                $"Touren neu indexiert: {reindexedTours}.");
             return;
         }
         catch (Exception ex)
@@ -245,6 +252,23 @@ public partial class App : System.Windows.Application
         return parts.Length == 0 ? "Firmenadresse nicht gesetzt" : string.Join(", ", parts);
     }
 
+    private static string CreateStartupRepairBackup(string toursJsonPath)
+    {
+        if (!File.Exists(toursJsonPath))
+        {
+            throw new FileNotFoundException("Die Tourdatei für die Startup-Reparatur wurde nicht gefunden.", toursJsonPath);
+        }
+
+        var source = new FileInfo(toursJsonPath);
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var backupPath = Path.Combine(
+            source.DirectoryName ?? string.Empty,
+            $"{Path.GetFileNameWithoutExtension(source.Name)}.startup-repair_{timestamp}{source.Extension}.bak");
+
+        File.Copy(toursJsonPath, backupPath, overwrite: false);
+        return backupPath;
+    }
+
     private void AttachGlobalExceptionLogging()
     {
         DispatcherUnhandledException += (_, args) =>
@@ -277,6 +301,26 @@ public partial class App : System.Windows.Application
                 DateTimeOffset.Now.ToString("O"),
                 source,
                 ex.ToString(),
+                string.Empty
+            };
+            File.AppendAllLines(_logPath, lines);
+        }
+        catch
+        {
+            // Ignore logging failures to avoid recursive crashes.
+        }
+    }
+
+    private void TryLogInfo(string source, string message)
+    {
+        try
+        {
+            var lines = new[]
+            {
+                "========================================",
+                DateTimeOffset.Now.ToString("O"),
+                source,
+                message,
                 string.Empty
             };
             File.AppendAllLines(_logPath, lines);

@@ -42,12 +42,7 @@ public sealed class JsonFileStore
                 await stream.FlushAsync(cancellationToken);
             }
 
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-
-            File.Move(tempPath, path);
+            PromoteTempFile(tempPath, path);
         }
         finally
         {
@@ -102,6 +97,17 @@ public sealed class JsonFileStore
         {
             throw new JsonStorageException($"Could not read JSON file {path}", ex);
         }
+    }
+
+    private static void PromoteTempFile(string tempPath, string targetPath)
+    {
+        if (File.Exists(targetPath))
+        {
+            File.Replace(tempPath, targetPath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            return;
+        }
+
+        File.Move(tempPath, targetPath);
     }
 
     public string? BackupCorruptFile(string path)

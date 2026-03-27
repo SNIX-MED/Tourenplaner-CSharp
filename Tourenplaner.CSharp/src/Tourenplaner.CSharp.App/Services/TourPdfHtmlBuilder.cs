@@ -11,7 +11,7 @@ public static class TourPdfHtmlBuilder
         var meta = BuildMeta(snapshot);
         var stops = string.Join(Environment.NewLine, snapshot.Stops.Select(BuildStopHtml));
         var mapContent = string.IsNullOrWhiteSpace(mapImageBase64Png)
-            ? "<div class=\"map-fallback\">Kartenbild konnte f&uuml;r diesen Export nicht erzeugt werden.</div>"
+            ? "<div class=\"map-fallback\">Kartenbild konnte für diesen Export nicht erzeugt werden.</div>"
             : $"<img class=\"map-image\" src=\"data:image/png;base64,{mapImageBase64Png}\" alt=\"Tourkarte\" />";
 
         return $$"""
@@ -157,7 +157,7 @@ public static class TourPdfHtmlBuilder
                      <div class="header">
                        <div>
                          <h1 class="title">{{Html(title)}}</h1>
-                         <div class="subtitle">Tour-Export f&uuml;r die aktuell geladene Route</div>
+                         <div class="subtitle">Tour-Export für die aktuell geladene Route</div>
                        </div>
                        <div class="meta">
                          {{meta}}

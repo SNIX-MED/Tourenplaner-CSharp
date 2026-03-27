@@ -32,7 +32,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private DateTime _rangeStartMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private string _rangeTitleText = string.Empty;
     private string _statusText = "Kalender wird geladen...";
-    private string _selectedDayHeadline = "Ausgewaehlter Tag";
+    private string _selectedDayHeadline = "Ausgewählter Tag";
     private string _calendarLoadWarningColor = AppSettings.DefaultCalendarLoadWarningColor;
     private string _calendarLoadCriticalColor = AppSettings.DefaultCalendarLoadCriticalColor;
     private int _calendarLoadWarningPeopleThreshold = 1;
@@ -338,8 +338,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
         if (SelectedDay?.Date is not DateTime selectedDate)
         {
-            SelectedDayHeadline = "Ausgewaehlter Tag";
-            StatusText = "Kein Kalendertag ausgewaehlt.";
+            SelectedDayHeadline = "Ausgewählter Tag";
+            StatusText = "Kein Kalendertag ausgewählt.";
             SelectedDayTour = null;
             return;
         }

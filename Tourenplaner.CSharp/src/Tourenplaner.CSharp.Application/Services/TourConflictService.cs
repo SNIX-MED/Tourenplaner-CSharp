@@ -71,7 +71,7 @@ public sealed class TourConflictService
         (TourRecord Tour, TourScheduleResult Schedule) left,
         (TourRecord Tour, TourScheduleResult Schedule) right)
     {
-        var text = $"Konflikt fuer {resourceType} '{resourceId}' zwischen Tour {left.Tour.Id} und Tour {right.Tour.Id}.";
+        var text = $"Konflikt für {resourceType} '{resourceId}' zwischen Tour {left.Tour.Id} und Tour {right.Tour.Id}.";
         return new TourAssignmentConflict(
             resourceType,
             resourceId,

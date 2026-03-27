@@ -18,7 +18,7 @@ public sealed class UpdatesSectionViewModel : SectionViewModelBase
     private string _lastBackupIso = string.Empty;
     private string _latestBackupFile = "n/a";
     private int _availableBackupsCount;
-    private string _updateFeedUrl = "https://github.com/";
+    private string _updateFeedUrl = Domain.Models.AppSettings.DefaultUpdateFeedUrl;
 
     public UpdatesSectionViewModel(string settingsJsonPath)
         : base("Updates", "Version info, backup status and update channel links.")
@@ -83,7 +83,9 @@ public sealed class UpdatesSectionViewModel : SectionViewModelBase
 
         var settings = await _settingsRepository.LoadAsync();
         LastBackupIso = string.IsNullOrWhiteSpace(settings.LastBackupIso) ? "n/a" : settings.LastBackupIso;
-        UpdateFeedUrl = "https://github.com/";
+        UpdateFeedUrl = string.IsNullOrWhiteSpace(settings.UpdateFeedUrl)
+            ? Domain.Models.AppSettings.DefaultUpdateFeedUrl
+            : settings.UpdateFeedUrl.Trim();
 
         if (!string.IsNullOrWhiteSpace(settings.BackupDir) && Directory.Exists(settings.BackupDir))
         {

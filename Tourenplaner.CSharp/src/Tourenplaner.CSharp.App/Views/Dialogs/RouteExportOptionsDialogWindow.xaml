@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Route exportieren"
         Width="560"
-        Height="360"
+        Height="400"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource Brush.WindowBackground}">
@@ -23,7 +23,7 @@
                            Text="Bitte wähle aus, wie die aktuell geladene Tour exportiert werden soll." />
             </StackPanel>
 
-            <Grid Grid.Row="1" Margin="0,18,0,0">
+            <Grid Grid.Row="1" Margin="0,18,0,0" VerticalAlignment="Top">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="12" />
@@ -31,13 +31,13 @@
                 </Grid.ColumnDefinitions>
 
                 <Button Grid.Column="0"
-                        MinHeight="132"
+                        MinHeight="148"
                         Padding="16"
                         HorizontalContentAlignment="Stretch"
                         VerticalContentAlignment="Stretch"
                         Style="{StaticResource SecondaryButtonStyle}"
                         Click="OnGoogleMapsClicked">
-                    <StackPanel>
+                    <StackPanel VerticalAlignment="Top">
                         <TextBlock FontSize="18"
                                    FontWeight="SemiBold"
                                    Text="In Google Maps öffnen" />
@@ -49,13 +49,13 @@
                 </Button>
 
                 <Button Grid.Column="2"
-                        MinHeight="132"
+                        MinHeight="148"
                         Padding="16"
                         HorizontalContentAlignment="Stretch"
                         VerticalContentAlignment="Stretch"
                         Style="{StaticResource SuccessButtonStyle}"
                         Click="OnPdfClicked">
-                    <StackPanel>
+                    <StackPanel VerticalAlignment="Top">
                         <TextBlock FontSize="18"
                                    FontWeight="SemiBold"
                                    Foreground="White"

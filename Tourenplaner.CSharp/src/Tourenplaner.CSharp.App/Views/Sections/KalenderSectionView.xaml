@@ -5,9 +5,20 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              d:DesignHeight="920"
-             d:DesignWidth="1400">
+             d:DesignWidth="1400"
+             TextOptions.TextFormattingMode="Display"
+             TextOptions.TextRenderingMode="ClearType">
     <UserControl.Resources>
-        <Style x:Key="StartUpcomingCardStyle" TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
+        <Style x:Key="SharpFlatCardStyle" TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
+            <Setter Property="Effect" Value="{x:Null}" />
+        </Style>
+        <Style x:Key="SharpSoftCardStyle" TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+            <Setter Property="Effect" Value="{x:Null}" />
+        </Style>
+        <Style x:Key="SharpFilterBarCardStyle" TargetType="Border" BasedOn="{StaticResource FilterBarCardStyle}">
+            <Setter Property="Effect" Value="{x:Null}" />
+        </Style>
+        <Style x:Key="StartUpcomingCardStyle" TargetType="Border" BasedOn="{StaticResource SharpFlatCardStyle}">
             <Setter Property="Padding" Value="8" />
             <Setter Property="MinHeight" Value="66" />
             <Setter Property="CornerRadius" Value="12" />
@@ -35,12 +46,12 @@
                        Text="{Binding Description}" />
         </StackPanel>
 
-        <Border Grid.Row="1" Margin="0,14,0,0" Style="{StaticResource FilterBarCardStyle}">
+        <Border Grid.Row="1" Margin="0,14,0,0" Style="{StaticResource SharpFilterBarCardStyle}">
             <StackPanel>
-                <TextBlock FontSize="24" FontWeight="SemiBold" Text="Kalender der naechsten 4 Wochen" />
+                <TextBlock FontSize="24" FontWeight="SemiBold" Text="Kalender der nächsten 4 Wochen" />
                 <TextBlock Margin="0,4,0,0"
                            Foreground="{DynamicResource Brush.TextMuted}"
-                           Text="Vier Wochen im Ueberblick, gruppiert nach Kalenderwochen." />
+                           Text="Vier Wochen im Überblick, gruppiert nach Kalenderwochen." />
 
                 <ItemsControl Margin="0,14,0,0" ItemsSource="{Binding UpcomingWeeks}">
                     <ItemsControl.ItemsPanel>
@@ -140,7 +151,7 @@
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="2" Margin="0,14,0,0" Style="{StaticResource FlatCardStyle}" Padding="14">
+        <Border Grid.Row="2" Margin="0,14,0,0" Style="{StaticResource SharpFlatCardStyle}" Padding="14">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -156,12 +167,12 @@
                     <TextBlock FontSize="24" FontWeight="SemiBold" Text="{Binding SelectedDayHeadline}" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <Button Width="180" Margin="0,0,8,0" Content="Tag in Liefertouren" Command="{Binding OpenSelectedDayInToursCommand}" />
-                        <Button Width="130" Margin="0,0,8,0" Content="Tour oeffnen" Command="{Binding OpenSelectedTourCommand}" />
-                        <Button Width="130" Content="Tour loeschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteSelectedTourCommand}" />
+                        <Button Width="130" Margin="0,0,8,0" Content="Tour öffnen" Command="{Binding OpenSelectedTourCommand}" />
+                        <Button Width="130" Content="Tour löschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteSelectedTourCommand}" />
                     </StackPanel>
                 </Grid>
 
-                <Border Grid.Row="1" Margin="0,8,0,10" Style="{StaticResource SoftCardStyle}" Padding="10">
+                <Border Grid.Row="1" Margin="0,8,0,10" Style="{StaticResource SharpSoftCardStyle}" Padding="10">
                     <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding StatusText}" />
                 </Border>
 
@@ -206,7 +217,7 @@
                                 <Border Width="360"
                                         Padding="10">
                                     <Border.Style>
-                                        <Style TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
+                                        <Style TargetType="Border" BasedOn="{StaticResource SharpFlatCardStyle}">
                                             <Setter Property="BorderThickness" Value="1" />
                                             <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
                                             <Style.Triggers>
@@ -270,7 +281,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border Margin="0,0,0,8"
-                                                            Style="{StaticResource SoftCardStyle}"
+                                                            Style="{StaticResource SharpSoftCardStyle}"
                                                             Padding="10"
                                                             Cursor="Hand"
                                                             MouseLeftButtonDown="OnTourStopCardMouseLeftButtonDown">

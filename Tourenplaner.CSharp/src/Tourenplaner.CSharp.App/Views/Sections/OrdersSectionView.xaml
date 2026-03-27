@@ -17,7 +17,7 @@
             <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="{Binding Title}" />
             <TextBlock Margin="0,5,0,0"
                        Style="{StaticResource SectionCaptionTextStyle}"
-                       Text="Auftraege suchen, pruefen und bearbeiten." />
+                       Text="Aufträge suchen, prüfen und bearbeiten." />
         </StackPanel>
 
         <Border Grid.Row="1" Margin="0,14,0,12" Style="{StaticResource FilterBarCardStyle}">
@@ -60,10 +60,10 @@
                     <Button Width="110" Margin="10,0,0,0" Content="Zurueck" Command="{Binding UndoDeleteCommand}" />
                     <Button Width="182"
                             Margin="10,0,0,0"
-                            Content="Manuell hinzufuegen"
+                            Content="Manuell hinzufügen"
                             Style="{StaticResource PrimaryButtonStyle}"
                             Command="{Binding AddManualOrderCommand}" />
-                    <Button Width="110" Margin="10,0,0,0" Content="Loeschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding RemoveCommand}" />
+                    <Button Width="110" Margin="10,0,0,0" Content="Löschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding RemoveCommand}" />
                 </StackPanel>
 
                 <Border Grid.Row="1" Grid.ColumnSpan="2" Margin="0,12,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">

@@ -23,7 +23,7 @@ public sealed class StartSectionViewModel : SectionViewModelBase
     private readonly Guid _instanceId = Guid.NewGuid();
     private string _statusText = "Startseite wird geladen...";
     private string _calendarHeadline = "Kalender";
-    private string _dashboardSummary = "Tourenuebersicht wird geladen...";
+    private string _dashboardSummary = "Tourenübersicht wird geladen...";
     private string _nextPlannedDayText = "Noch kein Tourtag geplant";
 
     public StartSectionViewModel(
@@ -138,14 +138,14 @@ public sealed class StartSectionViewModel : SectionViewModelBase
         var displayedDayCount = UpcomingDayCards.Count;
         CalendarHeadline = "Kalender";
         DashboardSummary = plannedDayCount == 0
-            ? $"In den naechsten {displayedDayCount} Tagen ist aktuell keine Tour geplant."
-            : $"{plannedTourCount} Tour(en) an {plannedDayCount} Tag(en) in den naechsten {displayedDayCount} Tagen.";
+            ? $"In den nächsten {displayedDayCount} Tagen ist aktuell keine Tour geplant."
+            : $"{plannedTourCount} Tour(en) an {plannedDayCount} Tag(en) in den nächsten {displayedDayCount} Tagen.";
         NextPlannedDayText = nextPlannedDay is null
             ? "Noch kein Tourtag geplant"
             : $"Naechster geplanter Tag: {nextPlannedDay.Date:dddd, dd.MM.yyyy}";
         StatusText = plannedDayCount == 0
-            ? $"In den naechsten {displayedDayCount} Tagen ist aktuell keine Tour geplant."
-            : $"In den naechsten {displayedDayCount} Tagen sind an {plannedDayCount} Tag(en) Touren eingeplant.";
+            ? $"In den nächsten {displayedDayCount} Tagen ist aktuell keine Tour geplant."
+            : $"In den nächsten {displayedDayCount} Tagen sind an {plannedDayCount} Tag(en) Touren eingeplant.";
     }
 
     private async Task OpenMapAsync()

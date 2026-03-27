@@ -2,8 +2,25 @@
 setlocal
 
 set "SCRIPT_DIR=%~dp0"
+set "PROJECT_PATH=%SCRIPT_DIR%Tourenplaner.CSharp\src\Tourenplaner.CSharp.App\Tourenplaner.CSharp.App.csproj"
 set "EXE_PATH=%SCRIPT_DIR%Tourenplaner.CSharp\src\Tourenplaner.CSharp.App\bin\Debug\net8.0-windows\Tourenplaner.CSharp.App.exe"
 set "LOG_PATH=%LOCALAPPDATA%\Tourenplaner.CSharp\data\app-crash.log"
+
+if not exist "%PROJECT_PATH%" (
+    echo Die Projektdatei wurde nicht gefunden:
+    echo %PROJECT_PATH%
+    pause
+    exit /b 1
+)
+
+echo Baue aktuelle Version...
+dotnet build "%PROJECT_PATH%" -v minimal
+if errorlevel 1 (
+    echo.
+    echo Build fehlgeschlagen. App wird nicht gestartet.
+    pause
+    exit /b 1
+)
 
 if not exist "%EXE_PATH%" (
     echo Die App-EXE wurde nicht gefunden:

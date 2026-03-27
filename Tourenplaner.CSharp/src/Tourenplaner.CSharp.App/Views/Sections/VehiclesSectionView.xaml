@@ -23,7 +23,7 @@
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                     <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="{Binding Title}" />
-                    <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Fahrzeuge, Anhaenger und Kombinationen verwalten." />
+                    <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Fahrzeuge, Anhänger und Kombinationen verwalten." />
                 </StackPanel>
 
                 <Border Grid.Column="1"
@@ -60,7 +60,7 @@
                         <Button Grid.Column="1"
                                 Margin="4"
                                 Height="36"
-                                Content="Anhaenger"
+                                Content="Anhänger"
                                 Command="{Binding ShowTrailersCommand}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -177,7 +177,7 @@
                                         <Button Grid.Column="1"
                                                 Height="36"
                                                 Margin="8,0,0,0"
-                                                Content="Loeschen"
+                                                Content="Löschen"
                                                 Style="{StaticResource DangerButtonStyle}"
                                                 Tag="{Binding}"
                                                 Click="OnDeleteEntryClicked" />

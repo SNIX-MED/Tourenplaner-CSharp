@@ -262,6 +262,8 @@ public partial class KarteSectionView : UserControl
             customer = x.Customer,
             address = x.Address,
             status = x.StatusLabel,
+            avisoStatus = x.AvisoStatusLabel,
+            isAssigned = x.IsAssigned,
             color = vm.ResolveOrderStatusColor(x.StatusLabel, x.IsAssigned),
             shape = ResolveDeliveryShape(x.DeliveryLabel),
             lat = x.Latitude,
@@ -291,13 +293,22 @@ public partial class KarteSectionView : UserControl
         }
 
         var route = vm.GetRouteSnapshot()
-            .Select(r => new
+            .Select(r =>
             {
-                id = r.OrderId,
-                position = r.Position,
-                lat = r.Latitude,
-                lon = r.Longitude
-            }).ToList();
+                var visual = vm.ResolveOrderVisualInfo(r.OrderId);
+                return new
+                {
+                    id = r.OrderId,
+                    position = r.Position,
+                    avisoStatus = visual.AvisoStatusLabel,
+                    isAssigned = visual.IsAssigned,
+                    color = vm.ResolveOrderStatusColor(visual.StatusLabel, visual.IsAssigned),
+                    shape = ResolveDeliveryShape(visual.DeliveryLabel),
+                    lat = r.Latitude,
+                    lon = r.Longitude
+                };
+            })
+            .ToList();
         var geometry = vm.GetRouteGeometrySnapshot()
             .Select(x => new { lat = x.Latitude, lon = x.Longitude })
             .ToList();
@@ -576,18 +587,35 @@ public partial class KarteSectionView : UserControl
                      routeMarkerMap.clear();
                    }
 
-                   function buildOrderMarkerHtml(shape, color) {
+                   function buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned) {
                      const stroke = '#1e293b';
                      const coreSize = 22;
                      const border = 2;
                      const shadow = '0 4px 12px rgba(15, 23, 42, 0.28)';
+                     const normalizedAviso = (avisoStatus || '').trim().toLowerCase();
+                     let badgeColor = '';
+                     if (normalizedAviso === 'informiert') {
+                       badgeColor = '#f59e0b';
+                     } else if (normalizedAviso === 'bestätigt' || normalizedAviso === 'bestaetigt') {
+                       badgeColor = '#16a34a';
+                     } else if (isAssigned) {
+                       badgeColor = '#64748b';
+                     }
+
+                     let shapeHtml = '';
                      if (shape === 'square') {
-                       return `<div style="width:${coreSize}px;height:${coreSize}px;background:${color};border:${border}px solid #fff;border-radius:7px;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;"></div>`;
+                       shapeHtml = `<div style="width:${coreSize}px;height:${coreSize}px;background:${color};border:${border}px solid #fff;border-radius:7px;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;"></div>`;
+                     } else if (shape === 'triangle') {
+                       shapeHtml = `<div style="position:relative;width:24px;height:24px;filter:drop-shadow(0 3px 8px rgba(15, 23, 42, 0.28));"><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid #fff;"></div><div style="position:absolute;left:2px;top:3px;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:18px solid ${color};"></div><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid transparent;filter:drop-shadow(0 0 0 ${stroke});"></div></div>`;
+                     } else {
+                       shapeHtml = `<div style="width:${coreSize}px;height:${coreSize}px;border-radius:50%;background:${color};border:${border}px solid #fff;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;"></div>`;
                      }
-                     if (shape === 'triangle') {
-                       return `<div style="position:relative;width:24px;height:24px;filter:drop-shadow(0 3px 8px rgba(15, 23, 42, 0.28));"><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid #fff;"></div><div style="position:absolute;left:2px;top:3px;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:18px solid ${color};"></div><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid transparent;filter:drop-shadow(0 0 0 ${stroke});"></div></div>`;
-                     }
-                     return `<div style="width:${coreSize}px;height:${coreSize}px;border-radius:50%;background:${color};border:${border}px solid #fff;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;"></div>`;
+
+                     const badgeHtml = badgeColor
+                       ? `<div style="position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:${badgeColor};border:2px solid #fff;box-shadow:0 0 0 1px rgba(30,41,59,0.55);"></div>`
+                       : '';
+
+                     return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${shapeHtml}${badgeHtml}</div>`;
                    }
 
                    function resolveMarkerColor(status) {
@@ -607,6 +635,12 @@ public partial class KarteSectionView : UserControl
                      return '#a855f7';
                    }
 
+                   function buildRouteStopMarkerHtml(shape, color, label, avisoStatus, isAssigned) {
+                     const safeLabel = label || '?';
+                     const labelTopOffset = shape === 'triangle' ? '4px' : '0';
+                     return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned)}<div style="position:absolute;inset:0;top:${labelTopOffset};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;line-height:1;text-shadow:0 1px 2px rgba(15,23,42,0.85);pointer-events:none;">${safeLabel}</div></div>`;
+                   }
+
                    window.gawelaSetMarkers = function(markers) {
                      clearMarkers();
                      if (!markers || markers.length === 0) {
@@ -617,9 +651,9 @@ public partial class KarteSectionView : UserControl
                        const color = m.color || '#A855F7';
                        const icon = L.divIcon({
                          className: 'gawela-marker',
-                         html: buildOrderMarkerHtml(m.shape, color),
-                         iconSize: [24, 24],
-                         iconAnchor: [12, 12]
+                         html: buildOrderMarkerHtml(m.shape, color, m.avisoStatus, m.isAssigned),
+                         iconSize: [28, 28],
+                         iconAnchor: [14, 14]
                        });
                        const marker = L.marker([m.lat, m.lon], { icon });
                        marker.bindPopup(
@@ -710,9 +744,9 @@ public partial class KarteSectionView : UserControl
                        const stopLabel = toAlphaLabel(stop.position);
                        const icon = L.divIcon({
                          className: 'gawela-route-stop',
-                         html: `<div style="width:20px;height:20px;border-radius:10px;background:#2563eb;color:#fff;font-size:11px;line-height:20px;text-align:center;border:1px solid #fff;">${stopLabel}</div>`,
-                         iconSize: [20, 20],
-                         iconAnchor: [10, 10]
+                         html: buildRouteStopMarkerHtml(stop.shape || 'circle', stop.color || '#2563eb', stopLabel, stop.avisoStatus, stop.isAssigned),
+                         iconSize: [28, 28],
+                         iconAnchor: [14, 14]
                        });
 
                        const routeMarker = L.marker([stop.lat, stop.lon], { icon, draggable: true })

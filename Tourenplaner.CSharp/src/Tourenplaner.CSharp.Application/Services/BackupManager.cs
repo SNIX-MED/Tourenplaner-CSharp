@@ -20,7 +20,7 @@ public sealed class BackupManager
 
     public static readonly IReadOnlyDictionary<string, string> RestoreLabels = new Dictionary<string, string>
     {
-        ["orders"] = "Auftraege & Adressen",
+        ["orders"] = "Aufträge & Adressen",
         ["tours"] = "Liefertouren",
         ["employees"] = "Mitarbeiter",
         ["vehicles"] = "Fahrzeuge",
@@ -191,12 +191,7 @@ public sealed class BackupManager
             archive.Dispose();
             fs.Dispose();
 
-            if (File.Exists(target))
-            {
-                File.Delete(target);
-            }
-
-            File.Move(tempPath, target);
+            PromoteTempFile(tempPath, target);
             return target;
         }
         finally
@@ -263,8 +258,7 @@ public sealed class BackupManager
             sourceArchive.Dispose();
             sourceStream.Dispose();
 
-            File.Delete(latest);
-            File.Move(tempPath, latest);
+            PromoteTempFile(tempPath, latest);
             return latest;
         }
         finally
@@ -457,6 +451,17 @@ public sealed class BackupManager
         return Directory.GetFiles(backupDirectory, "*.bak", SearchOption.TopDirectoryOnly)
             .OrderByDescending(x => File.GetLastWriteTimeUtc(x))
             .FirstOrDefault();
+    }
+
+    private static void PromoteTempFile(string tempPath, string targetPath)
+    {
+        if (File.Exists(targetPath))
+        {
+            File.Replace(tempPath, targetPath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            return;
+        }
+
+        File.Move(tempPath, targetPath);
     }
 
     private static string ClassifyArchiveMember(string member)

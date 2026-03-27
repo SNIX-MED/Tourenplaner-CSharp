@@ -21,7 +21,7 @@ public static class GoogleMapsRouteExportService
 
         if (validPoints.Count > MaxSupportedPoints)
         {
-            error = $"Google Maps unterstuetzt hoechstens {MaxSupportedPoints} Punkte pro Route. Die aktuelle Tour enthaelt {validPoints.Count} Punkte.";
+            error = $"Google Maps unterstützt höchstens {MaxSupportedPoints} Punkte pro Route. Die aktuelle Tour enthält {validPoints.Count} Punkte.";
             return false;
         }
 

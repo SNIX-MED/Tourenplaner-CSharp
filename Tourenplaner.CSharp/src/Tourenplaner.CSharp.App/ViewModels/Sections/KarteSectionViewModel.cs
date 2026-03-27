@@ -29,6 +29,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         "Auf dem Weg",
         "An Lager"
     ];
+    private static readonly IReadOnlyList<string> _avisoStatusOptions =
+    [
+        "nicht avisiert",
+        "informiert",
+        "Best\u00E4tigt"
+    ];
     private readonly JsonOrderRepository _orderRepository;
     private readonly JsonToursRepository _tourRepository;
     private readonly JsonEmployeesRepository _employeeRepository;
@@ -73,6 +79,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _isDetailsPanelExpanded = true;
     private bool _savedTourSelectionSync;
     private bool _suppressDetailStatusSave;
+    private bool _suppressDetailAvisoStatusSave;
     private bool _suppressRouteChangeTracking;
     private bool _hasUnsavedRouteChanges;
     private int _routeGeometryRevision;
@@ -81,6 +88,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _currentRouteTrailerId = string.Empty;
     private SavedTourLookupItem? _selectedSavedTour;
     private string _detailSelectedStatus = "nicht festgelegt";
+    private string _detailSelectedAvisoStatus = "nicht avisiert";
     private readonly Guid _instanceId = Guid.NewGuid();
 
     public KarteSectionViewModel(string ordersJsonPath, string toursJsonPath, string settingsJsonPath, AppDataSyncService dataSyncService)
@@ -115,6 +123,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         ToggleDetailsPanelCommand = new AsyncCommand(ToggleDetailsPanelAsync);
         CloseDetailsCommand = new DelegateCommand(CloseDetails, () => SelectedOrder is not null);
         SendEmailCommand = new DelegateCommand(SendEmailToSelectedOrder, () => SelectedOrder is not null);
+        ShowSelectedOrderTourCommand = new AsyncCommand(ShowSelectedOrderTourAsync, CanShowSelectedOrderTour);
         EditOrderCommand = new AsyncCommand(EditSelectedOrderAsync, () => SelectedOrder is not null);
         _dataSyncService.OrdersChanged += OnOrdersChanged;
         _dataSyncService.DataChanged += OnDataChanged;
@@ -166,6 +175,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public ICommand CloseDetailsCommand { get; }
 
     public ICommand SendEmailCommand { get; }
+
+    public ICommand ShowSelectedOrderTourCommand { get; }
 
     public ICommand EditOrderCommand { get; }
 
@@ -301,6 +312,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     }
 
     public IReadOnlyList<string> OrderStatusOptions => _orderStatusOptions;
+    public IReadOnlyList<string> AvisoStatusOptions => _avisoStatusOptions;
 
     public string DetailSelectedStatus
     {
@@ -318,6 +330,25 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             }
 
             _ = UpdateSelectedOrderStatusAsync(value);
+        }
+    }
+
+    public string DetailSelectedAvisoStatus
+    {
+        get => _detailSelectedAvisoStatus;
+        set
+        {
+            if (!SetProperty(ref _detailSelectedAvisoStatus, value))
+            {
+                return;
+            }
+
+            if (_suppressDetailAvisoStatusSave)
+            {
+                return;
+            }
+
+            _ = UpdateSelectedAvisoStatusAsync(value);
         }
     }
 
@@ -352,18 +383,23 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             {
                 IsDetailsOpen = value is not null;
                 _suppressDetailStatusSave = true;
+                _suppressDetailAvisoStatusSave = true;
                 try
                 {
                     DetailSelectedStatus = value is null ? _orderStatusOptions[0] : DetailOrderStatus;
+                    DetailSelectedAvisoStatus = value is null ? _avisoStatusOptions[0] : DetailAvisoStatus;
                 }
                 finally
                 {
                     _suppressDetailStatusSave = false;
+                    _suppressDetailAvisoStatusSave = false;
                 }
                 OnPropertyChanged(nameof(DetailAddress));
                 OnPropertyChanged(nameof(DetailCustomer));
                 OnPropertyChanged(nameof(DetailOrderNumber));
                 OnPropertyChanged(nameof(DetailOrderStatus));
+                OnPropertyChanged(nameof(DetailAvisoStatus));
+                OnPropertyChanged(nameof(CanEditDetailAvisoStatus));
                 OnPropertyChanged(nameof(DetailTourStatus));
                 OnPropertyChanged(nameof(DetailProducts));
                 OnPropertyChanged(nameof(DetailEmail));
@@ -431,6 +467,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public string DetailCustomer => FormatDeliveryAddress(FindSelectedOrderModel());
     public string DetailOrderNumber => SelectedOrder?.OrderId ?? "n/a";
     public string DetailOrderStatus => FindSelectedOrderModel()?.OrderStatus ?? SelectedOrder?.StatusLabel ?? "nicht festgelegt";
+    public string DetailAvisoStatus => NormalizeAvisoStatus(FindSelectedOrderModel()?.AvisoStatus);
+    public bool CanEditDetailAvisoStatus => !string.IsNullOrWhiteSpace(FindSelectedOrderModel()?.AssignedTourId);
     public string DetailTourStatus => SelectedOrder?.TourStatusLabel ?? "Offen";
     public string DetailProducts => OrderProductFormatter.BuildDetails(FindSelectedOrderModel()?.Products);
     public string DetailEmail => FindSelectedOrderModel()?.Email ?? "n/a";
@@ -463,8 +501,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         .ToList();
 
         return lines.Count == 0
-            ? (string.IsNullOrWhiteSpace(order.Address) ? "Keine Auswahl" : order.Address)
-            : string.Join(Environment.NewLine, lines);
+            ? (string.IsNullOrWhiteSpace(order.Address) ? "Keine Auswahl" : NormalizeUiText(order.Address))
+            : NormalizeUiText(string.Join(Environment.NewLine, lines));
     }
 
     private static string FormatDeliveryAddress(Order? order)
@@ -489,8 +527,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         .ToList();
 
         return lines.Count == 0
-            ? (string.IsNullOrWhiteSpace(order.CustomerName) ? "Keine Auswahl" : order.CustomerName)
-            : string.Join(Environment.NewLine, lines);
+            ? (string.IsNullOrWhiteSpace(order.CustomerName) ? "Keine Auswahl" : NormalizeUiText(order.CustomerName))
+            : NormalizeUiText(string.Join(Environment.NewLine, lines));
     }
 
     public void AddOrderToRouteById(string orderId)
@@ -519,6 +557,25 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             Longitude = x.Longitude
         })
             .ToList();
+    }
+
+    public MapOrderVisualInfo ResolveOrderVisualInfo(string? orderId)
+    {
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
+        if (order is null)
+        {
+            return new MapOrderVisualInfo(
+                DeliveryLabel: "Frei Bordsteinkante",
+                StatusLabel: "nicht festgelegt",
+                IsAssigned: false,
+                AvisoStatusLabel: "nicht avisiert");
+        }
+
+        return new MapOrderVisualInfo(
+            DeliveryLabel: string.IsNullOrWhiteSpace(order.DeliveryType) ? "Frei Bordsteinkante" : order.DeliveryType,
+            StatusLabel: NormalizeOrderStatus(order.OrderStatus),
+            IsAssigned: !string.IsNullOrWhiteSpace(order.AssignedTourId),
+            AvisoStatusLabel: NormalizeAvisoStatus(order.AvisoStatus));
     }
 
     public IReadOnlyList<GeoPoint> GetRouteGeometrySnapshot()
@@ -626,6 +683,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RefreshDriveTimesFromCurrentRoute();
         MarkRouteChanged();
         StatusText = $"Aufenthaltszeit für Auftrag {SelectedRouteStop.OrderId} gesetzt: {SelectedRouteStop.PlannedStayMinutes} min.";
+
     }
 
     private void RebuildOrderGrid(string? preferredSelectedId = null)
@@ -885,7 +943,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             if (tour is null)
             {
                 System.Windows.MessageBox.Show(
-                    "Die ausgewaehlte Tour wurde nicht gefunden. Bitte als neue Tour speichern.",
+                    "Die ausgewählte Tour wurde nicht gefunden. Bitte als neue Tour speichern.",
                     "Tour speichern",
                     System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Warning);
@@ -955,7 +1013,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         if (selectedTourId <= 0)
         {
             System.Windows.MessageBox.Show(
-                "Bitte zuerst eine gespeicherte Tour auswaehlen oder auf der Karte laden.",
+                "Bitte zuerst eine gespeicherte Tour auswählen oder auf der Karte laden.",
                 "Tour bearbeiten",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Information);
@@ -972,7 +1030,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         if (tour is null)
         {
             System.Windows.MessageBox.Show(
-                "Die ausgewaehlte Tour wurde nicht gefunden.",
+                "Die ausgewählte Tour wurde nicht gefunden.",
                 "Tour bearbeiten",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Information);
@@ -1282,7 +1340,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _suppressRouteChangeTracking = true;
         try
         {
-            RouteName = string.IsNullOrWhiteSpace(tour.Name) ? $"Tour {tour.Id}" : tour.Name.Trim();
+            RouteName = string.IsNullOrWhiteSpace(tour.Name) ? $"Tour {tour.Id}" : NormalizeUiText(tour.Name);
             RouteDate = (tour.Date ?? string.Empty).Trim();
             var startTime = (tour.StartTime ?? string.Empty).Trim();
             if (TimeOnly.TryParseExact(startTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedTime))
@@ -1381,7 +1439,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     private static string BuildTourLookupLabel(TourRecord tour)
     {
-        var name = string.IsNullOrWhiteSpace(tour.Name) ? "Tour" : tour.Name.Trim();
+        var name = string.IsNullOrWhiteSpace(tour.Name) ? "Tour" : NormalizeUiText(tour.Name);
         return name;
     }
 
@@ -1974,6 +2032,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         {
             editOrder.RaiseCanExecuteChanged();
         }
+
+        if (ShowSelectedOrderTourCommand is AsyncCommand showTour)
+        {
+            showTour.RaiseCanExecuteChanged();
+        }
     }
 
     private int ResolveCurrentTourId()
@@ -1998,6 +2061,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     }
 
     private bool CanRemoveSelectedOrderFromTour()
+    {
+        return !string.IsNullOrWhiteSpace(FindSelectedOrderModel()?.AssignedTourId);
+    }
+
+    private bool CanShowSelectedOrderTour()
     {
         return !string.IsNullOrWhiteSpace(FindSelectedOrderModel()?.AssignedTourId);
     }
@@ -2085,6 +2153,30 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
     }
 
+    private async Task ShowSelectedOrderTourAsync()
+    {
+        var order = FindSelectedOrderModel();
+        if (order is null)
+        {
+            return;
+        }
+
+        var assignedTourId = (order.AssignedTourId ?? string.Empty).Trim();
+        if (!int.TryParse(assignedTourId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tourId) || tourId <= 0)
+        {
+            System.Windows.MessageBox.Show(
+                "Für diesen Auftrag ist keine gültige Tour zugeordnet.",
+                "Tour anzeigen",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            return;
+        }
+
+        await FocusTourAsync(tourId);
+        SelectOrderDetailsById(order.Id);
+        StatusText = $"Tour {tourId} für Auftrag {order.Id} angezeigt.";
+    }
+
     private async Task EditSelectedOrderAsync()
     {
         var selected = FindSelectedOrderModel();
@@ -2167,11 +2259,20 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         order.OrderStatus = normalizedStatus;
         await _orderRepository.SaveAllAsync(_allOrders);
 
-        var selectedOrderId = order.Id;
-        await RefreshAsync();
-        SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, selectedOrderId, StringComparison.OrdinalIgnoreCase));
-        PublishOrderChange(selectedOrderId, selectedOrderId);
-        StatusText = $"Status fuer Auftrag {selectedOrderId} gespeichert.";
+        _suppressDetailStatusSave = true;
+        try
+        {
+            DetailSelectedStatus = normalizedStatus;
+        }
+        finally
+        {
+            _suppressDetailStatusSave = false;
+        }
+
+        RebuildOrderGrid(order.Id);
+        OnPropertyChanged(nameof(RouteStops));
+        OnPropertyChanged(nameof(DetailOrderStatus));
+        StatusText = $"Status für Auftrag {order.Id} gespeichert.";
     }
 
     private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)
@@ -2182,6 +2283,56 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         _ = ApplyExternalOrderChangeAsync(args);
+    }
+
+    private async Task UpdateSelectedAvisoStatusAsync(string? nextStatus)
+    {
+        var order = FindSelectedOrderModel();
+        if (order is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(order.AssignedTourId))
+        {
+            _suppressDetailAvisoStatusSave = true;
+            try
+            {
+                DetailSelectedAvisoStatus = NormalizeAvisoStatus(order.AvisoStatus);
+            }
+            finally
+            {
+                _suppressDetailAvisoStatusSave = false;
+            }
+
+            StatusText = "Avisierungsstatus kann nur für zugeordnete Aufträge geändert werden.";
+            return;
+        }
+
+        var normalizedStatus = NormalizeAvisoStatus(nextStatus);
+        if (string.Equals(NormalizeAvisoStatus(order.AvisoStatus), normalizedStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        order.AvisoStatus = normalizedStatus;
+        await _orderRepository.SaveAllAsync(_allOrders);
+
+        _suppressDetailAvisoStatusSave = true;
+        try
+        {
+            DetailSelectedAvisoStatus = normalizedStatus;
+        }
+        finally
+        {
+            _suppressDetailAvisoStatusSave = false;
+        }
+
+        RebuildOrderGrid(order.Id);
+        OnPropertyChanged(nameof(RouteStops));
+        OnPropertyChanged(nameof(DetailAvisoStatus));
+        PublishOrderChange(order.Id, order.Id);
+        StatusText = $"Avisierungsstatus f\u00FCr Auftrag {order.Id} gespeichert.";
     }
 
     private async Task ApplyExternalOrderChangeAsync(OrderChangedEventArgs args)
@@ -2564,17 +2715,53 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return new MapOrderItem
         {
             OrderId = order.Id,
-            Customer = order.CustomerName,
-            Address = order.Address,
+            Customer = NormalizeUiText(order.CustomerName),
+            Address = NormalizeUiText(order.Address),
             ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
             AssignedTourId = order.AssignedTourId ?? string.Empty,
             IsAssigned = !string.IsNullOrWhiteSpace(order.AssignedTourId),
             Latitude = order.Location?.Latitude ?? double.NaN,
             Longitude = order.Location?.Longitude ?? double.NaN,
-            DeliveryLabel = string.IsNullOrWhiteSpace(order.DeliveryType) ? "Frei Bordsteinkante" : order.DeliveryType,
+            DeliveryLabel = NormalizeUiText(string.IsNullOrWhiteSpace(order.DeliveryType) ? "Frei Bordsteinkante" : order.DeliveryType),
             StatusLabel = NormalizeOrderStatus(order.OrderStatus),
+            AvisoStatusLabel = NormalizeAvisoStatus(order.AvisoStatus),
             TourStatusLabel = ResolveTourStatus(order)
         };
+    }
+
+    private static string NormalizeUiText(string? value)
+    {
+        var current = (value ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(current))
+        {
+            return string.Empty;
+        }
+
+        for (var i = 0; i < 2; i++)
+        {
+            if (!LooksLikeMojibake(current))
+            {
+                break;
+            }
+
+            var bytes = Encoding.GetEncoding(1252).GetBytes(current);
+            var decoded = Encoding.UTF8.GetString(bytes);
+            if (string.Equals(decoded, current, StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            current = decoded;
+        }
+
+        return current;
+    }
+
+    private static bool LooksLikeMojibake(string value)
+    {
+        return value.Contains("\u00C3", StringComparison.Ordinal) ||
+               value.Contains("\u00C2", StringComparison.Ordinal) ||
+               value.Contains("\u00E2", StringComparison.Ordinal);
     }
 
     private static string NormalizeOrderStatus(string? status)
@@ -2583,6 +2770,24 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return string.Equals(normalized, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase)
             ? "nicht festgelegt"
             : normalized;
+    }
+
+    private static string NormalizeAvisoStatus(string? status)
+    {
+        var normalized = string.IsNullOrWhiteSpace(status) ? "nicht avisiert" : status.Trim();
+        if (string.Equals(normalized, "-", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = "nicht avisiert";
+        }
+
+        if (string.Equals(normalized, "Best\u00E4tigt", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = "Best\u00E4tigt";
+        }
+
+        return _avisoStatusOptions.Contains(normalized, StringComparer.OrdinalIgnoreCase)
+            ? _avisoStatusOptions.First(x => string.Equals(x, normalized, StringComparison.OrdinalIgnoreCase))
+            : "nicht avisiert";
     }
 
     private static string ResolveTourStatus(Order order)
@@ -2642,6 +2847,7 @@ public sealed class MapOrderItem
     public double Longitude { get; set; }
     public string DeliveryLabel { get; set; } = "Frei Bordsteinkante";
     public string StatusLabel { get; set; } = "nicht festgelegt";
+    public string AvisoStatusLabel { get; set; } = "nicht avisiert";
     public string TourStatusLabel { get; set; } = "Offen";
 }
 
@@ -2774,6 +2980,8 @@ public sealed class RouteStopItem : ObservableObject
     public string DisplayEta => IsCompanyDisplay ? string.Empty : EtaText;
 }
 
+public sealed record MapOrderVisualInfo(string DeliveryLabel, string StatusLabel, bool IsAssigned, string AvisoStatusLabel);
+
 public sealed record CompanyMarkerInfo(string Name, string Address, double Latitude, double Longitude);
 
 public sealed class SavedTourLookupItem
@@ -2786,6 +2994,7 @@ public sealed class SavedTourLookupItem
         return Label;
     }
 }
+
 
 
 

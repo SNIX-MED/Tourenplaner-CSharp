@@ -220,14 +220,14 @@ public sealed class CreateTourDialogViewModel : ObservableObject
 
         if (SelectedVehicle is null || string.IsNullOrWhiteSpace(SelectedVehicle.Id))
         {
-            error = "Bitte ein Fahrzeug auswaehlen.";
+            error = "Bitte ein Fahrzeug auswählen.";
             return false;
         }
 
         var employees = Employees.Where(x => x.IsSelected).Select(x => x.Id).ToList();
         if (employees.Count is < 1 or > 2)
         {
-            error = "Bitte 1 bis 2 Mitarbeiter auswaehlen.";
+            error = "Bitte 1 bis 2 Mitarbeiter auswählen.";
             return false;
         }
 

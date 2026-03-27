@@ -165,7 +165,7 @@ public sealed class WebViewRouteExportService
             await Task.Delay(250);
         }
 
-        throw new TimeoutException("Die Kartenansicht konnte nicht rechtzeitig fuer den Export vorbereitet werden.");
+        throw new TimeoutException("Die Kartenansicht konnte nicht rechtzeitig für den Export vorbereitet werden.");
     }
 
     private static string BuildMapDataJson(RouteExportSnapshot snapshot)
@@ -414,7 +414,7 @@ public sealed class WebViewRouteExportService
                      }
 
                      if (bounds.length > 0) {
-                       map.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 });
+                       map.fitBounds(bounds, { padding: [18, 18], maxZoom: 16 });
                      }
 
                      setTimeout(() => {

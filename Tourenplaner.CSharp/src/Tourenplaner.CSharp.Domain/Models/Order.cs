@@ -16,6 +16,7 @@ public sealed class Order
     public List<OrderProductInfo> Products { get; set; } = new();
     public string DeliveryType { get; set; } = "Frei Bordsteinkante";
     public string OrderStatus { get; set; } = "nicht festgelegt";
+    public string AvisoStatus { get; set; } = "nicht avisiert";
     public string Notes { get; set; } = string.Empty;
 }
 

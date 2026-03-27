@@ -13,7 +13,7 @@ internal static class VehicleNormalizer
         source.Name = (source.Name ?? string.Empty).Trim();
         source.LicensePlate = (source.LicensePlate ?? string.Empty).Trim().ToUpperInvariant();
         source.MaxPayloadKg = NonNegative(source.MaxPayloadKg, "Nutzlast");
-        source.MaxTrailerLoadKg = NonNegative(source.MaxTrailerLoadKg, "Anhaengelast");
+        source.MaxTrailerLoadKg = NonNegative(source.MaxTrailerLoadKg, "Anhängelast");
         source.VolumeM3 = NonNegative(source.VolumeM3, "Volumen");
         source.LoadingArea = NormalizeDimensions(source.LoadingArea);
         source.CreatedAt = string.IsNullOrWhiteSpace(source.CreatedAt) ? Timestamp() : source.CreatedAt.Trim();
@@ -42,7 +42,7 @@ internal static class VehicleNormalizer
         source.VehicleId = (source.VehicleId ?? string.Empty).Trim();
         source.TrailerId = (source.TrailerId ?? string.Empty).Trim();
         source.VehiclePayloadKg = NonNegative(source.VehiclePayloadKg, "Ladegewicht Zugfahrzeug");
-        source.TrailerLoadKg = NonNegative(source.TrailerLoadKg, "Anhaengelast");
+        source.TrailerLoadKg = NonNegative(source.TrailerLoadKg, "Anhängelast");
         source.CreatedAt = string.IsNullOrWhiteSpace(source.CreatedAt) ? Timestamp() : source.CreatedAt.Trim();
         source.UpdatedAt = Timestamp();
         source.Notes = (source.Notes ?? string.Empty).Trim();
