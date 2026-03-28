@@ -55,6 +55,101 @@ public sealed class RouteOptimizationService
         return Math.Round(total, 2);
     }
 
+    public IReadOnlyList<TPoint> OptimizeWithFixedEndpoints<TPoint>(
+        TPoint start,
+        IReadOnlyList<TPoint> middleStops,
+        TPoint end,
+        Func<TPoint, TPoint, double> travelCost)
+    {
+        if (middleStops.Count <= 1)
+        {
+            return middleStops.ToList();
+        }
+
+        var remaining = middleStops.ToList();
+        var route = new List<TPoint>(remaining.Count);
+        var current = start;
+
+        while (remaining.Count > 0)
+        {
+            var next = remaining
+                .OrderBy(x => SafeCost(current, x, travelCost))
+                .First();
+            route.Add(next);
+            remaining.Remove(next);
+            current = next;
+        }
+
+        // Lightweight local search: keep endpoints fixed and improve by swapping stop positions.
+        ImproveByPairSwaps(route, start, end, travelCost);
+        return route;
+    }
+
+    private static void ImproveByPairSwaps<TPoint>(
+        List<TPoint> route,
+        TPoint start,
+        TPoint end,
+        Func<TPoint, TPoint, double> travelCost)
+    {
+        if (route.Count <= 2)
+        {
+            return;
+        }
+
+        var improved = true;
+        while (improved)
+        {
+            improved = false;
+            var bestCost = ComputePathCost(start, route, end, travelCost);
+
+            for (var i = 0; i < route.Count - 1; i++)
+            {
+                for (var j = i + 1; j < route.Count; j++)
+                {
+                    (route[i], route[j]) = (route[j], route[i]);
+                    var cost = ComputePathCost(start, route, end, travelCost);
+                    if (cost + 0.0001d < bestCost)
+                    {
+                        bestCost = cost;
+                        improved = true;
+                        continue;
+                    }
+
+                    (route[i], route[j]) = (route[j], route[i]);
+                }
+            }
+        }
+    }
+
+    private static double ComputePathCost<TPoint>(
+        TPoint start,
+        IReadOnlyList<TPoint> middle,
+        TPoint end,
+        Func<TPoint, TPoint, double> travelCost)
+    {
+        var total = 0d;
+        var current = start;
+        for (var i = 0; i < middle.Count; i++)
+        {
+            total += SafeCost(current, middle[i], travelCost);
+            current = middle[i];
+        }
+
+        total += SafeCost(current, end, travelCost);
+        return total;
+    }
+
+    private static double SafeCost<TPoint>(TPoint from, TPoint to, Func<TPoint, TPoint, double> travelCost)
+    {
+        var value = travelCost(from, to);
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            return double.MaxValue / 4d;
+        }
+
+        return Math.Max(0d, value);
+    }
+
     private static double HaversineKm(double lat1, double lon1, double lat2, double lon2)
     {
         const double radiusKm = 6371.0;

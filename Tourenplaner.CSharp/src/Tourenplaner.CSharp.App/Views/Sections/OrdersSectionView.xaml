@@ -77,7 +77,8 @@
         </Border>
 
         <Border Grid.Row="2" Style="{StaticResource FlatCardStyle}" Padding="12">
-            <DataGrid AutoGenerateColumns="False"
+            <DataGrid x:Name="OrdersGrid"
+                      AutoGenerateColumns="False"
                       CanUserAddRows="False"
                       IsReadOnly="True"
                       ItemsSource="{Binding MapOrders}"

@@ -6,6 +6,7 @@
              mc:Ignorable="d"
              d:DesignHeight="920"
              d:DesignWidth="1400"
+             PreviewMouseWheel="OnPagePreviewMouseWheel"
              TextOptions.TextFormattingMode="Display"
              TextOptions.TextRenderingMode="ClearType">
     <UserControl.Resources>
@@ -28,25 +29,14 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer x:Name="RootScrollViewer"
+    <ScrollViewer x:Name="PageScrollViewer"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
-                  PreviewMouseWheel="OnRootScrollViewerPreviewMouseWheel">
-        <Grid Margin="8">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+                  IsManipulationEnabled="True"
+                  PanningMode="VerticalFirst">
+    <StackPanel Margin="8">
 
-        <StackPanel>
-            <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="{Binding Title}" />
-            <TextBlock Margin="0,6,0,0"
-                       Style="{StaticResource SectionCaptionTextStyle}"
-                       Text="{Binding Description}" />
-        </StackPanel>
-
-        <Border Grid.Row="1" Margin="0,14,0,0" Style="{StaticResource SharpFilterBarCardStyle}">
+        <Border Margin="0,14,0,0" Style="{StaticResource SharpFilterBarCardStyle}">
             <StackPanel>
                 <TextBlock FontSize="24" FontWeight="SemiBold" Text="Kalender der nächsten 4 Wochen" />
                 <TextBlock Margin="0,4,0,0"
@@ -73,37 +63,14 @@
                                                Foreground="{DynamicResource Brush.TextPrimary}"
                                                Text="{Binding Label}" />
 
-                                    <ListBox Margin="0,8,0,0"
-                                             ItemsSource="{Binding Days}"
-                                             SelectedItem="{Binding DataContext.SelectedUpcomingDay, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}">
-                                        <ListBox.ItemContainerStyle>
-                                            <Style TargetType="ListBoxItem">
-                                                <EventSetter Event="PreviewMouseLeftButtonDown" Handler="OnUpcomingDayItemPreviewMouseLeftButtonDown" />
-                                                <Setter Property="Margin" Value="0,0,0,6" />
-                                                <Setter Property="Padding" Value="0" />
-                                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                                <Setter Property="VerticalContentAlignment" Value="Stretch" />
-                                                <Setter Property="Background" Value="Transparent" />
-                                                <Setter Property="BorderBrush" Value="Transparent" />
-                                                <Setter Property="BorderThickness" Value="0" />
-                                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                                                <Setter Property="Template">
-                                                    <Setter.Value>
-                                                        <ControlTemplate TargetType="ListBoxItem">
-                                                            <Border Background="Transparent"
-                                                                    BorderBrush="Transparent"
-                                                                    BorderThickness="0"
-                                                                    SnapsToDevicePixels="True">
-                                                                <ContentPresenter />
-                                                            </Border>
-                                                        </ControlTemplate>
-                                                    </Setter.Value>
-                                                </Setter>
-                                            </Style>
-                                        </ListBox.ItemContainerStyle>
-                                        <ListBox.ItemTemplate>
+                                    <ItemsControl Margin="0,8,0,0"
+                                                  ItemsSource="{Binding Days}">
+                                        <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="{Binding LoadBackground}">
+                                                <Border Background="{Binding LoadBackground}"
+                                                        Margin="0,0,0,6"
+                                                        Cursor="Hand"
+                                                        MouseLeftButtonDown="OnUpcomingDayCardMouseLeftButtonDown">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="88" />
@@ -141,8 +108,8 @@
                                                     </Border.Style>
                                                 </Border>
                                             </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
@@ -151,12 +118,12 @@
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="2" Margin="0,14,0,0" Style="{StaticResource SharpFlatCardStyle}" Padding="14">
-            <Grid>
+        <Border Margin="0,14,0,0" Style="{StaticResource SharpFlatCardStyle}" Padding="14">
+                <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Grid>
@@ -166,6 +133,12 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock FontSize="24" FontWeight="SemiBold" Text="{Binding SelectedDayHeadline}" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Width="170" Margin="0,0,8,0" Command="{Binding OpenSplitScreenCommand}" Style="{StaticResource SecondaryButtonStyle}">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <TextBlock Text="⧉" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Split-Ansicht" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                         <Button Width="180" Margin="0,0,8,0" Content="Tag in Liefertouren" Command="{Binding OpenSelectedDayInToursCommand}" />
                         <Button Width="130" Margin="0,0,8,0" Content="Tour öffnen" Command="{Binding OpenSelectedTourCommand}" />
                         <Button Width="130" Content="Tour löschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteSelectedTourCommand}" />
@@ -176,13 +149,15 @@
                     <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding StatusText}" />
                 </Border>
 
-                <ScrollViewer Grid.Row="2"
-                              VerticalScrollBarVisibility="Disabled"
-                              HorizontalScrollBarVisibility="Auto">
-                    <ListBox ItemsSource="{Binding SelectedDayTours}"
-                             SelectedItem="{Binding SelectedDayTour, Mode=TwoWay}"
-                             Background="Transparent"
-                             BorderThickness="0">
+                <ListBox Grid.Row="2"
+                         ItemsSource="{Binding SelectedDayTours}"
+                         SelectedItem="{Binding SelectedDayTour, Mode=TwoWay}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         PreviewMouseWheel="OnPagePreviewMouseWheel"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                         ScrollViewer.CanContentScroll="False">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" />
@@ -232,7 +207,7 @@
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
 
                                         <Grid>
@@ -340,10 +315,9 @@
                                 </Border>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
-                    </ListBox>
-                </ScrollViewer>
-            </Grid>
+                </ListBox>
+                </Grid>
         </Border>
-        </Grid>
+        </StackPanel>
     </ScrollViewer>
 </UserControl>

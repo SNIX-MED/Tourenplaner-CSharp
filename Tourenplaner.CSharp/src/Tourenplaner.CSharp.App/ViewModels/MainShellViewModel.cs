@@ -5,12 +5,15 @@ using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
+using System.Windows;
 
 namespace Tourenplaner.CSharp.App.ViewModels;
 
 public sealed class MainShellViewModel : ObservableObject
 {
     private readonly KarteSectionViewModel _mapSection;
+    private readonly KalenderSectionViewModel _calendarSection;
+    private readonly SplitScreenSectionViewModel _splitScreenSection;
     private readonly AppDataSyncService _dataSyncService;
     private readonly string _ordersJsonPath;
     private readonly Guid _instanceId = Guid.NewGuid();
@@ -19,6 +22,7 @@ public sealed class MainShellViewModel : ObservableObject
     private string _globalSearchText = string.Empty;
     private string _currentUserName = "Mike Weber";
     private readonly NavigationItemViewModel _settingsNavigationItem;
+    private object? _previousSectionBeforeSplit;
 
     public MainShellViewModel(
         AppSnapshotService snapshotService,
@@ -56,7 +60,11 @@ public sealed class MainShellViewModel : ObservableObject
             tourId => NavigateToMapTourAsync(map, tourId),
             date => NavigateToTourDateAsync(tours, date),
             orderId => OpenOrderEditorFromCalendarAsync(orderId),
-            dataSyncService);
+            dataSyncService: dataSyncService);
+        _calendarSection = calendar;
+        _splitScreenSection = new SplitScreenSectionViewModel(map, calendar, LeaveSplitScreenAsync);
+        map.SetOpenSplitScreenAction(OpenSplitScreenAsync);
+        calendar.SetOpenSplitScreenAction(OpenSplitScreenAsync);
         var orders = new OrdersSectionViewModel(ordersJsonPath, dataSyncService);
         var nonMapOrders = new NonMapOrdersSectionViewModel(ordersJsonPath, dataSyncService);
         var employees = new EmployeesSectionViewModel(employeesJsonPath, dataSyncService);
@@ -135,8 +143,27 @@ public sealed class MainShellViewModel : ObservableObject
     public object? CurrentSection
     {
         get => _currentSection;
-        private set => SetProperty(ref _currentSection, value);
+        private set
+        {
+            if (!SetProperty(ref _currentSection, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsSplitScreenActive));
+            OnPropertyChanged(nameof(IsSidebarVisible));
+            OnPropertyChanged(nameof(SidebarColumnWidth));
+            OnPropertyChanged(nameof(IsMapSectionActive));
+        }
     }
+
+    public bool IsSplitScreenActive => CurrentSection is SplitScreenSectionViewModel;
+
+    public bool IsSidebarVisible => !IsSplitScreenActive;
+
+    public GridLength SidebarColumnWidth => IsSplitScreenActive ? new GridLength(0) : new GridLength(280);
+
+    public bool IsMapSectionActive => CurrentSection is KarteSectionViewModel;
 
     private async Task NavigateToTourAsync(ToursSectionViewModel toursSection, int tourId)
     {
@@ -160,6 +187,28 @@ public sealed class MainShellViewModel : ObservableObject
     {
         SelectedNavigationItem = NavigationItems.FirstOrDefault(x => ReferenceEquals(x.Section, mapSection)) ?? SelectedNavigationItem;
         await mapSection.RefreshAsync();
+    }
+
+    private async Task OpenSplitScreenAsync()
+    {
+        var openedFromCalendar = ReferenceEquals(CurrentSection, _calendarSection);
+        var calendarTourId = _calendarSection.SelectedDayTour?.TourId;
+
+        _previousSectionBeforeSplit = CurrentSection;
+        CurrentSection = _splitScreenSection;
+        await Task.WhenAll(_mapSection.RefreshAsync(), _calendarSection.RefreshAsync());
+
+        if (openedFromCalendar && calendarTourId is int tourId && tourId > 0)
+        {
+            await _mapSection.FocusTourAsync(tourId);
+        }
+    }
+
+    private async Task LeaveSplitScreenAsync()
+    {
+        CurrentSection = _previousSectionBeforeSplit ?? _mapSection;
+        _previousSectionBeforeSplit = null;
+        await Task.CompletedTask;
     }
 
     private void OpenSettings()

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -22,6 +23,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private const string CompanyStartStopId = "__company_start__";
     private const string CompanyEndStopId = "__company_end__";
     private const string PlannedTourStatus = "Eingeplant";
+    private const string AvisoBadgeColorNotAvisiert = "#64748B";
+    private const string AvisoBadgeColorInformiert = "#F59E0B";
+    private const string AvisoBadgeColorBestaetigt = "#16A34A";
     private static readonly IReadOnlyList<string> _orderStatusOptions =
     [
         "nicht festgelegt",
@@ -49,11 +53,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private readonly List<GeoPoint> _routeGeometryPoints = new();
     private readonly List<OsrmRouteLeg> _routeLegs = new();
     private readonly List<RouteStopItem> _timedStops = new();
-    private static readonly IReadOnlyList<string> _filterOptions = ["Alle", "Nur offen", "Nur zugewiesen"];
     private VehicleDataRecord _vehicleData = new();
 
     private string _searchText = string.Empty;
-    private string _selectedFilter = "Alle";
+    private bool _includeOpenOrders = true;
+    private bool _includePlannedOrders = true;
     private MapOrderItem? _selectedOrder;
     private RouteStopItem? _selectedRouteStop;
     private string _routeName = "Neue Karte-Tour";
@@ -81,6 +85,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _suppressDetailStatusSave;
     private bool _suppressDetailAvisoStatusSave;
     private bool _suppressRouteChangeTracking;
+    private bool _suppressFilterRefresh;
+    private bool _isUpdatingFilterOptions;
     private bool _hasUnsavedRouteChanges;
     private int _routeGeometryRevision;
     private int _activeTourId;
@@ -90,8 +96,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _detailSelectedStatus = "nicht festgelegt";
     private string _detailSelectedAvisoStatus = "nicht avisiert";
     private readonly Guid _instanceId = Guid.NewGuid();
+    private Func<Task>? _openSplitScreenAsync;
 
-    public KarteSectionViewModel(string ordersJsonPath, string toursJsonPath, string settingsJsonPath, AppDataSyncService dataSyncService)
+    public KarteSectionViewModel(
+        string ordersJsonPath,
+        string toursJsonPath,
+        string settingsJsonPath,
+        AppDataSyncService dataSyncService,
+        Func<Task>? openSplitScreenAsync = null)
         : base("Karte", "Map order review, marker filters, route panel and save-to-tour workflow.")
     {
         _orderRepository = new JsonOrderRepository(ordersJsonPath);
@@ -104,6 +116,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _optimizationService = new RouteOptimizationService();
         _mapRouteService = new MapRouteService();
         _osrmRoutingService = new OsrmRoutingService();
+        _openSplitScreenAsync = openSplitScreenAsync;
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         AddToRouteCommand = new DelegateCommand(AddSelectedOrderToRoute, () => SelectedOrder is not null);
@@ -111,7 +124,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RemoveFromRouteCommand = new DelegateCommand(RemoveSelectedRouteStop, () => SelectedRouteStop is not null && !IsCompanyStop(SelectedRouteStop));
         MoveStopUpCommand = new DelegateCommand(MoveSelectedStopUp, () => CanMoveSelectedStop(-1));
         MoveStopDownCommand = new DelegateCommand(MoveSelectedStopDown, () => CanMoveSelectedStop(1));
-        OptimizeRouteCommand = new DelegateCommand(OptimizeRoute, () => RouteStops.Count(x => !IsCompanyStop(x)) > 2);
+        OptimizeRouteCommand = new AsyncCommand(OptimizeRouteAsync, () => RouteStops.Count(x => !IsCompanyStop(x)) > 2);
         OpenCreateTourDialogCommand = new AsyncCommand(OpenCreateTourDialogAsync);
         EditSelectedTourCommand = new AsyncCommand(OpenEditSelectedTourDialogAsync, CanEditOrLeaveSelectedTour);
         ExportRouteCommand = new AsyncCommand(ExportRouteAsync, CanExportRoute);
@@ -122,6 +135,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         ApplyStartTimeCommand = new DelegateCommand(ApplyRouteStartTime);
         ToggleDetailsPanelCommand = new AsyncCommand(ToggleDetailsPanelAsync);
         CloseDetailsCommand = new DelegateCommand(CloseDetails, () => SelectedOrder is not null);
+        ResetOrderFiltersCommand = new DelegateCommand(ResetOrderFilters);
+        ToggleAllOrderFiltersCommand = new DelegateCommand(ToggleAllOrderFilters);
+        OpenSplitScreenCommand = new AsyncCommand(OpenSplitScreenAsync, () => _openSplitScreenAsync is not null);
         SendEmailCommand = new DelegateCommand(SendEmailToSelectedOrder, () => SelectedOrder is not null);
         ShowSelectedOrderTourCommand = new AsyncCommand(ShowSelectedOrderTourAsync, CanShowSelectedOrderTour);
         EditOrderCommand = new AsyncCommand(EditSelectedOrderAsync, () => SelectedOrder is not null);
@@ -174,13 +190,36 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     public ICommand CloseDetailsCommand { get; }
 
+    public ICommand ResetOrderFiltersCommand { get; }
+
+    public ICommand ToggleAllOrderFiltersCommand { get; }
+
+    public ICommand OpenSplitScreenCommand { get; }
+
     public ICommand SendEmailCommand { get; }
 
     public ICommand ShowSelectedOrderTourCommand { get; }
 
     public ICommand EditOrderCommand { get; }
 
-    public IReadOnlyList<string> FilterOptions => _filterOptions;
+    public ObservableCollection<MapOrderFilterOption> OrderStatusFilters { get; } = new();
+
+    public ObservableCollection<MapOrderFilterOption> DeliveryTypeFilters { get; } = new();
+
+    public ObservableCollection<MapOrderFilterOption> AvisoStatusFilters { get; } = new();
+
+    public string FilterSummaryText => BuildFilterSummaryText();
+
+    public string ToggleAllFiltersButtonText => AreAllFiltersSelected() ? "Alle abwählen" : "Alle auswählen";
+
+    public string LegendStatusColorNotSpecified => _statusColorNotSpecified;
+    public string LegendStatusColorOrdered => _statusColorOrdered;
+    public string LegendStatusColorOnTheWay => _statusColorOnTheWay;
+    public string LegendStatusColorInStock => _statusColorInStock;
+    public string LegendStatusColorPlanned => _statusColorPlanned;
+    public string LegendAvisoBadgeColorNotAvisiert => AvisoBadgeColorNotAvisiert;
+    public string LegendAvisoBadgeColorInformiert => AvisoBadgeColorInformiert;
+    public string LegendAvisoBadgeColorBestaetigt => AvisoBadgeColorBestaetigt;
 
     public SavedTourLookupItem? SelectedSavedTour
     {
@@ -215,14 +254,26 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
     }
 
-    public string SelectedFilter
+    public bool IncludeOpenOrders
     {
-        get => _selectedFilter;
+        get => _includeOpenOrders;
         set
         {
-            if (SetProperty(ref _selectedFilter, value))
+            if (SetProperty(ref _includeOpenOrders, value))
             {
-                RebuildOrderGrid();
+                TriggerOrderFilterRefresh();
+            }
+        }
+    }
+
+    public bool IncludePlannedOrders
+    {
+        get => _includePlannedOrders;
+        set
+        {
+            if (SetProperty(ref _includePlannedOrders, value))
+            {
+                TriggerOrderFilterRefresh();
             }
         }
     }
@@ -441,6 +492,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _statusColorOnTheWay = NormalizeStatusColor(settings.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
         _statusColorInStock = NormalizeStatusColor(settings.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         _statusColorPlanned = NormalizeStatusColor(settings.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
+        NotifyLegendColorsChanged();
         IsDetailsPanelExpanded = settings.MapDetailsPanelExpanded;
         _companyLocation = await AddressGeocodingService.TryGeocodeAddressAsync(
             settings.CompanyStreet,
@@ -457,6 +509,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             await _orderRepository.SaveAllAsync(_allOrders);
         }
 
+        RefreshOrderFilterOptions();
         RebuildOrderGrid();
         await LoadSavedToursAsync();
         _ = RebuildRouteGeometryAsync();
@@ -479,6 +532,25 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _companyLocation is null
             ? null
             : new CompanyMarkerInfo(_companyName, _companyAddress, _companyLocation.Latitude, _companyLocation.Longitude);
+
+    public void SetOpenSplitScreenAction(Func<Task>? openSplitScreenAsync)
+    {
+        _openSplitScreenAsync = openSplitScreenAsync;
+        if (OpenSplitScreenCommand is AsyncCommand openSplit)
+        {
+            openSplit.RaiseCanExecuteChanged();
+        }
+    }
+
+    private async Task OpenSplitScreenAsync()
+    {
+        if (_openSplitScreenAsync is null)
+        {
+            return;
+        }
+
+        await _openSplitScreenAsync();
+    }
 
     private static string FormatOrderAddress(Order? order)
     {
@@ -572,7 +644,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         return new MapOrderVisualInfo(
-            DeliveryLabel: string.IsNullOrWhiteSpace(order.DeliveryType) ? "Frei Bordsteinkante" : order.DeliveryType,
+            DeliveryLabel: NormalizeDeliveryType(order.DeliveryType),
             StatusLabel: NormalizeOrderStatus(order.OrderStatus),
             IsAssigned: !string.IsNullOrWhiteSpace(order.AssignedTourId),
             AvisoStatusLabel: NormalizeAvisoStatus(order.AvisoStatus));
@@ -691,6 +763,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var previousSelectedId = string.IsNullOrWhiteSpace(preferredSelectedId)
             ? SelectedOrder?.OrderId
             : preferredSelectedId;
+        RefreshOrderFilterOptions();
         var routeOrderIds = RouteStops.Select(s => s.OrderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var query = (_searchText ?? string.Empty).Trim();
@@ -698,13 +771,32 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             .Where(o => o.Type == OrderType.Map && o.Location is not null)
             .Where(o => !routeOrderIds.Contains(o.Id));
 
-        if (string.Equals(_selectedFilter, "Nur offen", StringComparison.OrdinalIgnoreCase))
+        if (!IncludeOpenOrders)
+        {
+            filtered = filtered.Where(o => !string.IsNullOrWhiteSpace(o.AssignedTourId));
+        }
+
+        if (!IncludePlannedOrders)
         {
             filtered = filtered.Where(o => string.IsNullOrWhiteSpace(o.AssignedTourId));
         }
-        else if (string.Equals(_selectedFilter, "Nur zugewiesen", StringComparison.OrdinalIgnoreCase))
+
+        var selectedOrderStatuses = GetSelectedFilterLabels(OrderStatusFilters);
+        if (selectedOrderStatuses.Count != 0 && selectedOrderStatuses.Count != OrderStatusFilters.Count)
         {
-            filtered = filtered.Where(o => !string.IsNullOrWhiteSpace(o.AssignedTourId));
+            filtered = filtered.Where(o => selectedOrderStatuses.Contains(NormalizeOrderStatus(o.OrderStatus)));
+        }
+
+        var selectedDeliveryTypes = GetSelectedFilterLabels(DeliveryTypeFilters);
+        if (selectedDeliveryTypes.Count != 0 && selectedDeliveryTypes.Count != DeliveryTypeFilters.Count)
+        {
+            filtered = filtered.Where(o => selectedDeliveryTypes.Contains(NormalizeDeliveryType(o.DeliveryType)));
+        }
+
+        var selectedAvisoStatuses = GetSelectedFilterLabels(AvisoStatusFilters);
+        if (selectedAvisoStatuses.Count != 0 && selectedAvisoStatuses.Count != AvisoStatusFilters.Count)
+        {
+            filtered = filtered.Where(o => selectedAvisoStatuses.Contains(NormalizeAvisoStatus(o.AvisoStatus)));
         }
 
         if (!string.IsNullOrWhiteSpace(query))
@@ -713,6 +805,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 o.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                 o.CustomerName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                 o.Address.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                NormalizeDeliveryType(o.DeliveryType).Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                NormalizeOrderStatus(o.OrderStatus).Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                NormalizeAvisoStatus(o.AvisoStatus).Contains(query, StringComparison.OrdinalIgnoreCase) ||
                 (o.AssignedTourId ?? string.Empty).Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
@@ -732,6 +827,213 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
         UpdateStatus();
         RaiseCommandStates();
+    }
+
+    private void ResetOrderFilters()
+    {
+        _suppressFilterRefresh = true;
+        try
+        {
+            IncludeOpenOrders = true;
+            IncludePlannedOrders = true;
+            SetAllFilterOptions(OrderStatusFilters, true);
+            SetAllFilterOptions(DeliveryTypeFilters, true);
+            SetAllFilterOptions(AvisoStatusFilters, true);
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+
+        TriggerOrderFilterRefresh();
+    }
+
+    private void TriggerOrderFilterRefresh()
+    {
+        OnPropertyChanged(nameof(FilterSummaryText));
+        OnPropertyChanged(nameof(ToggleAllFiltersButtonText));
+        if (_suppressFilterRefresh)
+        {
+            return;
+        }
+
+        RebuildOrderGrid();
+    }
+
+    private void RefreshOrderFilterOptions()
+    {
+        if (_isUpdatingFilterOptions)
+        {
+            return;
+        }
+
+        _isUpdatingFilterOptions = true;
+        try
+        {
+            var mapOrders = _allOrders
+                .Where(o => o.Type == OrderType.Map && o.Location is not null)
+                .ToList();
+
+            var statuses = mapOrders
+                .Select(o => NormalizeOrderStatus(o.OrderStatus))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var deliveryTypes = mapOrders
+                .Select(o => NormalizeDeliveryType(o.DeliveryType))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var avisoStatuses = mapOrders
+                .Select(o => NormalizeAvisoStatus(o.AvisoStatus))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            UpdateFilterOptions(OrderStatusFilters, statuses);
+            UpdateFilterOptions(DeliveryTypeFilters, deliveryTypes);
+            UpdateFilterOptions(AvisoStatusFilters, avisoStatuses);
+        }
+        finally
+        {
+            _isUpdatingFilterOptions = false;
+        }
+
+        OnPropertyChanged(nameof(FilterSummaryText));
+        OnPropertyChanged(nameof(ToggleAllFiltersButtonText));
+    }
+
+    private void UpdateFilterOptions(ObservableCollection<MapOrderFilterOption> target, IReadOnlyList<string> values)
+    {
+        var previouslySelected = target
+            .Where(x => x.IsSelected)
+            .Select(x => x.Label)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var keepCurrentSelection = target.Count > 0;
+
+        foreach (var option in target)
+        {
+            option.PropertyChanged -= OnOrderFilterOptionChanged;
+        }
+
+        target.Clear();
+        foreach (var value in values.Where(x => !string.IsNullOrWhiteSpace(x)))
+        {
+            var isSelected = !keepCurrentSelection || previouslySelected.Contains(value);
+            var option = new MapOrderFilterOption(value, isSelected);
+            option.PropertyChanged += OnOrderFilterOptionChanged;
+            target.Add(option);
+        }
+    }
+
+    private void OnOrderFilterOptionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isUpdatingFilterOptions || e.PropertyName != nameof(MapOrderFilterOption.IsSelected))
+        {
+            return;
+        }
+
+        TriggerOrderFilterRefresh();
+    }
+
+    private static HashSet<string> GetSelectedFilterLabels(ObservableCollection<MapOrderFilterOption> options)
+    {
+        return options
+            .Where(x => x.IsSelected)
+            .Select(x => x.Label)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void SetAllFilterOptions(ObservableCollection<MapOrderFilterOption> options, bool isSelected)
+    {
+        foreach (var option in options)
+        {
+            option.IsSelected = isSelected;
+        }
+    }
+
+    private void ToggleAllOrderFilters()
+    {
+        var selectAll = !AreAllFiltersSelected();
+        _suppressFilterRefresh = true;
+        try
+        {
+            IncludeOpenOrders = selectAll;
+            IncludePlannedOrders = selectAll;
+            SetAllFilterOptions(OrderStatusFilters, selectAll);
+            SetAllFilterOptions(DeliveryTypeFilters, selectAll);
+            SetAllFilterOptions(AvisoStatusFilters, selectAll);
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+
+        TriggerOrderFilterRefresh();
+    }
+
+    private bool AreAllFiltersSelected()
+    {
+        return IncludeOpenOrders &&
+               IncludePlannedOrders &&
+               OrderStatusFilters.All(x => x.IsSelected) &&
+               DeliveryTypeFilters.All(x => x.IsSelected) &&
+               AvisoStatusFilters.All(x => x.IsSelected);
+    }
+
+    private string BuildFilterSummaryText()
+    {
+        var parts = new List<string>();
+        if (IncludeOpenOrders && !IncludePlannedOrders)
+        {
+            parts.Add("nur offen");
+        }
+        else if (!IncludeOpenOrders && IncludePlannedOrders)
+        {
+            parts.Add("nur eingeplant");
+        }
+        else if (!IncludeOpenOrders && !IncludePlannedOrders)
+        {
+            parts.Add("keine Tourzuordnung");
+        }
+
+        AddPartialSummary(parts, "Status", OrderStatusFilters);
+        AddPartialSummary(parts, "Lieferart", DeliveryTypeFilters);
+        AddPartialSummary(parts, "Aviso", AvisoStatusFilters);
+
+        return parts.Count == 0
+            ? "Filter (alle Aufträge)"
+            : $"Filter ({string.Join(" | ", parts)})";
+    }
+
+    private static void AddPartialSummary(
+        List<string> parts,
+        string label,
+        ObservableCollection<MapOrderFilterOption> options)
+    {
+        if (options.Count == 0)
+        {
+            return;
+        }
+
+        var selectedCount = options.Count(x => x.IsSelected);
+        if (selectedCount == options.Count)
+        {
+            return;
+        }
+
+        parts.Add($"{label}: {selectedCount}/{options.Count}");
+    }
+
+    private void NotifyLegendColorsChanged()
+    {
+        OnPropertyChanged(nameof(LegendStatusColorNotSpecified));
+        OnPropertyChanged(nameof(LegendStatusColorOrdered));
+        OnPropertyChanged(nameof(LegendStatusColorOnTheWay));
+        OnPropertyChanged(nameof(LegendStatusColorInStock));
+        OnPropertyChanged(nameof(LegendStatusColorPlanned));
+        OnPropertyChanged(nameof(LegendAvisoBadgeColorNotAvisiert));
+        OnPropertyChanged(nameof(LegendAvisoBadgeColorInformiert));
+        OnPropertyChanged(nameof(LegendAvisoBadgeColorBestaetigt));
     }
 
     private void AddSelectedOrderToRoute()
@@ -875,7 +1177,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return !IsCompanyStop(RouteStops[newIndex]);
     }
 
-    private void OptimizeRoute()
+    private async Task OptimizeRouteAsync()
     {
         var movableStops = RouteStops.Where(x => !IsCompanyStop(x)).ToList();
         if (movableStops.Count < 3)
@@ -883,33 +1185,28 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var optimized = _optimizationService.OptimizeNearestNeighbor(
-            movableStops,
-            x => x.Latitude,
-            x => x.Longitude);
-
         var start = RouteStops.FirstOrDefault(x => IsCompanyStop(x) && string.Equals(x.OrderId, CompanyStartStopId, StringComparison.OrdinalIgnoreCase));
         var end = RouteStops.FirstOrDefault(x => IsCompanyStop(x) && string.Equals(x.OrderId, CompanyEndStopId, StringComparison.OrdinalIgnoreCase));
+        if (start is null || end is null)
+        {
+            return;
+        }
+
+        var optimized = await OptimizeMovableStopsByTravelTimeAsync(start, movableStops, end);
 
         RouteStops.Clear();
-        if (start is not null)
-        {
-            RouteStops.Add(start);
-        }
+        RouteStops.Add(start);
 
         foreach (var stop in optimized)
         {
             RouteStops.Add(stop);
         }
 
-        if (end is not null)
-        {
-            RouteStops.Add(end);
-        }
+        RouteStops.Add(end);
 
         RebuildPositions();
         MarkRouteChanged();
-        StatusText = "Route optimized (nearest-neighbor).";
+        StatusText = "Route optimiert (minimale Fahrzeit).";
     }
 
     private async Task SaveRouteAsTourAsync()
@@ -1978,7 +2275,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             down.RaiseCanExecuteChanged();
         }
 
-        if (OptimizeRouteCommand is DelegateCommand optimize)
+        if (OptimizeRouteCommand is AsyncCommand optimize)
         {
             optimize.RaiseCanExecuteChanged();
         }
@@ -2343,6 +2640,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _allOrders.Clear();
         _allOrders.AddRange(await _orderRepository.GetAllAsync());
 
+        RefreshOrderFilterOptions();
         RefreshRouteStopsFromOrders(args);
         RebuildOrderGrid(preferredSelectedOrderId);
 
@@ -2650,6 +2948,68 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return legs;
     }
 
+    private async Task<IReadOnlyList<RouteStopItem>> OptimizeMovableStopsByTravelTimeAsync(
+        RouteStopItem start,
+        IReadOnlyList<RouteStopItem> movableStops,
+        RouteStopItem end)
+    {
+        var matrixStops = new List<RouteStopItem>(movableStops.Count + 2) { start };
+        matrixStops.AddRange(movableStops);
+        matrixStops.Add(end);
+
+        IReadOnlyList<IReadOnlyList<int>>? matrix = null;
+        if (matrixStops.All(HasValidCoordinate))
+        {
+            var points = matrixStops.Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
+            matrix = await _osrmRoutingService.TryBuildDurationMatrixMinutesAsync(points);
+        }
+
+        var indexByStop = new Dictionary<RouteStopItem, int>();
+        for (var i = 0; i < matrixStops.Count; i++)
+        {
+            indexByStop[matrixStops[i]] = i;
+        }
+
+        double TravelCost(RouteStopItem from, RouteStopItem to)
+        {
+            if (matrix is not null &&
+                indexByStop.TryGetValue(from, out var fromIndex) &&
+                indexByStop.TryGetValue(to, out var toIndex) &&
+                fromIndex < matrix.Count &&
+                toIndex < matrix[fromIndex].Count)
+            {
+                var duration = matrix[fromIndex][toIndex];
+                if (duration >= 0 && duration < int.MaxValue / 8)
+                {
+                    return duration;
+                }
+            }
+
+            return EstimateTravelDurationMinutes(from, to);
+        }
+
+        return _optimizationService.OptimizeWithFixedEndpoints(start, movableStops, end, TravelCost);
+    }
+
+    private static bool HasValidCoordinate(RouteStopItem stop)
+    {
+        return !double.IsNaN(stop.Latitude) &&
+               !double.IsNaN(stop.Longitude) &&
+               stop.Latitude is >= -90 and <= 90 &&
+               stop.Longitude is >= -180 and <= 180;
+    }
+
+    private static double EstimateTravelDurationMinutes(RouteStopItem from, RouteStopItem to)
+    {
+        if (!HasValidCoordinate(from) || !HasValidCoordinate(to))
+        {
+            return 999999d;
+        }
+
+        var distanceKm = ComputeDistanceKm(new GeoPoint(from.Latitude, from.Longitude), new GeoPoint(to.Latitude, to.Longitude));
+        return Math.Max(1d, Math.Round(distanceKm / 55d * 60d, MidpointRounding.AwayFromZero));
+    }
+
     private static double ComputeDistanceKm(GeoPoint a, GeoPoint b)
     {
         const double earthRadiusKm = 6371d;
@@ -2722,7 +3082,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             IsAssigned = !string.IsNullOrWhiteSpace(order.AssignedTourId),
             Latitude = order.Location?.Latitude ?? double.NaN,
             Longitude = order.Location?.Longitude ?? double.NaN,
-            DeliveryLabel = NormalizeUiText(string.IsNullOrWhiteSpace(order.DeliveryType) ? "Frei Bordsteinkante" : order.DeliveryType),
+            DeliveryLabel = NormalizeDeliveryType(order.DeliveryType),
             StatusLabel = NormalizeOrderStatus(order.OrderStatus),
             AvisoStatusLabel = NormalizeAvisoStatus(order.AvisoStatus),
             TourStatusLabel = ResolveTourStatus(order)
@@ -2770,6 +3130,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return string.Equals(normalized, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase)
             ? "nicht festgelegt"
             : normalized;
+    }
+
+    private static string NormalizeDeliveryType(string? deliveryType)
+    {
+        var normalized = string.IsNullOrWhiteSpace(deliveryType) ? "Frei Bordsteinkante" : deliveryType.Trim();
+        return NormalizeUiText(normalized);
     }
 
     private static string NormalizeAvisoStatus(string? status)
@@ -2849,6 +3215,25 @@ public sealed class MapOrderItem
     public string StatusLabel { get; set; } = "nicht festgelegt";
     public string AvisoStatusLabel { get; set; } = "nicht avisiert";
     public string TourStatusLabel { get; set; } = "Offen";
+}
+
+public sealed class MapOrderFilterOption : ObservableObject
+{
+    private bool _isSelected;
+
+    public MapOrderFilterOption(string label, bool isSelected = true)
+    {
+        Label = (label ?? string.Empty).Trim();
+        _isSelected = isSelected;
+    }
+
+    public string Label { get; }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
 }
 
 public sealed class RouteStopItem : ObservableObject

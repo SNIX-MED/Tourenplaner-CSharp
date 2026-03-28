@@ -20,12 +20,6 @@
                     <ColumnDefinition Width="420" />
                     <ColumnDefinition Width="190" />
                 </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="{Binding Title}" />
-                    <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Fahrzeuge, Anhänger und Kombinationen verwalten." />
-                </StackPanel>
-
                 <Border Grid.Column="1"
                         Margin="10,0,0,0"
                         CornerRadius="13"
@@ -191,3 +185,4 @@
         </Border>
     </Grid>
 </UserControl>
+

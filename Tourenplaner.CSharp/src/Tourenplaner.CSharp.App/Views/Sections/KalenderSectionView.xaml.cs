@@ -1,6 +1,5 @@
 using System.Windows.Controls;
 using System.Windows;
-
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 
@@ -13,20 +12,30 @@ public partial class KalenderSectionView : UserControl
         InitializeComponent();
     }
 
-    private void OnRootScrollViewerPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    private void OnPagePreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (RootScrollViewer is null)
+        if (PageScrollViewer is null || PageScrollViewer.ScrollableHeight <= 0)
         {
             return;
         }
 
-        RootScrollViewer.ScrollToVerticalOffset(RootScrollViewer.VerticalOffset - (e.Delta / 3d));
+        var target = PageScrollViewer.VerticalOffset - (e.Delta / 3d);
+        if (target < 0)
+        {
+            target = 0;
+        }
+        else if (target > PageScrollViewer.ScrollableHeight)
+        {
+            target = PageScrollViewer.ScrollableHeight;
+        }
+
+        PageScrollViewer.ScrollToVerticalOffset(target);
         e.Handled = true;
     }
 
-    private void OnUpcomingDayItemPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void OnUpcomingDayCardMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not ListBoxItem item || item.DataContext is not UpcomingDayCardItem day)
+        if (sender is not Border card || card.DataContext is not UpcomingDayCardItem day)
         {
             return;
         }

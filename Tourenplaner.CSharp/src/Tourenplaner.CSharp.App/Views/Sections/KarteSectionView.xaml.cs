@@ -656,8 +656,11 @@ public partial class KarteSectionView : UserControl
                          iconAnchor: [14, 14]
                        });
                        const marker = L.marker([m.lat, m.lon], { icon });
+                       const title = (m.customer && m.customer.trim().length > 0)
+                         ? `${m.customer} (${m.id})`
+                         : (m.id || '');
                        marker.bindPopup(
-                         `<b>${m.customer || m.id}</b><br/>${m.address || ''}<br/><button onclick="window.gawelaAddToRoute('${m.id}')">Add to route</button>`
+                         `<b>${title}</b><br/>${m.address || ''}<br/><button onclick="window.gawelaAddToRoute('${m.id}')">Add to route</button>`
                        );
                        marker.on('click', () => {
                          if (window.chrome && window.chrome.webview) {

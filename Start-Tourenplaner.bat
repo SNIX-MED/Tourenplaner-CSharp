@@ -14,7 +14,7 @@ if not exist "%PROJECT_PATH%" (
 )
 
 echo Baue aktuelle Version...
-dotnet build "%PROJECT_PATH%" -v minimal
+dotnet build "%PROJECT_PATH%" -v minimal -m:1 -nr:false -p:NuGetAudit=false
 if errorlevel 1 (
     echo.
     echo Build fehlgeschlagen. App wird nicht gestartet.
@@ -32,21 +32,4 @@ if not exist "%EXE_PATH%" (
 )
 
 start "" "%EXE_PATH%"
-timeout /t 3 /nobreak >nul
-
-tasklist /FI "IMAGENAME eq Tourenplaner.CSharp.App.exe" | find /I "Tourenplaner.CSharp.App.exe" >nul
-if errorlevel 1 (
-    echo.
-    echo Die App wurde gestartet, ist aber sofort wieder beendet worden.
-    if exist "%LOG_PATH%" (
-        echo Crash-Log:
-        echo %LOG_PATH%
-    ) else (
-        echo Es wurde kein Crash-Log gefunden.
-    )
-    echo.
-    pause
-    exit /b 2
-)
-
 exit /b 0

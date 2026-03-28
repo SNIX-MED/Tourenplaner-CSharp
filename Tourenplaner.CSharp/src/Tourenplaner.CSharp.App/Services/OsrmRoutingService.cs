@@ -8,6 +8,64 @@ public sealed class OsrmRoutingService
 {
     private static readonly HttpClient Client = CreateClient();
 
+    public async Task<IReadOnlyList<IReadOnlyList<int>>?> TryBuildDurationMatrixMinutesAsync(
+        IReadOnlyList<GeoPoint> stops,
+        CancellationToken cancellationToken = default)
+    {
+        if (stops is null || stops.Count < 2)
+        {
+            return null;
+        }
+
+        var coordinates = string.Join(
+            ";",
+            stops.Select(x =>
+                $"{x.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)},{x.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}"));
+        var url = $"https://router.project-osrm.org/table/v1/driving/{coordinates}?annotations=duration";
+
+        try
+        {
+            using var response = await Client.GetAsync(url, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            if (!document.RootElement.TryGetProperty("durations", out var durations))
+            {
+                return null;
+            }
+
+            var matrix = new List<IReadOnlyList<int>>();
+            foreach (var row in durations.EnumerateArray())
+            {
+                var minuteRow = new List<int>();
+                foreach (var value in row.EnumerateArray())
+                {
+                    if (value.ValueKind != JsonValueKind.Number)
+                    {
+                        minuteRow.Add(int.MaxValue / 4);
+                        continue;
+                    }
+
+                    var seconds = value.GetDouble();
+                    var minutes = Math.Max(0, (int)Math.Round(seconds / 60d, MidpointRounding.AwayFromZero));
+                    minuteRow.Add(minutes);
+                }
+
+                matrix.Add(minuteRow);
+            }
+
+            return matrix;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public async Task<OsrmRouteResult> TryBuildRouteWithLegsAsync(
         IReadOnlyList<GeoPoint> stops,
         CancellationToken cancellationToken = default)

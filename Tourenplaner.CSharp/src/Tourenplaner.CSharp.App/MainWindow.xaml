@@ -14,6 +14,7 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Brush.WindowBackground}">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <CollectionViewSource x:Key="SidebarNavigationItemsView"
                               Source="{Binding SidebarNavigationItems}">
             <CollectionViewSource.GroupDescriptions>
@@ -34,13 +35,14 @@
             </LinearGradientBrush>
         </Grid.Background>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="280" />
+            <ColumnDefinition Width="{Binding SidebarColumnWidth}" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0"
                 Margin="0,0,14,0"
                 Padding="14"
+                Visibility="{Binding IsSidebarVisible, Converter={StaticResource BoolToVisibilityConverter}}"
                 Style="{StaticResource FlatCardStyle}"
                 Background="{DynamicResource Brush.SidebarBackground}">
             <DockPanel>

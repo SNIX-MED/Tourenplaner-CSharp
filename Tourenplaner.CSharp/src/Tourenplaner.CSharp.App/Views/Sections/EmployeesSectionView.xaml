@@ -20,11 +20,6 @@
                     <ColumnDefinition Width="170" />
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="{Binding Title}" />
-                    <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Teamdaten verwalten und aktiv halten." />
-                </StackPanel>
-
                 <Button Grid.Column="1"
                         Margin="10,0,0,0"
                         Height="38"
