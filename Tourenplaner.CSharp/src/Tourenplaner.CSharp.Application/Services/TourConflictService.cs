@@ -1,4 +1,4 @@
-using Tourenplaner.CSharp.Application.Common;
+﻿using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Application.Services;
@@ -60,6 +60,49 @@ public sealed class TourConflictService
         return conflicts;
     }
 
+    public IReadOnlyList<TourAssignmentConflict> FindSameDayAssignmentConflicts(IEnumerable<TourRecord> tours)
+    {
+        var items = (tours ?? [])
+            .Where(t => t is not null)
+            .Select(t => (Tour: t, Schedule: _scheduleService.BuildSchedule(t)))
+            .ToList();
+
+        var conflicts = new List<TourAssignmentConflict>();
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            for (var j = i + 1; j < items.Count; j++)
+            {
+                var a = items[i];
+                var b = items[j];
+
+                if (a.Schedule.Start.Date != b.Schedule.Start.Date)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(a.Tour.VehicleId) &&
+                    string.Equals(a.Tour.VehicleId, b.Tour.VehicleId, StringComparison.OrdinalIgnoreCase))
+                {
+                    conflicts.Add(BuildConflict("Fahrzeug", a.Tour.VehicleId!, a, b));
+                }
+
+                if (!string.IsNullOrWhiteSpace(a.Tour.TrailerId) &&
+                    string.Equals(a.Tour.TrailerId, b.Tour.TrailerId, StringComparison.OrdinalIgnoreCase))
+                {
+                    conflicts.Add(BuildConflict("Anhänger", a.Tour.TrailerId!, a, b));
+                }
+
+                foreach (var employeeId in a.Tour.EmployeeIds.Intersect(b.Tour.EmployeeIds, StringComparer.OrdinalIgnoreCase))
+                {
+                    conflicts.Add(BuildConflict("Mitarbeiter", employeeId, a, b));
+                }
+            }
+        }
+
+        return conflicts;
+    }
+
     private static bool IsOverlapping(DateTime startA, DateTime endA, DateTime startB, DateTime endB)
     {
         return startA < endB && startB < endA;
@@ -71,7 +114,7 @@ public sealed class TourConflictService
         (TourRecord Tour, TourScheduleResult Schedule) left,
         (TourRecord Tour, TourScheduleResult Schedule) right)
     {
-        var text = $"Konflikt für {resourceType} '{resourceId}' zwischen Tour {left.Tour.Id} und Tour {right.Tour.Id}.";
+        var text = $"{resourceType} '{resourceId}' ist am {left.Schedule.Start:dd.MM.yyyy} doppelt eingeplant (Tour {left.Tour.Id} und Tour {right.Tour.Id}).";
         return new TourAssignmentConflict(
             resourceType,
             resourceId,

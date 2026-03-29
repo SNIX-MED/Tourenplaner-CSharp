@@ -1,6 +1,7 @@
 <Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.CreateTourDialogWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
         Title="Neue Tour erstellen"
         Width="700"
         Height="760"
@@ -25,26 +26,8 @@
 
             <StackPanel Grid.Row="1" Margin="0,12,0,0">
                 <TextBlock FontWeight="SemiBold" Text="Datum (DD.MM.YYYY)" />
-                <Border Margin="0,4,0,0"
-                        Height="38"
-                        CornerRadius="12"
-                        Background="{DynamicResource Brush.InputBackground}"
-                        BorderBrush="{DynamicResource Brush.InputBorder}"
-                        BorderThickness="1">
-                    <TextBox x:Name="DateTextBox"
-                             Style="{x:Null}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             Padding="10,0"
-                             VerticalContentAlignment="Center"
-                             Foreground="{DynamicResource Brush.TextPrimary}"
-                             CaretBrush="{DynamicResource Brush.Accent}"
-                             FontFamily="Segoe UI"
-                             FontSize="16"
-                             MaxLength="10"
-                             ToolTip="Bitte im Format DD.MM.YYYY eingeben"
-                             Text="{Binding DateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                </Border>
+                <controls:ModernDatePickerField Margin="0,4,0,0"
+                                                SelectedDateText="{Binding DateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
 
             <StackPanel Grid.Row="2" Margin="0,10,0,0">

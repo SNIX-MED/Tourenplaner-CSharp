@@ -47,7 +47,8 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
+    <ScrollViewer x:Name="PageScrollViewer"
+                  VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
         <Grid Margin="8">
             <Grid.RowDefinitions>
@@ -597,7 +598,11 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <ScrollViewer Grid.Row="0" Margin="0,0,0,10" VerticalScrollBarVisibility="Auto">
+                                <ScrollViewer x:Name="DetailsScrollViewer"
+                                              Grid.Row="0"
+                                              Margin="0,0,0,10"
+                                              VerticalScrollBarVisibility="Auto"
+                                              PreviewMouseWheel="OnDetailsPreviewMouseWheel">
                                     <StackPanel>
                                         <TextBlock FontWeight="SemiBold" Text="Auftragsadresse:" />
                                         <TextBlock Text="{Binding DetailAddress}" TextWrapping="Wrap" />

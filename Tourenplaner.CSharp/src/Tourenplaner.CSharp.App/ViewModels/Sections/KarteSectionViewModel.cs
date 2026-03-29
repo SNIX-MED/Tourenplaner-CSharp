@@ -48,6 +48,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private readonly RouteOptimizationService _optimizationService;
     private readonly MapRouteService _mapRouteService;
     private readonly OsrmRoutingService _osrmRoutingService;
+    private readonly TourConflictService _conflictService;
+    private readonly Dictionary<string, string> _employeeLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Order> _allOrders = new();
     private readonly List<TourRecord> _savedTours = new();
     private readonly List<GeoPoint> _routeGeometryPoints = new();
@@ -116,6 +118,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _optimizationService = new RouteOptimizationService();
         _mapRouteService = new MapRouteService();
         _osrmRoutingService = new OsrmRoutingService();
+        _conflictService = new TourConflictService();
         _openSplitScreenAsync = openSplitScreenAsync;
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
@@ -1379,6 +1382,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourEmployeeOption(x.Id, x.DisplayName))
             .ToList();
+        _employeeLabelsById.Clear();
+        foreach (var employee in employees)
+        {
+            if (!string.IsNullOrWhiteSpace(employee.Id))
+            {
+                _employeeLabelsById[employee.Id] = employee.Label;
+            }
+        }
 
         var vehicleData = await vehicleTask;
         var vehicles = vehicleData.Vehicles
@@ -1446,6 +1457,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(2)
             .ToList();
+
+        var previewTours = tours.ToList();
+        previewTours.Add(tour);
+        if (!ConfirmAssignmentConflictWarning(previewTours, tour.Id))
+        {
+            return;
+        }
 
         tours.Add(tour);
         await _tourRepository.SaveAsync(tours);
@@ -1532,6 +1550,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(2)
             .ToList();
+
+        var previewTours = tours.ToList();
+        previewTours[index] = updated;
+        if (!ConfirmAssignmentConflictWarning(previewTours, updated.Id))
+        {
+            return;
+        }
 
         tours[index] = updated;
         await _tourRepository.SaveAsync(tours);
@@ -2210,6 +2235,131 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         RouteLoadSummaryText = string.Join(" | ", loadSummaryParts);
+    }
+
+    private bool ConfirmAssignmentConflictWarning(IEnumerable<TourRecord> tours, int targetTourId)
+    {
+        var conflicts = _conflictService.FindSameDayAssignmentConflicts(tours)
+            .Where(c => c.TourIdA == targetTourId || c.TourIdB == targetTourId)
+            .ToList();
+        if (conflicts.Count == 0)
+        {
+            return true;
+        }
+
+        var grouped = conflicts
+            .Select(c => new
+            {
+                Group = GetAssignmentConflictGroupLabel(c),
+                Text = BuildAssignmentConflictDisplayText(c)
+            })
+            .GroupBy(x => x.Group)
+            .OrderBy(g => g.Key switch
+            {
+                "Fahrzeug" => 0,
+                "Anhänger" => 1,
+                "Mitarbeiter" => 2,
+                _ => 3
+            })
+            .ToList();
+
+        var lines = new List<string>();
+        var shown = 0;
+        const int maxEntries = 12;
+        foreach (var group in grouped)
+        {
+            if (shown >= maxEntries)
+            {
+                break;
+            }
+
+            lines.Add($"{group.Key}:");
+            foreach (var item in group.Select(x => x.Text).Distinct())
+            {
+                if (shown >= maxEntries)
+                {
+                    break;
+                }
+
+                lines.Add($"- {item}");
+                shown++;
+            }
+
+            lines.Add(string.Empty);
+        }
+
+        while (lines.Count > 0 && string.IsNullOrWhiteSpace(lines[^1]))
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
+
+        var totalDistinct = conflicts.Select(BuildAssignmentConflictDisplayText).Distinct().Count();
+        var remaining = Math.Max(0, totalDistinct - shown);
+        if (remaining > 0)
+        {
+            lines.Add($"... und {remaining} weitere Konflikte");
+        }
+
+        var listText = string.Join(Environment.NewLine, lines);
+        var message =
+            "Es wurden Doppelbelegungen am selben Tag erkannt:" + Environment.NewLine + Environment.NewLine +
+            listText + Environment.NewLine + Environment.NewLine +
+            "Trotzdem speichern?";
+
+        return MessageBox.Show(
+                   message,
+                   "Konfliktwarnung",
+                   MessageBoxButton.YesNo,
+                   MessageBoxImage.Warning) == MessageBoxResult.Yes;
+    }
+
+    private string BuildAssignmentConflictDisplayText(TourAssignmentConflict conflict)
+    {
+        var resourceType = (conflict.ResourceType ?? string.Empty).Trim().ToLowerInvariant();
+        var resourceName = resourceType switch
+        {
+            "vehicle" or "fahrzeug" => ResolveVehicleLabel(conflict.ResourceId),
+            "trailer" or "anhänger" or "anhaenger" => ResolveTrailerLabel(conflict.ResourceId),
+            "employee" or "mitarbeiter" => ResolveEmployeeLabel(conflict.ResourceId),
+            _ => conflict.ResourceId
+        };
+        if (string.IsNullOrWhiteSpace(resourceName))
+        {
+            resourceName = conflict.ResourceId;
+        }
+
+        var label = resourceType switch
+        {
+            "vehicle" or "fahrzeug" => "Fahrzeug",
+            "trailer" or "anhänger" or "anhaenger" => "Anhänger",
+            "employee" or "mitarbeiter" => "Mitarbeiter",
+            _ => "Ressource"
+        };
+
+        return $"{label}: {resourceName} (Tour {conflict.TourIdA} / {conflict.TourIdB}, {conflict.StartA:dd.MM.yyyy})";
+    }
+
+    private static string GetAssignmentConflictGroupLabel(TourAssignmentConflict conflict)
+    {
+        var resourceType = (conflict.ResourceType ?? string.Empty).Trim().ToLowerInvariant();
+        return resourceType switch
+        {
+            "vehicle" or "fahrzeug" => "Fahrzeug",
+            "trailer" or "anhänger" or "anhaenger" => "Anhänger",
+            "employee" or "mitarbeiter" => "Mitarbeiter",
+            _ => "Andere"
+        };
+    }
+
+    private string ResolveEmployeeLabel(string? employeeId)
+    {
+        var id = (employeeId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return string.Empty;
+        }
+
+        return _employeeLabelsById.TryGetValue(id, out var label) ? label : id;
     }
 
     private bool ConfirmCapacityWarning(string? vehicleId, string? trailerId)

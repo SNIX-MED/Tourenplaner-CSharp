@@ -13,6 +13,13 @@ if not exist "%PROJECT_PATH%" (
     exit /b 1
 )
 
+tasklist /FI "IMAGENAME eq Tourenplaner.CSharp.App.exe" | find /I "Tourenplaner.CSharp.App.exe" >nul
+if %errorlevel%==0 (
+    echo Die App laeuft bereits. Bitte vorhandenes Fenster verwenden oder die App zuerst schliessen.
+    pause
+    exit /b 0
+)
+
 echo Baue aktuelle Version...
 dotnet build "%PROJECT_PATH%" -v minimal -m:1 -nr:false -p:NuGetAudit=false
 if errorlevel 1 (

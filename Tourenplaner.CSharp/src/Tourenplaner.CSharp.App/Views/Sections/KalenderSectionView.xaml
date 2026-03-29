@@ -1,4 +1,4 @@
-<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.KalenderSectionView"
+﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.KalenderSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -38,12 +38,7 @@
 
         <Border Margin="0,14,0,0" Style="{StaticResource SharpFilterBarCardStyle}">
             <StackPanel>
-                <TextBlock FontSize="24" FontWeight="SemiBold" Text="Kalender der nächsten 4 Wochen" />
-                <TextBlock Margin="0,4,0,0"
-                           Foreground="{DynamicResource Brush.TextMuted}"
-                           Text="Vier Wochen im Überblick, gruppiert nach Kalenderwochen." />
-
-                <ItemsControl Margin="0,14,0,0" ItemsSource="{Binding UpcomingWeeks}">
+                <ItemsControl Margin="0,0,0,0" ItemsSource="{Binding UpcomingWeeks}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <UniformGrid Rows="1" Columns="4" />
@@ -135,13 +130,13 @@
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <Button Width="170" Margin="0,0,8,0" Command="{Binding OpenSplitScreenCommand}" Style="{StaticResource SecondaryButtonStyle}">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="⧉" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="â§‰" Margin="0,0,6,0" VerticalAlignment="Center" />
                                 <TextBlock Text="Split-Ansicht" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <Button Width="180" Margin="0,0,8,0" Content="Tag in Liefertouren" Command="{Binding OpenSelectedDayInToursCommand}" />
-                        <Button Width="130" Margin="0,0,8,0" Content="Tour öffnen" Command="{Binding OpenSelectedTourCommand}" />
-                        <Button Width="130" Content="Tour löschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteSelectedTourCommand}" />
+                        <Button Width="130" Margin="0,0,8,0" Content="Tour Ã¶ffnen" Command="{Binding OpenSelectedTourCommand}" />
+                        <Button Width="130" Content="Tour lÃ¶schen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteSelectedTourCommand}" />
                     </StackPanel>
                 </Grid>
 
@@ -321,3 +316,5 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+
+

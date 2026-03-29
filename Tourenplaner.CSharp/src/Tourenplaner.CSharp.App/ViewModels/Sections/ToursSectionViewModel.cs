@@ -15,6 +15,7 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class ToursSectionViewModel : SectionViewModelBase
 {
+    private static readonly CultureInfo UiCulture = CultureInfo.GetCultureInfo("de-CH");
     private readonly JsonToursRepository _tourRepository;
     private readonly JsonOrderRepository _orderRepository;
     private readonly JsonEmployeesRepository _employeeRepository;
@@ -32,6 +33,15 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private readonly Func<int, Task>? _openTourOnMapAsync;
     private readonly Guid _instanceId = Guid.NewGuid();
     private bool _editorSyncInProgress;
+    private bool _dateFilterSyncInProgress;
+    private bool _isFromDatePopupOpen;
+    private bool _isToDatePopupOpen;
+    private DateTime _fromCalendarMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _toCalendarMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private string _fromMonthDisplayText = string.Empty;
+    private string _toMonthDisplayText = string.Empty;
+    private DateFilterCalendarDayItem? _selectedFromCalendarDay;
+    private DateFilterCalendarDayItem? _selectedToCalendarDay;
 
     private string _statusText = "Lade Touren...";
     private string _editorDate = string.Empty;
@@ -39,6 +49,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private string _editorConflictText = string.Empty;
     private string _fromDateText = string.Empty;
     private string _toDateText = string.Empty;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
     private string _filterInfoText = "Alle Touren | Treffer: 0";
     private string _selectedTourWeightText = "Totalgewicht: 0 kg";
     private string _selectedTourLoadSummaryText = string.Empty;
@@ -77,7 +89,15 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         FilterTomorrowCommand = new DelegateCommand(SetTomorrowFilter);
         FilterThisWeekCommand = new DelegateCommand(SetWeekFilter);
         ResetDateFilterCommand = new DelegateCommand(ResetDateFilter);
+        ToggleFromDatePopupCommand = new DelegateCommand(ToggleFromDatePopup);
+        ToggleToDatePopupCommand = new DelegateCommand(ToggleToDatePopup);
+        PreviousFromMonthCommand = new DelegateCommand(ShowPreviousFromMonth);
+        NextFromMonthCommand = new DelegateCommand(ShowNextFromMonth);
+        PreviousToMonthCommand = new DelegateCommand(ShowPreviousToMonth);
+        NextToMonthCommand = new DelegateCommand(ShowNextToMonth);
         DeleteTourCommand = new AsyncCommand(DeleteSelectedTourAsync, () => SelectedTour is not null);
+        RebuildFromCalendarDays();
+        RebuildToCalendarDays();
         _dataSyncService.DataChanged += OnDataChanged;
         _ = RefreshAsync();
     }
@@ -113,6 +133,18 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     public ICommand OpenTourOnMapCommand { get; }
 
     public ICommand EditTourOnMapCommand { get; }
+
+    public ICommand ToggleFromDatePopupCommand { get; }
+
+    public ICommand ToggleToDatePopupCommand { get; }
+
+    public ICommand PreviousFromMonthCommand { get; }
+
+    public ICommand NextFromMonthCommand { get; }
+
+    public ICommand PreviousToMonthCommand { get; }
+
+    public ICommand NextToMonthCommand { get; }
 
     public string StatusText
     {
@@ -179,13 +211,225 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     public string FromDateText
     {
         get => _fromDateText;
-        set => SetProperty(ref _fromDateText, value);
+        set
+        {
+            if (!SetProperty(ref _fromDateText, value))
+            {
+                return;
+            }
+
+            if (_dateFilterSyncInProgress)
+            {
+                return;
+            }
+
+            _dateFilterSyncInProgress = true;
+            try
+            {
+                var parsed = ParseDate(value);
+                if (_fromDate != parsed)
+                {
+                    _fromDate = parsed;
+                    OnPropertyChanged(nameof(FromDate));
+                }
+            }
+            finally
+            {
+                _dateFilterSyncInProgress = false;
+            }
+        }
     }
 
     public string ToDateText
     {
         get => _toDateText;
-        set => SetProperty(ref _toDateText, value);
+        set
+        {
+            if (!SetProperty(ref _toDateText, value))
+            {
+                return;
+            }
+
+            if (_dateFilterSyncInProgress)
+            {
+                return;
+            }
+
+            _dateFilterSyncInProgress = true;
+            try
+            {
+                var parsed = ParseDate(value);
+                if (_toDate != parsed)
+                {
+                    _toDate = parsed;
+                    OnPropertyChanged(nameof(ToDate));
+                }
+            }
+            finally
+            {
+                _dateFilterSyncInProgress = false;
+            }
+        }
+    }
+
+    public DateTime? FromDate
+    {
+        get => _fromDate;
+        set
+        {
+            var normalized = value?.Date;
+            if (_fromDate == normalized)
+            {
+                return;
+            }
+
+            _fromDate = normalized;
+            OnPropertyChanged();
+
+            if (_dateFilterSyncInProgress)
+            {
+                return;
+            }
+
+            _dateFilterSyncInProgress = true;
+            try
+            {
+                var text = normalized.HasValue
+                    ? normalized.Value.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)
+                    : string.Empty;
+                if (_fromDateText != text)
+                {
+                    _fromDateText = text;
+                    OnPropertyChanged(nameof(FromDateText));
+                }
+            }
+            finally
+            {
+                _dateFilterSyncInProgress = false;
+            }
+
+            OnPropertyChanged(nameof(FromDateDisplayText));
+            if (normalized.HasValue)
+            {
+                _fromCalendarMonth = new DateTime(normalized.Value.Year, normalized.Value.Month, 1);
+            }
+
+            RebuildFromCalendarDays();
+        }
+    }
+
+    public DateTime? ToDate
+    {
+        get => _toDate;
+        set
+        {
+            var normalized = value?.Date;
+            if (_toDate == normalized)
+            {
+                return;
+            }
+
+            _toDate = normalized;
+            OnPropertyChanged();
+
+            if (_dateFilterSyncInProgress)
+            {
+                return;
+            }
+
+            _dateFilterSyncInProgress = true;
+            try
+            {
+                var text = normalized.HasValue
+                    ? normalized.Value.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)
+                    : string.Empty;
+                if (_toDateText != text)
+                {
+                    _toDateText = text;
+                    OnPropertyChanged(nameof(ToDateText));
+                }
+            }
+            finally
+            {
+                _dateFilterSyncInProgress = false;
+            }
+
+            OnPropertyChanged(nameof(ToDateDisplayText));
+            if (normalized.HasValue)
+            {
+                _toCalendarMonth = new DateTime(normalized.Value.Year, normalized.Value.Month, 1);
+            }
+
+            RebuildToCalendarDays();
+        }
+    }
+
+    public string FromDateDisplayText => FromDate?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "Datum auswählen";
+
+    public string ToDateDisplayText => ToDate?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "Datum auswählen";
+
+    public bool IsFromDatePopupOpen
+    {
+        get => _isFromDatePopupOpen;
+        set => SetProperty(ref _isFromDatePopupOpen, value);
+    }
+
+    public bool IsToDatePopupOpen
+    {
+        get => _isToDatePopupOpen;
+        set => SetProperty(ref _isToDatePopupOpen, value);
+    }
+
+    public string FromMonthDisplayText
+    {
+        get => _fromMonthDisplayText;
+        private set => SetProperty(ref _fromMonthDisplayText, value);
+    }
+
+    public string ToMonthDisplayText
+    {
+        get => _toMonthDisplayText;
+        private set => SetProperty(ref _toMonthDisplayText, value);
+    }
+
+    public ObservableCollection<DateFilterCalendarDayItem> FromCalendarDays { get; } = new();
+
+    public ObservableCollection<DateFilterCalendarDayItem> ToCalendarDays { get; } = new();
+
+    public DateFilterCalendarDayItem? SelectedFromCalendarDay
+    {
+        get => _selectedFromCalendarDay;
+        set
+        {
+            if (!SetProperty(ref _selectedFromCalendarDay, value) || value is null)
+            {
+                return;
+            }
+
+            FromDate = value.Date;
+            ApplyDateFilter();
+            IsFromDatePopupOpen = false;
+            _selectedFromCalendarDay = null;
+            OnPropertyChanged();
+        }
+    }
+
+    public DateFilterCalendarDayItem? SelectedToCalendarDay
+    {
+        get => _selectedToCalendarDay;
+        set
+        {
+            if (!SetProperty(ref _selectedToCalendarDay, value) || value is null)
+            {
+                return;
+            }
+
+            ToDate = value.Date;
+            ApplyDateFilter();
+            IsToDatePopupOpen = false;
+            _selectedToCalendarDay = null;
+            OnPropertyChanged();
+        }
     }
 
     public string FilterInfoText
@@ -269,6 +513,12 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
+        var originalDate = target.Date;
+        var originalStartTime = target.StartTime;
+        var originalVehicleId = target.VehicleId;
+        var originalTrailerId = target.TrailerId;
+        var originalEmployeeIds = target.EmployeeIds.ToList();
+
         target.Date = (EditorDate ?? string.Empty).Trim();
         target.StartTime = (EditorStartTime ?? string.Empty).Trim();
         target.VehicleId = SelectedVehicle?.Id;
@@ -279,8 +529,23 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Take(2)
             .ToList();
 
+        if (!ConfirmAssignmentConflictWarning(_loadedTours, target.Id))
+        {
+            target.Date = originalDate;
+            target.StartTime = originalStartTime;
+            target.VehicleId = originalVehicleId;
+            target.TrailerId = originalTrailerId;
+            target.EmployeeIds = originalEmployeeIds;
+            return;
+        }
+
         if (!ConfirmCapacityWarning(target.VehicleId, target.TrailerId, CalculateTourWeightKg(target)))
         {
+            target.Date = originalDate;
+            target.StartTime = originalStartTime;
+            target.VehicleId = originalVehicleId;
+            target.TrailerId = originalTrailerId;
+            target.EmployeeIds = originalEmployeeIds;
             return;
         }
 
@@ -295,19 +560,73 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         RebuildTourRowsWithCurrentFilter(keepSelectionTourId: SelectedTour?.TourId);
     }
 
+    private void ToggleFromDatePopup()
+    {
+        IsToDatePopupOpen = false;
+        IsFromDatePopupOpen = !IsFromDatePopupOpen;
+        if (IsFromDatePopupOpen)
+        {
+            if (FromDate.HasValue)
+            {
+                _fromCalendarMonth = new DateTime(FromDate.Value.Year, FromDate.Value.Month, 1);
+            }
+
+            RebuildFromCalendarDays();
+        }
+    }
+
+    private void ToggleToDatePopup()
+    {
+        IsFromDatePopupOpen = false;
+        IsToDatePopupOpen = !IsToDatePopupOpen;
+        if (IsToDatePopupOpen)
+        {
+            if (ToDate.HasValue)
+            {
+                _toCalendarMonth = new DateTime(ToDate.Value.Year, ToDate.Value.Month, 1);
+            }
+
+            RebuildToCalendarDays();
+        }
+    }
+
+    private void ShowPreviousFromMonth()
+    {
+        _fromCalendarMonth = _fromCalendarMonth.AddMonths(-1);
+        RebuildFromCalendarDays();
+    }
+
+    private void ShowNextFromMonth()
+    {
+        _fromCalendarMonth = _fromCalendarMonth.AddMonths(1);
+        RebuildFromCalendarDays();
+    }
+
+    private void ShowPreviousToMonth()
+    {
+        _toCalendarMonth = _toCalendarMonth.AddMonths(-1);
+        RebuildToCalendarDays();
+    }
+
+    private void ShowNextToMonth()
+    {
+        _toCalendarMonth = _toCalendarMonth.AddMonths(1);
+        RebuildToCalendarDays();
+    }
+
     private void SetTodayFilter()
     {
         var today = DateTime.Today;
-        FromDateText = today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
-        ToDateText = today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        FromDate = today;
+        ToDate = today;
         ApplyDateFilter();
     }
 
     private void SetTomorrowFilter()
     {
         var tomorrow = DateTime.Today.AddDays(1);
-        FromDateText = tomorrow.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
-        ToDateText = tomorrow.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        FromDate = tomorrow;
+        ToDate = tomorrow;
         ApplyDateFilter();
     }
 
@@ -317,15 +636,15 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var offset = (7 + ((int)today.DayOfWeek - (int)DayOfWeek.Monday)) % 7;
         var start = today.AddDays(-offset);
         var end = start.AddDays(6);
-        FromDateText = start.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
-        ToDateText = end.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        FromDate = start;
+        ToDate = end;
         ApplyDateFilter();
     }
 
     private void ResetDateFilter()
     {
-        FromDateText = string.Empty;
-        ToDateText = string.Empty;
+        FromDate = null;
+        ToDate = null;
         ApplyDateFilter();
     }
 
@@ -516,6 +835,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var result = dialog.Result;
+        var originalName = tour.Name;
+        var originalDate = tour.Date;
+        var originalStartTime = tour.StartTime;
+        var originalVehicleId = tour.VehicleId;
+        var originalTrailerId = tour.TrailerId;
+        var originalEmployeeIds = tour.EmployeeIds.ToList();
+
         tour.Name = result.RouteName;
         tour.Date = result.RouteDate;
         tour.StartTime = result.StartTime;
@@ -528,8 +854,25 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Take(2)
             .ToList();
 
+        if (!ConfirmAssignmentConflictWarning(_loadedTours, tour.Id))
+        {
+            tour.Name = originalName;
+            tour.Date = originalDate;
+            tour.StartTime = originalStartTime;
+            tour.VehicleId = originalVehicleId;
+            tour.TrailerId = originalTrailerId;
+            tour.EmployeeIds = originalEmployeeIds;
+            return;
+        }
+
         if (!ConfirmCapacityWarning(tour.VehicleId, tour.TrailerId, CalculateTourWeightKg(tour)))
         {
+            tour.Name = originalName;
+            tour.Date = originalDate;
+            tour.StartTime = originalStartTime;
+            tour.VehicleId = originalVehicleId;
+            tour.TrailerId = originalTrailerId;
+            tour.EmployeeIds = originalEmployeeIds;
             return;
         }
 
@@ -599,15 +942,15 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private void RebuildTourRowsWithCurrentFilter(int? keepSelectionTourId = null)
     {
-        var filtered = ApplyDateFilterToTours(_loadedTours);
+        var from = FromDate ?? ParseDate(FromDateText);
+        var to = ToDate ?? ParseDate(ToDateText);
+        var filtered = ApplyDateFilterToTours(_loadedTours, from, to);
         RebuildTourRows(filtered, keepSelectionTourId);
-        FilterInfoText = $"Alle Touren | Treffer: {Tours.Count}";
+        FilterInfoText = BuildDateFilterInfoText(from, to, Tours.Count);
     }
 
-    private IEnumerable<TourRecord> ApplyDateFilterToTours(IEnumerable<TourRecord> tours)
+    private IEnumerable<TourRecord> ApplyDateFilterToTours(IEnumerable<TourRecord> tours, DateTime? from, DateTime? to)
     {
-        var from = ParseDate(FromDateText);
-        var to = ParseDate(ToDateText);
         if (from is null && to is null)
         {
             return tours;
@@ -632,6 +975,18 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         });
     }
 
+    private static string BuildDateFilterInfoText(DateTime? from, DateTime? to, int matches)
+    {
+        if (from is null && to is null)
+        {
+            return $"Alle Touren | Treffer: {matches}";
+        }
+
+        var fromText = from?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "offen";
+        var toText = to?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "offen";
+        return $"{fromText} - {toText} | Treffer: {matches}";
+    }
+
     private static DateTime? ParseDate(string? value)
     {
         if (DateTime.TryParseExact((value ?? string.Empty).Trim(), "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
@@ -640,6 +995,42 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         return null;
+    }
+
+    private void RebuildFromCalendarDays()
+    {
+        FromMonthDisplayText = _fromCalendarMonth.ToString("MMMM yyyy", UiCulture);
+        RebuildCalendarDays(FromCalendarDays, _fromCalendarMonth, FromDate);
+    }
+
+    private void RebuildToCalendarDays()
+    {
+        ToMonthDisplayText = _toCalendarMonth.ToString("MMMM yyyy", UiCulture);
+        RebuildCalendarDays(ToCalendarDays, _toCalendarMonth, ToDate);
+    }
+
+    private static void RebuildCalendarDays(
+        ObservableCollection<DateFilterCalendarDayItem> target,
+        DateTime monthStart,
+        DateTime? selectedDate)
+    {
+        target.Clear();
+        var firstOfMonth = new DateTime(monthStart.Year, monthStart.Month, 1);
+        var offset = ((int)firstOfMonth.DayOfWeek + 6) % 7;
+        var start = firstOfMonth.AddDays(-offset);
+
+        for (var i = 0; i < 42; i++)
+        {
+            var date = start.AddDays(i).Date;
+            target.Add(new DateFilterCalendarDayItem
+            {
+                Date = date,
+                DayText = date.Day.ToString(CultureInfo.InvariantCulture),
+                IsCurrentMonth = date.Month == monthStart.Month && date.Year == monthStart.Year,
+                IsToday = date == DateTime.Today,
+                IsSelected = selectedDate.HasValue && date == selectedDate.Value.Date
+            });
+        }
     }
 
     private void RebuildTourRows(IEnumerable<TourRecord> tours, int? keepSelectionTourId)
@@ -953,6 +1344,120 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
     }
 
+    private bool ConfirmAssignmentConflictWarning(IEnumerable<TourRecord> tours, int targetTourId)
+    {
+        var conflicts = _conflictService.FindSameDayAssignmentConflicts(tours)
+            .Where(c => c.TourIdA == targetTourId || c.TourIdB == targetTourId)
+            .ToList();
+        if (conflicts.Count == 0)
+        {
+            return true;
+        }
+
+        var grouped = conflicts
+            .Select(c => new
+            {
+                Group = GetAssignmentConflictGroupLabel(c),
+                Text = BuildAssignmentConflictDisplayText(c)
+            })
+            .GroupBy(x => x.Group)
+            .OrderBy(g => g.Key switch
+            {
+                "Fahrzeug" => 0,
+                "Anhänger" => 1,
+                "Mitarbeiter" => 2,
+                _ => 3
+            })
+            .ToList();
+
+        var lines = new List<string>();
+        var shown = 0;
+        const int maxEntries = 12;
+        foreach (var group in grouped)
+        {
+            if (shown >= maxEntries)
+            {
+                break;
+            }
+
+            lines.Add($"{group.Key}:");
+            foreach (var item in group.Select(x => x.Text).Distinct())
+            {
+                if (shown >= maxEntries)
+                {
+                    break;
+                }
+
+                lines.Add($"- {item}");
+                shown++;
+            }
+
+            lines.Add(string.Empty);
+        }
+
+        while (lines.Count > 0 && string.IsNullOrWhiteSpace(lines[^1]))
+        {
+            lines.RemoveAt(lines.Count - 1);
+        }
+
+        var totalDistinct = conflicts.Select(BuildAssignmentConflictDisplayText).Distinct().Count();
+        var remaining = Math.Max(0, totalDistinct - shown);
+        if (remaining > 0)
+        {
+            lines.Add($"... und {remaining} weitere Konflikte");
+        }
+
+        var listText = string.Join(Environment.NewLine, lines);
+        var message =
+            "Es wurden Doppelbelegungen am selben Tag erkannt:" + Environment.NewLine + Environment.NewLine +
+            listText + Environment.NewLine + Environment.NewLine +
+            "Trotzdem speichern?";
+
+        return MessageBox.Show(
+                   message,
+                   "Konfliktwarnung",
+                   MessageBoxButton.YesNo,
+                   MessageBoxImage.Warning) == MessageBoxResult.Yes;
+    }
+
+    private string BuildAssignmentConflictDisplayText(TourAssignmentConflict conflict)
+    {
+        var resourceType = (conflict.ResourceType ?? string.Empty).Trim().ToLowerInvariant();
+        var resourceName = resourceType switch
+        {
+            "vehicle" or "fahrzeug" => ResolveVehicleLabel(conflict.ResourceId),
+            "trailer" or "anhänger" or "anhaenger" => ResolveTrailerLabel(conflict.ResourceId),
+            "employee" or "mitarbeiter" => ResolveEmployeeLabel(conflict.ResourceId),
+            _ => conflict.ResourceId
+        };
+        if (string.IsNullOrWhiteSpace(resourceName))
+        {
+            resourceName = conflict.ResourceId;
+        }
+
+        var label = resourceType switch
+        {
+            "vehicle" or "fahrzeug" => "Fahrzeug",
+            "trailer" or "anhänger" or "anhaenger" => "Anhänger",
+            "employee" or "mitarbeiter" => "Mitarbeiter",
+            _ => "Ressource"
+        };
+
+        return $"{label}: {resourceName} (Tour {conflict.TourIdA} / {conflict.TourIdB}, {conflict.StartA:dd.MM.yyyy})";
+    }
+
+    private static string GetAssignmentConflictGroupLabel(TourAssignmentConflict conflict)
+    {
+        var resourceType = (conflict.ResourceType ?? string.Empty).Trim().ToLowerInvariant();
+        return resourceType switch
+        {
+            "vehicle" or "fahrzeug" => "Fahrzeug",
+            "trailer" or "anhänger" or "anhaenger" => "Anhänger",
+            "employee" or "mitarbeiter" => "Mitarbeiter",
+            _ => "Andere"
+        };
+    }
+
     private bool ConfirmCapacityWarning(string? vehicleId, string? trailerId, int totalWeightKg)
     {
         var warning = TourCapacityWarningService.Evaluate(_vehicleData, vehicleId, trailerId, totalWeightKg);
@@ -1124,6 +1629,25 @@ public sealed class SelectableEmployeeItem : ObservableObject
     public string Id { get; set; } = string.Empty;
 
     public string Label { get; set; } = string.Empty;
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
+}
+
+public sealed class DateFilterCalendarDayItem : ObservableObject
+{
+    private bool _isSelected;
+
+    public DateTime Date { get; set; }
+
+    public string DayText { get; set; } = string.Empty;
+
+    public bool IsCurrentMonth { get; set; }
+
+    public bool IsToday { get; set; }
 
     public bool IsSelected
     {

@@ -154,6 +154,8 @@ public sealed class MainShellViewModel : ObservableObject
             OnPropertyChanged(nameof(IsSidebarVisible));
             OnPropertyChanged(nameof(SidebarColumnWidth));
             OnPropertyChanged(nameof(IsMapSectionActive));
+            OnPropertyChanged(nameof(IsToursSectionActive));
+            OnPropertyChanged(nameof(IsTopBarSectionControlsVisible));
         }
     }
 
@@ -164,6 +166,10 @@ public sealed class MainShellViewModel : ObservableObject
     public GridLength SidebarColumnWidth => IsSplitScreenActive ? new GridLength(0) : new GridLength(280);
 
     public bool IsMapSectionActive => CurrentSection is KarteSectionViewModel;
+
+    public bool IsToursSectionActive => CurrentSection is ToursSectionViewModel;
+
+    public bool IsTopBarSectionControlsVisible => IsMapSectionActive || IsToursSectionActive;
 
     private async Task NavigateToTourAsync(ToursSectionViewModel toursSection, int tourId)
     {

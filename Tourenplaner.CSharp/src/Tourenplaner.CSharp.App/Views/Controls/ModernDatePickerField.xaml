@@ -1,0 +1,175 @@
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Controls.ModernDatePickerField"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="36"
+             d:DesignWidth="260">
+    <Grid>
+        <Button x:Name="ToggleButton"
+                Height="36"
+                Padding="10,0"
+                HorizontalContentAlignment="Left"
+                Style="{StaticResource SecondaryButtonStyle}"
+                Click="OnToggleButtonClick">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="{Binding DisplayText, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                <TextBlock Grid.Column="1"
+                           Margin="8,0,0,0"
+                           VerticalAlignment="Center"
+                           FontFamily="Segoe Fluent Icons"
+                           Text="&#xE787;" />
+            </Grid>
+        </Button>
+
+        <Popup x:Name="PickerPopup"
+               PlacementTarget="{Binding ElementName=ToggleButton}"
+               Placement="Bottom"
+               StaysOpen="False"
+               AllowsTransparency="True"
+               PopupAnimation="Fade"
+               Opened="OnPopupOpened"
+               Closed="OnPopupClosed">
+            <Border Margin="0,6,0,0"
+                    Padding="10"
+                    CornerRadius="14"
+                    Background="{DynamicResource Brush.Card}"
+                    BorderBrush="{DynamicResource Brush.InputBorder}"
+                    BorderThickness="1">
+                <StackPanel Width="244">
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="36" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="36" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0"
+                                Width="30"
+                                Height="30"
+                                Padding="0"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                FontFamily="Segoe Fluent Icons"
+                                Content="&#xE76B;"
+                                Click="OnPreviousMonthClicked" />
+                        <Border Grid.Column="1"
+                                Margin="8,0"
+                                CornerRadius="10"
+                                Background="{DynamicResource Brush.CardMuted}"
+                                BorderBrush="{DynamicResource Brush.InputBorder}"
+                                BorderThickness="1">
+                            <TextBlock HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding MonthDisplayText, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                        </Border>
+                        <Button Grid.Column="2"
+                                Width="30"
+                                Height="30"
+                                Padding="0"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                FontFamily="Segoe Fluent Icons"
+                                Content="&#xE76C;"
+                                Click="OnNextMonthClicked" />
+                    </Grid>
+
+                    <UniformGrid Columns="7" Margin="0,0,0,6">
+                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="M" />
+                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="D" />
+                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="M" />
+                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="D" />
+                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="F" />
+                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="S" />
+                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="S" />
+                    </UniformGrid>
+
+                    <ItemsControl ItemsSource="{Binding CalendarDays, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="7" Rows="6" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Margin="2"
+                                        Width="30"
+                                        Height="30"
+                                        Padding="0"
+                                        BorderThickness="1"
+                                        BorderBrush="Transparent"
+                                        Background="Transparent"
+                                        Foreground="{DynamicResource Brush.TextPrimary}"
+                                        Cursor="Hand"
+                                        Tag="{Binding}"
+                                        Click="OnDayClicked">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="DayRoot"
+                                                    CornerRadius="10"
+                                                    Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="DayRoot" Property="Background" Value="{DynamicResource Brush.RowHover}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                    <TextBlock Text="{Binding DayText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                                <Setter Property="Opacity" Value="1" />
+                                                <Setter Property="FontWeight" Value="Normal" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False">
+                                                        <Setter Property="Opacity" Value="0.45" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderBrush" Value="Transparent" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

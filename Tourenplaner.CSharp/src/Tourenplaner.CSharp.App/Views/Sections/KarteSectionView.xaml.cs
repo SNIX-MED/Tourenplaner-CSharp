@@ -190,6 +190,42 @@ public partial class KarteSectionView : UserControl
         }
     }
 
+    private void OnDetailsPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer detailsViewer)
+        {
+            return;
+        }
+
+        var delta = e.Delta / 3d;
+        var target = detailsViewer.VerticalOffset - delta;
+
+        if (detailsViewer.ScrollableHeight > 0 && target >= 0 && target <= detailsViewer.ScrollableHeight)
+        {
+            detailsViewer.ScrollToVerticalOffset(target);
+            e.Handled = true;
+            return;
+        }
+
+        if (PageScrollViewer is null || PageScrollViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        var pageTarget = PageScrollViewer.VerticalOffset - delta;
+        if (pageTarget < 0)
+        {
+            pageTarget = 0;
+        }
+        else if (pageTarget > PageScrollViewer.ScrollableHeight)
+        {
+            pageTarget = PageScrollViewer.ScrollableHeight;
+        }
+
+        PageScrollViewer.ScrollToVerticalOffset(pageTarget);
+        e.Handled = true;
+    }
+
     private async Task EnsureMapInitializedAsync()
     {
         if (!_viewInitialized)
