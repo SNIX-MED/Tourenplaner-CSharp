@@ -688,6 +688,150 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         SelectedTour = Tours.FirstOrDefault();
     }
 
+    public async Task<bool> MoveStopWithinSelectedTourAsync(TourStopOverviewItem sourceItem, TourStopOverviewItem? targetItem)
+    {
+        if (sourceItem.Source is null ||
+            sourceItem.IsCompanyStop ||
+            SelectedTour?.Source is null)
+        {
+            return false;
+        }
+
+        var tour = _loadedTours.FirstOrDefault(x => x.Id == SelectedTour.TourId);
+        if (tour is null)
+        {
+            return false;
+        }
+
+        var movableStops = tour.Stops.Where(s => !IsCompanyStop(s)).ToList();
+        if (movableStops.Count < 2)
+        {
+            return false;
+        }
+
+        var sourceIndex = movableStops.IndexOf(sourceItem.Source);
+        if (sourceIndex < 0)
+        {
+            return false;
+        }
+
+        var targetStop = targetItem?.Source;
+        var targetIndex = targetStop is null || (targetItem?.IsCompanyStop ?? false)
+            ? movableStops.Count - 1
+            : movableStops.IndexOf(targetStop);
+
+        if (targetIndex < 0 || sourceIndex == targetIndex)
+        {
+            return false;
+        }
+
+        var moved = movableStops[sourceIndex];
+        movableStops.RemoveAt(sourceIndex);
+        if (sourceIndex < targetIndex)
+        {
+            targetIndex--;
+        }
+
+        movableStops.Insert(targetIndex, moved);
+        RebuildTourStopsWithAnchors(tour, movableStops);
+        _scheduleService.ApplySchedule(tour);
+
+        await _tourRepository.SaveAsync(_loadedTours);
+        _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
+
+        RebuildTourRowsWithCurrentFilter(keepSelectionTourId: tour.Id);
+        StatusText = $"Stopps in Tour {tour.Name} wurden neu angeordnet.";
+        return true;
+    }
+
+    public async Task<bool> MoveStopToTourAsync(TourStopOverviewItem sourceItem, TourOverviewItem targetTourItem)
+    {
+        if (sourceItem.Source is null ||
+            sourceItem.IsCompanyStop)
+        {
+            return false;
+        }
+
+        var sourceTour = _loadedTours.FirstOrDefault(x => x.Id == sourceItem.SourceTourId);
+        var targetTour = _loadedTours.FirstOrDefault(x => x.Id == targetTourItem.TourId);
+        if (sourceTour is null || targetTour is null || sourceTour.Id == targetTour.Id)
+        {
+            return false;
+        }
+
+        if (!ConfirmStopReassignment(sourceItem, sourceTour, targetTour))
+        {
+            return false;
+        }
+
+        var sourceMovable = sourceTour.Stops.Where(s => !IsCompanyStop(s)).ToList();
+        var targetMovable = targetTour.Stops.Where(s => !IsCompanyStop(s)).ToList();
+
+        var sourceIndex = sourceMovable.IndexOf(sourceItem.Source);
+        if (sourceIndex < 0)
+        {
+            return false;
+        }
+
+        var movedStop = sourceMovable[sourceIndex];
+        sourceMovable.RemoveAt(sourceIndex);
+        targetMovable.Add(movedStop);
+
+        RebuildTourStopsWithAnchors(sourceTour, sourceMovable);
+        RebuildTourStopsWithAnchors(targetTour, targetMovable);
+        _scheduleService.ApplySchedule(sourceTour);
+        _scheduleService.ApplySchedule(targetTour);
+
+        var movedOrderId = ExtractOrderIdFromStop(movedStop);
+        var updatedOrder = false;
+        if (!string.IsNullOrWhiteSpace(movedOrderId))
+        {
+            var orders = (await _orderRepository.GetAllAsync()).ToList();
+            var order = orders.FirstOrDefault(o => string.Equals(o.Id, movedOrderId, StringComparison.OrdinalIgnoreCase));
+            if (order is not null)
+            {
+                order.AssignedTourId = targetTour.Id.ToString(CultureInfo.InvariantCulture);
+                await _orderRepository.SaveAllAsync(orders);
+                updatedOrder = true;
+            }
+        }
+
+        await _tourRepository.SaveAsync(_loadedTours);
+        _dataSyncService.PublishTours(
+            _instanceId,
+            sourceTour.Id.ToString(CultureInfo.InvariantCulture),
+            targetTour.Id.ToString(CultureInfo.InvariantCulture));
+        if (updatedOrder)
+        {
+            _dataSyncService.PublishOrders(_instanceId);
+        }
+
+        RebuildTourRowsWithCurrentFilter(keepSelectionTourId: targetTour.Id);
+        StatusText = $"Stopp wurde von Tour {sourceTour.Name} nach {targetTour.Name} verschoben.";
+        return true;
+    }
+
+    private static bool ConfirmStopReassignment(TourStopOverviewItem sourceItem, TourRecord sourceTour, TourRecord targetTour)
+    {
+        var orderNumber = string.IsNullOrWhiteSpace(sourceItem.OrderNumber)
+            ? (string.IsNullOrWhiteSpace(sourceItem.Name) ? "unbekannt" : sourceItem.Name)
+            : sourceItem.OrderNumber;
+        var sourceName = string.IsNullOrWhiteSpace(sourceTour.Name) ? $"Tour {sourceTour.Id}" : sourceTour.Name.Trim();
+        var targetName = string.IsNullOrWhiteSpace(targetTour.Name) ? $"Tour {targetTour.Id}" : targetTour.Name.Trim();
+
+        var message =
+            $"Der Auftrag/Stopp \"{orderNumber}\" ist bereits in \"{sourceName}\" eingeplant.{Environment.NewLine}{Environment.NewLine}" +
+            $"Soll er wirklich nach \"{targetName}\" umgeplant werden?";
+
+        var result = MessageBox.Show(
+            message,
+            "Umplanung bestätigen",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        return result == MessageBoxResult.Yes;
+    }
+
     private async Task LoadReferenceDataAsync()
     {
         var employees = await _employeeRepository.LoadAsync();
@@ -780,6 +924,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         _dataSyncService.PublishTours(_instanceId, target.Id.ToString(CultureInfo.InvariantCulture), null);
         _dataSyncService.PublishOrders(_instanceId);
         RebuildTourRowsWithCurrentFilter();
+        var deletedTourLabel = string.IsNullOrWhiteSpace(target.Name) ? target.Id.ToString(CultureInfo.InvariantCulture) : target.Name.Trim();
+        ToastNotificationService.ShowInfo($"Tour {deletedTourLabel} wurde gelöscht.");
     }
 
     private async Task OpenSelectedTourOnMapAsync()
@@ -1044,9 +1190,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         foreach (var tour in tourList.OrderBy(t => t.Date).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
         {
             var schedule = _scheduleService.BuildSchedule(tour);
-            var employeeText = string.Join(", ", (tour.EmployeeIds ?? [])
-                .Select(ResolveEmployeeLabel)
-                .Where(x => !string.IsNullOrWhiteSpace(x)));
+            var employeeText = BuildEmployeeFirstNameText(tour.EmployeeIds ?? []);
             var totalWeight = tour.Stops
                 .Where(s => !IsCompanyStop(s))
                 .Sum(s => ParseWeightKg(s.Gewicht));
@@ -1057,7 +1201,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 Date = tour.Date,
                 Start = schedule.Start.ToString("HH:mm"),
                 End = schedule.End.ToString("HH:mm"),
-                VehicleId = ResolveVehicleLabel(tour.VehicleId),
+                VehicleId = ResolveVehicleShortLabel(tour.VehicleId),
                 TrailerId = ResolveTrailerLabel(tour.TrailerId),
                 Employees = employeeText,
                 StopCount = tour.Stops.Count(s => !IsCompanyStop(s)),
@@ -1083,6 +1227,64 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return _vehicleLabelsById.TryGetValue(id, out var label) ? label : id;
     }
 
+    private static void RebuildTourStopsWithAnchors(TourRecord tour, List<TourStopRecord> movableStops)
+    {
+        var start = tour.Stops.FirstOrDefault(s => string.Equals(s.Id, TourStopIdentity.CompanyStartStopId, StringComparison.OrdinalIgnoreCase));
+        var end = tour.Stops.FirstOrDefault(s => string.Equals(s.Id, TourStopIdentity.CompanyEndStopId, StringComparison.OrdinalIgnoreCase));
+        if (start is null || end is null)
+        {
+            // Fallback for unexpected legacy data without explicit company anchors.
+            tour.Stops = movableStops;
+            for (var i = 0; i < tour.Stops.Count; i++)
+            {
+                tour.Stops[i].Order = i + 1;
+            }
+
+            return;
+        }
+
+        tour.Stops = [start, .. movableStops, end];
+        for (var i = 0; i < tour.Stops.Count; i++)
+        {
+            tour.Stops[i].Order = i + 1;
+        }
+    }
+
+    private static string ExtractOrderIdFromStop(TourStopRecord stop)
+    {
+        var orderNumber = (stop.Auftragsnummer ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(orderNumber))
+        {
+            return orderNumber;
+        }
+
+        var id = (stop.Id ?? string.Empty).Trim();
+        if (id.StartsWith("auftrag:", StringComparison.OrdinalIgnoreCase))
+        {
+            return id["auftrag:".Length..];
+        }
+
+        return id;
+    }
+
+    private string ResolveVehicleShortLabel(string? vehicleId)
+    {
+        var label = ResolveVehicleLabel(vehicleId);
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            return label;
+        }
+
+        // Keep the table compact: hide license plate suffix like " [TG 123456]".
+        var bracketIndex = label.LastIndexOf(" [", StringComparison.Ordinal);
+        if (bracketIndex > 0 && label.EndsWith(']'))
+        {
+            return label[..bracketIndex].Trim();
+        }
+
+        return label;
+    }
+
     private string ResolveTrailerLabel(string? trailerId)
     {
         var id = (trailerId ?? string.Empty).Trim();
@@ -1105,6 +1307,25 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return _employeeLabelsById.TryGetValue(id, out var label) ? label : id;
     }
 
+    private string BuildEmployeeFirstNameText(IEnumerable<string> employeeIds)
+    {
+        var firstNames = employeeIds
+            .Select(ResolveEmployeeLabel)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(ExtractFirstName)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+
+        return string.Join(", ", firstNames);
+    }
+
+    private static string ExtractFirstName(string label)
+    {
+        var parts = (label ?? string.Empty)
+            .Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length == 0 ? string.Empty : parts[0];
+    }
+
     private void LoadSelectedTourStops()
     {
         SelectedTourStops.Clear();
@@ -1113,11 +1334,16 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
-        foreach (var stop in SelectedTour.Source.Stops.OrderBy(s => s.Order))
+        foreach (var stop in SelectedTour.Source.Stops
+                     .OrderBy(GetStopDisplayOrderGroup)
+                     .ThenBy(s => s.Order))
         {
             var isCompanyStop = IsCompanyStop(stop);
             SelectedTourStops.Add(new TourStopOverviewItem
             {
+                SourceTourId = SelectedTour.TourId,
+                Source = stop,
+                IsCompanyStop = isCompanyStop,
                 Order = isCompanyStop ? string.Empty : stop.Order.ToString(CultureInfo.InvariantCulture),
                 OrderNumber = isCompanyStop ? string.Empty : stop.Auftragsnummer,
                 Name = isCompanyStop ? NormalizeCompanyStopName(stop.Name) : stop.Name,
@@ -1129,6 +1355,23 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 Conflict = isCompanyStop ? string.Empty : (stop.ScheduleConflict ? (string.IsNullOrWhiteSpace(stop.ScheduleConflictText) ? "Yes" : stop.ScheduleConflictText) : string.Empty)
             });
         }
+    }
+
+    private static int GetStopDisplayOrderGroup(TourStopRecord stop)
+    {
+        if (string.Equals(stop.Id, TourStopIdentity.CompanyStartStopId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(stop.Auftragsnummer, TourStopIdentity.CompanyStartOrderNumber, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (string.Equals(stop.Id, TourStopIdentity.CompanyEndStopId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(stop.Auftragsnummer, TourStopIdentity.CompanyEndOrderNumber, StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        return 1;
     }
 
     private void UpdateSelectedTourSummary()
@@ -1605,6 +1848,9 @@ public sealed class TourOverviewItem
 
 public sealed class TourStopOverviewItem
 {
+    public int SourceTourId { get; set; }
+    public TourStopRecord Source { get; set; } = new();
+    public bool IsCompanyStop { get; set; }
     public string Order { get; set; } = string.Empty;
     public string OrderNumber { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

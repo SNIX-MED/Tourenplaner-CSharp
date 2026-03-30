@@ -130,13 +130,13 @@
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <Button Width="170" Margin="0,0,8,0" Command="{Binding OpenSplitScreenCommand}" Style="{StaticResource SecondaryButtonStyle}">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="â§‰" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="⧉" Margin="0,0,6,0" VerticalAlignment="Center" />
                                 <TextBlock Text="Split-Ansicht" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
                         <Button Width="180" Margin="0,0,8,0" Content="Tag in Liefertouren" Command="{Binding OpenSelectedDayInToursCommand}" />
-                        <Button Width="130" Margin="0,0,8,0" Content="Tour Ã¶ffnen" Command="{Binding OpenSelectedTourCommand}" />
-                        <Button Width="130" Content="Tour lÃ¶schen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteSelectedTourCommand}" />
+                        <Button Width="130" Margin="0,0,8,0" Content="Tour öffnen" Command="{Binding OpenSelectedTourCommand}" />
+                        <Button Width="130" Content="Tour löschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteSelectedTourCommand}" />
                     </StackPanel>
                 </Grid>
 
@@ -316,5 +316,6 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+
 
 

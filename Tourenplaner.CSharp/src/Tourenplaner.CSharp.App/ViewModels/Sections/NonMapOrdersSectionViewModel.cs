@@ -141,6 +141,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         SelectedOrder = NonMapOrders.FirstOrDefault(x => string.Equals(x.Id, createdOrder.Id, StringComparison.OrdinalIgnoreCase));
         PublishOrderChange(null, createdOrder.Id);
         StatusText = $"Nicht-Karten-Auftrag {createdOrder.Id} wurde gespeichert.";
+        ToastNotificationService.ShowInfo($"Auftrag {createdOrder.Id} wurde erstellt.");
     }
 
     private async Task EditSelectedOrderAsync()
@@ -211,6 +212,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         await RefreshFromRepositoryAsync();
         PublishOrderChange(removedOrderId, null);
         StatusText = $"Nicht-Karten-Auftrag {removedOrderId} wurde gelöscht. Mit 'Zurück' wiederherstellen.";
+        ToastNotificationService.ShowInfo($"Auftrag {removedOrderId} wurde gelöscht.");
         RaiseCommandStates();
     }
 

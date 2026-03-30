@@ -591,6 +591,7 @@
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template">
             <Setter.Value>
@@ -607,11 +608,18 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
+                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="DataGridTextColumnElementStyle" TargetType="TextBlock">
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
     </Style>
 
     <Style x:Key="DataGridTextColumnEditingStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">

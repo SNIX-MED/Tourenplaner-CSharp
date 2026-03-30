@@ -1046,6 +1046,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
+        if (!ConfirmOrderReassignmentIfNeeded(SelectedOrder))
+        {
+            return;
+        }
+
         var existing = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, SelectedOrder.OrderId, StringComparison.OrdinalIgnoreCase));
         if (existing is not null)
         {
@@ -1074,6 +1079,59 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RebuildPositions();
         RebuildOrderGrid();
         MarkRouteChanged();
+    }
+
+    private bool ConfirmOrderReassignmentIfNeeded(MapOrderItem order)
+    {
+        var assignedTourIdText = (order.AssignedTourId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(assignedTourIdText))
+        {
+            return true;
+        }
+
+        var targetTourId = ResolveCurrentTourId();
+        if (int.TryParse(assignedTourIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var assignedTourId) &&
+            assignedTourId > 0 &&
+            assignedTourId == targetTourId)
+        {
+            // Already assigned to the currently edited tour.
+            return true;
+        }
+
+        var assignedTourLabel = BuildTourLabelById(assignedTourIdText);
+        var targetTourLabel = targetTourId > 0
+            ? BuildTourLabelById(targetTourId.ToString(CultureInfo.InvariantCulture))
+            : "die aktuelle neue Route";
+
+        var message =
+            $"Der Auftrag {order.OrderId} ist bereits in {assignedTourLabel} eingeplant.\n\n" +
+            $"Wenn du fortfährst, wird der Auftrag beim Speichern nach {targetTourLabel} umgeplant.\n\n" +
+            "Trotzdem hinzufügen?";
+
+        var result = MessageBox.Show(
+            message,
+            "Auftrag bereits eingeplant",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        return result == MessageBoxResult.Yes;
+    }
+
+    private string BuildTourLabelById(string? tourIdText)
+    {
+        var text = (tourIdText ?? string.Empty).Trim();
+        if (!int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tourId) || tourId <= 0)
+        {
+            return $"Tour {text}";
+        }
+
+        var match = _savedTours.FirstOrDefault(x => x.Id == tourId);
+        if (match is not null && !string.IsNullOrWhiteSpace(match.Name))
+        {
+            return $"Tour {tourId} ({match.Name.Trim()})";
+        }
+
+        return $"Tour {tourId}";
     }
 
     private void RemoveSelectedRouteStop()
@@ -1465,11 +1523,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
+        var routeOrderIds = _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops());
         tours.Add(tour);
+        RemoveRouteOrderStopsFromOtherTours(tours, routeOrderIds, nextId);
+
         await _tourRepository.SaveAsync(tours);
         _dataSyncService.PublishTours(_instanceId, nextId.ToString(CultureInfo.InvariantCulture), nextId.ToString(CultureInfo.InvariantCulture));
 
-        var routeOrderIds = _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops());
         foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
         {
             order.AssignedTourId = nextId.ToString();
@@ -1481,6 +1541,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await FocusTourAsync(nextId);
         SetRouteChanged(false);
         StatusText = "Route gespeichert und auf Karte geladen.";
+        ToastNotificationService.ShowInfo($"Neue Tour {nextId} wurde erstellt.");
         }
         catch (IOException ioEx)
         {
@@ -1558,7 +1619,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
+        var routeOrderIds = _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops());
         tours[index] = updated;
+        RemoveRouteOrderStopsFromOtherTours(tours, routeOrderIds, tourId);
+
         await _tourRepository.SaveAsync(tours);
         _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
 
@@ -1568,7 +1632,6 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             order.AssignedTourId = string.Empty;
         }
 
-        var routeOrderIds = _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops());
         foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
         {
             order.AssignedTourId = tourKey;
@@ -1747,6 +1810,38 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         return id;
+    }
+
+    private static void RemoveRouteOrderStopsFromOtherTours(
+        List<TourRecord> tours,
+        IReadOnlySet<string> routeOrderIds,
+        int targetTourId)
+    {
+        if (routeOrderIds.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var tour in tours.Where(t => t.Id != targetTourId))
+        {
+            var filtered = (tour.Stops ?? [])
+                .Where(stop =>
+                    TourStopIdentity.IsCompanyStop(stop) ||
+                    !routeOrderIds.Contains(ExtractTourStopOrderId(stop)))
+                .ToList();
+
+            if (filtered.Count == (tour.Stops?.Count ?? 0))
+            {
+                continue;
+            }
+
+            for (var i = 0; i < filtered.Count; i++)
+            {
+                filtered[i].Order = i + 1;
+            }
+
+            tour.Stops = filtered;
+        }
     }
 
     private static bool IsCompanyTourStop(TourStopRecord stop)
@@ -2173,6 +2268,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         ClearRoute();
         StatusText = "Tour verlassen.";
+        ToastNotificationService.ShowInfo("Tour wurde verlassen.");
     }
 
     private void RebuildPositions()
@@ -3314,7 +3410,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public string ResolveOrderStatusColor(string? orderStatus, bool isAssigned)
     {
         var rawStatus = (orderStatus ?? string.Empty).Trim();
-        if (string.Equals(rawStatus, PlannedTourStatus, StringComparison.OrdinalIgnoreCase) ||
+        if (isAssigned ||
+            string.Equals(rawStatus, PlannedTourStatus, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(rawStatus, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase))
         {
             return _statusColorPlanned;
@@ -3334,11 +3431,6 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         if (string.Equals(normalized, "An Lager", StringComparison.OrdinalIgnoreCase))
         {
             return _statusColorInStock;
-        }
-
-        if (isAssigned && string.IsNullOrWhiteSpace(rawStatus))
-        {
-            return _statusColorPlanned;
         }
 
         return _statusColorNotSpecified;

@@ -5,6 +5,7 @@ using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
+using System.Threading;
 using System.Windows;
 
 namespace Tourenplaner.CSharp.App.ViewModels;
@@ -23,6 +24,9 @@ public sealed class MainShellViewModel : ObservableObject
     private string _currentUserName = "Mike Weber";
     private readonly NavigationItemViewModel _settingsNavigationItem;
     private object? _previousSectionBeforeSplit;
+    private int _toastVersion;
+    private bool _isToastVisible;
+    private string _toastMessage = string.Empty;
 
     public MainShellViewModel(
         AppSnapshotService snapshotService,
@@ -101,6 +105,7 @@ public sealed class MainShellViewModel : ObservableObject
         OpenSettingsCommand = new DelegateCommand(OpenSettings);
         ExportCurrentRouteCommand = new DelegateCommand(ExportCurrentRoute, CanExportCurrentRoute);
         _mapSection.ExportRouteCommand.CanExecuteChanged += (_, _) => ExportCurrentRouteCommand.RaiseCanExecuteChanged();
+        ToastNotificationService.NotificationRequested += OnToastNotificationRequested;
         SelectedNavigationItem = NavigationItems[0];
 
         _ = start.RefreshAsync();
@@ -170,6 +175,18 @@ public sealed class MainShellViewModel : ObservableObject
     public bool IsToursSectionActive => CurrentSection is ToursSectionViewModel;
 
     public bool IsTopBarSectionControlsVisible => IsMapSectionActive || IsToursSectionActive;
+
+    public bool IsToastVisible
+    {
+        get => _isToastVisible;
+        private set => SetProperty(ref _isToastVisible, value);
+    }
+
+    public string ToastMessage
+    {
+        get => _toastMessage;
+        private set => SetProperty(ref _toastMessage, value);
+    }
 
     private async Task NavigateToTourAsync(ToursSectionViewModel toursSection, int tourId)
     {
@@ -309,5 +326,23 @@ public sealed class MainShellViewModel : ObservableObject
 
         await repository.SaveAllAsync(orders);
         _dataSyncService.PublishOrders(_instanceId, originalId, updated.Id);
+    }
+
+    private async void OnToastNotificationRequested(object? sender, ToastNotification notification)
+    {
+        if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            _ = System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnToastNotificationRequested(sender, notification));
+            return;
+        }
+
+        ToastMessage = notification.Message;
+        IsToastVisible = true;
+        var version = Interlocked.Increment(ref _toastVersion);
+        await Task.Delay(notification.DurationMs);
+        if (version == _toastVersion)
+        {
+            IsToastVisible = false;
+        }
     }
 }

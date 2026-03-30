@@ -144,6 +144,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         StatusText = createdOrder.Location is null
             ? $"Auftrag {createdOrder.Id} gespeichert, aber Adresse konnte nicht automatisch geokodiert werden."
             : $"Auftrag {createdOrder.Id} wurde gespeichert.";
+        ToastNotificationService.ShowInfo($"Auftrag {createdOrder.Id} wurde erstellt.");
     }
 
     private async Task EditSelectedOrderAsync()
@@ -214,6 +215,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         await RefreshFromRepositoryAsync();
         PublishOrderChange(removedOrderId, null);
         StatusText = $"Auftrag {removedOrderId} wurde gelöscht. Mit 'Zurück' wiederherstellen.";
+        ToastNotificationService.ShowInfo($"Auftrag {removedOrderId} wurde gelöscht.");
         RaiseCommandStates();
     }
 

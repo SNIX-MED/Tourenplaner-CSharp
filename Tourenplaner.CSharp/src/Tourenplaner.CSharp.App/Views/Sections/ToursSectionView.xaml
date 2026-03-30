@@ -7,102 +7,172 @@
              d:DesignHeight="900"
              d:DesignWidth="1450">
     <Grid Margin="8">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" MinHeight="140" />
-            <RowDefinition Height="8" />
-            <RowDefinition Height="*" MinHeight="140" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.35*" MinWidth="560" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="2.05*" MinWidth="720" />
+            </Grid.ColumnDefinitions>
 
-        <Border Grid.Row="0" Style="{StaticResource FlatCardStyle}" Padding="12">
-            <GroupBox Header="Touren">
-                <DataGrid AutoGenerateColumns="False"
-                          IsReadOnly="True"
-                          ItemsSource="{Binding Tours}"
-                          SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
-                          MouseDoubleClick="OnToursGridMouseDoubleClick"
-                          SelectionMode="Single"
-                          SelectionUnit="FullRow">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Datum" Width="130" Binding="{Binding Date}" />
-                        <DataGridTextColumn Header="Name" Width="2*" Binding="{Binding Name}" />
-                        <DataGridTextColumn Header="Fahrzeug" Width="2*" Binding="{Binding VehicleId}" />
-                        <DataGridTextColumn Header="Mitarbeiter" Width="2*" Binding="{Binding Employees}" />
-                        <DataGridTextColumn Header="Stopps" Width="90" Binding="{Binding StopCount}" />
-                        <DataGridTextColumn Header="Totalgewicht" Width="130" Binding="{Binding TotalWeightKg}" />
-                    </DataGrid.Columns>
-                </DataGrid>
-            </GroupBox>
-        </Border>
+            <Border Grid.Column="0" Style="{StaticResource FlatCardStyle}" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-        <GridSplitter Grid.Row="1"
-                      HorizontalAlignment="Stretch"
-                      VerticalAlignment="Center"
-                      Height="8"
-                      ResizeBehavior="PreviousAndNext"
-                      ResizeDirection="Rows"
-                      Background="{DynamicResource Brush.BorderSoft}" />
+                    <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                        <TextBlock DockPanel.Dock="Left" FontSize="14" FontWeight="SemiBold" Text="Tourenübersicht" />
+                        <Border DockPanel.Dock="Right"
+                                Padding="8,3"
+                                CornerRadius="10"
+                                Background="{DynamicResource Brush.SurfaceAlt}">
+                            <TextBlock FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="{Binding FilterInfoText}" />
+                        </Border>
+                    </DockPanel>
 
-        <Border Grid.Row="2" Margin="0,12,0,0" Style="{StaticResource FlatCardStyle}" Padding="12">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <GroupBox Header="Stopps in ausgewählter Tour">
-                    <DataGrid AutoGenerateColumns="False"
+                    <DataGrid x:Name="ToursGrid"
+                              Grid.Row="1"
+                              AutoGenerateColumns="False"
+                              AllowDrop="True"
                               IsReadOnly="True"
-                              ItemsSource="{Binding SelectedTourStops}">
+                              ItemsSource="{Binding Tours}"
+                              SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
+                              DragOver="ToursGrid_DragOver"
+                              DragLeave="ToursGrid_DragLeave"
+                              Drop="ToursGrid_Drop"
+                              MouseDoubleClick="OnToursGridMouseDoubleClick"
+                              SelectionMode="Single"
+                              SelectionUnit="FullRow">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="#" Width="50" Binding="{Binding Order}" />
-                            <DataGridTextColumn Header="Auftragsnummer" Width="130" Binding="{Binding OrderNumber}" />
-                            <DataGridTextColumn Header="Adresse / Name" Width="*" Binding="{Binding Name}" />
-                            <DataGridTextColumn Header="Gewicht" Width="90" Binding="{Binding Weight}" />
+                            <DataGridTextColumn Header="Datum" Width="112" Binding="{Binding Date}" />
+                            <DataGridTextColumn Header="Tour" Width="2.15*" Binding="{Binding Name}" />
+                            <DataGridTextColumn Header="Fahrzeug" Width="2.35*" Binding="{Binding VehicleId}" />
+                            <DataGridTextColumn Header="Mitarbeiter" Width="92" Binding="{Binding Employees}" />
+                            <DataGridTextColumn Header="Stopps" Width="64" Binding="{Binding StopCount}" />
+                            <DataGridTextColumn Header="Gewicht (kg)" Width="92" Binding="{Binding TotalWeightKg}" />
                         </DataGrid.Columns>
                     </DataGrid>
-                </GroupBox>
+                </Grid>
+            </Border>
 
-                <Border Grid.Row="1" Margin="0,10,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">
-                    <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourWeightText}" />
-                        <TextBlock Margin="0,4,0,0"
-                                   FontWeight="SemiBold"
-                                   TextWrapping="Wrap"
-                                   Text="{Binding SelectedTourLoadSummaryText}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedTourLoadSummaryText}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Margin="0,4,0,0"
-                                   Foreground="{DynamicResource Brush.TextMuted}"
-                                   TextWrapping="Wrap"
-                                   Text="{Binding SelectedTourVehicleText}" />
-                    </StackPanel>
-                </Border>
-            </Grid>
-        </Border>
+            <GridSplitter Grid.Column="1"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Stretch"
+                          Width="8"
+                          ResizeBehavior="PreviousAndNext"
+                          ResizeDirection="Columns"
+                          Background="{DynamicResource Brush.BorderSoft}" />
 
-        <Grid Grid.Row="3" Margin="0,12,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Button Grid.Column="0"
-                    Height="40"
-                    Margin="0,0,8,0"
-                    Content="Tour auf Karte anzeigen"
-                    Style="{StaticResource PrimaryButtonStyle}"
-                    Command="{Binding OpenTourOnMapCommand}" />
-            <Button Grid.Column="1" Height="40" Margin="8,0,8,0" Content="Tour bearbeiten" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding EditTourOnMapCommand}" />
-            <Button Grid.Column="2" Height="40" Margin="8,0,0,0" Content="Tour löschen" Style="{StaticResource DangerButtonStyle}" Command="{Binding DeleteTourCommand}" />
+            <Border Grid.Column="2" Margin="12,0,0,0" Style="{StaticResource FlatCardStyle}" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Vertical">
+                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="Stopps in ausgewählter Tour" />
+                            <TextBlock Margin="0,2,0,0"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="{Binding SelectedTour.Name, TargetNullValue=Keine Tour ausgewählt}" />
+                        </StackPanel>
+
+                        <Border Grid.Column="1"
+                                Padding="10,4"
+                                CornerRadius="11"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource Brush.SurfaceAlt}">
+                            <TextBlock FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="{Binding SelectedTourStops.Count, StringFormat=Stopps: {0}}" />
+                        </Border>
+                    </Grid>
+
+                    <DataGrid x:Name="SelectedTourStopsGrid"
+                              Grid.Row="1"
+                              AutoGenerateColumns="False"
+                              AllowDrop="True"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding SelectedTourStops}"
+                              PreviewMouseLeftButtonDown="SelectedTourStopsGrid_PreviewMouseLeftButtonDown"
+                              MouseMove="SelectedTourStopsGrid_MouseMove"
+                              DragOver="SelectedTourStopsGrid_DragOver"
+                              DragLeave="SelectedTourStopsGrid_DragLeave"
+                              Drop="SelectedTourStopsGrid_Drop">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="#" Width="44" Binding="{Binding Order}" />
+                            <DataGridTextColumn Header="Auftrag" Width="110" Binding="{Binding OrderNumber}" />
+                            <DataGridTextColumn Header="Name" Width="1.55*" Binding="{Binding Name}" />
+                            <DataGridTextColumn Header="Adresse" Width="2.1*" Binding="{Binding Address}" />
+                            <DataGridTextColumn Header="Zeitfenster" Width="98" Binding="{Binding Window}" />
+                            <DataGridTextColumn Header="Ankunft" Width="60" Binding="{Binding Arrival}" />
+                            <DataGridTextColumn Header="Abfahrt" Width="60" Binding="{Binding Departure}" />
+                            <DataGridTextColumn Header="Gewicht" Width="72" Binding="{Binding Weight}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource SoftCardStyle}" Padding="10">
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourWeightText}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding SelectedTourLoadSummaryText}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedTourLoadSummaryText}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding SelectedTourVehicleText}" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" Width="220" Orientation="Vertical">
+                            <Button Height="36"
+                                    Margin="0,0,0,8"
+                                    Content="Tour auf Karte anzeigen"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Command="{Binding OpenTourOnMapCommand}" />
+                            <Button Height="36"
+                                    Margin="0,0,0,8"
+                                    Content="Tour bearbeiten"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding EditTourOnMapCommand}" />
+                            <Button Height="36"
+                                    Content="Tour löschen"
+                                    Style="{StaticResource DangerButtonStyle}"
+                                    Command="{Binding DeleteTourCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>
