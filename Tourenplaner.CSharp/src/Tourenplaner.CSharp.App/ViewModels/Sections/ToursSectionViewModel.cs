@@ -918,6 +918,19 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
+        var tourLabel = string.IsNullOrWhiteSpace(target.Name)
+            ? $"Tour {target.Id.ToString(CultureInfo.InvariantCulture)}"
+            : target.Name.Trim();
+        var confirmDelete = MessageBox.Show(
+            $"Soll {tourLabel} wirklich gelöscht werden?",
+            "Tour löschen",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirmDelete != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
         _loadedTours.Remove(target);
         await _tourRepository.SaveAsync(_loadedTours);
         await ClearAssignedTourReferencesAsync(target.Id);

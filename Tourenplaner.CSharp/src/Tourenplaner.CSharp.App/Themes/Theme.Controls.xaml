@@ -17,10 +17,6 @@
         <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
-    <Style TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-    </Style>
-
     <Style TargetType="Image">
         <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -99,7 +95,10 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}">
-                        <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -143,6 +142,12 @@
     <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Foreground" Value="White" />
         <Setter Property="Background" Value="{DynamicResource Brush.Danger}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Danger}" />
+    </Style>
+
+    <Style x:Key="DangerOutlineButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.ButtonBackground}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Danger}" />
     </Style>
 
@@ -502,6 +507,7 @@
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
+                <Setter Property="Foreground" Value="White" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -554,12 +560,17 @@
         <Setter Property="AlternatingRowBackground" Value="{DynamicResource Brush.TableAltRow}" />
         <Setter Property="GridLinesVisibility" Value="Horizontal" />
         <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Brush.TableGrid}" />
-        <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
+        <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource Brush.BorderSoft}" />
         <Setter Property="HeadersVisibility" Value="Column" />
         <Setter Property="ColumnHeaderHeight" Value="38" />
         <Setter Property="RowHeight" Value="38" />
         <Setter Property="CanUserResizeRows" Value="False" />
         <Setter Property="SelectionUnit" Value="FullRow" />
+        <Setter Property="AlternationCount" Value="2" />
+        <Setter Property="CanUserSortColumns" Value="True" />
+        <Setter Property="EnableRowVirtualization" Value="True" />
+        <Setter Property="EnableColumnVirtualization" Value="True" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
     </Style>
 
     <Style TargetType="DataGridColumnHeader">
@@ -569,6 +580,17 @@
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Style.Triggers>
+            <Trigger Property="SortDirection" Value="Ascending">
+                <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                <Setter Property="Background" Value="{DynamicResource Brush.AccentSurface}" />
+            </Trigger>
+            <Trigger Property="SortDirection" Value="Descending">
+                <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                <Setter Property="Background" Value="{DynamicResource Brush.AccentSurface}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="DataGridRow">
@@ -581,7 +603,7 @@
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
-                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                <Setter Property="Foreground" Value="White" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -611,7 +633,7 @@
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
-                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                <Setter Property="Foreground" Value="White" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -620,6 +642,11 @@
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True">
+                <Setter Property="Foreground" Value="White" />
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="DataGridTextColumnEditingStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
@@ -650,7 +677,9 @@
                             Background="{DynamicResource Brush.SidebarItemBackground}"
                             BorderBrush="{DynamicResource Brush.SidebarItemBorder}"
                             BorderThickness="1">
-                        <ContentPresenter Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">

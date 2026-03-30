@@ -480,6 +480,19 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             return;
         }
 
+        var tourLabel = string.IsNullOrWhiteSpace(toRemove.Name)
+            ? $"Tour {toRemove.Id.ToString(CultureInfo.InvariantCulture)}"
+            : toRemove.Name.Trim();
+        var confirmDelete = System.Windows.MessageBox.Show(
+            $"Soll {tourLabel} wirklich gelöscht werden?",
+            "Tour löschen",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Warning);
+        if (confirmDelete != System.Windows.MessageBoxResult.Yes)
+        {
+            return;
+        }
+
         _allTours.Remove(toRemove);
         await _repository.SaveAsync(_allTours);
         await ClearAssignedTourReferencesAsync(toRemove.Id);

@@ -167,7 +167,7 @@
                                     Command="{Binding EditTourOnMapCommand}" />
                             <Button Height="36"
                                     Content="Tour löschen"
-                                    Style="{StaticResource DangerButtonStyle}"
+                                    Style="{StaticResource DangerOutlineButtonStyle}"
                                     Command="{Binding DeleteTourCommand}" />
                         </StackPanel>
                     </Grid>
