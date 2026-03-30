@@ -11,6 +11,8 @@ public sealed class AppSettings
     public const string DefaultStatusColorPlanned = "#64748B";
     public const string DefaultCalendarLoadWarningColor = "#F59E0B";
     public const string DefaultCalendarLoadCriticalColor = "#DC2626";
+    public const string DefaultGpsToolUrl = "https://map.ktrac.ch/";
+    public const string DefaultSpediteurToolUrl = "https://portal.haslertransport.ch/";
 
     public string AppearanceMode { get; set; } = "Light";
     public string AvisoEmailSubjectTemplate { get; set; } = DefaultAvisoEmailSubjectTemplate;
@@ -37,6 +39,10 @@ public sealed class AppSettings
     public int AutoBackupIntervalDays { get; set; } = 7;
     public string LastBackupIso { get; set; } = string.Empty;
     public string UpdateFeedUrl { get; set; } = DefaultUpdateFeedUrl;
+    public bool ShowGpsTool { get; set; } = true;
+    public string GpsToolUrl { get; set; } = DefaultGpsToolUrl;
+    public bool ShowSpediteurTool { get; set; } = true;
+    public string SpediteurToolUrl { get; set; } = DefaultSpediteurToolUrl;
     
     // SQL Server Import Settings
     public SqlConnectionSettings SqlImportSettings { get; set; } = new();

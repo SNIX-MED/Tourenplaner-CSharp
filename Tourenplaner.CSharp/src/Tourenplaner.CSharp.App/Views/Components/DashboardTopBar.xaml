@@ -265,11 +265,15 @@
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding IsToday}" Value="True">
                                                                     <Setter TargetName="DayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                    <Setter TargetName="DayRoot" Property="BorderThickness" Value="1" />
+                                                                    <Setter TargetName="DayText" Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                                    <Setter TargetName="DayText" Property="FontWeight" Value="Bold" />
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                    <Setter TargetName="DayRoot" Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                                    <Setter TargetName="DayRoot" Property="Background" Value="#D6ECFF" />
                                                                     <Setter TargetName="DayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                                    <Setter TargetName="DayText" Property="Foreground" Value="White" />
+                                                                    <Setter TargetName="DayRoot" Property="BorderThickness" Value="2" />
+                                                                    <Setter TargetName="DayText" Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                                                                 </DataTrigger>
                                                             </DataTemplate.Triggers>
                                                         </DataTemplate>
@@ -405,11 +409,15 @@
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding IsToday}" Value="True">
                                                                     <Setter TargetName="DayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                    <Setter TargetName="DayRoot" Property="BorderThickness" Value="1" />
+                                                                    <Setter TargetName="DayText" Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                                    <Setter TargetName="DayText" Property="FontWeight" Value="Bold" />
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                    <Setter TargetName="DayRoot" Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                                    <Setter TargetName="DayRoot" Property="Background" Value="#D6ECFF" />
                                                                     <Setter TargetName="DayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                                    <Setter TargetName="DayText" Property="Foreground" Value="White" />
+                                                                    <Setter TargetName="DayRoot" Property="BorderThickness" Value="2" />
+                                                                    <Setter TargetName="DayText" Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                                                                 </DataTrigger>
                                                             </DataTemplate.Triggers>
                                                         </DataTemplate>

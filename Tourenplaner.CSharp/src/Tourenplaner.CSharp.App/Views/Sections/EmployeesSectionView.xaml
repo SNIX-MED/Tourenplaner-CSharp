@@ -99,7 +99,7 @@
                                                 Height="36"
                                                 Margin="8,0,0,0"
                                                 Content="Löschen"
-                                                Style="{StaticResource DangerButtonStyle}"
+                                                Style="{StaticResource DangerOutlineButtonStyle}"
                                                 Tag="{Binding}"
                                                 Click="OnDeleteEntryClicked" />
                                     </Grid>

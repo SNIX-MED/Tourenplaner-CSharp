@@ -393,11 +393,15 @@
                         </Trigger>
                         <Trigger Property="IsToday" Value="True">
                             <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                            <Setter TargetName="Root" Property="BorderThickness" Value="1" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                            <Setter Property="FontWeight" Value="Bold" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.Accent}" />
+                            <Setter TargetName="Root" Property="Background" Value="#D6ECFF" />
                             <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                            <Setter Property="Foreground" Value="White" />
+                            <Setter TargetName="Root" Property="BorderThickness" Value="2" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                         </Trigger>
                         <Trigger Property="IsInactive" Value="True">
                             <Setter Property="Foreground" Value="{DynamicResource Brush.TextSubtle}" />
@@ -507,7 +511,7 @@
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
-                <Setter Property="Foreground" Value="White" />
+                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -603,7 +607,7 @@
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
-                <Setter Property="Foreground" Value="White" />
+                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -633,7 +637,7 @@
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
-                <Setter Property="Foreground" Value="White" />
+                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -644,7 +648,7 @@
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
         <Style.Triggers>
             <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True">
-                <Setter Property="Foreground" Value="White" />
+                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             </DataTrigger>
         </Style.Triggers>
     </Style>

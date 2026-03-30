@@ -56,6 +56,16 @@ public sealed class SettingsValidator
             }
         }
 
+        if (!Uri.TryCreate((settings.GpsToolUrl ?? string.Empty).Trim(), UriKind.Absolute, out _))
+        {
+            errors.Add("GpsToolUrl must be a valid absolute URL.");
+        }
+
+        if (!Uri.TryCreate((settings.SpediteurToolUrl ?? string.Empty).Trim(), UriKind.Absolute, out _))
+        {
+            errors.Add("SpediteurToolUrl must be a valid absolute URL.");
+        }
+
         var hasAnyCompanyAddressPart =
             !string.IsNullOrWhiteSpace(settings.CompanyStreet) ||
             !string.IsNullOrWhiteSpace(settings.CompanyPostalCode) ||

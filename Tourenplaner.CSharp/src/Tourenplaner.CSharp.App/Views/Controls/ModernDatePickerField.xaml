@@ -99,9 +99,6 @@
                                         Width="30"
                                         Height="30"
                                         Padding="0"
-                                        BorderThickness="1"
-                                        BorderBrush="Transparent"
-                                        Background="Transparent"
                                         Foreground="{DynamicResource Brush.TextPrimary}"
                                         Cursor="Hand"
                                         Tag="{Binding}"
@@ -135,11 +132,10 @@
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsToday}" Value="True">
                                                         <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
-                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                        <Setter Property="FontWeight" Value="Bold" />
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                         <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-                                                        <Setter Property="FontWeight" Value="SemiBold" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -149,17 +145,16 @@
                                         <Style TargetType="Button">
                                             <Setter Property="Background" Value="Transparent" />
                                             <Setter Property="BorderBrush" Value="Transparent" />
+                                            <Setter Property="BorderThickness" Value="1" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                    <Setter Property="Background" Value="Transparent" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                    <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
-                                                    <Setter Property="BorderThickness" Value="2" />
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                                                    <Setter Property="Background" Value="#D6ECFF" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
                                                     <Setter Property="BorderThickness" Value="2" />
-                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>

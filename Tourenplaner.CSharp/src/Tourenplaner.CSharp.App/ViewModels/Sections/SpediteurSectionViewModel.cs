@@ -6,14 +6,14 @@ using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
-public sealed class GpsSectionViewModel : SectionViewModelBase
+public sealed class SpediteurSectionViewModel : SectionViewModelBase
 {
-    private string _configuredUrl = AppSettings.DefaultGpsToolUrl;
-    private string _loadedUrl = AppSettings.DefaultGpsToolUrl;
-    private string _statusText = "GPS wird geladen.";
+    private string _configuredUrl = AppSettings.DefaultSpediteurToolUrl;
+    private string _loadedUrl = AppSettings.DefaultSpediteurToolUrl;
+    private string _statusText = "Spediteur-Portal wird geladen.";
     private bool _webView2Available;
 
-    public GpsSectionViewModel() : base("GPS", "Minimal eingebettete GPS-Ansicht.")
+    public SpediteurSectionViewModel() : base("Spediteur", "Eingebettetes Spediteur-Portal.")
     {
         RefreshCommand = new DelegateCommand(Refresh);
         OpenInBrowserCommand = new DelegateCommand(OpenInBrowser);
@@ -43,7 +43,7 @@ public sealed class GpsSectionViewModel : SectionViewModelBase
         var normalized = (url ?? string.Empty).Trim();
         _configuredUrl = Uri.TryCreate(normalized, UriKind.Absolute, out _)
             ? normalized
-            : AppSettings.DefaultGpsToolUrl;
+            : AppSettings.DefaultSpediteurToolUrl;
         Refresh();
     }
 
@@ -58,7 +58,6 @@ public sealed class GpsSectionViewModel : SectionViewModelBase
 
     private void DetectWebView2()
     {
-        // Runtime detection without hard package dependency, used for fallback information.
         _webView2Available = Type.GetType("Microsoft.Web.WebView2.Wpf.WebView2, Microsoft.Web.WebView2.Wpf", throwOnError: false) is not null;
     }
 
@@ -66,8 +65,8 @@ public sealed class GpsSectionViewModel : SectionViewModelBase
     {
         LoadedUrl = _configuredUrl;
         StatusText = _webView2Available
-            ? "GPS geladen."
-            : "WebView2 nicht verfuegbar. Bitte GPS im Browser oeffnen.";
+            ? "Spediteur-Portal geladen."
+            : "WebView2 nicht verfuegbar. Bitte Spediteur-Portal im Browser oeffnen.";
     }
 
     private void OpenInBrowser()
@@ -79,6 +78,6 @@ public sealed class GpsSectionViewModel : SectionViewModelBase
         }
 
         Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
-        StatusText = "GPS im Browser geoeffnet.";
+        StatusText = "Spediteur-Portal im Browser geoeffnet.";
     }
 }

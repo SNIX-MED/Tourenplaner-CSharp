@@ -1,0 +1,47 @@
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.SpediteurSectionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             mc:Ignorable="d"
+             d:DesignHeight="640"
+             d:DesignWidth="1020">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Margin="0,0,0,10">
+            <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button Width="110" Margin="8,0,0,0" Content="Reload" Command="{Binding RefreshCommand}" />
+                <Button Width="150" Margin="8,0,0,0" Content="Open in Browser" Command="{Binding OpenInBrowserCommand}" />
+            </StackPanel>
+        </DockPanel>
+
+        <Border Grid.Row="1"
+                BorderBrush="{DynamicResource Brush.GlassStroke}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="6"
+                Background="{DynamicResource Brush.GlassSurfaceStrong}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="FallbackNotice"
+                           Foreground="{DynamicResource Brush.Accent}"
+                           Visibility="Collapsed"
+                           TextWrapping="Wrap"
+                           Margin="12"
+                           Text="Spediteur-Portal konnte nicht eingebettet geladen werden. Bitte 'Open in Browser' verwenden." />
+
+                <wv2:WebView2 x:Name="SpediteurWebView"
+                              MinHeight="220" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

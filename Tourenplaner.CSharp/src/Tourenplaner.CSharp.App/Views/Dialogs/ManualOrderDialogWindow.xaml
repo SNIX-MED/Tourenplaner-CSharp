@@ -16,6 +16,7 @@
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             <Style.Triggers>
                 <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#D6ECFF" />
                     <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                 </Trigger>
             </Style.Triggers>

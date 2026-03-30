@@ -7,6 +7,8 @@ using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
 using System.Threading;
 using System.Windows;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 
 namespace Tourenplaner.CSharp.App.ViewModels;
 
@@ -27,6 +29,11 @@ public sealed class MainShellViewModel : ObservableObject
     private int _toastVersion;
     private bool _isToastVisible;
     private string _toastMessage = string.Empty;
+    private readonly GpsSectionViewModel _gpsSection;
+    private readonly SpediteurSectionViewModel _spediteurSection;
+    private readonly SettingsSectionViewModel _settingsSection;
+    private readonly NavigationItemViewModel _gpsNavigationItem;
+    private readonly NavigationItemViewModel _spediteurNavigationItem;
 
     public MainShellViewModel(
         AppSnapshotService snapshotService,
@@ -83,7 +90,11 @@ public sealed class MainShellViewModel : ObservableObject
             orderRepository,
             settingsRepository,
             dataSyncService);
+        _settingsSection = settings;
         var gps = new GpsSectionViewModel();
+        _gpsSection = gps;
+        var spediteur = new SpediteurSectionViewModel();
+        _spediteurSection = spediteur;
 
         NavigationItems =
         [
@@ -92,15 +103,21 @@ public sealed class MainShellViewModel : ObservableObject
             new NavigationItemViewModel("Karte", map, "Planung"),
             new NavigationItemViewModel("Liefertouren", tours, "Planung"),
             new NavigationItemViewModel("Auftragsliste", orders, "Stammdaten"),
-            new NavigationItemViewModel("Nicht-Karten", nonMapOrders, "Stammdaten"),
+            new NavigationItemViewModel("Post/Spedition/Abholung", nonMapOrders, "Stammdaten"),
             new NavigationItemViewModel("Mitarbeiter", employees, "Stammdaten"),
             new NavigationItemViewModel("Fahrzeuge", vehicles, "Stammdaten"),
             new NavigationItemViewModel("GPS", gps, "Tools"),
+            new NavigationItemViewModel("Spediteur", spediteur, "Tools"),
             new NavigationItemViewModel("Einstellungen", settings, "Tools")
         ];
 
         _settingsNavigationItem = NavigationItems.First(item => item.DisplayName == "Einstellungen");
-        SidebarNavigationItems = NavigationItems.Where(item => !ReferenceEquals(item, _settingsNavigationItem)).ToList();
+        _gpsNavigationItem = NavigationItems.First(item => item.DisplayName == "GPS");
+        _spediteurNavigationItem = NavigationItems.First(item => item.DisplayName == "Spediteur");
+        SidebarNavigationItems = [];
+        ApplyToolSettingsFromSettingsSection();
+        RebuildSidebarNavigation();
+        _settingsSection.PropertyChanged += OnSettingsSectionPropertyChanged;
 
         OpenSettingsCommand = new DelegateCommand(OpenSettings);
         ExportCurrentRouteCommand = new DelegateCommand(ExportCurrentRoute, CanExportCurrentRoute);
@@ -113,7 +130,7 @@ public sealed class MainShellViewModel : ObservableObject
 
     public IReadOnlyList<NavigationItemViewModel> NavigationItems { get; }
 
-    public IReadOnlyList<NavigationItemViewModel> SidebarNavigationItems { get; }
+    public ObservableCollection<NavigationItemViewModel> SidebarNavigationItems { get; }
 
     public DelegateCommand OpenSettingsCommand { get; }
 
@@ -136,6 +153,13 @@ public sealed class MainShellViewModel : ObservableObject
         get => _selectedNavigationItem;
         set
         {
+            if (value is null)
+            {
+                value = ReferenceEquals(_selectedNavigationItem, _settingsNavigationItem)
+                    ? _settingsNavigationItem
+                    : _selectedNavigationItem ?? SidebarNavigationItems.FirstOrDefault() ?? _settingsNavigationItem;
+            }
+
             if (SetProperty(ref _selectedNavigationItem, value))
             {
                 CurrentSection = value?.Section;
@@ -279,6 +303,67 @@ public sealed class MainShellViewModel : ObservableObject
             case NonMapOrdersSectionViewModel nonMap:
                 _ = nonMap.RefreshAsync();
                 break;
+            case SettingsSectionViewModel settings:
+                _ = settings.RefreshAsync();
+                break;
+        }
+    }
+
+    private void OnSettingsSectionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(SettingsSectionViewModel.ShowGpsTool) or
+            nameof(SettingsSectionViewModel.ShowSpediteurTool) or
+            nameof(SettingsSectionViewModel.GpsToolUrl) or
+            nameof(SettingsSectionViewModel.SpediteurToolUrl))
+        {
+            ApplyToolSettingsFromSettingsSection();
+            RebuildSidebarNavigation();
+        }
+    }
+
+    private void ApplyToolSettingsFromSettingsSection()
+    {
+        _gpsSection.SetConfiguredUrl(_settingsSection.GpsToolUrl);
+        _spediteurSection.SetConfiguredUrl(_settingsSection.SpediteurToolUrl);
+    }
+
+    private void RebuildSidebarNavigation()
+    {
+        SidebarNavigationItems.Clear();
+        foreach (var item in NavigationItems)
+        {
+            if (ReferenceEquals(item, _settingsNavigationItem))
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(item, _gpsNavigationItem) && !_settingsSection.ShowGpsTool)
+            {
+                continue;
+            }
+
+            if (ReferenceEquals(item, _spediteurNavigationItem) && !_settingsSection.ShowSpediteurTool)
+            {
+                continue;
+            }
+
+            SidebarNavigationItems.Add(item);
+        }
+
+        if (SelectedNavigationItem is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(SelectedNavigationItem, _gpsNavigationItem) && !_settingsSection.ShowGpsTool)
+        {
+            SelectedNavigationItem = SidebarNavigationItems.FirstOrDefault() ?? _settingsNavigationItem;
+            return;
+        }
+
+        if (ReferenceEquals(SelectedNavigationItem, _spediteurNavigationItem) && !_settingsSection.ShowSpediteurTool)
+        {
+            SelectedNavigationItem = SidebarNavigationItems.FirstOrDefault() ?? _settingsNavigationItem;
         }
     }
 

@@ -69,6 +69,49 @@
                 <Expander IsExpanded="False" Margin="0,0,0,10">
                     <Expander.Header>
                         <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Tools" />
+                            <TextBlock Margin="0,2,0,0"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="Sichtbarkeit und Standard-Links für GPS und Spediteur-Portal." />
+                        </StackPanel>
+                    </Expander.Header>
+                    <Border Margin="0,8,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="190" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="GPS anzeigen" />
+                            <CheckBox Grid.Row="0" Grid.Column="1" Margin="10,6,0,6" IsChecked="{Binding ShowGpsTool, Mode=TwoWay}" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="GPS Standard-Link" />
+                            <TextBox Grid.Row="1"
+                                     Grid.Column="1"
+                                     Margin="10,4,0,4"
+                                     Text="{Binding GpsToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Spediteur anzeigen" />
+                            <CheckBox Grid.Row="2" Grid.Column="1" Margin="10,6,0,6" IsChecked="{Binding ShowSpediteurTool, Mode=TwoWay}" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="Spediteur Standard-Link" />
+                            <TextBox Grid.Row="3"
+                                     Grid.Column="1"
+                                     Margin="10,4,0,4"
+                                     Text="{Binding SpediteurToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                    </Border>
+                </Expander>
+
+                <Expander IsExpanded="False" Margin="0,0,0,10">
+                    <Expander.Header>
+                        <StackPanel>
                             <TextBlock FontSize="18" FontWeight="SemiBold" Text="Firma" />
                             <TextBlock Margin="0,2,0,0"
                                        Foreground="{DynamicResource Brush.TextMuted}"

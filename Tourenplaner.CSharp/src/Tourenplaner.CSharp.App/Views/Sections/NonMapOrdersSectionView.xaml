@@ -9,18 +9,10 @@
     <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel>
-            <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="{Binding Title}" />
-            <TextBlock Margin="0,5,0,0"
-                       Style="{StaticResource SectionCaptionTextStyle}"
-                       Text="Aufträge ohne Kartenbezug im gleichen Workflow bearbeiten." />
-        </StackPanel>
-
-        <Border Grid.Row="1" Margin="0,14,0,12" Style="{StaticResource FilterBarCardStyle}">
+        <Border Grid.Row="0" Margin="0,0,0,12" Style="{StaticResource FilterBarCardStyle}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -28,6 +20,8 @@
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="320" />
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="200" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
@@ -56,7 +50,19 @@
                     </Grid>
                 </Border>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                <ComboBox Grid.Column="1"
+                          Height="40"
+                          Margin="12,0,0,0"
+                          ItemsSource="{Binding DeliveryTypeFilterOptions}"
+                          SelectedItem="{Binding SelectedDeliveryTypeFilter, Mode=TwoWay}" />
+
+                <ComboBox Grid.Column="2"
+                          Height="40"
+                          Margin="12,0,0,0"
+                          ItemsSource="{Binding StatusFilterOptions}"
+                          SelectedItem="{Binding SelectedStatusFilter, Mode=TwoWay}" />
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Width="110" Margin="10,0,0,0" Content="Zurück" Command="{Binding UndoDeleteCommand}" />
                     <Button Width="182"
                             Margin="10,0,0,0"
@@ -66,17 +72,15 @@
                     <Button Width="110" Margin="10,0,0,0" Content="Löschen" Style="{StaticResource DangerOutlineButtonStyle}" Command="{Binding RemoveCommand}" />
                 </StackPanel>
 
-                <Border Grid.Row="1" Grid.ColumnSpan="2" Margin="0,12,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">
+                <Border Grid.Row="1" Grid.ColumnSpan="4" Margin="0,12,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">
                     <StackPanel Orientation="Horizontal">
-                        <Border Style="{StaticResource InfoBadgeStyle}">
-                            <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding StatusText}" />
-                        </Border>
+                        <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding StatusText}" />
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
-        <Border Grid.Row="2" Style="{StaticResource FlatCardStyle}" Padding="12">
+        <Border Grid.Row="1" Style="{StaticResource FlatCardStyle}" Padding="12">
             <DataGrid x:Name="NonMapOrdersGrid"
                       AutoGenerateColumns="False"
                       CanUserAddRows="False"

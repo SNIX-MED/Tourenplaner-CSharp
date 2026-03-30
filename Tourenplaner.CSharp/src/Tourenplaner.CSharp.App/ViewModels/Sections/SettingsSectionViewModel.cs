@@ -68,6 +68,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _latestBackupFile = "n/a";
     private int _availableBackupsCount;
     private string _updateFeedUrl = AppSettings.DefaultUpdateFeedUrl;
+    private bool _showGpsTool = true;
+    private string _gpsToolUrl = AppSettings.DefaultGpsToolUrl;
+    private bool _showSpediteurTool = true;
+    private string _spediteurToolUrl = AppSettings.DefaultSpediteurToolUrl;
     private string _latestReleaseVersion = "Noch nicht geprüft";
     private string _latestReleasePublishedAt = "n/a";
     private string _updateCheckResult = "Noch nicht geprüft.";
@@ -321,6 +325,30 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _updateFeedUrl, value);
     }
 
+    public bool ShowGpsTool
+    {
+        get => _showGpsTool;
+        set => SetProperty(ref _showGpsTool, value);
+    }
+
+    public string GpsToolUrl
+    {
+        get => _gpsToolUrl;
+        set => SetProperty(ref _gpsToolUrl, value);
+    }
+
+    public bool ShowSpediteurTool
+    {
+        get => _showSpediteurTool;
+        set => SetProperty(ref _showSpediteurTool, value);
+    }
+
+    public string SpediteurToolUrl
+    {
+        get => _spediteurToolUrl;
+        set => SetProperty(ref _spediteurToolUrl, value);
+    }
+
     public string LatestReleaseVersion
     {
         get => _latestReleaseVersion;
@@ -434,6 +462,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         ValidationSummary = string.Empty;
         UpdateBackupStatus(model.BackupDir);
         StatusText = "Settings saved.";
+        ToastNotificationService.ShowInfo("Einstellungen gespeichert.");
     }
 
     public async Task CreateBackupAsync()
@@ -652,6 +681,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             AutoBackupIntervalDays = AutoBackupIntervalDays,
             LastBackupIso = LastBackupIso,
             UpdateFeedUrl = string.IsNullOrWhiteSpace(UpdateFeedUrl) ? AppSettings.DefaultUpdateFeedUrl : UpdateFeedUrl.Trim(),
+            ShowGpsTool = ShowGpsTool,
+            GpsToolUrl = string.IsNullOrWhiteSpace(GpsToolUrl) ? AppSettings.DefaultGpsToolUrl : GpsToolUrl.Trim(),
+            ShowSpediteurTool = ShowSpediteurTool,
+            SpediteurToolUrl = string.IsNullOrWhiteSpace(SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : SpediteurToolUrl.Trim(),
             SqlImportSettings = new SqlConnectionSettings
             {
                 Server = string.IsNullOrWhiteSpace(SqlServer) ? SqlConnectionSettings.DefaultServer : SqlServer.Trim(),
@@ -693,6 +726,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         AutoBackupIntervalDays = settings.AutoBackupIntervalDays;
         LastBackupIso = settings.LastBackupIso;
         UpdateFeedUrl = string.IsNullOrWhiteSpace(settings.UpdateFeedUrl) ? AppSettings.DefaultUpdateFeedUrl : settings.UpdateFeedUrl;
+        ShowGpsTool = settings.ShowGpsTool;
+        GpsToolUrl = string.IsNullOrWhiteSpace(settings.GpsToolUrl) ? AppSettings.DefaultGpsToolUrl : settings.GpsToolUrl;
+        ShowSpediteurTool = settings.ShowSpediteurTool;
+        SpediteurToolUrl = string.IsNullOrWhiteSpace(settings.SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : settings.SpediteurToolUrl;
         
         // SQL Settings
         SqlServer = string.IsNullOrWhiteSpace(settings.SqlImportSettings?.Server)

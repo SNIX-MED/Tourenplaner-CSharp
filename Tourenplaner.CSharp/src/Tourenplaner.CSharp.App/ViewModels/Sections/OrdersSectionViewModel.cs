@@ -12,6 +12,17 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class OrdersSectionViewModel : SectionViewModelBase
 {
+    private const string AllDeliveryTypesLabel = "Alle Lieferarten";
+    private const string AllStatusesLabel = "Alle Status";
+    private const string DefaultOrderStatus = "nicht festgelegt";
+    private static readonly IReadOnlyList<string> KnownStatusOptions =
+    [
+        DefaultOrderStatus,
+        "Bestellt",
+        "Auf dem Weg",
+        "An Lager"
+    ];
+
     private readonly JsonOrderRepository _repository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly List<Order> _allOrders = new();
@@ -20,11 +31,13 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private int _lastDeletedIndex = -1;
 
     private string _searchText = string.Empty;
-    private string _statusText = "Loading map orders...";
+    private string _statusText = "Lade Aufträge...";
     private OrderItem? _selectedOrder;
+    private string _selectedDeliveryTypeFilter = AllDeliveryTypesLabel;
+    private string _selectedStatusFilter = AllStatusesLabel;
 
     public OrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService)
-        : base("Orders", "Map orders with address, assignment and filtering.")
+        : base("Aufträge", "Aufträge mit Adresse, Zuordnung und Filterung.")
     {
         _repository = new JsonOrderRepository(ordersJsonPath);
         _dataSyncService = dataSyncService;
@@ -41,6 +54,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     }
 
     public ObservableCollection<OrderItem> MapOrders { get; } = new();
+    public ObservableCollection<string> DeliveryTypeFilterOptions { get; } = [];
+    public ObservableCollection<string> StatusFilterOptions { get; } = [];
 
     public ICommand RefreshCommand { get; }
 
@@ -62,6 +77,30 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         set
         {
             if (SetProperty(ref _searchText, value))
+            {
+                RebuildGrid();
+            }
+        }
+    }
+
+    public string SelectedDeliveryTypeFilter
+    {
+        get => _selectedDeliveryTypeFilter;
+        set
+        {
+            if (SetProperty(ref _selectedDeliveryTypeFilter, value))
+            {
+                RebuildGrid();
+            }
+        }
+    }
+
+    public string SelectedStatusFilter
+    {
+        get => _selectedStatusFilter;
+        set
+        {
+            if (SetProperty(ref _selectedStatusFilter, value))
             {
                 RebuildGrid();
             }
@@ -226,6 +265,27 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             : preferredSelectedId;
         var query = (_searchText ?? string.Empty).Trim();
         var map = _allOrders.Where(o => o.Type == OrderType.Map);
+
+        if (!string.IsNullOrWhiteSpace(_selectedDeliveryTypeFilter) &&
+            !string.Equals(_selectedDeliveryTypeFilter, AllDeliveryTypesLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            map = map.Where(o =>
+                string.Equals(
+                    DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(o.DeliveryType),
+                    _selectedDeliveryTypeFilter,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(_selectedStatusFilter) &&
+            !string.Equals(_selectedStatusFilter, AllStatusesLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            map = map.Where(o =>
+                string.Equals(
+                    NormalizeOrderStatus(o.OrderStatus),
+                    _selectedStatusFilter,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
         if (!string.IsNullOrWhiteSpace(query))
         {
             map = map.Where(o =>
@@ -258,8 +318,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 DeliveryCity = order.DeliveryAddress?.City ?? string.Empty,
                 Email = order.Email ?? string.Empty,
                 Phone = order.Phone ?? string.Empty,
-                DeliveryType = order.DeliveryType ?? string.Empty,
-                OrderStatus = order.OrderStatus ?? string.Empty,
+                DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
+                OrderStatus = NormalizeOrderStatus(order.OrderStatus),
                 ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
                 Notes = order.Notes ?? string.Empty
             });
@@ -276,7 +336,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private void UpdateStatusText()
     {
         var assigned = MapOrders.Count(x => !string.IsNullOrWhiteSpace(x.AssignedTourId));
-        StatusText = $"Map orders: {MapOrders.Count} | Assigned: {assigned} | Unassigned: {MapOrders.Count - assigned}";
+        StatusText = $"Aufträge: {MapOrders.Count} | Zugeordnet: {assigned} | Offen: {MapOrders.Count - assigned}";
     }
 
     private void RaiseCommandStates()
@@ -361,7 +421,64 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     {
         _allOrders.Clear();
         _allOrders.AddRange(await _repository.GetAllAsync());
+        UpdateFilterOptions();
         RebuildGrid(preferredSelectedId);
+    }
+
+    private void UpdateFilterOptions()
+    {
+        var selectedDelivery = _selectedDeliveryTypeFilter;
+        var selectedStatus = _selectedStatusFilter;
+
+        DeliveryTypeFilterOptions.Clear();
+        DeliveryTypeFilterOptions.Add(AllDeliveryTypesLabel);
+        foreach (var item in DeliveryMethodExtensions.MapDeliveryTypeOptions)
+        {
+            DeliveryTypeFilterOptions.Add(item);
+        }
+
+        var statusOptions = _allOrders
+            .Where(o => o.Type == OrderType.Map)
+            .Select(o => NormalizeOrderStatus(o.OrderStatus))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        StatusFilterOptions.Clear();
+        StatusFilterOptions.Add(AllStatusesLabel);
+        foreach (var known in KnownStatusOptions)
+        {
+            StatusFilterOptions.Add(known);
+            statusOptions.RemoveAll(x => string.Equals(x, known, StringComparison.OrdinalIgnoreCase));
+        }
+
+        foreach (var status in statusOptions)
+        {
+            StatusFilterOptions.Add(status);
+        }
+
+        _selectedDeliveryTypeFilter = DeliveryTypeFilterOptions.Any(x => string.Equals(x, selectedDelivery, StringComparison.OrdinalIgnoreCase))
+            ? selectedDelivery
+            : AllDeliveryTypesLabel;
+        OnPropertyChanged(nameof(SelectedDeliveryTypeFilter));
+
+        _selectedStatusFilter = StatusFilterOptions.Any(x => string.Equals(x, selectedStatus, StringComparison.OrdinalIgnoreCase))
+            ? selectedStatus
+            : AllStatusesLabel;
+        OnPropertyChanged(nameof(SelectedStatusFilter));
+    }
+
+    private static string NormalizeOrderStatus(string? status)
+    {
+        var normalized = (status ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized) ||
+            string.Equals(normalized, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase))
+        {
+            return DefaultOrderStatus;
+        }
+
+        return normalized;
     }
 
     private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)

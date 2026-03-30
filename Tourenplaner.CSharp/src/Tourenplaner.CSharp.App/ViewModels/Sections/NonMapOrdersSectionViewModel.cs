@@ -12,6 +12,17 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 {
+    private const string AllDeliveryTypesLabel = "Alle Lieferarten";
+    private const string AllStatusesLabel = "Alle Status";
+    private const string DefaultOrderStatus = "nicht festgelegt";
+    private static readonly IReadOnlyList<string> KnownStatusOptions =
+    [
+        DefaultOrderStatus,
+        "Bestellt",
+        "Auf dem Weg",
+        "An Lager"
+    ];
+
     private readonly JsonOrderRepository _repository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly List<Order> _allOrders = new();
@@ -20,11 +31,13 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private int _lastDeletedIndex = -1;
 
     private string _searchText = string.Empty;
-    private string _statusText = "Loading non-map orders...";
+    private string _statusText = "Lade Post/Spedition/Abholung...";
     private OrderItem? _selectedOrder;
+    private string _selectedDeliveryTypeFilter = AllDeliveryTypesLabel;
+    private string _selectedStatusFilter = AllStatusesLabel;
 
     public NonMapOrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService)
-        : base("Non-Map Orders", "Orders currently without mappable coordinates.")
+        : base("Post/Spedition/Abholung", "Auftraege fuer Post, Spedition oder Selbstabholung.")
     {
         _repository = new JsonOrderRepository(ordersJsonPath);
         _dataSyncService = dataSyncService;
@@ -40,6 +53,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     }
 
     public ObservableCollection<OrderItem> NonMapOrders { get; } = new();
+    public ObservableCollection<string> DeliveryTypeFilterOptions { get; } = [];
+    public ObservableCollection<string> StatusFilterOptions { get; } = [];
 
     public ICommand RefreshCommand { get; }
 
@@ -61,6 +76,30 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         set
         {
             if (SetProperty(ref _searchText, value))
+            {
+                RebuildGrid();
+            }
+        }
+    }
+
+    public string SelectedDeliveryTypeFilter
+    {
+        get => _selectedDeliveryTypeFilter;
+        set
+        {
+            if (SetProperty(ref _selectedDeliveryTypeFilter, value))
+            {
+                RebuildGrid();
+            }
+        }
+    }
+
+    public string SelectedStatusFilter
+    {
+        get => _selectedStatusFilter;
+        set
+        {
+            if (SetProperty(ref _selectedStatusFilter, value))
             {
                 RebuildGrid();
             }
@@ -94,7 +133,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     {
         await _repository.SaveAllAsync(_allOrders);
         PublishOrderChange(SelectedOrder?.Id, SelectedOrder?.Id);
-        StatusText = $"Nicht-Karten-Aufträge gespeichert: {_allOrders.Count(x => x.Type == OrderType.NonMap)}";
+        StatusText = $"Post/Spedition/Abholung gespeichert: {_allOrders.Count(x => x.Type == OrderType.NonMap)}";
     }
 
     private void AddOrder()
@@ -140,7 +179,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         await RefreshFromRepositoryAsync(createdOrder.Id);
         SelectedOrder = NonMapOrders.FirstOrDefault(x => string.Equals(x.Id, createdOrder.Id, StringComparison.OrdinalIgnoreCase));
         PublishOrderChange(null, createdOrder.Id);
-        StatusText = $"Nicht-Karten-Auftrag {createdOrder.Id} wurde gespeichert.";
+        StatusText = $"Auftrag {createdOrder.Id} wurde gespeichert (Post/Spedition/Abholung).";
         ToastNotificationService.ShowInfo($"Auftrag {createdOrder.Id} wurde erstellt.");
     }
 
@@ -185,7 +224,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         await RefreshFromRepositoryAsync(updated.Id);
         SelectedOrder = NonMapOrders.FirstOrDefault(x => string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
         PublishOrderChange(originalId, updated.Id);
-        StatusText = $"Nicht-Karten-Auftrag {updated.Id} wurde aktualisiert.";
+        StatusText = $"Auftrag {updated.Id} wurde aktualisiert (Post/Spedition/Abholung).";
     }
 
     private async Task RemoveSelectedOrderAsync()
@@ -211,7 +250,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         await _repository.SaveAllAsync(_allOrders);
         await RefreshFromRepositoryAsync();
         PublishOrderChange(removedOrderId, null);
-        StatusText = $"Nicht-Karten-Auftrag {removedOrderId} wurde gelöscht. Mit 'Zurück' wiederherstellen.";
+        StatusText = $"Auftrag {removedOrderId} wurde geloescht. Mit 'Zurueck' wiederherstellen.";
         ToastNotificationService.ShowInfo($"Auftrag {removedOrderId} wurde gelöscht.");
         RaiseCommandStates();
     }
@@ -223,6 +262,27 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             : preferredSelectedId;
         var query = (_searchText ?? string.Empty).Trim();
         var items = _allOrders.Where(o => o.Type == OrderType.NonMap);
+
+        if (!string.IsNullOrWhiteSpace(_selectedDeliveryTypeFilter) &&
+            !string.Equals(_selectedDeliveryTypeFilter, AllDeliveryTypesLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            items = items.Where(o =>
+                string.Equals(
+                    DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(o.DeliveryType),
+                    _selectedDeliveryTypeFilter,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(_selectedStatusFilter) &&
+            !string.Equals(_selectedStatusFilter, AllStatusesLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            items = items.Where(o =>
+                string.Equals(
+                    NormalizeOrderStatus(o.OrderStatus),
+                    _selectedStatusFilter,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
         if (!string.IsNullOrWhiteSpace(query))
         {
             items = items.Where(o =>
@@ -255,8 +315,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
                 DeliveryCity = order.DeliveryAddress?.City ?? string.Empty,
                 Email = order.Email ?? string.Empty,
                 Phone = order.Phone ?? string.Empty,
-                DeliveryType = order.DeliveryType ?? string.Empty,
-                OrderStatus = order.OrderStatus ?? string.Empty,
+                DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
+                OrderStatus = NormalizeOrderStatus(order.OrderStatus),
                 ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
                 Notes = order.Notes ?? string.Empty
             });
@@ -273,7 +333,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private void UpdateStatusText()
     {
         var assigned = NonMapOrders.Count(x => !string.IsNullOrWhiteSpace(x.AssignedTourId));
-        StatusText = $"Non-map orders: {NonMapOrders.Count} | Assigned: {assigned} | Unassigned: {NonMapOrders.Count - assigned}";
+        StatusText = $"Post/Spedition/Abholung: {NonMapOrders.Count} | Zugeordnet: {assigned} | Offen: {NonMapOrders.Count - assigned}";
     }
 
     private void RaiseCommandStates()
@@ -335,7 +395,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         await RefreshFromRepositoryAsync(restoreOrder.Id);
         SelectedOrder = NonMapOrders.FirstOrDefault(x => string.Equals(x.Id, restoreOrder.Id, StringComparison.OrdinalIgnoreCase));
         PublishOrderChange(null, restoreOrder.Id);
-        StatusText = $"Nicht-Karten-Auftrag {restoreOrder.Id} wurde wiederhergestellt.";
+        StatusText = $"Auftrag {restoreOrder.Id} wurde wiederhergestellt (Post/Spedition/Abholung).";
         RaiseCommandStates();
     }
 
@@ -343,7 +403,64 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     {
         _allOrders.Clear();
         _allOrders.AddRange(await _repository.GetAllAsync());
+        UpdateFilterOptions();
         RebuildGrid(preferredSelectedId);
+    }
+
+    private void UpdateFilterOptions()
+    {
+        var selectedDelivery = _selectedDeliveryTypeFilter;
+        var selectedStatus = _selectedStatusFilter;
+
+        DeliveryTypeFilterOptions.Clear();
+        DeliveryTypeFilterOptions.Add(AllDeliveryTypesLabel);
+        foreach (var item in DeliveryMethodExtensions.NonMapDeliveryTypeOptions)
+        {
+            DeliveryTypeFilterOptions.Add(item);
+        }
+
+        var statusOptions = _allOrders
+            .Where(o => o.Type == OrderType.NonMap)
+            .Select(o => NormalizeOrderStatus(o.OrderStatus))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        StatusFilterOptions.Clear();
+        StatusFilterOptions.Add(AllStatusesLabel);
+        foreach (var known in KnownStatusOptions)
+        {
+            StatusFilterOptions.Add(known);
+            statusOptions.RemoveAll(x => string.Equals(x, known, StringComparison.OrdinalIgnoreCase));
+        }
+
+        foreach (var status in statusOptions)
+        {
+            StatusFilterOptions.Add(status);
+        }
+
+        _selectedDeliveryTypeFilter = DeliveryTypeFilterOptions.Any(x => string.Equals(x, selectedDelivery, StringComparison.OrdinalIgnoreCase))
+            ? selectedDelivery
+            : AllDeliveryTypesLabel;
+        OnPropertyChanged(nameof(SelectedDeliveryTypeFilter));
+
+        _selectedStatusFilter = StatusFilterOptions.Any(x => string.Equals(x, selectedStatus, StringComparison.OrdinalIgnoreCase))
+            ? selectedStatus
+            : AllStatusesLabel;
+        OnPropertyChanged(nameof(SelectedStatusFilter));
+    }
+
+    private static string NormalizeOrderStatus(string? status)
+    {
+        var normalized = (status ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized) ||
+            string.Equals(normalized, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase))
+        {
+            return DefaultOrderStatus;
+        }
+
+        return normalized;
     }
 
     private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)
