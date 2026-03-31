@@ -194,6 +194,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Nicht festgelegt" />
@@ -210,6 +211,13 @@
 
                                 <TextBlock Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" Text="Tourstatus Eingeplant" />
                                 <TextBox Grid.Row="4" Grid.Column="1" Margin="10,4,0,4" Text="{Binding StatusColorPlanned, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" Text="Suche Nichttreffer" />
+                                <CheckBox Grid.Row="5"
+                                          Grid.Column="1"
+                                          Margin="10,6,0,6"
+                                          Content="Pins ausgrauen statt ausblenden"
+                                          IsChecked="{Binding MapSearchDimNonMatchingPins, Mode=TwoWay}" />
                             </Grid>
 
                             <TextBlock Margin="0,16,0,0" FontSize="18" FontWeight="SemiBold" Text="Kalender-Auslastung" />

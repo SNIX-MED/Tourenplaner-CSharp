@@ -80,6 +80,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _statusColorOnTheWay = AppSettings.DefaultStatusColorOnTheWay;
     private string _statusColorInStock = AppSettings.DefaultStatusColorInStock;
     private string _statusColorPlanned = AppSettings.DefaultStatusColorPlanned;
+    private bool _mapSearchDimNonMatchingPins;
     private GeoPoint? _companyLocation;
     private bool _isDetailsOpen;
     private bool _isDetailsPanelExpanded = true;
@@ -99,6 +100,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private SavedTourLookupItem? _selectedSavedTour;
     private string _detailSelectedStatus = "nicht festgelegt";
     private string _detailSelectedAvisoStatus = "nicht avisiert";
+    private readonly List<MapOrderItem> _dimmedMapOrders = new();
     private readonly Guid _instanceId = Guid.NewGuid();
     private Func<Task>? _openSplitScreenAsync;
 
@@ -519,6 +521,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _statusColorOnTheWay = NormalizeStatusColor(settings.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
         _statusColorInStock = NormalizeStatusColor(settings.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         _statusColorPlanned = NormalizeStatusColor(settings.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
+        _mapSearchDimNonMatchingPins = settings.MapSearchDimNonMatchingPins;
         NotifyLegendColorsChanged();
         IsDetailsPanelExpanded = settings.MapDetailsPanelExpanded;
         _companyLocation = await AddressGeocodingService.TryGeocodeAddressAsync(
@@ -833,22 +836,32 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             filtered = filtered.Where(o => selectedAvisoStatuses.Contains(NormalizeAvisoStatus(o.AvisoStatus)));
         }
 
-        if (!string.IsNullOrWhiteSpace(query))
-        {
-            filtered = filtered.Where(o =>
-                o.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                o.CustomerName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                o.Address.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                NormalizeDeliveryType(o.DeliveryType).Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                NormalizeOrderStatus(o.OrderStatus).Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                NormalizeAvisoStatus(o.AvisoStatus).Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                (o.AssignedTourId ?? string.Empty).Contains(query, StringComparison.OrdinalIgnoreCase));
-        }
+        var filteredList = filtered.ToList();
+        var hasSearch = !string.IsNullOrWhiteSpace(query);
+        var matching = hasSearch
+            ? filteredList.Where(o => MatchesSearchQuery(o, query)).ToList()
+            : filteredList;
+        var nonMatching = hasSearch
+            ? filteredList.Where(o => !MatchesSearchQuery(o, query)).ToList()
+            : new List<Order>();
 
         MapOrders.Clear();
-        foreach (var order in filtered.OrderBy(o => o.ScheduledDate).ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
+        foreach (var order in matching
+                     .OrderBy(o => o.ScheduledDate)
+                     .ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
         {
             MapOrders.Add(BuildMapOrderItem(order));
+        }
+
+        _dimmedMapOrders.Clear();
+        if (_mapSearchDimNonMatchingPins && hasSearch)
+        {
+            foreach (var order in nonMatching
+                         .OrderBy(o => o.ScheduledDate)
+                         .ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
+            {
+                _dimmedMapOrders.Add(BuildMapOrderItem(order, isDimmed: true));
+            }
         }
 
         if (string.IsNullOrWhiteSpace(previousSelectedId))
@@ -861,6 +874,16 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
         UpdateStatus();
         RaiseCommandStates();
+    }
+
+    public IReadOnlyList<MapOrderItem> GetMapMarkerSnapshot()
+    {
+        if (!_mapSearchDimNonMatchingPins || string.IsNullOrWhiteSpace(_searchText))
+        {
+            return MapOrders.ToList();
+        }
+
+        return MapOrders.Concat(_dimmedMapOrders).ToList();
     }
 
     private void ResetOrderFilters()
@@ -3165,7 +3188,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var relevantKinds = AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees;
+        var relevantKinds = AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees | AppDataKind.Settings;
         if ((args.Kinds & relevantKinds) == AppDataKind.None)
         {
             return;
@@ -3532,7 +3555,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await _settingsRepository.SaveAsync(settings);
     }
 
-    private MapOrderItem BuildMapOrderItem(Order order)
+    private MapOrderItem BuildMapOrderItem(Order order, bool isDimmed = false)
     {
         return new MapOrderItem
         {
@@ -3547,8 +3570,20 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             DeliveryLabel = NormalizeDeliveryType(order.DeliveryType),
             StatusLabel = NormalizeOrderStatus(order.OrderStatus),
             AvisoStatusLabel = NormalizeAvisoStatus(order.AvisoStatus),
-            TourStatusLabel = ResolveTourStatus(order)
+            TourStatusLabel = ResolveTourStatus(order),
+            IsDimmed = isDimmed
         };
+    }
+
+    private static bool MatchesSearchQuery(Order order, string query)
+    {
+        return order.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+               order.CustomerName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+               order.Address.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+               NormalizeDeliveryType(order.DeliveryType).Contains(query, StringComparison.OrdinalIgnoreCase) ||
+               NormalizeOrderStatus(order.OrderStatus).Contains(query, StringComparison.OrdinalIgnoreCase) ||
+               NormalizeAvisoStatus(order.AvisoStatus).Contains(query, StringComparison.OrdinalIgnoreCase) ||
+               (order.AssignedTourId ?? string.Empty).Contains(query, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeUiText(string? value)
@@ -3672,6 +3707,7 @@ public sealed class MapOrderItem
     public string StatusLabel { get; set; } = "nicht festgelegt";
     public string AvisoStatusLabel { get; set; } = "nicht avisiert";
     public string TourStatusLabel { get; set; } = "Offen";
+    public bool IsDimmed { get; set; }
 }
 
 public sealed class MapOrderFilterOption : ObservableObject

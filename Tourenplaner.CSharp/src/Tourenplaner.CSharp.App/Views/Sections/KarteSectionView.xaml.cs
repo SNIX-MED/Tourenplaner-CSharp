@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -25,6 +26,7 @@ public partial class KarteSectionView : UserControl
     private bool _suppressSelectionSync;
     private Point? _routeGridDragStart;
     private RouteStopItem? _routeGridDragItem;
+    private int _markersRefreshRevision;
     private readonly WebViewRouteExportService _routeExportService = new();
 
     public KarteSectionView()
@@ -120,22 +122,9 @@ public partial class KarteSectionView : UserControl
         _ = PushRouteToMapAsync();
     }
 
-    private async void OnOrdersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnOrdersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (!_viewInitialized)
-        {
-            return;
-        }
-
-        try
-        {
-            await PushMarkersToMapAsync();
-        }
-        catch
-        {
-            MapWebView.Visibility = Visibility.Collapsed;
-            MapFallbackNotice.Visibility = Visibility.Visible;
-        }
+        _ = RefreshMarkersDebouncedAsync();
     }
 
     private async void OnRouteCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -304,7 +293,7 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        var markers = vm.MapOrders.Select(x => new
+        var markers = vm.GetMapMarkerSnapshot().Select(x => new
         {
             id = x.OrderId,
             customer = x.Customer,
@@ -312,6 +301,7 @@ public partial class KarteSectionView : UserControl
             status = x.StatusLabel,
             avisoStatus = x.AvisoStatusLabel,
             isAssigned = x.IsAssigned,
+            isDimmed = x.IsDimmed,
             color = vm.ResolveOrderStatusColor(x.StatusLabel, x.IsAssigned),
             shape = ResolveDeliveryShape(x.DeliveryLabel),
             lat = x.Latitude,
@@ -331,6 +321,31 @@ public partial class KarteSectionView : UserControl
             };
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetCompanyMarker === 'function') window.gawelaSetCompanyMarker({JsonSerializer.Serialize(company)});");
         await HighlightSelectedMarkerAsync();
+    }
+
+    private async Task RefreshMarkersDebouncedAsync()
+    {
+        if (!_viewInitialized)
+        {
+            return;
+        }
+
+        var revision = Interlocked.Increment(ref _markersRefreshRevision);
+        try
+        {
+            await Task.Delay(45);
+            if (revision != _markersRefreshRevision)
+            {
+                return;
+            }
+
+            await PushMarkersToMapAsync();
+        }
+        catch
+        {
+            MapWebView.Visibility = Visibility.Collapsed;
+            MapFallbackNotice.Visibility = Visibility.Visible;
+        }
     }
 
     private async Task PushRouteToMapAsync()
@@ -635,7 +650,7 @@ public partial class KarteSectionView : UserControl
                      routeMarkerMap.clear();
                    }
 
-                   function buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned) {
+                   function buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned, isDimmed) {
                      const stroke = '#1e293b';
                      const coreSize = 22;
                      const border = 2;
@@ -652,17 +667,19 @@ public partial class KarteSectionView : UserControl
                        }
                      }
 
+                     const dimmedStyle = isDimmed ? 'opacity:0.4;filter:saturate(0.15) grayscale(0.6);' : '';
+
                      let shapeHtml = '';
                      if (shape === 'square') {
-                       shapeHtml = `<div style="width:${coreSize}px;height:${coreSize}px;background:${color};border:${border}px solid #fff;border-radius:7px;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;"></div>`;
+                       shapeHtml = `<div style="width:${coreSize}px;height:${coreSize}px;background:${color};border:${border}px solid #fff;border-radius:7px;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;${dimmedStyle}"></div>`;
                      } else if (shape === 'triangle') {
-                       shapeHtml = `<div style="position:relative;width:24px;height:24px;filter:drop-shadow(0 3px 8px rgba(15, 23, 42, 0.28));"><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid #fff;"></div><div style="position:absolute;left:2px;top:3px;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:18px solid ${color};"></div><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid transparent;filter:drop-shadow(0 0 0 ${stroke});"></div></div>`;
+                       shapeHtml = `<div style="position:relative;width:24px;height:24px;filter:drop-shadow(0 3px 8px rgba(15, 23, 42, 0.28));${dimmedStyle}"><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid #fff;"></div><div style="position:absolute;left:2px;top:3px;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:18px solid ${color};"></div><div style="position:absolute;left:0;top:0;width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:22px solid transparent;filter:drop-shadow(0 0 0 ${stroke});"></div></div>`;
                      } else {
-                       shapeHtml = `<div style="width:${coreSize}px;height:${coreSize}px;border-radius:50%;background:${color};border:${border}px solid #fff;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;"></div>`;
+                       shapeHtml = `<div style="width:${coreSize}px;height:${coreSize}px;border-radius:50%;background:${color};border:${border}px solid #fff;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;${dimmedStyle}"></div>`;
                      }
 
                      const badgeHtml = badgeColor
-                       ? `<div style="position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:${badgeColor};border:2px solid #fff;box-shadow:0 0 0 1px rgba(30,41,59,0.55);"></div>`
+                       ? `<div style="position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:${badgeColor};border:2px solid #fff;box-shadow:0 0 0 1px rgba(30,41,59,0.55);${dimmedStyle}"></div>`
                        : '';
 
                      return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${shapeHtml}${badgeHtml}</div>`;
@@ -688,7 +705,7 @@ public partial class KarteSectionView : UserControl
                    function buildRouteStopMarkerHtml(shape, color, label, avisoStatus, isAssigned) {
                      const safeLabel = label || '?';
                      const labelTopOffset = shape === 'triangle' ? '4px' : '0';
-                     return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned)}<div style="position:absolute;inset:0;top:${labelTopOffset};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;line-height:1;text-shadow:0 1px 2px rgba(15,23,42,0.85);pointer-events:none;">${safeLabel}</div></div>`;
+                     return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned, false)}<div style="position:absolute;inset:0;top:${labelTopOffset};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;line-height:1;text-shadow:0 1px 2px rgba(15,23,42,0.85);pointer-events:none;">${safeLabel}</div></div>`;
                    }
 
                    window.gawelaSetMarkers = function(markers) {
@@ -701,7 +718,7 @@ public partial class KarteSectionView : UserControl
                        const color = m.color || '#A855F7';
                        const icon = L.divIcon({
                          className: 'gawela-marker',
-                         html: buildOrderMarkerHtml(m.shape, color, m.avisoStatus, m.isAssigned),
+                         html: buildOrderMarkerHtml(m.shape, color, m.avisoStatus, m.isAssigned, m.isDimmed),
                          iconSize: [28, 28],
                          iconAnchor: [14, 14]
                        });

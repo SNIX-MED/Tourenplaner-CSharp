@@ -56,6 +56,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private int _calendarLoadWarningPeopleThreshold = 1;
     private int _calendarLoadCriticalPeopleThreshold = 2;
     private bool _mapDetailsPanelExpanded = true;
+    private bool _mapSearchDimNonMatchingPins;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
     private string _backupModeDefault = "full";
@@ -251,6 +252,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _mapDetailsPanelExpanded;
         set => SetProperty(ref _mapDetailsPanelExpanded, value);
+    }
+
+    public bool MapSearchDimNonMatchingPins
+    {
+        get => _mapSearchDimNonMatchingPins;
+        set => SetProperty(ref _mapSearchDimNonMatchingPins, value);
     }
 
     public bool BackupsEnabled
@@ -461,6 +468,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         await _repository.SaveAsync(model);
         ValidationSummary = string.Empty;
         UpdateBackupStatus(model.BackupDir);
+        _dataSyncService?.PublishSettings(_instanceId);
         StatusText = "Settings saved.";
         ToastNotificationService.ShowInfo("Einstellungen gespeichert.");
     }
@@ -673,6 +681,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             CalendarLoadWarningPeopleThreshold = CalendarLoadWarningPeopleThreshold,
             CalendarLoadCriticalPeopleThreshold = CalendarLoadCriticalPeopleThreshold,
             MapDetailsPanelExpanded = MapDetailsPanelExpanded,
+            MapSearchDimNonMatchingPins = MapSearchDimNonMatchingPins,
             BackupsEnabled = BackupsEnabled,
             BackupDir = (BackupDir ?? string.Empty).Trim(),
             BackupModeDefault = (BackupModeDefault ?? string.Empty).Trim(),
@@ -718,6 +727,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         CalendarLoadWarningPeopleThreshold = settings.CalendarLoadWarningPeopleThreshold < 1 ? 1 : settings.CalendarLoadWarningPeopleThreshold;
         CalendarLoadCriticalPeopleThreshold = settings.CalendarLoadCriticalPeopleThreshold < 1 ? 2 : settings.CalendarLoadCriticalPeopleThreshold;
         MapDetailsPanelExpanded = settings.MapDetailsPanelExpanded;
+        MapSearchDimNonMatchingPins = settings.MapSearchDimNonMatchingPins;
         BackupsEnabled = settings.BackupsEnabled;
         BackupDir = settings.BackupDir;
         BackupModeDefault = settings.BackupModeDefault;

@@ -7,7 +7,8 @@ public enum AppDataKind
     Orders = 1,
     Tours = 2,
     Vehicles = 4,
-    Employees = 8
+    Employees = 8,
+    Settings = 16
 }
 
 public sealed record AppDataChangedEventArgs(
@@ -54,5 +55,10 @@ public sealed class AppDataSyncService
     public void PublishEmployees(Guid sourceId, string? previousEmployeeId = null, string? currentEmployeeId = null)
     {
         Publish(new AppDataChangedEventArgs(sourceId, AppDataKind.Employees, previousEmployeeId, currentEmployeeId));
+    }
+
+    public void PublishSettings(Guid sourceId)
+    {
+        Publish(new AppDataChangedEventArgs(sourceId, AppDataKind.Settings));
     }
 }
