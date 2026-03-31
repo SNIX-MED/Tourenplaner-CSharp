@@ -521,6 +521,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             OrderAddress = new OrderAddressInfo
             {
                 Name = source.OrderAddress?.Name ?? string.Empty,
+                ContactPerson = source.OrderAddress?.ContactPerson ?? string.Empty,
                 Street = source.OrderAddress?.Street ?? string.Empty,
                 PostalCode = source.OrderAddress?.PostalCode ?? string.Empty,
                 City = source.OrderAddress?.City ?? string.Empty

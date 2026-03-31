@@ -178,6 +178,18 @@ public partial class KarteSectionView : UserControl
             {
                 await PushRouteToMapAsync();
             }
+            else if (e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedStatus) ||
+                     e.PropertyName == nameof(KarteSectionViewModel.DetailOrderStatus))
+            {
+                await PushMarkersToMapAsync();
+                await PushRouteToMapAsync();
+            }
+            else if (e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedAvisoStatus) ||
+                     e.PropertyName == nameof(KarteSectionViewModel.DetailAvisoStatus))
+            {
+                await PushMarkersToMapAsync();
+                await PushRouteToMapAsync();
+            }
             else if (e.PropertyName == nameof(KarteSectionViewModel.RouteGeometryPoints))
             {
                 await PushRouteToMapAsync();
@@ -630,12 +642,14 @@ public partial class KarteSectionView : UserControl
                      const shadow = '0 4px 12px rgba(15, 23, 42, 0.28)';
                      const normalizedAviso = (avisoStatus || '').trim().toLowerCase();
                      let badgeColor = '';
-                     if (normalizedAviso === 'informiert') {
-                       badgeColor = '#f59e0b';
-                     } else if (normalizedAviso === 'bestätigt' || normalizedAviso === 'bestaetigt') {
-                       badgeColor = '#16a34a';
-                     } else if (isAssigned) {
-                       badgeColor = '#64748b';
+                     if (isAssigned) {
+                       if (normalizedAviso === 'informiert') {
+                         badgeColor = '#f59e0b';
+                       } else if (normalizedAviso === 'bestätigt' || normalizedAviso === 'bestaetigt') {
+                         badgeColor = '#16a34a';
+                       } else {
+                         badgeColor = '#64748b';
+                       }
                      }
 
                      let shapeHtml = '';

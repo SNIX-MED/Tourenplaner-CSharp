@@ -92,6 +92,9 @@ public class SqlOrderImportService : ISqlOrderImportService
             sqlOrder.KundePLZ, 
             sqlOrder.KundeOrt, 
             sqlOrder.KundeLand);
+        var orderContactPerson = ResolvePreferredContact(
+            sqlOrder.KundeKontaktperson,
+            $"{sqlOrder.KundeVorname} {sqlOrder.KundeNachname}");
 
         var order = new Order
         {
@@ -104,6 +107,7 @@ public class SqlOrderImportService : ISqlOrderImportService
             OrderAddress = new OrderAddressInfo
             {
                 Name = sqlOrder.KundeFirma,
+                ContactPerson = orderContactPerson,
                 Street = auftragsAdresse,
                 PostalCode = sqlOrder.KundePLZ,
                 City = sqlOrder.KundeOrt
@@ -158,9 +162,13 @@ public class SqlOrderImportService : ISqlOrderImportService
             sqlOrder.KundePLZ,
             sqlOrder.KundeOrt,
             sqlOrder.KundeLand);
+        var orderContactPerson = ResolvePreferredContact(
+            sqlOrder.KundeKontaktperson,
+            $"{sqlOrder.KundeVorname} {sqlOrder.KundeNachname}");
         existingOrder.OrderAddress = new OrderAddressInfo
         {
             Name = sqlOrder.KundeFirma,
+            ContactPerson = orderContactPerson,
             Street = auftragsAdresse,
             PostalCode = sqlOrder.KundePLZ,
             City = sqlOrder.KundeOrt

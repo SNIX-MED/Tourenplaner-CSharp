@@ -78,6 +78,7 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,10,8">
@@ -85,14 +86,20 @@
                                     <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressName, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="1" Margin="10,0,0,8">
+                                    <TextBlock FontWeight="SemiBold" Text="Person" />
+                                    <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressContactPerson, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,0,0,8">
                                     <TextBlock FontWeight="SemiBold" Text="Strasse" />
                                     <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressStreet, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
-                                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,10,0">
+
+                                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,10,0">
                                     <TextBlock FontWeight="SemiBold" Text="PLZ" />
                                     <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressPostalCode, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
-                                <StackPanel Grid.Row="1" Grid.Column="1" Margin="10,0,0,0">
+                                <StackPanel Grid.Row="2" Grid.Column="1" Margin="10,0,0,0">
                                     <TextBlock FontWeight="SemiBold" Text="Ort" />
                                     <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressCity, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
@@ -106,7 +113,18 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Lieferadresse" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" FontSize="18" FontWeight="SemiBold" Text="Lieferadresse" />
+                                <Button Grid.Column="1"
+                                        Margin="12,0,0,0"
+                                        Content="Wie Auftragsadresse"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Click="OnUseOrderAddressForDeliveryClicked" />
+                            </Grid>
                             <Grid Grid.Row="1" Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />

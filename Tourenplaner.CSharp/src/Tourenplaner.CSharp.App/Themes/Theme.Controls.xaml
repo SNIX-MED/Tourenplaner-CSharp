@@ -101,9 +101,6 @@
                                           TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.ButtonHoverBackground}" />
-                        </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Root" Property="Opacity" Value="0.82" />
                         </Trigger>
@@ -117,6 +114,11 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.ButtonHoverBackground}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}" />
@@ -125,24 +127,48 @@
         <Setter Property="Foreground" Value="White" />
         <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.AccentHover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Brush.AccentHover}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="SuccessButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Foreground" Value="White" />
         <Setter Property="Background" Value="{DynamicResource Brush.Success}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Success}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.SuccessHover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Brush.SuccessHover}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="DarkButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Foreground" Value="White" />
         <Setter Property="Background" Value="{DynamicResource Brush.DarkButton}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.DarkButton}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.DarkButtonHover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Brush.DarkButtonHover}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Foreground" Value="White" />
         <Setter Property="Background" Value="{DynamicResource Brush.Danger}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Danger}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.DangerHover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Brush.DangerHover}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="DangerOutlineButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">

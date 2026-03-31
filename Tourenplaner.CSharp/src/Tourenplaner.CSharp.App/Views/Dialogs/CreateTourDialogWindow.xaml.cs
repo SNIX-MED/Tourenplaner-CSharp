@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using Tourenplaner.CSharp.App.ViewModels;
@@ -70,7 +70,7 @@ public partial class CreateTourDialogWindow : Window
     {
         if (!ViewModel.TryBuildResult(out var result, out var validationError))
         {
-            MessageBox.Show(this, validationError, "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, validationError, "Eingabe prÃ¼fen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -91,6 +91,8 @@ public sealed class CreateTourDialogViewModel : ObservableObject
 {
     private string _dateText = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     private string _name = string.Empty;
+    private bool _isNameAutoManaged = true;
+    private bool _suppressNameAutoDetection;
     private string _selectedHour = "08";
     private string _selectedMinute = "00";
     private TourLookupOption? _selectedVehicle;
@@ -116,19 +118,31 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             _dateText = parsedDate.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         }
 
-        _name = routeName ?? string.Empty;
+        _name = (routeName ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _isNameAutoManaged = true;
+            SetNameFromDate(_dateText);
+        }
+        else
+        {
+            _isNameAutoManaged = string.Equals(
+                _name,
+                BuildDefaultTourName(_dateText),
+                StringComparison.OrdinalIgnoreCase);
+        }
         var normalizedStartHour = routeStartHour ?? string.Empty;
         var normalizedStartMinute = routeStartMinute ?? string.Empty;
         _selectedHour = HourOptions.Contains(normalizedStartHour) ? normalizedStartHour : "08";
         _selectedMinute = MinuteOptions.Contains(normalizedStartMinute) ? normalizedStartMinute : "00";
 
-        VehicleOptions = new List<TourLookupOption> { new(string.Empty, "Bitte wählen") };
+        VehicleOptions = new List<TourLookupOption> { new(string.Empty, "Bitte wÃ¤hlen") };
         VehicleOptions.AddRange(vehicleOptions ?? []);
         var normalizedVehicleId = (selectedVehicleId ?? string.Empty).Trim();
         SelectedVehicle = VehicleOptions.FirstOrDefault(x =>
             string.Equals(x.Id, normalizedVehicleId, StringComparison.OrdinalIgnoreCase)) ?? VehicleOptions.FirstOrDefault();
 
-        TrailerOptions = new List<TourLookupOption> { new(string.Empty, "Kein Anhänger") };
+        TrailerOptions = new List<TourLookupOption> { new(string.Empty, "Kein AnhÃ¤nger") };
         TrailerOptions.AddRange(trailerOptions ?? []);
         var normalizedTrailerId = (selectedTrailerId ?? string.Empty).Trim();
         SelectedTrailer = TrailerOptions.FirstOrDefault(x =>
@@ -155,13 +169,40 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     public string DateText
     {
         get => _dateText;
-        set => SetProperty(ref _dateText, value);
+        set
+        {
+            if (!SetProperty(ref _dateText, value))
+            {
+                return;
+            }
+
+            if (_isNameAutoManaged)
+            {
+                SetNameFromDate(value);
+            }
+        }
     }
 
     public string Name
     {
         get => _name;
-        set => SetProperty(ref _name, value);
+        set
+        {
+            if (!SetProperty(ref _name, value))
+            {
+                return;
+            }
+
+            if (_suppressNameAutoDetection)
+            {
+                return;
+            }
+
+            _isNameAutoManaged = string.Equals(
+                (_name ?? string.Empty).Trim(),
+                BuildDefaultTourName(DateText),
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     public string SelectedHour
@@ -188,7 +229,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         set => SetProperty(ref _selectedTrailer, value);
     }
 
-    private string _selectedEmployeesSummary = "Keine Mitarbeiter ausgewählt";
+    private string _selectedEmployeesSummary = "Keine Mitarbeiter ausgewÃ¤hlt";
     public string SelectedEmployeesSummary
     {
         get => _selectedEmployeesSummary;
@@ -214,25 +255,25 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         var normalizedDateText = (DateText ?? string.Empty).Trim();
         if (!DateTime.TryParseExact(normalizedDateText, "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
         {
-            error = "Bitte ein gültiges Datum im Format DD.MM.YYYY eingeben.";
+            error = "Bitte ein gÃ¼ltiges Datum im Format DD.MM.YYYY eingeben.";
             return false;
         }
 
         if (SelectedVehicle is null || string.IsNullOrWhiteSpace(SelectedVehicle.Id))
         {
-            error = "Bitte ein Fahrzeug auswählen.";
+            error = "Bitte ein Fahrzeug auswÃ¤hlen.";
             return false;
         }
 
         var employees = Employees.Where(x => x.IsSelected).Select(x => x.Id).ToList();
         if (employees.Count is < 1 or > 2)
         {
-            error = "Bitte 1 bis 2 Mitarbeiter auswählen.";
+            error = "Bitte 1 bis 2 Mitarbeiter auswÃ¤hlen.";
             return false;
         }
 
-        var tourName = string.IsNullOrWhiteSpace(Name) ? "Neue Karte-Tour" : Name.Trim();
         var tourDate = parsedDate.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        var tourName = string.IsNullOrWhiteSpace(Name) ? BuildDefaultTourName(tourDate) : Name.Trim();
         var startTime = $"{(SelectedHour ?? "08").PadLeft(2, '0')}:{(SelectedMinute ?? "00").PadLeft(2, '0')}";
 
         result = new CreateTourDialogResult(
@@ -249,8 +290,33 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     {
         var count = Employees.Count(x => x.IsSelected);
         SelectedEmployeesSummary = count == 0
-            ? "Keine Mitarbeiter ausgewählt"
-            : $"{count} Mitarbeiter ausgewählt";
+            ? "Keine Mitarbeiter ausgew\u00E4hlt"
+            : $"{count} Mitarbeiter ausgew\u00E4hlt";
+    }
+
+    private void SetNameFromDate(string? dateText)
+    {
+        var autoName = BuildDefaultTourName(dateText);
+        _suppressNameAutoDetection = true;
+        try
+        {
+            SetProperty(ref _name, autoName, nameof(Name));
+        }
+        finally
+        {
+            _suppressNameAutoDetection = false;
+        }
+    }
+
+    private static string BuildDefaultTourName(string? dateText)
+    {
+        var normalized = (dateText ?? string.Empty).Trim();
+        if (!DateTime.TryParseExact(normalized, "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
+        {
+            parsedDate = DateTime.Today;
+        }
+
+        return $"Tour {parsedDate:dd.MM.yyyy}";
     }
 }
 
@@ -289,4 +355,5 @@ public sealed record CreateTourDialogResult(
     string? VehicleId,
     string? TrailerId,
     IReadOnlyList<string> EmployeeIds);
+
 

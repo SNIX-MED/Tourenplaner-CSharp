@@ -7,6 +7,8 @@
     <Color x:Key="Color.SuccessHover">#16A34A</Color>
     <Color x:Key="Color.DarkButton">#334155</Color>
     <Color x:Key="Color.DarkButtonHover">#1E293B</Color>
+    <Color x:Key="Color.Danger">#EF4444</Color>
+    <Color x:Key="Color.DangerHover">#DC2626</Color>
 
     <Color x:Key="Color.TextPrimary">#F3F4F6</Color>
     <Color x:Key="Color.TextMuted">#CBD5E1</Color>
@@ -17,6 +19,8 @@
     <SolidColorBrush x:Key="Brush.SuccessHover" Color="{StaticResource Color.SuccessHover}" />
     <SolidColorBrush x:Key="Brush.DarkButton" Color="{StaticResource Color.DarkButton}" />
     <SolidColorBrush x:Key="Brush.DarkButtonHover" Color="{StaticResource Color.DarkButtonHover}" />
+    <SolidColorBrush x:Key="Brush.Danger" Color="{StaticResource Color.Danger}" />
+    <SolidColorBrush x:Key="Brush.DangerHover" Color="{StaticResource Color.DangerHover}" />
 
     <SolidColorBrush x:Key="Brush.TextPrimary" Color="{StaticResource Color.TextPrimary}" />
     <SolidColorBrush x:Key="Brush.TextMuted" Color="{StaticResource Color.TextMuted}" />
@@ -38,6 +42,7 @@
     <SolidColorBrush x:Key="Brush.ButtonBackground" Color="#1A2436" />
     <SolidColorBrush x:Key="Brush.ButtonForeground" Color="#F3F4F6" />
     <SolidColorBrush x:Key="Brush.ButtonBorder" Color="#5B6B80" />
+    <SolidColorBrush x:Key="Brush.ButtonHoverBackground" Color="#22314A" />
 
     <SolidColorBrush x:Key="Brush.TableBackground" Color="#111A2B" />
     <SolidColorBrush x:Key="Brush.TableRow" Color="#162033" />

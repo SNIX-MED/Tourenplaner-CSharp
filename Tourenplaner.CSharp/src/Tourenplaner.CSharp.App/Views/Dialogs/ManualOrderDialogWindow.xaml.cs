@@ -101,6 +101,11 @@ public partial class ManualOrderDialogWindow : Window
         ContentScrollViewer.ScrollToVerticalOffset(ContentScrollViewer.VerticalOffset - (e.Delta / 3d));
         e.Handled = true;
     }
+
+    private void OnUseOrderAddressForDeliveryClicked(object sender, RoutedEventArgs e)
+    {
+        ViewModel.CopyOrderAddressToDeliveryAddress();
+    }
 }
 
 public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
@@ -119,6 +124,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _orderNumber = string.Empty;
     private string _orderDateText = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     private string _orderAddressName = string.Empty;
+    private string _orderAddressContactPerson = string.Empty;
     private string _orderAddressStreet = string.Empty;
     private string _orderAddressPostalCode = string.Empty;
     private string _orderAddressCity = string.Empty;
@@ -200,6 +206,12 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     {
         get => _orderAddressStreet;
         set => SetProperty(ref _orderAddressStreet, value);
+    }
+
+    public string OrderAddressContactPerson
+    {
+        get => _orderAddressContactPerson;
+        set => SetProperty(ref _orderAddressContactPerson, value);
     }
 
     public string OrderAddressPostalCode
@@ -322,6 +334,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             OrderAddress = new OrderAddressInfo
             {
                 Name = (OrderAddressName ?? string.Empty).Trim(),
+                ContactPerson = (OrderAddressContactPerson ?? string.Empty).Trim(),
                 Street = (OrderAddressStreet ?? string.Empty).Trim(),
                 PostalCode = (OrderAddressPostalCode ?? string.Empty).Trim(),
                 City = (OrderAddressCity ?? string.Empty).Trim()
@@ -385,6 +398,15 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         SelectedProductLine = ProductLines.ElementAtOrDefault(Math.Max(0, index - 1)) ?? ProductLines.FirstOrDefault();
     }
 
+    public void CopyOrderAddressToDeliveryAddress()
+    {
+        DeliveryName = (OrderAddressName ?? string.Empty).Trim();
+        DeliveryContactPerson = (OrderAddressContactPerson ?? string.Empty).Trim();
+        DeliveryStreet = (OrderAddressStreet ?? string.Empty).Trim();
+        DeliveryPostalCode = (OrderAddressPostalCode ?? string.Empty).Trim();
+        DeliveryCity = (OrderAddressCity ?? string.Empty).Trim();
+    }
+
     private void ApplyExistingOrder(Order? existingOrder)
     {
         if (existingOrder is null)
@@ -397,6 +419,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         OrderNumber = existingOrder.Id;
         OrderDateText = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         OrderAddressName = existingOrder.OrderAddress?.Name ?? string.Empty;
+        OrderAddressContactPerson = existingOrder.OrderAddress?.ContactPerson ?? string.Empty;
         OrderAddressStreet = existingOrder.OrderAddress?.Street ?? string.Empty;
         OrderAddressPostalCode = existingOrder.OrderAddress?.PostalCode ?? string.Empty;
         OrderAddressCity = existingOrder.OrderAddress?.City ?? string.Empty;
