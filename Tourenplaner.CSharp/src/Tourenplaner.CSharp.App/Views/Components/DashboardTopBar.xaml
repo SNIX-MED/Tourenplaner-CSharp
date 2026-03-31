@@ -63,6 +63,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="120" />
                                 <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="190" />
                                 <ColumnDefinition Width="160" />
                                 <ColumnDefinition Width="160" />
                             </Grid.ColumnDefinitions>
@@ -108,6 +109,12 @@
                             <Button Grid.Column="3"
                                     Height="40"
                                     Margin="0,0,10,0"
+                                    Content="{Binding PinInfoCardsButtonText}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding TogglePinInfoCardsCommand}" />
+                            <Button Grid.Column="4"
+                                    Height="40"
+                                    Margin="0,0,10,0"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding OpenSplitScreenCommand}">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -115,7 +122,7 @@
                                     <TextBlock Text="Split-Ansicht" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
-                            <Button Grid.Column="4"
+                            <Button Grid.Column="5"
                                     Height="40"
                                     Content="Route exportieren"
                                     Style="{StaticResource SuccessButtonStyle}"

@@ -93,6 +93,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _suppressFilterRefresh;
     private bool _isUpdatingFilterOptions;
     private bool _hasUnsavedRouteChanges;
+    private bool _arePinInfoCardsVisible;
     private int _routeGeometryRevision;
     private int _activeTourId;
     private string _currentRouteVehicleId = string.Empty;
@@ -145,6 +146,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         CloseDetailsCommand = new DelegateCommand(CloseDetails, () => SelectedOrder is not null);
         ResetOrderFiltersCommand = new DelegateCommand(ResetOrderFilters);
         ToggleAllOrderFiltersCommand = new DelegateCommand(ToggleAllOrderFilters);
+        TogglePinInfoCardsCommand = new DelegateCommand(TogglePinInfoCards);
         OpenSplitScreenCommand = new AsyncCommand(OpenSplitScreenAsync, () => _openSplitScreenAsync is not null);
         SendEmailCommand = new DelegateCommand(SendEmailToSelectedOrder, () => SelectedOrder is not null);
         ShowSelectedOrderTourCommand = new AsyncCommand(ShowSelectedOrderTourAsync, CanShowSelectedOrderTour);
@@ -204,6 +206,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     public ICommand ToggleAllOrderFiltersCommand { get; }
 
+    public ICommand TogglePinInfoCardsCommand { get; }
+
     public ICommand OpenSplitScreenCommand { get; }
 
     public ICommand SendEmailCommand { get; }
@@ -219,6 +223,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public ObservableCollection<MapOrderFilterOption> AvisoStatusFilters { get; } = new();
 
     public string FilterSummaryText => BuildFilterSummaryText();
+
+    public string PinInfoCardsButtonText => ArePinInfoCardsVisible ? "Infokarten ausblenden" : "Infokarten anzeigen";
+    public string PinInfoCardsIconGlyph => ArePinInfoCardsVisible ? "\uE8A7" : "\uE7B3";
 
     public string ToggleAllFiltersButtonText => AreAllFiltersSelected() ? "Alle abwählen" : "Alle auswählen";
 
@@ -290,6 +297,19 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             if (SetProperty(ref _includePlannedOrders, value))
             {
                 TriggerOrderFilterRefresh();
+            }
+        }
+    }
+
+    public bool ArePinInfoCardsVisible
+    {
+        get => _arePinInfoCardsVisible;
+        set
+        {
+            if (SetProperty(ref _arePinInfoCardsVisible, value))
+            {
+                OnPropertyChanged(nameof(PinInfoCardsButtonText));
+                OnPropertyChanged(nameof(PinInfoCardsIconGlyph));
             }
         }
     }
@@ -1030,6 +1050,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         TriggerOrderFilterRefresh();
+    }
+
+    private void TogglePinInfoCards()
+    {
+        ArePinInfoCardsVisible = !ArePinInfoCardsVisible;
     }
 
     private bool AreAllFiltersSelected()

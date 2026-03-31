@@ -183,6 +183,10 @@ public partial class KarteSectionView : UserControl
             {
                 await PushRouteToMapAsync();
             }
+            else if (e.PropertyName == nameof(KarteSectionViewModel.ArePinInfoCardsVisible))
+            {
+                await ApplyPinInfoCardsVisibilityAsync();
+            }
         }
         catch
         {
@@ -320,6 +324,7 @@ public partial class KarteSectionView : UserControl
                 lon = vm.CompanyMarker.Longitude
             };
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetCompanyMarker === 'function') window.gawelaSetCompanyMarker({JsonSerializer.Serialize(company)});");
+        await ApplyPinInfoCardsVisibilityAsync();
         await HighlightSelectedMarkerAsync();
     }
 
@@ -403,6 +408,17 @@ public partial class KarteSectionView : UserControl
 
         var id = vm.SelectedRouteStop?.OrderId ?? string.Empty;
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaHighlightRouteStop === 'function') window.gawelaHighlightRouteStop({JsonSerializer.Serialize(id)});");
+    }
+
+    private async Task ApplyPinInfoCardsVisibilityAsync()
+    {
+        if (!_mapReady || !_mapScriptReady || MapWebView.CoreWebView2 is null || DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        await MapWebView.CoreWebView2.ExecuteScriptAsync(
+            $"if (typeof window.gawelaSetAllMarkerPopupsVisible === 'function') window.gawelaSetAllMarkerPopupsVisible({(vm.ArePinInfoCardsVisible ? "true" : "false")});");
     }
 
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -614,6 +630,41 @@ public partial class KarteSectionView : UserControl
                  <style>
                    html, body, #map { height: 100%; margin: 0; padding: 0; }
                    body { font-family: Segoe UI, sans-serif; }
+                   .leaflet-popup.gawela-pin-popup {
+                     transform-origin: center bottom;
+                   }
+                   .leaflet-popup.gawela-pin-popup .leaflet-popup-content-wrapper {
+                     border-radius: 12px;
+                     box-shadow: 0 14px 34px rgba(15, 23, 42, 0.22);
+                   }
+                   .leaflet-popup.gawela-pin-popup .leaflet-popup-content {
+                     margin: var(--gawela-popup-margin-y, 10px) var(--gawela-popup-margin-x, 11px);
+                     width: var(--gawela-popup-width, 192px);
+                     min-width: var(--gawela-popup-width, 192px);
+                     max-width: var(--gawela-popup-width, 192px);
+                     font-size: var(--gawela-popup-font-size, 11px);
+                     line-height: 1.3;
+                   }
+                   .leaflet-popup.gawela-pin-popup .gawela-popup-title {
+                     font-weight: 700;
+                     font-size: var(--gawela-popup-title-size, 14px);
+                     margin-bottom: 2px;
+                     color: #111827;
+                   }
+                   .leaflet-popup.gawela-pin-popup .gawela-popup-address {
+                     margin-bottom: var(--gawela-popup-address-gap, 8px);
+                     color: #334155;
+                   }
+                   .leaflet-popup.gawela-pin-popup .gawela-popup-action {
+                     height: var(--gawela-popup-button-height, 24px);
+                     padding: 0 var(--gawela-popup-button-pad-x, 8px);
+                     border-radius: 6px;
+                     border: 1px solid #9ca3af;
+                     background: #f8fafc;
+                     color: #111827;
+                     cursor: pointer;
+                     font-size: var(--gawela-popup-button-font-size, 11px);
+                   }
                  </style>
                </head>
                <body>
@@ -633,11 +684,82 @@ public partial class KarteSectionView : UserControl
                    let routeLayer = L.layerGroup().addTo(map);
                    let routePolyline = null;
                    let routeMarkerMap = new Map();
+                   let keepAllMarkerPopupsOpen = false;
                    let hasInitialViewport = false;
 
                    function clearMarkers() {
                      markerLayer.clearLayers();
                      markerMap.clear();
+                   }
+
+                   function updatePopupScale() {
+                     const zoom = map.getZoom();
+                     const scale = Math.max(0.18, Math.min(1.05, Math.pow(0.74, 11 - zoom)));
+                     const widthPx = Math.max(80, Math.round(192 * scale));
+                     const marginY = Math.max(3, Math.round(10 * scale));
+                     const marginX = Math.max(4, Math.round(11 * scale));
+                     const bodyFont = Math.max(8, Math.round(11 * scale));
+                     const titleFont = Math.max(9, Math.round(14 * scale));
+                     const addressGap = Math.max(3, Math.round(8 * scale));
+                     const buttonHeight = Math.max(14, Math.round(24 * scale));
+                     const buttonPadX = Math.max(4, Math.round(8 * scale));
+                     const buttonFont = Math.max(8, Math.round(11 * scale));
+                     document.documentElement.style.setProperty('--gawela-popup-width', `${widthPx}px`);
+                     document.documentElement.style.setProperty('--gawela-popup-margin-y', `${marginY}px`);
+                     document.documentElement.style.setProperty('--gawela-popup-margin-x', `${marginX}px`);
+                     document.documentElement.style.setProperty('--gawela-popup-font-size', `${bodyFont}px`);
+                     document.documentElement.style.setProperty('--gawela-popup-title-size', `${titleFont}px`);
+                     document.documentElement.style.setProperty('--gawela-popup-address-gap', `${addressGap}px`);
+                     document.documentElement.style.setProperty('--gawela-popup-button-height', `${buttonHeight}px`);
+                     document.documentElement.style.setProperty('--gawela-popup-button-pad-x', `${buttonPadX}px`);
+                     document.documentElement.style.setProperty('--gawela-popup-button-font-size', `${buttonFont}px`);
+                   }
+
+                   function refreshOpenPopupLayouts() {
+                     markerMap.forEach(marker => {
+                       const popup = marker.getPopup();
+                       if (popup && popup.isOpen()) {
+                         popup.update();
+                       }
+                     });
+                   }
+
+                   function schedulePopupUpdate(popup) {
+                     if (!popup) {
+                       return;
+                     }
+                     requestAnimationFrame(() => {
+                       try {
+                         popup.update();
+                       } catch (_) {
+                       }
+                       requestAnimationFrame(() => {
+                         try {
+                           popup.update();
+                         } catch (_) {
+                         }
+                       });
+                     });
+                     setTimeout(() => {
+                       try {
+                         popup.update();
+                       } catch (_) {
+                       }
+                     }, 40);
+                   }
+
+                   function setAllMarkerPopupsVisible(show) {
+                     keepAllMarkerPopupsOpen = !!show;
+                     markerMap.forEach(marker => {
+                       if (keepAllMarkerPopupsOpen) {
+                         marker.openPopup();
+                       } else {
+                         marker.closePopup();
+                       }
+                     });
+                     if (keepAllMarkerPopupsOpen) {
+                       setTimeout(refreshOpenPopupLayouts, 0);
+                     }
                    }
 
                    function clearCompanyMarker() {
@@ -708,8 +830,29 @@ public partial class KarteSectionView : UserControl
                      return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned, false)}<div style="position:absolute;inset:0;top:${labelTopOffset};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;line-height:1;text-shadow:0 1px 2px rgba(15,23,42,0.85);pointer-events:none;">${safeLabel}</div></div>`;
                    }
 
+                   function buildPopupAddressHtml(address) {
+                     const raw = (address || '').trim();
+                     if (!raw) {
+                       return '';
+                     }
+                     const commaIndex = raw.indexOf(',');
+                     if (commaIndex < 0) {
+                       return raw;
+                     }
+                     const street = raw.substring(0, commaIndex).trim();
+                     const postalAndCity = raw.substring(commaIndex + 1).trim();
+                     if (!street) {
+                       return postalAndCity;
+                     }
+                     if (!postalAndCity) {
+                       return street;
+                     }
+                     return `${street}<br/>${postalAndCity}`;
+                   }
+
                    window.gawelaSetMarkers = function(markers) {
                      clearMarkers();
+                     updatePopupScale();
                      if (!markers || markers.length === 0) {
                        return;
                      }
@@ -726,8 +869,17 @@ public partial class KarteSectionView : UserControl
                        const title = (m.customer && m.customer.trim().length > 0)
                          ? `${m.customer} (${m.id})`
                          : (m.id || '');
+                       const addressHtml = buildPopupAddressHtml(m.address);
                        marker.bindPopup(
-                         `<b>${title}</b><br/>${m.address || ''}<br/><button onclick="window.gawelaAddToRoute('${m.id}')">Add to route</button>`
+                         `<div class="gawela-popup-title">${title}</div><div class="gawela-popup-address">${addressHtml}</div><button class="gawela-popup-action" onclick="window.gawelaAddToRoute('${m.id}')">Add to route</button>`,
+                         {
+                           className: 'gawela-pin-popup',
+                           autoClose: false,
+                           closeOnClick: false,
+                           autoPan: false,
+                           minWidth: 192,
+                           maxWidth: 192
+                         }
                        );
                        marker.on('click', () => {
                          if (window.chrome && window.chrome.webview) {
@@ -736,6 +888,9 @@ public partial class KarteSectionView : UserControl
                        });
                        marker.addTo(markerLayer);
                        markerMap.set(m.id, marker);
+                       if (keepAllMarkerPopupsOpen) {
+                         marker.openPopup();
+                       }
                        bounds.push([m.lat, m.lon]);
                      });
                      if (!hasInitialViewport && bounds.length > 0) {
@@ -750,7 +905,14 @@ public partial class KarteSectionView : UserControl
                      }
                      const marker = markerMap.get(orderId);
                      marker.openPopup();
+                     const popup = marker.getPopup();
+                     schedulePopupUpdate(popup);
                      map.panTo(marker.getLatLng());
+                     map.once('moveend', () => schedulePopupUpdate(popup));
+                   };
+
+                   window.gawelaSetAllMarkerPopupsVisible = function(show) {
+                     setAllMarkerPopupsVisible(show);
                    };
 
                    window.gawelaSetCompanyMarker = function(company) {
@@ -871,6 +1033,22 @@ public partial class KarteSectionView : UserControl
                        window.chrome.webview.postMessage(`add:${orderId}`);
                      }
                    };
+
+                   map.on('zoom', updatePopupScale);
+                   map.on('zoomend', () => {
+                     updatePopupScale();
+                     refreshOpenPopupLayouts();
+                   });
+                   map.on('popupopen', e => {
+                     if (!e || !e.popup) {
+                       return;
+                     }
+                     if (keepAllMarkerPopupsOpen) {
+                       return;
+                     }
+                     schedulePopupUpdate(e.popup);
+                   });
+                   updatePopupScale();
                  </script>
                </body>
                </html>
