@@ -17,6 +17,7 @@ namespace Tourenplaner.CSharp.App.Views.Sections;
 
 public partial class KarteSectionView : UserControl
 {
+    private static readonly GridLength DefaultRoutePanelWidth = new(460d, GridUnitType.Pixel);
     private bool _viewInitialized;
     private bool _mapReady;
     private bool _mapScriptReady;
@@ -261,6 +262,17 @@ public partial class KarteSectionView : UserControl
         }
 
         stopsViewer.ScrollToVerticalOffset(target);
+        e.Handled = true;
+    }
+
+    private void OnMainSplitterMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (RoutePanelColumn is null)
+        {
+            return;
+        }
+
+        RoutePanelColumn.Width = DefaultRoutePanelWidth;
         e.Handled = true;
     }
 

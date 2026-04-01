@@ -65,8 +65,11 @@
 
     <ScrollViewer x:Name="PageScrollViewer"
                   VerticalScrollBarVisibility="Disabled"
-                  HorizontalScrollBarVisibility="Disabled">
-        <Grid Margin="10,2,10,10">
+                  HorizontalScrollBarVisibility="Disabled"
+                  HorizontalContentAlignment="Stretch">
+        <Grid Margin="0,2,0,0"
+              HorizontalAlignment="Stretch"
+              Width="{Binding ElementName=PageScrollViewer, Path=ViewportWidth}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -78,6 +81,7 @@
                     >
                 <Border.Style>
                     <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+                        <Setter Property="Effect" Value="{x:Null}" />
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsMapFilterPanelVisible}" Value="True">
@@ -394,13 +398,18 @@
                             BorderThickness="0">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="460" MinWidth="320" />
+                    <ColumnDefinition x:Name="RoutePanelColumn" Width="460" MinWidth="320" />
                     <ColumnDefinition Width="6" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Style="{StaticResource SoftCardStyle}" Padding="12" Margin="0,0,6,0">
+                <Border Grid.Column="0" Padding="12" Margin="0,0,6,0">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+                            <Setter Property="Effect" Value="{x:Null}" />
+                        </Style>
+                    </Border.Style>
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -794,10 +803,16 @@
                               VerticalAlignment="Stretch"
                               ResizeBehavior="PreviousAndNext"
                               ResizeDirection="Columns"
-                              ShowsPreview="True"
+                              ShowsPreview="False"
+                              MouseDoubleClick="OnMainSplitterMouseDoubleClick"
                               Background="{DynamicResource Brush.BorderSoft}" />
 
-                <Border Grid.Column="2" Style="{StaticResource FlatCardStyle}" Padding="4" Margin="6,0,10,0">
+                <Border Grid.Column="2" Padding="4" Margin="4,0,0,0">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
+                            <Setter Property="Effect" Value="{x:Null}" />
+                        </Style>
+                    </Border.Style>
                     <Border BorderBrush="{DynamicResource Brush.BorderSoft}"
                             BorderThickness="1"
                             CornerRadius="14"
@@ -820,6 +835,7 @@
                     <Border Width="390" Padding="12" HorizontalAlignment="Right">
                         <Border.Style>
                             <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+                                <Setter Property="Effect" Value="{x:Null}" />
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsDetailsOpen}" Value="False">
@@ -940,7 +956,93 @@
                                         </Grid>
 
                                         <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Produkte:" />
-                                        <TextBlock Text="{Binding DetailProducts}" TextWrapping="Wrap" />
+                                        <Border Margin="0,4,0,0"
+                                                Padding="10"
+                                                CornerRadius="12"
+                                                Background="{DynamicResource Brush.CardSoft}"
+                                                BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                BorderThickness="1">
+                                            <ItemsControl ItemsSource="{Binding DetailProductItems}">
+                                                <ItemsControl.Style>
+                                                    <Style TargetType="ItemsControl">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DetailProductItems.Count}" Value="0">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ItemsControl.Style>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,0,8">
+                                                            <TextBlock FontWeight="SemiBold"
+                                                                       Text="{Binding Title}"
+                                                                       TextWrapping="Wrap" />
+                                                            <StackPanel Margin="0,4,0,0"
+                                                                        Orientation="Horizontal">
+                                                                <StackPanel.Style>
+                                                                    <Style TargetType="StackPanel">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasDimensions}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </StackPanel.Style>
+                                                                <Ellipse Width="5"
+                                                                         Height="5"
+                                                                         Margin="0,0,8,0"
+                                                                         VerticalAlignment="Center"
+                                                                         Fill="{DynamicResource Brush.Accent}" />
+                                                                <TextBlock Text="{Binding DimensionsLine}"
+                                                                           TextWrapping="Wrap"
+                                                                           Foreground="{DynamicResource Brush.TextSecondary}" />
+                                                            </StackPanel>
+                                                            <StackPanel Margin="0,4,0,0"
+                                                                        Orientation="Horizontal">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Ellipse Width="5"
+                                                                             Height="5"
+                                                                             Margin="0,0,8,0"
+                                                                             VerticalAlignment="Center"
+                                                                             Fill="{DynamicResource Brush.Accent}" />
+                                                                    <TextBlock Text="{Binding WeightLine}"
+                                                                               TextWrapping="Wrap"
+                                                                               Foreground="{DynamicResource Brush.TextSecondary}" />
+                                                                </StackPanel>
+                                                                <StackPanel Orientation="Horizontal"
+                                                                            Margin="18,0,0,0">
+                                                                    <Ellipse Width="5"
+                                                                             Height="5"
+                                                                             Margin="0,0,8,0"
+                                                                             VerticalAlignment="Center"
+                                                                             Fill="{DynamicResource Brush.Accent}" />
+                                                                    <TextBlock Text="{Binding TotalLine}"
+                                                                               TextWrapping="Wrap"
+                                                                               Foreground="{DynamicResource Brush.TextSecondary}" />
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Border>
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="Keine Produkte vorhanden.">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DetailProductItems.Count}" Value="0">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
 
                                         <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Lieferart:" />
                                         <TextBlock Text="{Binding DetailDeliveryType}" />

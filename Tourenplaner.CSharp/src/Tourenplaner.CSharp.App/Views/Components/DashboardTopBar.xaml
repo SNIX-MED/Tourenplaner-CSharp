@@ -50,52 +50,42 @@
         </Style>
     </UserControl.Resources>
 
-    <Border Style="{StaticResource FilterBarCardStyle}" Padding="14">
+    <Border Padding="14">
+        <Border.Style>
+            <Style TargetType="Border" BasedOn="{StaticResource FilterBarCardStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMapSectionActive}" Value="True">
+                        <Setter Property="Effect" Value="{x:Null}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+            <StackPanel Grid.Row="0" VerticalAlignment="Center">
+                <TextBlock FontSize="28"
+                           FontWeight="SemiBold"
+                           Text="{Binding SelectedNavigationItem.DisplayName}" />
+                <TextBlock Margin="0,2,0,0"
+                           Foreground="{DynamicResource Brush.TextMuted}"
+                           FontSize="12"
+                           Text="GAWELA Tourenplaner" />
+            </StackPanel>
 
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock FontSize="28"
-                               FontWeight="SemiBold"
-                               Text="{Binding SelectedNavigationItem.DisplayName}" />
-                    <TextBlock Margin="0,2,0,0"
-                               Foreground="{DynamicResource Brush.TextMuted}"
-                               FontSize="12"
-                               Text="GAWELA Tourenplaner" />
-                </StackPanel>
+            <Grid Grid.Row="1" Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-                <Button Grid.Column="1"
-                        Width="40"
-                        Height="40"
-                        Margin="0,0,12,0"
-                        Padding="0"
-                        VerticalAlignment="Center"
-                        ToolTip="Einstellungen"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        Command="{Binding OpenSettingsCommand}">
-                    <Image Width="18"
-                           Height="18"
-                           Stretch="Uniform"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           SnapsToDevicePixels="True"
-                           Source="pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Einstellungen.png" />
-                </Button>
-            </Grid>
-
-            <ContentControl Grid.Row="1"
-                            Margin="0,10,0,0"
-                            Content="{Binding CurrentSection}"
-                            Visibility="{Binding IsTopBarSectionControlsVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <ContentControl.Resources>
+                <ContentControl Grid.Column="0"
+                                Content="{Binding CurrentSection}"
+                                Visibility="{Binding IsTopBarSectionControlsVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <ContentControl.Resources>
                     <DataTemplate DataType="{x:Type sections:KarteSectionViewModel}">
                         <Grid x:Name="MapTopBarControlsRoot">
                             <Grid.ColumnDefinitions>
@@ -991,8 +981,26 @@
                                     Command="{Binding OpenInBrowserCommand}" />
                         </Grid>
                     </DataTemplate>
-                </ContentControl.Resources>
-            </ContentControl>
+                    </ContentControl.Resources>
+                </ContentControl>
+
+                <Button Grid.Column="1"
+                        Width="40"
+                        Height="40"
+                        Margin="12,0,0,0"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        ToolTip="Einstellungen"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Command="{Binding OpenSettingsCommand}">
+                    <Image Width="18"
+                           Height="18"
+                           Stretch="Uniform"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           SnapsToDevicePixels="True"
+                           Source="pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Einstellungen.png" />
+                </Button>
+            </Grid>
         </Grid>
     </Border>
 </UserControl>

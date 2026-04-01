@@ -566,6 +566,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(CanEditDetailAvisoStatus));
                 OnPropertyChanged(nameof(DetailTourStatus));
                 OnPropertyChanged(nameof(DetailProducts));
+                OnPropertyChanged(nameof(DetailProductItems));
                 OnPropertyChanged(nameof(DetailEmail));
                 OnPropertyChanged(nameof(DetailPhone));
                 OnPropertyChanged(nameof(DetailDeliveryType));
@@ -649,6 +650,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     }
     public string DetailTourStatus => SelectedOrder?.TourStatusLabel ?? "Offen";
     public string DetailProducts => OrderProductFormatter.BuildDetails(FindSelectedOrderModel()?.Products);
+    public IReadOnlyList<DetailProductItem> DetailProductItems => BuildDetailProductItems(FindSelectedOrderModel()?.Products);
     public string DetailEmail => FindSelectedOrderModel()?.Email ?? "n/a";
     public string DetailPhone => FindSelectedOrderModel()?.Phone ?? "n/a";
     public string DetailDeliveryType => FindSelectedOrderModel()?.DeliveryType ?? SelectedOrder?.DeliveryLabel ?? "Frei Bordsteinkante";
@@ -3776,6 +3778,49 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var normalized = (value ?? string.Empty).Trim();
         return normalized.Length == 7 && normalized.StartsWith('#') ? normalized.ToUpperInvariant() : fallback;
     }
+
+    private static IReadOnlyList<DetailProductItem> BuildDetailProductItems(IEnumerable<OrderProductInfo>? products)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        var items = new List<DetailProductItem>();
+        foreach (var product in products ?? [])
+        {
+            if (product is null || string.IsNullOrWhiteSpace(product.Name))
+            {
+                continue;
+            }
+
+            var quantity = Math.Max(1, product.Quantity);
+            var unitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(product);
+            var totalWeightKg = OrderProductFormatter.ResolveTotalWeightKg(product);
+            var dimensionsLine = string.IsNullOrWhiteSpace(product.Dimensions)
+                ? string.Empty
+                : $"Masse: {product.Dimensions.Trim()}";
+            var weightLine = $"Gewicht: {unitWeightKg.ToString("0.##", culture)} kg/Stk";
+            var totalLine = $"Gesamt: {totalWeightKg.ToString("0.##", culture)} kg";
+
+            items.Add(new DetailProductItem($"{quantity}x {product.Name.Trim()}", dimensionsLine, weightLine, totalLine));
+        }
+
+        return items;
+    }
+}
+
+public sealed class DetailProductItem
+{
+    public DetailProductItem(string title, string dimensionsLine, string weightLine, string totalLine)
+    {
+        Title = title;
+        DimensionsLine = dimensionsLine ?? string.Empty;
+        WeightLine = weightLine ?? string.Empty;
+        TotalLine = totalLine ?? string.Empty;
+    }
+
+    public string Title { get; }
+    public string DimensionsLine { get; }
+    public string WeightLine { get; }
+    public string TotalLine { get; }
+    public bool HasDimensions => !string.IsNullOrWhiteSpace(DimensionsLine);
 }
 
 public sealed class MapOrderItem
