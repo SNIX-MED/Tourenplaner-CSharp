@@ -49,7 +49,7 @@
     <SolidColorBrush x:Key="Brush.TableAltRow" Color="#1A2436" />
     <SolidColorBrush x:Key="Brush.TableGrid" Color="#334155" />
     <SolidColorBrush x:Key="Brush.RowHover" Color="#22314A" />
-    <SolidColorBrush x:Key="Brush.RowSelected" Color="#D6ECFF" />
+    <SolidColorBrush x:Key="Brush.RowSelected" Color="#1E3A5F" />
 
     <SolidColorBrush x:Key="Brush.SidebarItemBackground" Color="#111A2B" />
     <SolidColorBrush x:Key="Brush.SidebarItemBorder" Color="#334155" />

@@ -6,27 +6,45 @@
              mc:Ignorable="d"
              d:DesignHeight="620"
              d:DesignWidth="1000">
-    <Grid Margin="16">
+    <Grid Margin="{StaticResource Spacing.PageMargin}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
+        <Border Style="{StaticResource SectionHeaderCardStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-        <DockPanel Grid.Row="1" Margin="0,12,0,12">
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                <Button Width="120" Margin="8,0,0,0" Content="Refresh" Command="{Binding RefreshCommand}" />
-                <Button Width="150" Margin="8,0,0,0" Content="Open Update Feed" Command="{Binding OpenUpdateFeedCommand}" />
-            </StackPanel>
-            <TextBlock VerticalAlignment="Center"
-                       FontSize="13"
-                       Foreground="{DynamicResource Brush.TextMuted}"
-                       Text="{Binding StatusText}" />
-        </DockPanel>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource SectionHeaderTitleTextStyle}" Text="{Binding Title}" />
+                    <TextBlock Style="{StaticResource SectionHeaderSubtitleTextStyle}"
+                               Text="Version, Runtime und Update-Feed zentral prüfen und verwalten." />
+                    <TextBlock Margin="0,4,0,0"
+                               Foreground="{DynamicResource Brush.TextMuted}"
+                               FontSize="13"
+                               Text="{Binding StatusText}" />
+                </StackPanel>
 
-        <Border Grid.Row="2"
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button Width="120"
+                            Content="Refresh"
+                            Command="{Binding RefreshCommand}" />
+                    <Button Width="150"
+                            Margin="{StaticResource Spacing.ButtonInlineLeftMargin}"
+                            Content="Open Update Feed"
+                            Command="{Binding OpenUpdateFeedCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1"
+                Margin="{StaticResource Spacing.BlockTopMargin}"
                 BorderBrush="{DynamicResource Brush.GlassStroke}"
                 BorderThickness="1"
                 CornerRadius="10"

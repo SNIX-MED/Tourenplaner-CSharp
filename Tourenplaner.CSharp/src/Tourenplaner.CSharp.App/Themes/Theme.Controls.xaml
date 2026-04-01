@@ -40,8 +40,21 @@
     </Style>
 
     <Style x:Key="SectionCaptionTextStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="14" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+    </Style>
+
+    <Thickness x:Key="Spacing.PageMargin">10</Thickness>
+    <Thickness x:Key="Spacing.BlockTopMargin">0,12,0,0</Thickness>
+    <Thickness x:Key="Spacing.BlockBottomMargin">0,0,0,10</Thickness>
+    <Thickness x:Key="Spacing.ButtonInlineLeftMargin">8,0,0,0</Thickness>
+
+    <Style x:Key="SectionHeaderTitleTextStyle" TargetType="TextBlock" BasedOn="{StaticResource SectionTitleTextStyle}">
+        <Setter Property="FontSize" Value="26" />
+    </Style>
+
+    <Style x:Key="SectionHeaderSubtitleTextStyle" TargetType="TextBlock" BasedOn="{StaticResource SectionCaptionTextStyle}">
+        <Setter Property="Margin" Value="0,2,0,0" />
     </Style>
 
     <Style x:Key="FlatCardStyle" TargetType="Border">
@@ -70,12 +83,25 @@
         <Setter Property="CornerRadius" Value="16" />
     </Style>
 
+    <Style x:Key="SectionHeaderCardStyle" TargetType="Border" BasedOn="{StaticResource FilterBarCardStyle}" />
+
     <Style x:Key="InfoBadgeStyle" TargetType="Border">
         <Setter Property="CornerRadius" Value="999" />
         <Setter Property="Padding" Value="10,4" />
         <Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
         <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style x:Key="EntityListContainerCardStyle" TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="CornerRadius" Value="16" />
+    </Style>
+
+    <Style x:Key="EntityListItemCardStyle" TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+        <Setter Property="Margin" Value="0,0,0,10" />
+        <Setter Property="Padding" Value="14" />
+        <Setter Property="CornerRadius" Value="14" />
     </Style>
 
     <Style TargetType="Button">
@@ -592,8 +618,8 @@
         <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Brush.TableGrid}" />
         <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource Brush.BorderSoft}" />
         <Setter Property="HeadersVisibility" Value="Column" />
-        <Setter Property="ColumnHeaderHeight" Value="38" />
-        <Setter Property="RowHeight" Value="38" />
+        <Setter Property="ColumnHeaderHeight" Value="40" />
+        <Setter Property="RowHeight" Value="40" />
         <Setter Property="CanUserResizeRows" Value="False" />
         <Setter Property="SelectionUnit" Value="FullRow" />
         <Setter Property="AlternationCount" Value="2" />
@@ -606,7 +632,7 @@
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="Padding" Value="12,9" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />

@@ -34,7 +34,7 @@
                   HorizontalScrollBarVisibility="Disabled"
                   IsManipulationEnabled="True"
                   PanningMode="VerticalFirst">
-    <StackPanel Margin="8">
+    <StackPanel Margin="{StaticResource Spacing.PageMargin}">
 
         <Border Margin="0,14,0,0" Style="{StaticResource SharpFilterBarCardStyle}">
             <StackPanel>

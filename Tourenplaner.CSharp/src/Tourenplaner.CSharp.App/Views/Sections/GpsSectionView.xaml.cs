@@ -10,6 +10,7 @@ public partial class GpsSectionView : UserControl
 {
     private bool _webViewReady;
     private INotifyPropertyChanged? _currentNotifier;
+    private string? _lastNavigatedUrl;
 
     public GpsSectionView()
     {
@@ -21,7 +22,6 @@ public partial class GpsSectionView : UserControl
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         await EnsureWebViewInitializedAsync();
-        NavigateIfPossible();
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -67,6 +67,8 @@ public partial class GpsSectionView : UserControl
             {
                 vm.SetWebView2RuntimeStatus(true);
             }
+
+            NavigateIfPossible();
         }
         catch (WebView2RuntimeNotFoundException)
         {
@@ -100,6 +102,13 @@ public partial class GpsSectionView : UserControl
             return;
         }
 
+        var targetUrl = uri.AbsoluteUri;
+        if (string.Equals(_lastNavigatedUrl, targetUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         GpsWebView.Source = uri;
+        _lastNavigatedUrl = targetUrl;
     }
 }

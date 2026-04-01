@@ -34,6 +34,7 @@ public sealed class MainShellViewModel : ObservableObject
     private readonly SettingsSectionViewModel _settingsSection;
     private readonly NavigationItemViewModel _gpsNavigationItem;
     private readonly NavigationItemViewModel _spediteurNavigationItem;
+    private readonly HashSet<object> _activatedSections = new(ReferenceEqualityComparer.Instance);
 
     public MainShellViewModel(
         AppSnapshotService snapshotService,
@@ -163,7 +164,7 @@ public sealed class MainShellViewModel : ObservableObject
             if (SetProperty(ref _selectedNavigationItem, value))
             {
                 CurrentSection = value?.Section;
-                TriggerSectionRefresh(value?.Section);
+                TriggerSectionRefreshOnce(value?.Section);
                 ExportCurrentRouteCommand.RaiseCanExecuteChanged();
             }
         }
@@ -198,7 +199,21 @@ public sealed class MainShellViewModel : ObservableObject
 
     public bool IsToursSectionActive => CurrentSection is ToursSectionViewModel;
 
-    public bool IsTopBarSectionControlsVisible => IsMapSectionActive || IsToursSectionActive;
+    public bool IsEmployeesSectionActive => CurrentSection is EmployeesSectionViewModel;
+
+    public bool IsVehiclesSectionActive => CurrentSection is VehiclesSectionViewModel;
+
+    public bool IsGpsSectionActive => CurrentSection is GpsSectionViewModel;
+
+    public bool IsSpediteurSectionActive => CurrentSection is SpediteurSectionViewModel;
+
+    public bool IsTopBarSectionControlsVisible =>
+        IsMapSectionActive ||
+        IsToursSectionActive ||
+        IsEmployeesSectionActive ||
+        IsVehiclesSectionActive ||
+        IsGpsSectionActive ||
+        IsSpediteurSectionActive;
 
     public bool IsToastVisible
     {
@@ -278,8 +293,13 @@ public sealed class MainShellViewModel : ObservableObject
         _mapSection.ExportRouteCommand.Execute(null);
     }
 
-    private static void TriggerSectionRefresh(object? section)
+    private void TriggerSectionRefreshOnce(object? section)
     {
+        if (section is null || !_activatedSections.Add(section))
+        {
+            return;
+        }
+
         switch (section)
         {
             case StartSectionViewModel start:

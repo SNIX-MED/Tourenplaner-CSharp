@@ -29,6 +29,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         ShowVehiclesCommand = new DelegateCommand(() => SetDisplayMode(FleetDisplayMode.Vehicles));
         ShowTrailersCommand = new DelegateCommand(() => SetDisplayMode(FleetDisplayMode.Trailers));
         ShowCombinationsCommand = new DelegateCommand(() => SetDisplayMode(FleetDisplayMode.Combinations));
+        RequestAddEntryCommand = new DelegateCommand(() => AddEntryRequested?.Invoke(this, EventArgs.Empty));
         _dataSyncService.DataChanged += OnDataChanged;
 
         _ = RefreshAsync();
@@ -43,6 +44,10 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
     public ICommand ShowTrailersCommand { get; }
 
     public ICommand ShowCombinationsCommand { get; }
+    
+    public ICommand RequestAddEntryCommand { get; }
+
+    public event EventHandler? AddEntryRequested;
 
     public string StatusText
     {

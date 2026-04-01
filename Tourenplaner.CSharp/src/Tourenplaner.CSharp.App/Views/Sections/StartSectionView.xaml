@@ -22,7 +22,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="10">
+    <Grid Margin="{StaticResource Spacing.PageMargin}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />

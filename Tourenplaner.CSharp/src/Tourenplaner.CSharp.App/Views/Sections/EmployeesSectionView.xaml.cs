@@ -7,12 +7,44 @@ namespace Tourenplaner.CSharp.App.Views.Sections;
 
 public partial class EmployeesSectionView : UserControl
 {
+    private EmployeesSectionViewModel? _currentViewModel;
+
     public EmployeesSectionView()
     {
         InitializeComponent();
+        DataContextChanged += OnDataContextChanged;
+        Unloaded += OnUnloaded;
     }
 
-    private async void OnAddEntryClicked(object sender, RoutedEventArgs e)
+    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_currentViewModel is not null)
+        {
+            _currentViewModel.AddEntryRequested -= OnAddEntryRequested;
+        }
+
+        _currentViewModel = DataContext as EmployeesSectionViewModel;
+        if (_currentViewModel is not null)
+        {
+            _currentViewModel.AddEntryRequested += OnAddEntryRequested;
+        }
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_currentViewModel is not null)
+        {
+            _currentViewModel.AddEntryRequested -= OnAddEntryRequested;
+            _currentViewModel = null;
+        }
+    }
+
+    private async void OnAddEntryRequested(object? sender, EventArgs e)
+    {
+        await OpenAddEntryDialogAsync();
+    }
+
+    private async Task OpenAddEntryDialogAsync()
     {
         if (DataContext is not EmployeesSectionViewModel vm)
         {

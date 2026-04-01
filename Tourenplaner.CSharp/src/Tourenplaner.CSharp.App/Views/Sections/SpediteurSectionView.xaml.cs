@@ -21,7 +21,6 @@ public partial class SpediteurSectionView : UserControl
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         await EnsureWebViewInitializedAsync();
-        NavigateIfPossible();
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -67,6 +66,8 @@ public partial class SpediteurSectionView : UserControl
             {
                 vm.SetWebView2RuntimeStatus(true);
             }
+
+            NavigateIfPossible();
         }
         catch (WebView2RuntimeNotFoundException)
         {

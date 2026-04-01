@@ -5,8 +5,21 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              d:DesignHeight="760"
-             d:DesignWidth="1080">
-    <Grid Margin="8">
+             d:DesignWidth="1080"
+             TextOptions.TextFormattingMode="Display"
+             TextOptions.TextRenderingMode="ClearType">
+    <UserControl.Resources>
+        <Style x:Key="SharpFilterBarCardStyle" TargetType="Border" BasedOn="{StaticResource FilterBarCardStyle}">
+            <Setter Property="Effect" Value="{x:Null}" />
+        </Style>
+        <Style x:Key="SharpSoftCardStyle" TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+            <Setter Property="Effect" Value="{x:Null}" />
+        </Style>
+        <Style x:Key="SharpGlassPanelBorderStyle" TargetType="Border" BasedOn="{StaticResource GlassPanelBorderStyle}">
+            <Setter Property="Effect" Value="{x:Null}" />
+        </Style>
+    </UserControl.Resources>
+    <Grid Margin="{StaticResource Spacing.PageMargin}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -14,30 +27,35 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid Margin="0,0,0,10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+        <Border Style="{StaticResource SharpFilterBarCardStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0"
-                       VerticalAlignment="Center"
-                       FontSize="28"
-                       FontWeight="SemiBold"
-                       Text="{Binding Title}" />
-            <Button Grid.Column="1"
-                    Width="130"
-                    Height="38"
-                    Margin="12,0,0,0"
-                    VerticalAlignment="Center"
-                    Content="Speichern"
-                    Style="{StaticResource SuccessButtonStyle}"
-                    Command="{Binding SaveCommand}" />
-        </Grid>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource SectionHeaderTitleTextStyle}"
+                               Text="{Binding Title}" />
+                    <TextBlock Style="{StaticResource SectionHeaderSubtitleTextStyle}"
+                               Text="Design, Integrationen und Standardwerte zentral verwalten." />
+                </StackPanel>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <Button Grid.Column="1"
+                        Width="140"
+                        Height="40"
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Center"
+                        Content="Speichern"
+                        Style="{StaticResource SuccessButtonStyle}"
+                        Command="{Binding SaveCommand}" />
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" Margin="{StaticResource Spacing.BlockTopMargin}" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-                <Expander IsExpanded="False" Margin="0,0,0,10">
+                <Border Style="{StaticResource SharpSoftCardStyle}" Padding="12" Margin="0,0,0,10">
+                <Expander IsExpanded="True">
                     <Expander.Header>
                         <StackPanel>
                             <TextBlock FontSize="18" FontWeight="SemiBold" Text="Allgemein" />
@@ -46,7 +64,7 @@
                                        Text="Darstellung und Standardtexte der Anwendung." />
                         </StackPanel>
                     </Expander.Header>
-                    <Border Margin="0,8,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+                    <Border Margin="0,8,0,0" Style="{StaticResource SharpGlassPanelBorderStyle}" Padding="14">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="190" />
@@ -65,109 +83,19 @@
                         </Grid>
                     </Border>
                 </Expander>
+                </Border>
 
-                <Expander IsExpanded="False" Margin="0,0,0,10">
+                <Border Style="{StaticResource SharpSoftCardStyle}" Padding="12" Margin="0,0,0,10">
+                <Expander IsExpanded="False">
                     <Expander.Header>
                         <StackPanel>
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Tools" />
-                            <TextBlock Margin="0,2,0,0"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       Text="Sichtbarkeit und Standard-Links für GPS und Spediteur-Portal." />
-                        </StackPanel>
-                    </Expander.Header>
-                    <Border Margin="0,8,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="190" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="GPS anzeigen" />
-                            <CheckBox Grid.Row="0" Grid.Column="1" Margin="10,6,0,6" IsChecked="{Binding ShowGpsTool, Mode=TwoWay}" />
-
-                            <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="GPS Standard-Link" />
-                            <TextBox Grid.Row="1"
-                                     Grid.Column="1"
-                                     Margin="10,4,0,4"
-                                     Text="{Binding GpsToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                            <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Spediteur anzeigen" />
-                            <CheckBox Grid.Row="2" Grid.Column="1" Margin="10,6,0,6" IsChecked="{Binding ShowSpediteurTool, Mode=TwoWay}" />
-
-                            <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="Spediteur Standard-Link" />
-                            <TextBox Grid.Row="3"
-                                     Grid.Column="1"
-                                     Margin="10,4,0,4"
-                                     Text="{Binding SpediteurToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        </Grid>
-                    </Border>
-                </Expander>
-
-                <Expander IsExpanded="False" Margin="0,0,0,10">
-                    <Expander.Header>
-                        <StackPanel>
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Firma" />
-                            <TextBlock Margin="0,2,0,0"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       Text="Absender- und Standortdaten für Touren und Kartenansicht." />
-                        </StackPanel>
-                    </Expander.Header>
-                    <Border Margin="0,8,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="190" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Firmenname" />
-                            <TextBox Grid.Row="0"
-                                     Grid.Column="1"
-                                     Margin="10,4,0,4"
-                                     Text="{Binding CompanyName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                            <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Firmenstrasse" />
-                            <TextBox Grid.Row="1"
-                                     Grid.Column="1"
-                                     Margin="10,4,0,4"
-                                     Text="{Binding CompanyStreet, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                            <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="PLZ / Ort" />
-                            <Grid Grid.Row="2" Grid.Column="1" Margin="10,4,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="90" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0"
-                                         Margin="0,0,8,0"
-                                         Text="{Binding CompanyPostalCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBox Grid.Column="1"
-                                         Text="{Binding CompanyCity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            </Grid>
-                        </Grid>
-                    </Border>
-                </Expander>
-
-                <Expander IsExpanded="False" Margin="0,0,0,10">
-                    <Expander.Header>
-                        <StackPanel>
-                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Status &amp; Kalender" />
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Karte &amp; Kalender" />
                             <TextBlock Margin="0,2,0,0"
                                        Foreground="{DynamicResource Brush.TextMuted}"
                                        Text="Pin-Farben und Kalender-Auslastung kompakt an einem Ort." />
                         </StackPanel>
                     </Expander.Header>
-                    <Border Margin="0,8,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+                    <Border Margin="0,8,0,0" Style="{StaticResource SharpGlassPanelBorderStyle}" Padding="14">
                         <StackPanel>
                             <DockPanel LastChildFill="False">
                                 <StackPanel DockPanel.Dock="Left">
@@ -252,8 +180,110 @@
                         </StackPanel>
                     </Border>
                 </Expander>
+                </Border>
 
-                <Expander IsExpanded="False" Margin="0,0,0,10">
+                <Border Style="{StaticResource SharpSoftCardStyle}" Padding="12" Margin="0,0,0,10">
+                <Expander IsExpanded="False">
+                    <Expander.Header>
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Tools" />
+                            <TextBlock Margin="0,2,0,0"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="Sichtbarkeit und Standard-Links für GPS und Spediteur-Portal." />
+                        </StackPanel>
+                    </Expander.Header>
+                    <Border Margin="0,8,0,0" Style="{StaticResource SharpGlassPanelBorderStyle}" Padding="14">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="190" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="GPS anzeigen" />
+                            <CheckBox Grid.Row="0" Grid.Column="1" Margin="10,6,0,6" IsChecked="{Binding ShowGpsTool, Mode=TwoWay}" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="GPS Standard-Link" />
+                            <TextBox Grid.Row="1"
+                                     Grid.Column="1"
+                                     Margin="10,4,0,4"
+                                     Text="{Binding GpsToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="Spediteur anzeigen" />
+                            <CheckBox Grid.Row="2" Grid.Column="1" Margin="10,6,0,6" IsChecked="{Binding ShowSpediteurTool, Mode=TwoWay}" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Text="Spediteur Standard-Link" />
+                            <TextBox Grid.Row="3"
+                                     Grid.Column="1"
+                                     Margin="10,4,0,4"
+                                     Text="{Binding SpediteurToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        </Grid>
+                    </Border>
+                </Expander>
+                </Border>
+
+                <Border Style="{StaticResource SharpSoftCardStyle}" Padding="12" Margin="0,0,0,10">
+                <Expander IsExpanded="False">
+                    <Expander.Header>
+                        <StackPanel>
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="Firma" />
+                            <TextBlock Margin="0,2,0,0"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="Absender- und Standortdaten für Touren und Kartenansicht." />
+                        </StackPanel>
+                    </Expander.Header>
+                    <Border Margin="0,8,0,0" Style="{StaticResource SharpGlassPanelBorderStyle}" Padding="14">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="190" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Text="Firmenname" />
+                            <TextBox Grid.Row="0"
+                                     Grid.Column="1"
+                                     Margin="10,4,0,4"
+                                     Text="{Binding CompanyName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Text="Firmenstrasse" />
+                            <TextBox Grid.Row="1"
+                                     Grid.Column="1"
+                                     Margin="10,4,0,4"
+                                     Text="{Binding CompanyStreet, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Text="PLZ / Ort" />
+                            <Grid Grid.Row="2" Grid.Column="1" Margin="10,4,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Margin="0,0,8,0"
+                                         Text="{Binding CompanyPostalCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding CompanyCity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Expander>
+                </Border>
+
+                
+
+                
+
+                <Border Style="{StaticResource SharpSoftCardStyle}" Padding="12" Margin="0,0,0,10">
+                <Expander IsExpanded="False">
                     <Expander.Header>
                         <StackPanel>
                             <TextBlock FontSize="18" FontWeight="SemiBold" Text="Backup &amp; Restore" />
@@ -262,7 +292,7 @@
                                        Text="Sicherungspfad, Wiederherstellung und automatische Intervalle." />
                         </StackPanel>
                     </Expander.Header>
-                    <Border Margin="0,8,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+                    <Border Margin="0,8,0,0" Style="{StaticResource SharpGlassPanelBorderStyle}" Padding="14">
                         <StackPanel>
                             <WrapPanel Margin="0,0,0,10">
                                 <Button Width="140" Content="Backup erstellen" Command="{Binding CreateBackupCommand}" />
@@ -338,8 +368,10 @@
                         </StackPanel>
                     </Border>
                 </Expander>
+                </Border>
 
-                <Expander IsExpanded="False" Margin="0,0,0,4">
+                <Border Style="{StaticResource SharpSoftCardStyle}" Padding="12" Margin="0,0,0,10">
+                <Expander IsExpanded="False">
                     <Expander.Header>
                         <StackPanel>
                             <TextBlock FontSize="18" FontWeight="SemiBold" Text="Updates &amp; Versionen" />
@@ -348,7 +380,7 @@
                                        Text="GitHub Releases prüfen, neue Version herunterladen und Release-Seite öffnen." />
                         </StackPanel>
                     </Expander.Header>
-                    <Border Margin="0,8,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+                    <Border Margin="0,8,0,0" Style="{StaticResource SharpGlassPanelBorderStyle}" Padding="14">
                         <StackPanel>
                             <WrapPanel Margin="0,0,0,10">
                                 <Button Width="150" Content="Updates prüfen" Command="{Binding CheckForUpdatesCommand}" />
@@ -406,8 +438,10 @@
                         </StackPanel>
                     </Border>
                 </Expander>
+                </Border>
 
-                <Expander IsExpanded="False" Margin="0,0,0,4">
+                <Border Style="{StaticResource SharpSoftCardStyle}" Padding="12" Margin="0,0,0,10">
+                <Expander IsExpanded="False">
                     <Expander.Header>
                         <StackPanel>
                             <TextBlock FontSize="18" FontWeight="SemiBold" Text="SQL Server Import" />
@@ -416,7 +450,7 @@
                                        Text="Konfigurieren und Importieren von Aufträgen aus der Business11 Datenbank." />
                         </StackPanel>
                     </Expander.Header>
-                    <Border Margin="0,8,0,0" Style="{StaticResource GlassPanelBorderStyle}" Padding="14">
+                    <Border Margin="0,8,0,0" Style="{StaticResource SharpGlassPanelBorderStyle}" Padding="14">
                         <StackPanel>
                             <WrapPanel Margin="0,0,0,10">
                                 <Button Width="140" Content="Verbindung testen" Command="{Binding TestSqlConnectionCommand}" />
@@ -478,28 +512,17 @@
                         </StackPanel>
                     </Border>
                 </Expander>
+                </Border>
             </StackPanel>
         </ScrollViewer>
 
-        <TextBlock Grid.Row="2" Margin="0,12,0,0" FontWeight="SemiBold" Text="Prüfung">
-            <TextBlock.Style>
-                <Style TargetType="TextBlock">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding ValidationSummary}" Value="">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding ValidationSummary}" Value="{x:Null}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                        <Trigger Property="Text" Value="Prüfung">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </Trigger>
-                    </Style.Triggers>
-                </Style>
-            </TextBlock.Style>
-        </TextBlock>
-        <Border Grid.Row="3" Margin="0,6,0,0" Padding="10" CornerRadius="10" Background="#FFF7E8" BorderBrush="#F2C46D" BorderThickness="1">
+        <Border Grid.Row="3"
+                Margin="0,12,0,0"
+                Padding="12"
+                CornerRadius="12"
+                Background="{DynamicResource Brush.DangerSoft}"
+                BorderBrush="{DynamicResource Brush.Danger}"
+                BorderThickness="1">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="Visibility" Value="Visible" />
@@ -513,9 +536,13 @@
                     </Style.Triggers>
                 </Style>
             </Border.Style>
-            <TextBlock Foreground="#7C4A03"
-                       TextWrapping="Wrap"
-                       Text="{Binding ValidationSummary, Mode=OneWay}" />
+            <StackPanel>
+                <TextBlock Margin="0,0,0,6"
+                           FontWeight="SemiBold"
+                           Text="Prüfung" />
+                <TextBlock TextWrapping="Wrap"
+                           Text="{Binding ValidationSummary, Mode=OneWay}" />
+            </StackPanel>
         </Border>
     </Grid>
 </UserControl>

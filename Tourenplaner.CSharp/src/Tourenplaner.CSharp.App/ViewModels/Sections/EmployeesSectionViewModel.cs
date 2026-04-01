@@ -22,6 +22,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         _repository = new JsonEmployeesRepository(employeesJsonPath);
         _dataSyncService = dataSyncService;
         RefreshCommand = new AsyncCommand(RefreshAsync);
+        RequestAddEntryCommand = new DelegateCommand(() => AddEntryRequested?.Invoke(this, EventArgs.Empty));
         _dataSyncService.DataChanged += OnDataChanged;
         _ = RefreshAsync();
     }
@@ -29,6 +30,8 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
     public ObservableCollection<EmployeeCardItem> Entries { get; } = new();
 
     public ICommand RefreshCommand { get; }
+    public ICommand RequestAddEntryCommand { get; }
+    public event EventHandler? AddEntryRequested;
 
     public string StatusText
     {

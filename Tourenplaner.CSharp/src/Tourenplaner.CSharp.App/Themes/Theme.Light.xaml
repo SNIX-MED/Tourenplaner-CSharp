@@ -11,7 +11,7 @@
     <Color x:Key="Color.DangerHover">#B91C1C</Color>
 
     <Color x:Key="Color.TextPrimary">#0F172A</Color>
-    <Color x:Key="Color.TextMuted">#64748B</Color>
+    <Color x:Key="Color.TextMuted">#52637A</Color>
     <Color x:Key="Color.TextSubtle">#94A3B8</Color>
     <Color x:Key="Color.Focus">#8B5CF6</Color>
 
@@ -37,7 +37,7 @@
     <SolidColorBrush x:Key="Brush.CardSoft" Color="#F8FAFC" />
     <SolidColorBrush x:Key="Brush.CardMuted" Color="#F1F5F9" />
     <SolidColorBrush x:Key="Brush.BorderStrong" Color="#D7DFEA" />
-    <SolidColorBrush x:Key="Brush.BorderSoft" Color="#E4EAF3" />
+    <SolidColorBrush x:Key="Brush.BorderSoft" Color="#D7E0EC" />
     <SolidColorBrush x:Key="Brush.GlassSurface" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="Brush.GlassSurfaceStrong" Color="#FBFCFF" />
     <SolidColorBrush x:Key="Brush.GlassSurfaceSoft" Color="#F7F8FC" />
@@ -48,7 +48,7 @@
     <SolidColorBrush x:Key="Brush.DangerSoft" Color="#FEE2E2" />
 
     <SolidColorBrush x:Key="Brush.InputBackground" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="Brush.InputBorder" Color="#CBD5E1" />
+    <SolidColorBrush x:Key="Brush.InputBorder" Color="#B7C3D4" />
     <SolidColorBrush x:Key="Brush.InputBackgroundDisabled" Color="#F8FAFC" />
 
     <SolidColorBrush x:Key="Brush.ButtonBackground" Color="#FFFFFF" />
@@ -59,7 +59,7 @@
     <SolidColorBrush x:Key="Brush.TableBackground" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="Brush.TableRow" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="Brush.TableAltRow" Color="#F8FAFC" />
-    <SolidColorBrush x:Key="Brush.TableGrid" Color="#E2E8F0" />
+    <SolidColorBrush x:Key="Brush.TableGrid" Color="#D4DEEA" />
     <SolidColorBrush x:Key="Brush.RowHover" Color="#EEF2FF" />
     <SolidColorBrush x:Key="Brush.RowSelected" Color="#D6ECFF" />
 

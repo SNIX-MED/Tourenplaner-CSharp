@@ -7,21 +7,8 @@
              mc:Ignorable="d"
              d:DesignHeight="640"
              d:DesignWidth="1020">
-    <Grid Margin="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <DockPanel Margin="0,0,0,10">
-            <TextBlock Text="{Binding Title}" FontSize="26" FontWeight="SemiBold" />
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                <Button Width="110" Margin="8,0,0,0" Content="Reload" Command="{Binding RefreshCommand}" />
-                <Button Width="150" Margin="8,0,0,0" Content="Open in Browser" Command="{Binding OpenInBrowserCommand}" />
-            </StackPanel>
-        </DockPanel>
-
-        <Border Grid.Row="1"
+    <Grid Margin="{StaticResource Spacing.PageMargin}">
+        <Border
                 BorderBrush="{DynamicResource Brush.GlassStroke}"
                 BorderThickness="1"
                 CornerRadius="10"

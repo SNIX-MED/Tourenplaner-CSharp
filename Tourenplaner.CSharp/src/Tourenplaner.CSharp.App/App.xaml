@@ -10,6 +10,9 @@
                 <ResourceDictionary Source="Themes/Theme.Light.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <v:GpsSectionView x:Key="GpsSectionViewSingleton" />
+            <v:SpediteurSectionView x:Key="SpediteurSectionViewSingleton" />
+
             <DataTemplate DataType="{x:Type vm:StartSectionViewModel}">
                 <v:StartSectionView />
             </DataTemplate>
@@ -20,10 +23,10 @@
                 <v:KarteSectionView />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:GpsSectionViewModel}">
-                <v:GpsSectionView />
+                <ContentPresenter Content="{StaticResource GpsSectionViewSingleton}" />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:SpediteurSectionViewModel}">
-                <v:SpediteurSectionView />
+                <ContentPresenter Content="{StaticResource SpediteurSectionViewSingleton}" />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:OrdersSectionViewModel}">
                 <v:OrdersSectionView />

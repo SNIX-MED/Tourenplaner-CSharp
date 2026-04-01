@@ -50,7 +50,7 @@
     <ScrollViewer x:Name="PageScrollViewer"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <Grid Margin="8">
+        <Grid Margin="{StaticResource Spacing.PageMargin}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />

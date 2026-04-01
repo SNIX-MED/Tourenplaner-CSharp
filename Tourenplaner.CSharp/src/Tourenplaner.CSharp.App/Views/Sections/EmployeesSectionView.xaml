@@ -6,39 +6,22 @@
              mc:Ignorable="d"
              d:DesignHeight="760"
              d:DesignWidth="1200">
-    <Grid Margin="8">
+    <Grid Margin="{StaticResource Spacing.PageMargin}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Style="{StaticResource FilterBarCardStyle}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="170" />
-                </Grid.ColumnDefinitions>
-
-                <Button Grid.Column="1"
-                        Margin="10,0,0,0"
-                        Height="38"
-                        Content="+ Mitarbeiter"
-                        Style="{StaticResource SuccessButtonStyle}"
-                        Click="OnAddEntryClicked" />
-            </Grid>
-        </Border>
-
-        <Border Grid.Row="1" Margin="0,12,0,10" Style="{StaticResource SoftCardStyle}" Padding="10">
+        <Border Grid.Row="0" Margin="0,0,0,10" Style="{StaticResource SoftCardStyle}" Padding="10">
             <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding CountText}" />
         </Border>
 
-        <Border Grid.Row="2" Style="{StaticResource FlatCardStyle}" Padding="12">
+        <Border Grid.Row="1" Style="{StaticResource EntityListContainerCardStyle}">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding Entries}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Margin="0,0,0,10" Padding="14" Style="{StaticResource SoftCardStyle}">
+                            <Border Style="{StaticResource EntityListItemCardStyle}">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />

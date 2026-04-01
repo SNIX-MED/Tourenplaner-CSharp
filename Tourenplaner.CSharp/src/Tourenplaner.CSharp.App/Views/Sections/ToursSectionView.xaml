@@ -6,7 +6,7 @@
              mc:Ignorable="d"
              d:DesignHeight="900"
              d:DesignWidth="1450">
-    <Grid Margin="8">
+    <Grid Margin="{StaticResource Spacing.PageMargin}">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="1.35*" MinWidth="560" />
