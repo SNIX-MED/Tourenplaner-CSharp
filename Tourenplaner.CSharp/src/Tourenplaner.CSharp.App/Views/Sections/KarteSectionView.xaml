@@ -59,11 +59,6 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#EAF4FF" />
-                </Trigger>
-            </Style.Triggers>
         </Style>
     </UserControl.Resources>
 
@@ -193,6 +188,9 @@
                                                                     </DataTrigger>
                                                                     <DataTrigger Binding="{Binding IsCompanyAnchor}" Value="True">
                                                                         <Setter Property="Padding" Value="4,2" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -399,13 +397,14 @@
                                                         </Grid>
                                                     </Border>
 
-                                                    <Border Margin="16,0,16,10"
-                                                            Padding="10,8"
+                                                    <Border Margin="16,-2,16,6"
+                                                            Padding="6,2"
                                                             CornerRadius="10"
                                                             BorderThickness="1">
                                                         <Border.Style>
                                                             <Style TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
-                                                                <Setter Property="BorderBrush" Value="{Binding NextLegAccentColor}" />
+                                                                <Setter Property="BorderThickness" Value="0" />
+                                                                <Setter Property="Background" Value="Transparent" />
                                                                 <Setter Property="Visibility" Value="Visible" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding HasNextLeg}" Value="False">
@@ -417,9 +416,9 @@
                                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="&#xE804;"
                                            FontFamily="Segoe MDL2 Assets"
-                                           FontSize="14"
+                                           FontSize="12"
                                            FontWeight="SemiBold"
-                                           Margin="0,0,8,0"
+                                           Margin="0,0,6,0"
                                            Foreground="{Binding NextLegAccentColor}" />
                                                             <TextBlock Text="{Binding NextLegDurationText}"
                                                                        FontWeight="SemiBold"

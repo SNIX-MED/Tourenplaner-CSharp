@@ -100,11 +100,11 @@
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="120" />
-                                <ColumnDefinition Width="140" />
-                                <ColumnDefinition Width="96" />
-                                <ColumnDefinition Width="96" />
-                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <Grid Grid.Column="0">
@@ -133,7 +133,7 @@
                                            Text="{Binding FilterSummaryText}" />
                             </Grid>
 
-                            <Grid Grid.Column="1" Margin="0,0,10,0">
+                            <Grid Grid.Column="1" Margin="0,0,8,0">
                                 <ToggleButton x:Name="MapFilterPopupButton"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
                                               PreviewMouseLeftButtonDown="TogglePopupButton_PreviewMouseLeftButtonDown"
@@ -260,7 +260,7 @@
                                     </Border>
                                 </Popup>
                             </Grid>
-                            <Grid Grid.Column="2" Margin="0,0,10,0">
+                            <Grid Grid.Column="2" Margin="0,0,8,0">
                                 <ToggleButton x:Name="MapLegendPopupButton"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
                                               PreviewMouseLeftButtonDown="TogglePopupButton_PreviewMouseLeftButtonDown"
@@ -402,32 +402,38 @@
                                 </Popup>
                             </Grid>
                             <Button Grid.Column="3"
-                                    Width="88"
+                                    Width="64"
                                     Height="40"
+                                    Padding="0"
                                     Margin="0,0,8,0"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
                                     ToolTip="Schaltet die Infokarten auf der Karte ein oder aus."
-                                    ToolTipService.InitialShowDelay="2000"
+                                    ToolTipService.InitialShowDelay="1500"
                                     ToolTipService.ShowDuration="8000"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding TogglePinInfoCardsCommand}">
-                                <Image Width="30"
-                                       Height="30"
+                                <Image Width="36"
+                                       Height="36"
                                        Stretch="Uniform"
                                        RenderOptions.BitmapScalingMode="HighQuality"
                                        SnapsToDevicePixels="True"
                                        Source="{Binding PinInfoCardsImagePath}" />
                             </Button>
                             <Button Grid.Column="4"
-                                    Width="88"
+                                    Width="64"
                                     Height="40"
+                                    Padding="0"
                                     Margin="0,0,8,0"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
                                     ToolTip="Öffnet die Split-Screen Ansicht für paralleles Arbeiten."
-                                    ToolTipService.InitialShowDelay="2000"
+                                    ToolTipService.InitialShowDelay="1500"
                                     ToolTipService.ShowDuration="8000"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding OpenSplitScreenCommand}">
-                                <Image Width="34"
-                                       Height="34"
+                                <Image Width="38"
+                                       Height="38"
                                        Stretch="Uniform"
                                        RenderOptions.BitmapScalingMode="HighQuality"
                                        SnapsToDevicePixels="True"
