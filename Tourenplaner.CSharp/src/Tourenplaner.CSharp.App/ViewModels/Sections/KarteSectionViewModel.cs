@@ -1256,13 +1256,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             }
 
             var draftOrderId = order.Id;
-            var draftStop = RouteStops.FirstOrDefault(x =>
-                !IsCompanyStop(x) &&
-                string.Equals(x.OrderId, draftOrderId, StringComparison.OrdinalIgnoreCase));
-            if (draftStop is not null)
-            {
-                RouteStops.Remove(draftStop);
-            }
+            RemoveDraftRouteStop(draftOrderId);
 
             RebuildPositions();
             RebuildOrderGrid(draftOrderId);
@@ -1274,7 +1268,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         var selectedOrderId = order.Id;
-        var tourKey = order.AssignedTourId.Trim();
+        var tourKey = (order.AssignedTourId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(tourKey))
+        {
+            StatusText = "Auftrag ist keiner gespeicherten Tour zugeordnet.";
+            return;
+        }
+
         var tours = (await _tourRepository.LoadAsync()).ToList();
         var tour = tours.FirstOrDefault(x => string.Equals(x.Id.ToString(CultureInfo.InvariantCulture), tourKey, StringComparison.OrdinalIgnoreCase));
         if (tour is not null)
@@ -1306,6 +1306,17 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, selectedOrderId, StringComparison.OrdinalIgnoreCase));
         StatusText = $"Auftrag {selectedOrderId} wurde aus der Tour entfernt.";
+    }
+
+    private void RemoveDraftRouteStop(string orderId)
+    {
+        var draftStop = RouteStops.FirstOrDefault(x =>
+            !IsCompanyStop(x) &&
+            string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+        if (draftStop is not null)
+        {
+            RouteStops.Remove(draftStop);
+        }
     }
 
     private void MoveSelectedStopUp()
@@ -2505,29 +2516,43 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             RouteStops[i].Position = i + 1;
         }
 
-        foreach (var stop in RouteStops)
-        {
-            stop.EtaText = string.Empty;
-        }
+        ClearRouteStopEtaValues();
 
         OnPropertyChanged(nameof(RouteStops));
-        var distancePoints = RouteStops
-            .Where(x => !double.IsNaN(x.Latitude) && !double.IsNaN(x.Longitude))
-            .ToList();
-        RouteDistanceKm = _optimizationService.ComputeTotalDistanceKm(distancePoints, x => x.Latitude, x => x.Longitude);
-        if (RouteStops.Count(x => !IsCompanyStop(x)) == 0)
-        {
-            ClearDriveTimes();
-        }
-        else
-        {
-            RouteTimingSummary = "Fahrzeiten werden berechnet...";
-            DriveTimesText = "Fahrzeiten werden berechnet...";
-        }
+        UpdateRouteDistanceFromStops();
+        UpdateDriveTimePlaceholderState();
         UpdateRouteSummary();
         _ = RebuildRouteGeometryAsync();
         UpdateStatus();
         RaiseCommandStates();
+    }
+
+    private void ClearRouteStopEtaValues()
+    {
+        foreach (var stop in RouteStops)
+        {
+            stop.EtaText = string.Empty;
+        }
+    }
+
+    private void UpdateRouteDistanceFromStops()
+    {
+        var distancePoints = RouteStops
+            .Where(x => !double.IsNaN(x.Latitude) && !double.IsNaN(x.Longitude))
+            .ToList();
+        RouteDistanceKm = _optimizationService.ComputeTotalDistanceKm(distancePoints, x => x.Latitude, x => x.Longitude);
+    }
+
+    private void UpdateDriveTimePlaceholderState()
+    {
+        if (RouteStops.Count(x => !IsCompanyStop(x)) == 0)
+        {
+            ClearDriveTimes();
+            return;
+        }
+
+        RouteTimingSummary = "Fahrzeiten werden berechnet...";
+        DriveTimesText = "Fahrzeiten werden berechnet...";
     }
 
     private void UpdateStatus()
@@ -2722,94 +2747,36 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     private void RaiseCommandStates()
     {
-        if (AddToRouteCommand is DelegateCommand add)
-        {
-            add.RaiseCanExecuteChanged();
-        }
+        RaiseCanExecuteChangedIfSupported(AddToRouteCommand);
+        RaiseCanExecuteChangedIfSupported(RemoveOrderFromTourCommand);
+        RaiseCanExecuteChangedIfSupported(RemoveFromRouteCommand);
+        RaiseCanExecuteChangedIfSupported(MoveStopUpCommand);
+        RaiseCanExecuteChangedIfSupported(MoveStopDownCommand);
+        RaiseCanExecuteChangedIfSupported(OptimizeRouteCommand);
+        RaiseCanExecuteChangedIfSupported(OpenCreateTourDialogCommand);
+        RaiseCanExecuteChangedIfSupported(EditSelectedTourCommand);
+        RaiseCanExecuteChangedIfSupported(ExportRouteCommand);
+        RaiseCanExecuteChangedIfSupported(SaveRouteAsTourCommand);
+        RaiseCanExecuteChangedIfSupported(SaveCurrentTourCommand);
+        RaiseCanExecuteChangedIfSupported(ClearRouteCommand);
+        RaiseCanExecuteChangedIfSupported(LeaveSelectedTourCommand);
+        RaiseCanExecuteChangedIfSupported(DeleteSelectedTourCommand);
+        RaiseCanExecuteChangedIfSupported(CloseDetailsCommand);
+        RaiseCanExecuteChangedIfSupported(SendEmailCommand);
+        RaiseCanExecuteChangedIfSupported(EditOrderCommand);
+        RaiseCanExecuteChangedIfSupported(ShowSelectedOrderTourCommand);
+    }
 
-        if (RemoveOrderFromTourCommand is AsyncCommand removeFromTour)
+    private static void RaiseCanExecuteChangedIfSupported(ICommand command)
+    {
+        switch (command)
         {
-            removeFromTour.RaiseCanExecuteChanged();
-        }
-
-        if (RemoveFromRouteCommand is DelegateCommand remove)
-        {
-            remove.RaiseCanExecuteChanged();
-        }
-
-        if (MoveStopUpCommand is DelegateCommand up)
-        {
-            up.RaiseCanExecuteChanged();
-        }
-
-        if (MoveStopDownCommand is DelegateCommand down)
-        {
-            down.RaiseCanExecuteChanged();
-        }
-
-        if (OptimizeRouteCommand is AsyncCommand optimize)
-        {
-            optimize.RaiseCanExecuteChanged();
-        }
-
-        if (OpenCreateTourDialogCommand is AsyncCommand openCreateTour)
-        {
-            openCreateTour.RaiseCanExecuteChanged();
-        }
-
-        if (EditSelectedTourCommand is AsyncCommand editTour)
-        {
-            editTour.RaiseCanExecuteChanged();
-        }
-
-        if (ExportRouteCommand is AsyncCommand exportRoute)
-        {
-            exportRoute.RaiseCanExecuteChanged();
-        }
-
-        if (SaveRouteAsTourCommand is AsyncCommand save)
-        {
-            save.RaiseCanExecuteChanged();
-        }
-
-        if (SaveCurrentTourCommand is AsyncCommand saveCurrent)
-        {
-            saveCurrent.RaiseCanExecuteChanged();
-        }
-
-        if (ClearRouteCommand is DelegateCommand clear)
-        {
-            clear.RaiseCanExecuteChanged();
-        }
-
-        if (LeaveSelectedTourCommand is DelegateCommand leave)
-        {
-            leave.RaiseCanExecuteChanged();
-        }
-
-        if (DeleteSelectedTourCommand is AsyncCommand deleteTour)
-        {
-            deleteTour.RaiseCanExecuteChanged();
-        }
-
-        if (CloseDetailsCommand is DelegateCommand closeDetails)
-        {
-            closeDetails.RaiseCanExecuteChanged();
-        }
-
-        if (SendEmailCommand is DelegateCommand sendMail)
-        {
-            sendMail.RaiseCanExecuteChanged();
-        }
-
-        if (EditOrderCommand is AsyncCommand editOrder)
-        {
-            editOrder.RaiseCanExecuteChanged();
-        }
-
-        if (ShowSelectedOrderTourCommand is AsyncCommand showTour)
-        {
-            showTour.RaiseCanExecuteChanged();
+            case DelegateCommand sync:
+                sync.RaiseCanExecuteChanged();
+                break;
+            case AsyncCommand async:
+                async.RaiseCanExecuteChanged();
+                break;
         }
     }
 

@@ -14,6 +14,14 @@ namespace Tourenplaner.CSharp.App.ViewModels;
 
 public sealed class MainShellViewModel : ObservableObject
 {
+    private static readonly HashSet<string> ToolSettingsPropertyNames =
+    [
+        nameof(SettingsSectionViewModel.ShowGpsTool),
+        nameof(SettingsSectionViewModel.ShowSpediteurTool),
+        nameof(SettingsSectionViewModel.GpsToolUrl),
+        nameof(SettingsSectionViewModel.SpediteurToolUrl)
+    ];
+
     private readonly KarteSectionViewModel _mapSection;
     private readonly KalenderSectionViewModel _calendarSection;
     private readonly SplitScreenSectionViewModel _splitScreenSection;
@@ -180,12 +188,7 @@ public sealed class MainShellViewModel : ObservableObject
                 return;
             }
 
-            OnPropertyChanged(nameof(IsSplitScreenActive));
-            OnPropertyChanged(nameof(IsSidebarVisible));
-            OnPropertyChanged(nameof(SidebarColumnWidth));
-            OnPropertyChanged(nameof(IsMapSectionActive));
-            OnPropertyChanged(nameof(IsToursSectionActive));
-            OnPropertyChanged(nameof(IsTopBarSectionControlsVisible));
+            OnCurrentSectionChanged();
         }
     }
 
@@ -230,24 +233,24 @@ public sealed class MainShellViewModel : ObservableObject
     private async Task NavigateToTourAsync(ToursSectionViewModel toursSection, int tourId)
     {
         await toursSection.FocusTourAsync(tourId);
-        SelectedNavigationItem = NavigationItems.FirstOrDefault(x => ReferenceEquals(x.Section, toursSection)) ?? SelectedNavigationItem;
+        SelectNavigationItemForSection(toursSection);
     }
 
     private async Task NavigateToTourDateAsync(ToursSectionViewModel toursSection, DateTime date)
     {
-        SelectedNavigationItem = NavigationItems.FirstOrDefault(x => ReferenceEquals(x.Section, toursSection)) ?? SelectedNavigationItem;
+        SelectNavigationItemForSection(toursSection);
         await toursSection.FocusDateAsync(date);
     }
 
     private async Task NavigateToMapTourAsync(KarteSectionViewModel mapSection, int tourId)
     {
-        SelectedNavigationItem = NavigationItems.FirstOrDefault(x => ReferenceEquals(x.Section, mapSection)) ?? SelectedNavigationItem;
+        SelectNavigationItemForSection(mapSection);
         await mapSection.FocusTourAsync(tourId);
     }
 
     private async Task NavigateToMapAsync(KarteSectionViewModel mapSection)
     {
-        SelectedNavigationItem = NavigationItems.FirstOrDefault(x => ReferenceEquals(x.Section, mapSection)) ?? SelectedNavigationItem;
+        SelectNavigationItemForSection(mapSection);
         await mapSection.RefreshAsync();
     }
 
@@ -300,45 +303,18 @@ public sealed class MainShellViewModel : ObservableObject
             return;
         }
 
-        switch (section)
-        {
-            case StartSectionViewModel start:
-                _ = start.RefreshAsync();
-                break;
-            case KarteSectionViewModel map:
-                _ = map.RefreshAsync();
-                break;
-            case ToursSectionViewModel tours:
-                _ = tours.RefreshAsync();
-                break;
-            case KalenderSectionViewModel calendar:
-                _ = calendar.RefreshAsync();
-                break;
-            case VehiclesSectionViewModel vehicles:
-                _ = vehicles.RefreshAsync();
-                break;
-            case OrdersSectionViewModel orders:
-                _ = orders.RefreshAsync();
-                break;
-            case NonMapOrdersSectionViewModel nonMap:
-                _ = nonMap.RefreshAsync();
-                break;
-            case SettingsSectionViewModel settings:
-                _ = settings.RefreshAsync();
-                break;
-        }
+        _ = TryRefreshSectionAsync(section);
     }
 
     private void OnSettingsSectionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(SettingsSectionViewModel.ShowGpsTool) or
-            nameof(SettingsSectionViewModel.ShowSpediteurTool) or
-            nameof(SettingsSectionViewModel.GpsToolUrl) or
-            nameof(SettingsSectionViewModel.SpediteurToolUrl))
+        if (!ToolSettingsPropertyNames.Contains(e.PropertyName ?? string.Empty))
         {
-            ApplyToolSettingsFromSettingsSection();
-            RebuildSidebarNavigation();
+            return;
         }
+
+        ApplyToolSettingsFromSettingsSection();
+        RebuildSidebarNavigation();
     }
 
     private void ApplyToolSettingsFromSettingsSection()
@@ -352,17 +328,7 @@ public sealed class MainShellViewModel : ObservableObject
         SidebarNavigationItems.Clear();
         foreach (var item in NavigationItems)
         {
-            if (ReferenceEquals(item, _settingsNavigationItem))
-            {
-                continue;
-            }
-
-            if (ReferenceEquals(item, _gpsNavigationItem) && !_settingsSection.ShowGpsTool)
-            {
-                continue;
-            }
-
-            if (ReferenceEquals(item, _spediteurNavigationItem) && !_settingsSection.ShowSpediteurTool)
+            if (!IsNavigationItemVisibleInSidebar(item))
             {
                 continue;
             }
@@ -370,6 +336,66 @@ public sealed class MainShellViewModel : ObservableObject
             SidebarNavigationItems.Add(item);
         }
 
+        EnsureSelectedNavigationItemIsVisible();
+    }
+
+    private void OnCurrentSectionChanged()
+    {
+        OnPropertyChanged(nameof(IsSplitScreenActive));
+        OnPropertyChanged(nameof(IsSidebarVisible));
+        OnPropertyChanged(nameof(SidebarColumnWidth));
+        OnPropertyChanged(nameof(IsMapSectionActive));
+        OnPropertyChanged(nameof(IsToursSectionActive));
+        OnPropertyChanged(nameof(IsEmployeesSectionActive));
+        OnPropertyChanged(nameof(IsVehiclesSectionActive));
+        OnPropertyChanged(nameof(IsGpsSectionActive));
+        OnPropertyChanged(nameof(IsSpediteurSectionActive));
+        OnPropertyChanged(nameof(IsTopBarSectionControlsVisible));
+    }
+
+    private void SelectNavigationItemForSection(object section)
+    {
+        SelectedNavigationItem = NavigationItems.FirstOrDefault(x => ReferenceEquals(x.Section, section)) ?? SelectedNavigationItem;
+    }
+
+    private static Task TryRefreshSectionAsync(object section)
+    {
+        return section switch
+        {
+            StartSectionViewModel start => start.RefreshAsync(),
+            KarteSectionViewModel map => map.RefreshAsync(),
+            ToursSectionViewModel tours => tours.RefreshAsync(),
+            KalenderSectionViewModel calendar => calendar.RefreshAsync(),
+            VehiclesSectionViewModel vehicles => vehicles.RefreshAsync(),
+            OrdersSectionViewModel orders => orders.RefreshAsync(),
+            NonMapOrdersSectionViewModel nonMap => nonMap.RefreshAsync(),
+            SettingsSectionViewModel settings => settings.RefreshAsync(),
+            _ => Task.CompletedTask
+        };
+    }
+
+    private bool IsNavigationItemVisibleInSidebar(NavigationItemViewModel item)
+    {
+        if (ReferenceEquals(item, _settingsNavigationItem))
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(item, _gpsNavigationItem) && !_settingsSection.ShowGpsTool)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(item, _spediteurNavigationItem) && !_settingsSection.ShowSpediteurTool)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private void EnsureSelectedNavigationItemIsVisible()
+    {
         if (SelectedNavigationItem is null)
         {
             return;

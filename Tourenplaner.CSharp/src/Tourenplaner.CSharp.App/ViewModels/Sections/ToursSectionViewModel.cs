@@ -513,11 +513,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var originalDate = target.Date;
-        var originalStartTime = target.StartTime;
-        var originalVehicleId = target.VehicleId;
-        var originalTrailerId = target.TrailerId;
-        var originalEmployeeIds = target.EmployeeIds.ToList();
+        var originalAssignment = CaptureAssignment(target);
 
         target.Date = (EditorDate ?? string.Empty).Trim();
         target.StartTime = (EditorStartTime ?? string.Empty).Trim();
@@ -531,21 +527,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         if (!ConfirmAssignmentConflictWarning(_loadedTours, target.Id))
         {
-            target.Date = originalDate;
-            target.StartTime = originalStartTime;
-            target.VehicleId = originalVehicleId;
-            target.TrailerId = originalTrailerId;
-            target.EmployeeIds = originalEmployeeIds;
+            RestoreAssignment(target, originalAssignment);
             return;
         }
 
         if (!ConfirmCapacityWarning(target.VehicleId, target.TrailerId, CalculateTourWeightKg(target)))
         {
-            target.Date = originalDate;
-            target.StartTime = originalStartTime;
-            target.VehicleId = originalVehicleId;
-            target.TrailerId = originalTrailerId;
-            target.EmployeeIds = originalEmployeeIds;
+            RestoreAssignment(target, originalAssignment);
             return;
         }
 
@@ -562,72 +550,44 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private void ToggleFromDatePopup()
     {
-        IsToDatePopupOpen = false;
-        IsFromDatePopupOpen = !IsFromDatePopupOpen;
-        if (IsFromDatePopupOpen)
-        {
-            if (FromDate.HasValue)
-            {
-                _fromCalendarMonth = new DateTime(FromDate.Value.Year, FromDate.Value.Month, 1);
-            }
-
-            RebuildFromCalendarDays();
-        }
+        ToggleDatePopup(isFrom: true);
     }
 
     private void ToggleToDatePopup()
     {
-        IsFromDatePopupOpen = false;
-        IsToDatePopupOpen = !IsToDatePopupOpen;
-        if (IsToDatePopupOpen)
-        {
-            if (ToDate.HasValue)
-            {
-                _toCalendarMonth = new DateTime(ToDate.Value.Year, ToDate.Value.Month, 1);
-            }
-
-            RebuildToCalendarDays();
-        }
+        ToggleDatePopup(isFrom: false);
     }
 
     private void ShowPreviousFromMonth()
     {
-        _fromCalendarMonth = _fromCalendarMonth.AddMonths(-1);
-        RebuildFromCalendarDays();
+        ShiftCalendarMonth(isFrom: true, monthDelta: -1);
     }
 
     private void ShowNextFromMonth()
     {
-        _fromCalendarMonth = _fromCalendarMonth.AddMonths(1);
-        RebuildFromCalendarDays();
+        ShiftCalendarMonth(isFrom: true, monthDelta: 1);
     }
 
     private void ShowPreviousToMonth()
     {
-        _toCalendarMonth = _toCalendarMonth.AddMonths(-1);
-        RebuildToCalendarDays();
+        ShiftCalendarMonth(isFrom: false, monthDelta: -1);
     }
 
     private void ShowNextToMonth()
     {
-        _toCalendarMonth = _toCalendarMonth.AddMonths(1);
-        RebuildToCalendarDays();
+        ShiftCalendarMonth(isFrom: false, monthDelta: 1);
     }
 
     private void SetTodayFilter()
     {
         var today = DateTime.Today;
-        FromDate = today;
-        ToDate = today;
-        ApplyDateFilter();
+        SetDateFilter(today, today);
     }
 
     private void SetTomorrowFilter()
     {
         var tomorrow = DateTime.Today.AddDays(1);
-        FromDate = tomorrow;
-        ToDate = tomorrow;
-        ApplyDateFilter();
+        SetDateFilter(tomorrow, tomorrow);
     }
 
     private void SetWeekFilter()
@@ -636,16 +596,12 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var offset = (7 + ((int)today.DayOfWeek - (int)DayOfWeek.Monday)) % 7;
         var start = today.AddDays(-offset);
         var end = start.AddDays(6);
-        FromDate = start;
-        ToDate = end;
-        ApplyDateFilter();
+        SetDateFilter(start, end);
     }
 
     private void ResetDateFilter()
     {
-        FromDate = null;
-        ToDate = null;
-        ApplyDateFilter();
+        SetDateFilter(null, null);
     }
 
     public async Task FocusTourAsync(int tourId)
@@ -1569,36 +1525,94 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private void RaiseCommandStates()
     {
-        if (RefreshCommand is AsyncCommand refresh)
+        RaiseCanExecuteChangedIfSupported(RefreshCommand);
+        RaiseCanExecuteChangedIfSupported(RecalculateCommand);
+        RaiseCanExecuteChangedIfSupported(SaveAssignmentCommand);
+        RaiseCanExecuteChangedIfSupported(DeleteTourCommand);
+        RaiseCanExecuteChangedIfSupported(OpenTourOnMapCommand);
+        RaiseCanExecuteChangedIfSupported(EditTourOnMapCommand);
+    }
+
+    private void ToggleDatePopup(bool isFrom)
+    {
+        IsFromDatePopupOpen = isFrom ? !IsFromDatePopupOpen : false;
+        IsToDatePopupOpen = isFrom ? false : !IsToDatePopupOpen;
+
+        if (isFrom && IsFromDatePopupOpen)
         {
-            refresh.RaiseCanExecuteChanged();
+            if (FromDate.HasValue)
+            {
+                _fromCalendarMonth = new DateTime(FromDate.Value.Year, FromDate.Value.Month, 1);
+            }
+
+            RebuildFromCalendarDays();
+            return;
         }
 
-        if (RecalculateCommand is AsyncCommand recalculate)
+        if (!isFrom && IsToDatePopupOpen)
         {
-            recalculate.RaiseCanExecuteChanged();
-        }
+            if (ToDate.HasValue)
+            {
+                _toCalendarMonth = new DateTime(ToDate.Value.Year, ToDate.Value.Month, 1);
+            }
 
-        if (SaveAssignmentCommand is AsyncCommand save)
-        {
-            save.RaiseCanExecuteChanged();
-        }
-
-        if (DeleteTourCommand is AsyncCommand delete)
-        {
-            delete.RaiseCanExecuteChanged();
-        }
-
-        if (OpenTourOnMapCommand is AsyncCommand openOnMap)
-        {
-            openOnMap.RaiseCanExecuteChanged();
-        }
-
-        if (EditTourOnMapCommand is AsyncCommand editTour)
-        {
-            editTour.RaiseCanExecuteChanged();
+            RebuildToCalendarDays();
         }
     }
+
+    private void ShiftCalendarMonth(bool isFrom, int monthDelta)
+    {
+        if (isFrom)
+        {
+            _fromCalendarMonth = _fromCalendarMonth.AddMonths(monthDelta);
+            RebuildFromCalendarDays();
+            return;
+        }
+
+        _toCalendarMonth = _toCalendarMonth.AddMonths(monthDelta);
+        RebuildToCalendarDays();
+    }
+
+    private void SetDateFilter(DateTime? fromDate, DateTime? toDate)
+    {
+        FromDate = fromDate;
+        ToDate = toDate;
+        ApplyDateFilter();
+    }
+
+    private static TourAssignmentSnapshot CaptureAssignment(TourRecord target)
+    {
+        return new TourAssignmentSnapshot(
+            target.Date,
+            target.StartTime,
+            target.VehicleId,
+            target.TrailerId,
+            target.EmployeeIds.ToList());
+    }
+
+    private static void RestoreAssignment(TourRecord target, TourAssignmentSnapshot snapshot)
+    {
+        target.Date = snapshot.Date;
+        target.StartTime = snapshot.StartTime;
+        target.VehicleId = snapshot.VehicleId;
+        target.TrailerId = snapshot.TrailerId;
+        target.EmployeeIds = snapshot.EmployeeIds;
+    }
+
+    private static void RaiseCanExecuteChangedIfSupported(ICommand command)
+    {
+        if (command is AsyncCommand asyncCommand)
+        {
+            asyncCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private readonly record struct TourAssignmentSnapshot(
+        string Date,
+        string StartTime,
+        string? VehicleId,
+        string? TrailerId,
+        List<string> EmployeeIds);
 
     private bool ConfirmAssignmentConflictWarning(IEnumerable<TourRecord> tours, int targetTourId)
     {

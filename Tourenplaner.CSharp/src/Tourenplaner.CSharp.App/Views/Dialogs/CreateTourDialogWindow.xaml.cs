@@ -70,7 +70,7 @@ public partial class CreateTourDialogWindow : Window
     {
         if (!ViewModel.TryBuildResult(out var result, out var validationError))
         {
-            MessageBox.Show(this, validationError, "Eingabe prÃ¼fen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, validationError, "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -136,13 +136,13 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         _selectedHour = HourOptions.Contains(normalizedStartHour) ? normalizedStartHour : "08";
         _selectedMinute = MinuteOptions.Contains(normalizedStartMinute) ? normalizedStartMinute : "00";
 
-        VehicleOptions = new List<TourLookupOption> { new(string.Empty, "Bitte wÃ¤hlen") };
+        VehicleOptions = new List<TourLookupOption> { new(string.Empty, "Bitte wählen") };
         VehicleOptions.AddRange(vehicleOptions ?? []);
         var normalizedVehicleId = (selectedVehicleId ?? string.Empty).Trim();
         SelectedVehicle = VehicleOptions.FirstOrDefault(x =>
             string.Equals(x.Id, normalizedVehicleId, StringComparison.OrdinalIgnoreCase)) ?? VehicleOptions.FirstOrDefault();
 
-        TrailerOptions = new List<TourLookupOption> { new(string.Empty, "Kein AnhÃ¤nger") };
+        TrailerOptions = new List<TourLookupOption> { new(string.Empty, "Kein Anhänger") };
         TrailerOptions.AddRange(trailerOptions ?? []);
         var normalizedTrailerId = (selectedTrailerId ?? string.Empty).Trim();
         SelectedTrailer = TrailerOptions.FirstOrDefault(x =>
@@ -229,7 +229,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         set => SetProperty(ref _selectedTrailer, value);
     }
 
-    private string _selectedEmployeesSummary = "Keine Mitarbeiter ausgewÃ¤hlt";
+    private string _selectedEmployeesSummary = "Keine Mitarbeiter ausgewählt";
     public string SelectedEmployeesSummary
     {
         get => _selectedEmployeesSummary;
@@ -255,20 +255,20 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         var normalizedDateText = (DateText ?? string.Empty).Trim();
         if (!DateTime.TryParseExact(normalizedDateText, "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
         {
-            error = "Bitte ein gÃ¼ltiges Datum im Format DD.MM.YYYY eingeben.";
+            error = "Bitte ein gültiges Datum im Format DD.MM.YYYY eingeben.";
             return false;
         }
 
         if (SelectedVehicle is null || string.IsNullOrWhiteSpace(SelectedVehicle.Id))
         {
-            error = "Bitte ein Fahrzeug auswÃ¤hlen.";
+            error = "Bitte ein Fahrzeug auswählen.";
             return false;
         }
 
         var employees = Employees.Where(x => x.IsSelected).Select(x => x.Id).ToList();
         if (employees.Count is < 1 or > 2)
         {
-            error = "Bitte 1 bis 2 Mitarbeiter auswÃ¤hlen.";
+            error = "Bitte 1 bis 2 Mitarbeiter auswählen.";
             return false;
         }
 

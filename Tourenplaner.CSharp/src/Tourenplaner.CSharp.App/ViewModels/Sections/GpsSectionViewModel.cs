@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Windows;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Domain.Models;

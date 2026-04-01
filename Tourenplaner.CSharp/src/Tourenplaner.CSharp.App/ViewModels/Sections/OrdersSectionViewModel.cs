@@ -177,8 +177,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
         await _repository.SaveAllAsync(_allOrders);
         await RefreshFromRepositoryAsync(createdOrder.Id);
-
-        SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.Id, createdOrder.Id, StringComparison.OrdinalIgnoreCase));
+        SelectOrderById(createdOrder.Id);
         PublishOrderChange(null, createdOrder.Id);
         StatusText = createdOrder.Location is null
             ? $"Auftrag {createdOrder.Id} gespeichert, aber Adresse konnte nicht automatisch geokodiert werden."
@@ -225,7 +224,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
         await _repository.SaveAllAsync(_allOrders);
         await RefreshFromRepositoryAsync(updated.Id);
-        SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
+        SelectOrderById(updated.Id);
         PublishOrderChange(originalId, updated.Id);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
     }
@@ -264,65 +263,16 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             ? SelectedOrder?.Id
             : preferredSelectedId;
         var query = (_searchText ?? string.Empty).Trim();
-        var map = _allOrders.Where(o => o.Type == OrderType.Map);
-
-        if (!string.IsNullOrWhiteSpace(_selectedDeliveryTypeFilter) &&
-            !string.Equals(_selectedDeliveryTypeFilter, AllDeliveryTypesLabel, StringComparison.OrdinalIgnoreCase))
-        {
-            map = map.Where(o =>
-                string.Equals(
-                    DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(o.DeliveryType),
-                    _selectedDeliveryTypeFilter,
-                    StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(_selectedStatusFilter) &&
-            !string.Equals(_selectedStatusFilter, AllStatusesLabel, StringComparison.OrdinalIgnoreCase))
-        {
-            map = map.Where(o =>
-                string.Equals(
-                    NormalizeOrderStatus(o.OrderStatus),
-                    _selectedStatusFilter,
-                    StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query))
-        {
-            map = map.Where(o =>
-                o.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                o.CustomerName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                o.Address.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                (o.AssignedTourId ?? string.Empty).Contains(query, StringComparison.OrdinalIgnoreCase));
-        }
+        var map = _allOrders
+            .Where(o => o.Type == OrderType.Map)
+            .Where(o => MatchesDeliveryTypeFilter(o))
+            .Where(o => MatchesStatusFilter(o))
+            .Where(o => MatchesSearchQuery(o, query));
 
         MapOrders.Clear();
         foreach (var order in map.OrderBy(o => o.ScheduledDate).ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
         {
-            MapOrders.Add(new OrderItem
-            {
-                Id = order.Id,
-                CustomerName = order.CustomerName,
-                Address = order.Address,
-                ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
-                AssignedTourId = order.AssignedTourId ?? string.Empty,
-                Latitude = order.Location?.Latitude.ToString("0.######") ?? string.Empty,
-                Longitude = order.Location?.Longitude.ToString("0.######") ?? string.Empty,
-                OrderAddressName = order.OrderAddress?.Name ?? string.Empty,
-                OrderAddressStreet = order.OrderAddress?.Street ?? string.Empty,
-                OrderAddressPostalCode = order.OrderAddress?.PostalCode ?? string.Empty,
-                OrderAddressCity = order.OrderAddress?.City ?? string.Empty,
-                DeliveryName = order.DeliveryAddress?.Name ?? order.CustomerName,
-                DeliveryContactPerson = order.DeliveryAddress?.ContactPerson ?? string.Empty,
-                DeliveryStreet = order.DeliveryAddress?.Street ?? string.Empty,
-                DeliveryPostalCode = order.DeliveryAddress?.PostalCode ?? string.Empty,
-                DeliveryCity = order.DeliveryAddress?.City ?? string.Empty,
-                Email = order.Email ?? string.Empty,
-                Phone = order.Phone ?? string.Empty,
-                DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
-                OrderStatus = NormalizeOrderStatus(order.OrderStatus),
-                ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
-                Notes = order.Notes ?? string.Empty
-            });
+            MapOrders.Add(ToOrderItem(order));
         }
 
         SelectedOrder = string.IsNullOrWhiteSpace(selectedOrderId)
@@ -341,50 +291,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private void RaiseCommandStates()
     {
-        if (SaveCommand is AsyncCommand save)
-        {
-            save.RaiseCanExecuteChanged();
-        }
-
-        if (RemoveCommand is AsyncCommand remove)
-        {
-            remove.RaiseCanExecuteChanged();
-        }
-
-        if (EditSelectedOrderCommand is AsyncCommand edit)
-        {
-            edit.RaiseCanExecuteChanged();
-        }
-
-        if (UndoDeleteCommand is AsyncCommand undo)
-        {
-            undo.RaiseCanExecuteChanged();
-        }
-    }
-
-    private static DateOnly ParseDateOrToday(string? value)
-    {
-        if (DateOnly.TryParse(value, out var parsed))
-        {
-            return parsed;
-        }
-
-        return DateOnly.FromDateTime(DateTime.Today);
-    }
-
-    private static GeoPoint? TryBuildLocation(string? lat, string? lon)
-    {
-        if (!double.TryParse(lat, out var latValue))
-        {
-            return null;
-        }
-
-        if (!double.TryParse(lon, out var lonValue))
-        {
-            return null;
-        }
-
-        return new GeoPoint(latValue, lonValue);
+        RaiseCanExecuteChangedIfSupported(SaveCommand);
+        RaiseCanExecuteChangedIfSupported(RemoveCommand);
+        RaiseCanExecuteChangedIfSupported(EditSelectedOrderCommand);
+        RaiseCanExecuteChangedIfSupported(UndoDeleteCommand);
     }
 
     private async Task UndoDeleteAsync()
@@ -411,7 +321,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         _lastDeletedIndex = -1;
         await _repository.SaveAllAsync(_allOrders);
         await RefreshFromRepositoryAsync(restoreOrder.Id);
-        SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.Id, restoreOrder.Id, StringComparison.OrdinalIgnoreCase));
+        SelectOrderById(restoreOrder.Id);
         PublishOrderChange(null, restoreOrder.Id);
         StatusText = $"Auftrag {restoreOrder.Id} wurde wiederhergestellt.";
         RaiseCommandStates();
@@ -507,6 +417,97 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     {
         _dataSyncService.PublishOrders(_instanceId, previousOrderId, currentOrderId);
     }
+
+    private bool MatchesDeliveryTypeFilter(Order order)
+    {
+        if (string.IsNullOrWhiteSpace(_selectedDeliveryTypeFilter) ||
+            string.Equals(_selectedDeliveryTypeFilter, AllDeliveryTypesLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(
+            DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
+            _selectedDeliveryTypeFilter,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MatchesStatusFilter(Order order)
+    {
+        if (string.IsNullOrWhiteSpace(_selectedStatusFilter) ||
+            string.Equals(_selectedStatusFilter, AllStatusesLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(
+            NormalizeOrderStatus(order.OrderStatus),
+            _selectedStatusFilter,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool MatchesSearchQuery(Order order, string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return true;
+        }
+
+        return order.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+               order.CustomerName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+               order.Address.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+               (order.AssignedTourId ?? string.Empty).Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static OrderItem ToOrderItem(Order order)
+    {
+        return new OrderItem
+        {
+            Id = order.Id,
+            CustomerName = order.CustomerName,
+            Address = order.Address,
+            ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
+            AssignedTourId = order.AssignedTourId ?? string.Empty,
+            Latitude = order.Location?.Latitude.ToString("0.######") ?? string.Empty,
+            Longitude = order.Location?.Longitude.ToString("0.######") ?? string.Empty,
+            OrderAddressName = order.OrderAddress?.Name ?? string.Empty,
+            OrderAddressStreet = order.OrderAddress?.Street ?? string.Empty,
+            OrderAddressPostalCode = order.OrderAddress?.PostalCode ?? string.Empty,
+            OrderAddressCity = order.OrderAddress?.City ?? string.Empty,
+            DeliveryName = order.DeliveryAddress?.Name ?? order.CustomerName,
+            DeliveryContactPerson = order.DeliveryAddress?.ContactPerson ?? string.Empty,
+            DeliveryStreet = order.DeliveryAddress?.Street ?? string.Empty,
+            DeliveryPostalCode = order.DeliveryAddress?.PostalCode ?? string.Empty,
+            DeliveryCity = order.DeliveryAddress?.City ?? string.Empty,
+            Email = order.Email ?? string.Empty,
+            Phone = order.Phone ?? string.Empty,
+            DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
+            OrderStatus = NormalizeOrderStatus(order.OrderStatus),
+            ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
+            Notes = order.Notes ?? string.Empty
+        };
+    }
+
+    private void SelectOrderById(string? orderId)
+    {
+        if (string.IsNullOrWhiteSpace(orderId))
+        {
+            SelectedOrder = MapOrders.FirstOrDefault();
+            return;
+        }
+
+        SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase))
+                        ?? MapOrders.FirstOrDefault();
+    }
+
+    private static void RaiseCanExecuteChangedIfSupported(ICommand command)
+    {
+        if (command is AsyncCommand asyncCommand)
+        {
+            asyncCommand.RaiseCanExecuteChanged();
+        }
+    }
+
     private static Order CloneOrder(Order source)
     {
         return new Order
