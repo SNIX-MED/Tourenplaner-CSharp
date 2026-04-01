@@ -95,6 +95,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _isUpdatingFilterOptions;
     private bool _hasUnsavedRouteChanges;
     private bool _arePinInfoCardsVisible;
+    private bool _isMapFilterPanelVisible;
+    private bool _isMapLegendPanelVisible;
+    private double _pinInfoCardScale = 1.0;
     private int _routeGeometryRevision;
     private int _activeTourId;
     private string _currentRouteVehicleId = string.Empty;
@@ -230,6 +233,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public string PinInfoCardsImagePath => ArePinInfoCardsVisible
         ? "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-infocards-off.jpg"
         : "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-infocards-on.jpg";
+    public string PinInfoCardScalePercentText => $"{Math.Round(PinInfoCardScale * 100d):0}%";
 
     public string ToggleAllFiltersButtonText => AreAllFiltersSelected() ? "Alle abwählen" : "Alle auswählen";
 
@@ -315,6 +319,55 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(PinInfoCardsButtonText));
                 OnPropertyChanged(nameof(PinInfoCardsIconGlyph));
                 OnPropertyChanged(nameof(PinInfoCardsImagePath));
+            }
+        }
+    }
+
+    public bool IsMapFilterPanelVisible
+    {
+        get => _isMapFilterPanelVisible;
+        set
+        {
+            if (!SetProperty(ref _isMapFilterPanelVisible, value))
+            {
+                return;
+            }
+
+            if (value && _isMapLegendPanelVisible)
+            {
+                _isMapLegendPanelVisible = false;
+                OnPropertyChanged(nameof(IsMapLegendPanelVisible));
+            }
+        }
+    }
+
+    public bool IsMapLegendPanelVisible
+    {
+        get => _isMapLegendPanelVisible;
+        set
+        {
+            if (!SetProperty(ref _isMapLegendPanelVisible, value))
+            {
+                return;
+            }
+
+            if (value && _isMapFilterPanelVisible)
+            {
+                _isMapFilterPanelVisible = false;
+                OnPropertyChanged(nameof(IsMapFilterPanelVisible));
+            }
+        }
+    }
+
+    public double PinInfoCardScale
+    {
+        get => _pinInfoCardScale;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.7d, 1.8d);
+            if (SetProperty(ref _pinInfoCardScale, clamped))
+            {
+                OnPropertyChanged(nameof(PinInfoCardScalePercentText));
             }
         }
     }
@@ -528,6 +581,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         {
             if (SetProperty(ref _selectedRouteStop, value))
             {
+                if (value is not null && !IsCompanyStop(value))
+                {
+                    SelectOrderDetailsById(value.OrderId);
+                }
                 RaiseCommandStates();
             }
         }
@@ -3410,7 +3467,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         var end = start.AddMinutes(totalDriveMinutes + totalStayMinutes);
         _timedStops[^1].EtaText = end.ToString("HH:mm");
-        RouteTimingSummary = $"Start: {start:HH:mm} | Fahrt: {totalDriveMinutes} min | Aufenthalt: {totalStayMinutes} min | Warten: 0 min | Ende: {end:HH:mm}";
+        RouteTimingSummary = $"Start: {start:HH:mm} | Fahrt: {totalDriveMinutes} min | Aufenthalt: {totalStayMinutes} min | Ende: {end:HH:mm}";
         RouteOperationalSummaryText = $"Gesamt Fahrzeit: {FormatDuration(totalDriveMinutes)} | Gesamt Distanz: {totalDistanceKm:0.0} km | Start: {start:HH:mm} | Ende: {end:HH:mm}";
         DriveTimesText = sb.Length == 0 ? "Noch keine Stopps geplant." : sb.ToString().TrimEnd();
     }
@@ -3801,6 +3858,7 @@ public sealed class RouteStopItem : ObservableObject
                 OnPropertyChanged(nameof(IsRouteStart));
                 OnPropertyChanged(nameof(IsRouteEnd));
                 OnPropertyChanged(nameof(RouteBadgeText));
+                OnPropertyChanged(nameof(DisplayNameWithOrder));
             }
         }
     }
@@ -3813,6 +3871,7 @@ public sealed class RouteStopItem : ObservableObject
             if (SetProperty(ref _customer, value))
             {
                 OnPropertyChanged(nameof(DisplayName));
+                OnPropertyChanged(nameof(DisplayNameWithOrder));
             }
         }
     }
@@ -3825,6 +3884,7 @@ public sealed class RouteStopItem : ObservableObject
             if (SetProperty(ref _address, value))
             {
                 OnPropertyChanged(nameof(DisplayName));
+                OnPropertyChanged(nameof(DisplayNameWithOrder));
             }
         }
     }
@@ -3856,6 +3916,7 @@ public sealed class RouteStopItem : ObservableObject
                 OnPropertyChanged(nameof(IsRouteStart));
                 OnPropertyChanged(nameof(IsRouteEnd));
                 OnPropertyChanged(nameof(RouteBadgeText));
+                OnPropertyChanged(nameof(DisplayNameWithOrder));
             }
         }
     }
@@ -3938,6 +3999,10 @@ public sealed class RouteStopItem : ObservableObject
     public bool HasNextLeg => !string.IsNullOrWhiteSpace(NextLegDurationText) && !string.IsNullOrWhiteSpace(NextLegDistanceText);
     public string DisplayPosition => ToAlphaLabel(Position);
     public string DisplayName => IsCompanyDisplay ? Address : (!string.IsNullOrWhiteSpace(Customer) ? Customer : Address);
+    public string DisplayNameWithOrder =>
+        IsCompanyDisplay || string.IsNullOrWhiteSpace(DisplayOrder) || string.Equals(DisplayOrder, "-", StringComparison.Ordinal)
+            ? DisplayName
+            : $"{DisplayName} ({DisplayOrder})";
     public string DisplayAddress => string.Equals(DisplayName, Address, StringComparison.OrdinalIgnoreCase) ? string.Empty : Address;
     public string DisplayWindow => "--";
     public string DisplayOrder => string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId;

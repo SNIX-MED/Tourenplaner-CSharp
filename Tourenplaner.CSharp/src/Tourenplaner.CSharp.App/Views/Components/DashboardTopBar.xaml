@@ -97,9 +97,10 @@
                             Visibility="{Binding IsTopBarSectionControlsVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                 <ContentControl.Resources>
                     <DataTemplate DataType="{x:Type sections:KarteSectionViewModel}">
-                        <Grid>
+                        <Grid x:Name="MapTopBarControlsRoot">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
@@ -136,18 +137,19 @@
                             <Grid Grid.Column="1" Margin="0,0,8,0">
                                 <ToggleButton x:Name="MapFilterPopupButton"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
+                                              IsChecked="{Binding IsMapFilterPanelVisible, Mode=TwoWay}"
                                               PreviewMouseLeftButtonDown="TogglePopupButton_PreviewMouseLeftButtonDown"
                                               Content="Filter" />
-                                <Popup PlacementTarget="{Binding ElementName=MapFilterPopupButton}"
+                                <Popup PlacementTarget="{Binding ElementName=MapTopBarControlsRoot}"
                                        Placement="Custom"
                                        CustomPopupPlacementCallback="CenterPopupUnderButton"
-                                       StaysOpen="False"
+                                       StaysOpen="True"
                                        AllowsTransparency="True"
-                                       IsOpen="{Binding ElementName=MapFilterPopupButton, Path=IsChecked, Mode=TwoWay}">
+                                       IsOpen="False">
                                     <Border Style="{StaticResource SoftCardStyle}"
-                                            Padding="12"
-                                            Width="980"
-                                            MaxHeight="560">
+                                            Padding="10"
+                                            Width="920"
+                                            MaxHeight="360">
                                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                                             <Grid>
                                                 <Grid.RowDefinitions>
@@ -263,18 +265,19 @@
                             <Grid Grid.Column="2" Margin="0,0,8,0">
                                 <ToggleButton x:Name="MapLegendPopupButton"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
+                                              IsChecked="{Binding IsMapLegendPanelVisible, Mode=TwoWay}"
                                               PreviewMouseLeftButtonDown="TogglePopupButton_PreviewMouseLeftButtonDown"
                                               Content="Legende" />
-                                <Popup PlacementTarget="{Binding ElementName=MapLegendPopupButton}"
+                                <Popup PlacementTarget="{Binding ElementName=MapTopBarControlsRoot}"
                                        Placement="Custom"
                                        CustomPopupPlacementCallback="CenterPopupUnderButton"
-                                       StaysOpen="False"
+                                       StaysOpen="True"
                                        AllowsTransparency="True"
-                                       IsOpen="{Binding ElementName=MapLegendPopupButton, Path=IsChecked, Mode=TwoWay}">
+                                       IsOpen="False">
                                     <Border Style="{StaticResource SoftCardStyle}"
-                                            Padding="12"
-                                            Width="980"
-                                            MaxHeight="560">
+                                            Padding="10"
+                                            Width="920"
+                                            MaxHeight="360">
                                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                                             <Grid>
                                                 <Grid.RowDefinitions>
@@ -420,7 +423,37 @@
                                        SnapsToDevicePixels="True"
                                        Source="{Binding PinInfoCardsImagePath}" />
                             </Button>
-                            <Button Grid.Column="4"
+                            <Border Grid.Column="4"
+                                    Height="40"
+                                    Margin="0,0,8,0"
+                                    Padding="10,6"
+                                    CornerRadius="12"
+                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource Brush.CardSoft}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Minimum="0.7"
+                                            Maximum="1.8"
+                                            TickFrequency="0.05"
+                                            IsSnapToTickEnabled="False"
+                                            VerticalAlignment="Center"
+                                            ToolTip="Grösse der Infokarten"
+                                            Value="{Binding PinInfoCardScale, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Column="1"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                               Text="{Binding PinInfoCardScalePercentText}" />
+                                </Grid>
+                            </Border>
+                            <Button Grid.Column="5"
                                     Width="64"
                                     Height="40"
                                     Padding="0"
@@ -439,7 +472,7 @@
                                        SnapsToDevicePixels="True"
                                        Source="pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-split-screen.jpg" />
                             </Button>
-                            <Button Grid.Column="5"
+                            <Button Grid.Column="6"
                                     Height="40"
                                     Content="Route exportieren"
                                     Style="{StaticResource SuccessButtonStyle}"

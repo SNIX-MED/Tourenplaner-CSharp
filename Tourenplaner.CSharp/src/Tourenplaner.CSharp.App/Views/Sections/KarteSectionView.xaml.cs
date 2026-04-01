@@ -187,6 +187,10 @@ public partial class KarteSectionView : UserControl
             {
                 await ApplyPinInfoCardsVisibilityAsync();
             }
+            else if (e.PropertyName == nameof(KarteSectionViewModel.PinInfoCardScale))
+            {
+                await ApplyPinInfoCardScaleAsync();
+            }
             else if (e.PropertyName == nameof(KarteSectionViewModel.IsDetailsOpen) ||
                      e.PropertyName == nameof(KarteSectionViewModel.IsDetailsPanelExpanded) ||
                      e.PropertyName == nameof(KarteSectionViewModel.DetailsToggleGlyph))
@@ -313,6 +317,7 @@ public partial class KarteSectionView : UserControl
             {
                 await PushMarkersToMapAsync();
                 await PushRouteToMapAsync();
+                await ApplyPinInfoCardScaleAsync();
                 await ApplyDetailsToggleStateAsync();
             }
         }
@@ -357,6 +362,7 @@ public partial class KarteSectionView : UserControl
             };
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetCompanyMarker === 'function') window.gawelaSetCompanyMarker({JsonSerializer.Serialize(company)});");
         await ApplyPinInfoCardsVisibilityAsync();
+        await ApplyPinInfoCardScaleAsync();
         await HighlightSelectedMarkerAsync();
     }
 
@@ -451,6 +457,18 @@ public partial class KarteSectionView : UserControl
 
         await MapWebView.CoreWebView2.ExecuteScriptAsync(
             $"if (typeof window.gawelaSetAllMarkerPopupsVisible === 'function') window.gawelaSetAllMarkerPopupsVisible({(vm.ArePinInfoCardsVisible ? "true" : "false")});");
+    }
+
+    private async Task ApplyPinInfoCardScaleAsync()
+    {
+        if (!_mapReady || !_mapScriptReady || MapWebView.CoreWebView2 is null || DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        var scaleJson = JsonSerializer.Serialize(vm.PinInfoCardScale);
+        await MapWebView.CoreWebView2.ExecuteScriptAsync(
+            $"if (typeof window.gawelaSetPopupSizeMultiplier === 'function') window.gawelaSetPopupSizeMultiplier({scaleJson});");
     }
 
     private async Task ApplyDetailsToggleStateAsync()
@@ -819,6 +837,7 @@ public partial class KarteSectionView : UserControl
                    let routeMarkerMap = new Map();
                    let keepAllMarkerPopupsOpen = false;
                    let hasInitialViewport = false;
+                   let popupSizeMultiplier = 1.0;
                    const detailsToggle = document.getElementById('details-toggle');
 
                    if (detailsToggle) {
@@ -836,16 +855,17 @@ public partial class KarteSectionView : UserControl
 
                    function updatePopupScale() {
                      const zoom = map.getZoom();
-                     const scale = Math.max(0.18, Math.min(1.05, Math.pow(0.74, 11 - zoom)));
-                     const widthPx = Math.max(80, Math.round(192 * scale));
-                     const marginY = Math.max(3, Math.round(10 * scale));
-                     const marginX = Math.max(4, Math.round(11 * scale));
-                     const bodyFont = Math.max(8, Math.round(11 * scale));
-                     const titleFont = Math.max(9, Math.round(14 * scale));
-                     const addressGap = Math.max(3, Math.round(8 * scale));
-                     const buttonHeight = Math.max(14, Math.round(24 * scale));
-                     const buttonPadX = Math.max(4, Math.round(8 * scale));
-                     const buttonFont = Math.max(8, Math.round(11 * scale));
+                     const baseScale = Math.max(0.18, Math.min(1.05, Math.pow(0.74, 11 - zoom)));
+                     const effectiveScale = baseScale * popupSizeMultiplier;
+                     const widthPx = Math.max(80, Math.round(192 * effectiveScale));
+                     const marginY = Math.max(3, Math.round(10 * effectiveScale));
+                     const marginX = Math.max(4, Math.round(11 * effectiveScale));
+                     const bodyFont = Math.max(8, Math.round(11 * effectiveScale));
+                     const titleFont = Math.max(9, Math.round(14 * effectiveScale));
+                     const addressGap = Math.max(3, Math.round(8 * effectiveScale));
+                     const buttonHeight = Math.max(14, Math.round(24 * effectiveScale));
+                     const buttonPadX = Math.max(4, Math.round(8 * effectiveScale));
+                     const buttonFont = Math.max(8, Math.round(11 * effectiveScale));
                      document.documentElement.style.setProperty('--gawela-popup-width', `${widthPx}px`);
                      document.documentElement.style.setProperty('--gawela-popup-margin-y', `${marginY}px`);
                      document.documentElement.style.setProperty('--gawela-popup-margin-x', `${marginX}px`);
@@ -861,15 +881,39 @@ public partial class KarteSectionView : UserControl
                      markerMap.forEach(marker => {
                        const popup = marker.getPopup();
                        if (popup && popup.isOpen()) {
+                         enablePopupWheelZoom(popup);
                          popup.update();
                        }
                      });
+                   }
+
+                   function enablePopupWheelZoom(popup) {
+                     if (!popup || !popup.getElement) {
+                       return;
+                     }
+                     const popupElement = popup.getElement();
+                     if (!popupElement) {
+                       return;
+                     }
+
+                     // Leaflet blocks wheel propagation on popups by default.
+                     // Remove that block so map zoom still works while hovering a popup.
+                     L.DomEvent.off(popupElement, 'wheel', L.DomEvent.stopPropagation);
+                     const wrapper = popupElement.querySelector('.leaflet-popup-content-wrapper');
+                     if (wrapper) {
+                       L.DomEvent.off(wrapper, 'wheel', L.DomEvent.stopPropagation);
+                     }
+                     const content = popupElement.querySelector('.leaflet-popup-content');
+                     if (content) {
+                       L.DomEvent.off(content, 'wheel', L.DomEvent.stopPropagation);
+                     }
                    }
 
                    function schedulePopupUpdate(popup) {
                      if (!popup) {
                        return;
                      }
+                     enablePopupWheelZoom(popup);
                      requestAnimationFrame(() => {
                        try {
                          popup.update();
@@ -1057,6 +1101,17 @@ public partial class KarteSectionView : UserControl
                      setAllMarkerPopupsVisible(show);
                    };
 
+                   window.gawelaSetPopupSizeMultiplier = function(multiplier) {
+                     const parsed = Number(multiplier);
+                     if (Number.isFinite(parsed)) {
+                       popupSizeMultiplier = Math.max(0.7, Math.min(1.8, parsed));
+                     } else {
+                       popupSizeMultiplier = 1.0;
+                     }
+                     updatePopupScale();
+                     refreshOpenPopupLayouts();
+                   };
+
                    window.gawelaSetDetailsToggle = function(show, glyph) {
                      if (!detailsToggle) {
                        return;
@@ -1195,6 +1250,7 @@ public partial class KarteSectionView : UserControl
                      if (!e || !e.popup) {
                        return;
                      }
+                     enablePopupWheelZoom(e.popup);
                      if (keepAllMarkerPopupsOpen) {
                        return;
                      }

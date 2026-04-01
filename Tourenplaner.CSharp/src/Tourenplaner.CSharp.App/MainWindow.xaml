@@ -110,7 +110,7 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <components:DashboardTopBar Grid.Row="0" Margin="0,0,0,12" />
+                <components:DashboardTopBar Grid.Row="0" Margin="0,0,0,4" />
 
                 <Border Grid.Row="1" Padding="14">
                     <Border.Style>
