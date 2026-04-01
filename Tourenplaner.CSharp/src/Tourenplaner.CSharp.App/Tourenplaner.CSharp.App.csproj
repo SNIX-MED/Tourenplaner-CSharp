@@ -29,6 +29,9 @@
     <Resource Include="Assets\Applogo.png" Condition="Exists('Assets\Applogo.png')" />
     <Resource Include="Assets\Banner.png" />
     <Resource Include="Assets\Einstellungen.png" />
+    <Resource Include="Assets\icon-infocards-off.jpg" />
+    <Resource Include="Assets\icon-infocards-on.jpg" />
+    <Resource Include="Assets\icon-split-screen.jpg" />
     <Resource Include="Assets\Pin.png" />
   </ItemGroup>
 

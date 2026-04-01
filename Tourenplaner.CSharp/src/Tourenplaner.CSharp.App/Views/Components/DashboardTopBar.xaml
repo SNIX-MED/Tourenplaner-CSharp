@@ -1,4 +1,4 @@
-<UserControl x:Class="Tourenplaner.CSharp.App.Views.Components.DashboardTopBar"
+﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Components.DashboardTopBar"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -9,6 +9,45 @@
              d:DesignWidth="1400">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        <Style x:Key="TopbarToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.ButtonForeground}" />
+            <Setter Property="Background" Value="{DynamicResource Brush.ButtonBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.ButtonBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root"
+                                CornerRadius="14"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.82" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Focus}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.ButtonHoverBackground}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.46" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Border Style="{StaticResource FilterBarCardStyle}" Padding="14">
@@ -63,8 +102,8 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="120" />
                                 <ColumnDefinition Width="140" />
-                                <ColumnDefinition Width="190" />
-                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="96" />
+                                <ColumnDefinition Width="96" />
                                 <ColumnDefinition Width="160" />
                             </Grid.ColumnDefinitions>
 
@@ -94,33 +133,305 @@
                                            Text="{Binding FilterSummaryText}" />
                             </Grid>
 
-                            <Button Grid.Column="1"
-                                    Height="40"
-                                    Margin="0,0,10,0"
-                                    Content="Reset"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Command="{Binding ResetOrderFiltersCommand}" />
-                            <Button Grid.Column="2"
-                                    Height="40"
-                                    Margin="0,0,10,0"
-                                    Content="{Binding ToggleAllFiltersButtonText}"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Command="{Binding ToggleAllOrderFiltersCommand}" />
+                            <Grid Grid.Column="1" Margin="0,0,10,0">
+                                <ToggleButton x:Name="MapFilterPopupButton"
+                                              Style="{StaticResource TopbarToggleButtonStyle}"
+                                              PreviewMouseLeftButtonDown="TogglePopupButton_PreviewMouseLeftButtonDown"
+                                              Content="Filter" />
+                                <Popup PlacementTarget="{Binding ElementName=MapFilterPopupButton}"
+                                       Placement="Custom"
+                                       CustomPopupPlacementCallback="CenterPopupUnderButton"
+                                       StaysOpen="False"
+                                       AllowsTransparency="True"
+                                       IsOpen="{Binding ElementName=MapFilterPopupButton, Path=IsChecked, Mode=TwoWay}">
+                                    <Border Style="{StaticResource SoftCardStyle}"
+                                            Padding="12"
+                                            Width="980"
+                                            MaxHeight="560">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <CheckBox Grid.Column="0"
+                                                              Margin="0,0,18,0"
+                                                              VerticalAlignment="Center"
+                                                              Content="Offene AuftrÃ¤ge"
+                                                              IsChecked="{Binding IncludeOpenOrders, Mode=TwoWay}" />
+                                                    <CheckBox Grid.Column="1"
+                                                              Margin="0,0,18,0"
+                                                              VerticalAlignment="Center"
+                                                              Content="Eingeplante AuftrÃ¤ge"
+                                                              IsChecked="{Binding IncludePlannedOrders, Mode=TwoWay}" />
+                                                    <Button Grid.Column="2"
+                                                            Width="150"
+                                                            Margin="0,0,10,0"
+                                                            HorizontalAlignment="Right"
+                                                            Content="{Binding ToggleAllFiltersButtonText}"
+                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding ToggleAllOrderFiltersCommand}" />
+                                                    <Button Grid.Column="3"
+                                                            Width="120"
+                                                            HorizontalAlignment="Right"
+                                                            Content="Filter Reset"
+                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding ResetOrderFiltersCommand}" />
+                                                </Grid>
+                                                <Grid Grid.Row="1" Margin="0,12,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid Grid.Column="0" Margin="0,0,12,0">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock FontWeight="SemiBold" Text="Auftragsstatus" />
+                                                        <ItemsControl Grid.Row="1" Margin="0,6,0,0" ItemsSource="{Binding OrderStatusFilters}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <CheckBox Margin="0,0,10,6"
+                                                                              Content="{Binding Label}"
+                                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Grid>
+                                                    <Grid Grid.Column="1" Margin="0,0,12,0">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock FontWeight="SemiBold" Text="Lieferart" />
+                                                        <ItemsControl Grid.Row="1" Margin="0,6,0,0" ItemsSource="{Binding DeliveryTypeFilters}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <CheckBox Margin="0,0,10,6"
+                                                                              Content="{Binding Label}"
+                                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Grid>
+                                                    <Grid Grid.Column="2">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock FontWeight="SemiBold" Text="Avisierungsstatus" />
+                                                        <ItemsControl Grid.Row="1" Margin="0,6,0,0" ItemsSource="{Binding AvisoStatusFilters}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <CheckBox Margin="0,0,10,6"
+                                                                              Content="{Binding Label}"
+                                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Grid>
+                                                </Grid>
+                                            </Grid>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                            <Grid Grid.Column="2" Margin="0,0,10,0">
+                                <ToggleButton x:Name="MapLegendPopupButton"
+                                              Style="{StaticResource TopbarToggleButtonStyle}"
+                                              PreviewMouseLeftButtonDown="TogglePopupButton_PreviewMouseLeftButtonDown"
+                                              Content="Legende" />
+                                <Popup PlacementTarget="{Binding ElementName=MapLegendPopupButton}"
+                                       Placement="Custom"
+                                       CustomPopupPlacementCallback="CenterPopupUnderButton"
+                                       StaysOpen="False"
+                                       AllowsTransparency="True"
+                                       IsOpen="{Binding ElementName=MapLegendPopupButton, Path=IsChecked, Mode=TwoWay}">
+                                    <Border Style="{StaticResource SoftCardStyle}"
+                                            Padding="12"
+                                            Width="980"
+                                            MaxHeight="560">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <TextBlock Grid.Row="0"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                           Text="Form = Lieferart | Farbe = Lieferstatus | Badge = Avisierungsstatus | Blaue Linie = aktuelle Route" />
+
+                                                <Grid Grid.Row="1" Margin="0,10,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <Grid Grid.Column="0" Margin="0,0,14,0">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock FontWeight="SemiBold" Text="Lieferart (Form)" />
+
+                                                        <StackPanel Grid.Row="1" Margin="0,8,0,0" Orientation="Horizontal">
+                                                            <Ellipse Width="18"
+                                                                     Height="18"
+                                                                     Fill="#0EA5E9"
+                                                                     Stroke="White"
+                                                                     StrokeThickness="2" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Frei Bordsteinkante (Kreis)" />
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Row="2" Margin="0,6,0,0" Orientation="Horizontal">
+                                                            <Border Width="18"
+                                                                    Height="18"
+                                                                    Background="#0EA5E9"
+                                                                    BorderBrush="White"
+                                                                    BorderThickness="2"
+                                                                    CornerRadius="4" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Mit Verteilung (Quadrat)" />
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Row="3" Margin="0,6,0,0" Orientation="Horizontal">
+                                                            <Grid Width="18" Height="18">
+                                                                <Polygon Points="9,1 17,16 1,16" Fill="White" />
+                                                                <Polygon Points="9,3 15,15 3,15" Fill="#0EA5E9" />
+                                                            </Grid>
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Mit Verteilung &amp; Montage (Dreieck)" />
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <Grid Grid.Column="1" Margin="0,0,14,0">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock FontWeight="SemiBold" Text="Lieferstatus (Farbe)" />
+
+                                                        <StackPanel Grid.Row="1" Margin="0,8,0,0" Orientation="Horizontal">
+                                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorNotSpecified}" Stroke="White" StrokeThickness="2" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="nicht festgelegt" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Row="2" Margin="0,6,0,0" Orientation="Horizontal">
+                                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorOrdered}" Stroke="White" StrokeThickness="2" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Bestellt" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Row="3" Margin="0,6,0,0" Orientation="Horizontal">
+                                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorOnTheWay}" Stroke="White" StrokeThickness="2" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Auf dem Weg" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Row="4" Margin="0,6,0,0" Orientation="Horizontal">
+                                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorInStock}" Stroke="White" StrokeThickness="2" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="An Lager" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Row="5" Margin="0,6,0,0" Orientation="Horizontal">
+                                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorPlanned}" Stroke="White" StrokeThickness="2" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Eingeplant" />
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <Grid Grid.Column="2">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock FontWeight="SemiBold" Text="Avisierungsstatus (Badge)" />
+
+                                                        <StackPanel Grid.Row="1" Margin="0,8,0,0" Orientation="Horizontal">
+                                                            <Grid Width="22" Height="22">
+                                                                <Ellipse Width="18" Height="18" Fill="#0EA5E9" Stroke="White" StrokeThickness="2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                <Ellipse Width="9" Height="9" Fill="{Binding LegendAvisoBadgeColorNotAvisiert}" Stroke="White" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Top" />
+                                                            </Grid>
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="nicht avisiert (zugeordnet)" />
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Row="2" Margin="0,6,0,0" Orientation="Horizontal">
+                                                            <Grid Width="22" Height="22">
+                                                                <Ellipse Width="18" Height="18" Fill="#0EA5E9" Stroke="White" StrokeThickness="2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                <Ellipse Width="9" Height="9" Fill="{Binding LegendAvisoBadgeColorInformiert}" Stroke="White" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Top" />
+                                                            </Grid>
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="informiert" />
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Row="3" Margin="0,6,0,0" Orientation="Horizontal">
+                                                            <Grid Width="22" Height="22">
+                                                                <Ellipse Width="18" Height="18" Fill="#0EA5E9" Stroke="White" StrokeThickness="2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                <Ellipse Width="9" Height="9" Fill="{Binding LegendAvisoBadgeColorBestaetigt}" Stroke="White" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Top" />
+                                                            </Grid>
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="BestÃ¤tigt" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Grid>
+                                            </Grid>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
                             <Button Grid.Column="3"
+                                    Width="88"
                                     Height="40"
-                                    Margin="0,0,10,0"
-                                    Content="{Binding PinInfoCardsButtonText}"
+                                    Margin="0,0,8,0"
+                                    ToolTip="Schaltet die Infokarten auf der Karte ein oder aus."
+                                    ToolTipService.InitialShowDelay="2000"
+                                    ToolTipService.ShowDuration="8000"
                                     Style="{StaticResource SecondaryButtonStyle}"
-                                    Command="{Binding TogglePinInfoCardsCommand}" />
+                                    Command="{Binding TogglePinInfoCardsCommand}">
+                                <Image Width="30"
+                                       Height="30"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       SnapsToDevicePixels="True"
+                                       Source="{Binding PinInfoCardsImagePath}" />
+                            </Button>
                             <Button Grid.Column="4"
+                                    Width="88"
                                     Height="40"
-                                    Margin="0,0,10,0"
+                                    Margin="0,0,8,0"
+                                    ToolTip="Öffnet die Split-Screen Ansicht für paralleles Arbeiten."
+                                    ToolTipService.InitialShowDelay="2000"
+                                    ToolTipService.ShowDuration="8000"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding OpenSplitScreenCommand}">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                    <TextBlock Text="⧉" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                    <TextBlock Text="Split-Ansicht" VerticalAlignment="Center" />
-                                </StackPanel>
+                                <Image Width="34"
+                                       Height="34"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       SnapsToDevicePixels="True"
+                                       Source="pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-split-screen.jpg" />
                             </Button>
                             <Button Grid.Column="5"
                                     Height="40"
@@ -538,7 +849,7 @@
                                     <Button Grid.Column="1"
                                             Margin="4"
                                             Height="36"
-                                            Content="Anhänger"
+                                            Content="AnhÃ¤nger"
                                             Command="{Binding ShowTrailersCommand}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -646,3 +957,4 @@
         </Grid>
     </Border>
 </UserControl>
+

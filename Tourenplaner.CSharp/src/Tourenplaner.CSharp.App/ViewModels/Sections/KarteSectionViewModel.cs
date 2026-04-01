@@ -70,6 +70,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _statusText = "Loading map orders...";
     private string _routeTimingSummary = "Noch keine Stopps geplant.";
     private string _driveTimesText = "Noch keine Stopps geplant.";
+    private string _routeOperationalSummaryText = "Noch keine Stopps geplant.";
     private string _routeTotalWeightText = "Totalgewicht: 0 kg";
     private string _routeLoadSummaryText = string.Empty;
     private string _avisoEmailSubjectTemplate = AppSettings.DefaultAvisoEmailSubjectTemplate;
@@ -226,6 +227,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     public string PinInfoCardsButtonText => ArePinInfoCardsVisible ? "Infokarten ausblenden" : "Infokarten anzeigen";
     public string PinInfoCardsIconGlyph => ArePinInfoCardsVisible ? "\uE8A7" : "\uE7B3";
+    public string PinInfoCardsImagePath => ArePinInfoCardsVisible
+        ? "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-infocards-off.jpg"
+        : "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-infocards-on.jpg";
 
     public string ToggleAllFiltersButtonText => AreAllFiltersSelected() ? "Alle abwählen" : "Alle auswählen";
 
@@ -310,6 +314,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             {
                 OnPropertyChanged(nameof(PinInfoCardsButtonText));
                 OnPropertyChanged(nameof(PinInfoCardsIconGlyph));
+                OnPropertyChanged(nameof(PinInfoCardsImagePath));
             }
         }
     }
@@ -397,6 +402,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         get => _driveTimesText;
         private set => SetProperty(ref _driveTimesText, value);
+    }
+
+    public string RouteOperationalSummaryText
+    {
+        get => _routeOperationalSummaryText;
+        private set => SetProperty(ref _routeOperationalSummaryText, value);
     }
 
     public string RouteTotalWeightText
@@ -2426,6 +2437,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RouteStops.Clear();
         RouteStops.Add(new RouteStopItem
         {
+            Position = 1,
             OrderId = CompanyStartStopId,
             Customer = string.Empty,
             Address = _companyName,
@@ -2436,6 +2448,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         });
         RouteStops.Add(new RouteStopItem
         {
+            Position = 2,
             OrderId = CompanyEndStopId,
             Customer = string.Empty,
             Address = _companyName,
@@ -2532,6 +2545,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         foreach (var stop in RouteStops)
         {
             stop.EtaText = string.Empty;
+            stop.ClearNextLeg();
         }
     }
 
@@ -3219,8 +3233,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var movable = RouteStops.Where(x => !IsCompanyStop(x)).ToList();
         RouteStops.Clear();
 
+        var position = 1;
         RouteStops.Add(new RouteStopItem
         {
+            Position = position++,
             OrderId = CompanyStartStopId,
             Customer = string.Empty,
             Address = _companyName,
@@ -3232,12 +3248,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         foreach (var stop in movable)
         {
+            stop.Position = position++;
             stop.IsCompanyAnchor = false;
             RouteStops.Add(stop);
         }
 
         RouteStops.Add(new RouteStopItem
         {
+            Position = position,
             OrderId = CompanyEndStopId,
             Customer = string.Empty,
             Address = _companyName,
@@ -3335,10 +3353,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     private void RefreshDriveTimesFromCurrentRoute()
     {
-        foreach (var stop in RouteStops)
-        {
-            stop.EtaText = string.Empty;
-        }
+        ClearRouteStopEtaValues();
 
         if (_timedStops.Count < 2 || _routeLegs.Count == 0)
         {
@@ -3354,7 +3369,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var current = start;
         var totalDriveMinutes = 0;
         var totalStayMinutes = 0;
+        var totalDistanceKm = 0d;
         var sb = new StringBuilder();
+
+        _timedStops[0].EtaText = start.ToString("HH:mm");
 
         for (var i = 0; i < _routeLegs.Count && i + 1 < _timedStops.Count; i++)
         {
@@ -3366,6 +3384,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             current = current.AddMinutes(leg.DurationMinutes);
             var arrive = current;
             totalDriveMinutes += leg.DurationMinutes;
+            totalDistanceKm += leg.DistanceKm;
+            fromStop.SetNextLeg(
+                durationText: FormatDuration(leg.DurationMinutes),
+                distanceText: $"{leg.DistanceKm:0.0} km",
+                departureText: depart.ToString("HH:mm"),
+                arrivalText: arrive.ToString("HH:mm"),
+                accentColorHex: i % 2 == 0 ? "#7BC6A4" : "#8EC6E8");
 
             sb.AppendLine($"{BuildStopLabel(fromStop, isFrom: true)} -> {BuildStopLabel(toStop, isFrom: false)}");
             sb.AppendLine($"{leg.DurationMinutes} min | {leg.DistanceKm:0.0} km");
@@ -3375,16 +3400,18 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 sb.AppendLine();
             }
 
+            toStop.EtaText = arrive.ToString("HH:mm");
             if (!IsCompanyStop(toStop))
             {
-                toStop.EtaText = arrive.ToString("HH:mm");
                 totalStayMinutes += Math.Max(0, toStop.PlannedStayMinutes);
                 current = current.AddMinutes(Math.Max(0, toStop.PlannedStayMinutes));
             }
         }
 
         var end = start.AddMinutes(totalDriveMinutes + totalStayMinutes);
+        _timedStops[^1].EtaText = end.ToString("HH:mm");
         RouteTimingSummary = $"Start: {start:HH:mm} | Fahrt: {totalDriveMinutes} min | Aufenthalt: {totalStayMinutes} min | Warten: 0 min | Ende: {end:HH:mm}";
+        RouteOperationalSummaryText = $"Gesamt Fahrzeit: {FormatDuration(totalDriveMinutes)} | Gesamt Distanz: {totalDistanceKm:0.0} km | Start: {start:HH:mm} | Ende: {end:HH:mm}";
         DriveTimesText = sb.Length == 0 ? "Noch keine Stopps geplant." : sb.ToString().TrimEnd();
     }
 
@@ -3392,6 +3419,15 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         RouteTimingSummary = "Noch keine Stopps geplant.";
         DriveTimesText = "Noch keine Stopps geplant.";
+        RouteOperationalSummaryText = "Noch keine Stopps geplant.";
+    }
+
+    private static string FormatDuration(int totalMinutes)
+    {
+        var safeMinutes = Math.Max(0, totalMinutes);
+        var hours = safeMinutes / 60;
+        var minutes = safeMinutes % 60;
+        return hours > 0 ? $"{hours}h {minutes}min" : $"{minutes}min";
     }
 
     private DateTime BuildStartDateTime()
@@ -3732,6 +3768,11 @@ public sealed class RouteStopItem : ObservableObject
     private bool _isCompanyAnchor;
     private int _plannedStayMinutes = 10;
     private string _etaText = string.Empty;
+    private string _nextLegDurationText = string.Empty;
+    private string _nextLegDistanceText = string.Empty;
+    private string _nextLegDepartureText = string.Empty;
+    private string _nextLegArrivalText = string.Empty;
+    private string _nextLegAccentColor = "#8EC6E8";
 
     public int Position
     {
@@ -3757,6 +3798,9 @@ public sealed class RouteStopItem : ObservableObject
                 OnPropertyChanged(nameof(DisplayPosition));
                 OnPropertyChanged(nameof(DisplayStay));
                 OnPropertyChanged(nameof(DisplayEta));
+                OnPropertyChanged(nameof(IsRouteStart));
+                OnPropertyChanged(nameof(IsRouteEnd));
+                OnPropertyChanged(nameof(RouteBadgeText));
             }
         }
     }
@@ -3809,6 +3853,9 @@ public sealed class RouteStopItem : ObservableObject
                 OnPropertyChanged(nameof(DisplayStay));
                 OnPropertyChanged(nameof(DisplayPosition));
                 OnPropertyChanged(nameof(DisplayEta));
+                OnPropertyChanged(nameof(IsRouteStart));
+                OnPropertyChanged(nameof(IsRouteEnd));
+                OnPropertyChanged(nameof(RouteBadgeText));
             }
         }
     }
@@ -3838,16 +3885,96 @@ public sealed class RouteStopItem : ObservableObject
         }
     }
 
+    public string NextLegDurationText
+    {
+        get => _nextLegDurationText;
+        private set
+        {
+            if (SetProperty(ref _nextLegDurationText, value))
+            {
+                OnPropertyChanged(nameof(HasNextLeg));
+            }
+        }
+    }
+
+    public string NextLegDistanceText
+    {
+        get => _nextLegDistanceText;
+        private set
+        {
+            if (SetProperty(ref _nextLegDistanceText, value))
+            {
+                OnPropertyChanged(nameof(HasNextLeg));
+            }
+        }
+    }
+
+    public string NextLegDepartureText
+    {
+        get => _nextLegDepartureText;
+        private set => SetProperty(ref _nextLegDepartureText, value);
+    }
+
+    public string NextLegArrivalText
+    {
+        get => _nextLegArrivalText;
+        private set => SetProperty(ref _nextLegArrivalText, value);
+    }
+
+    public string NextLegAccentColor
+    {
+        get => _nextLegAccentColor;
+        private set => SetProperty(ref _nextLegAccentColor, value);
+    }
+
     private bool IsCompanyDisplay => IsCompanyAnchor ||
                                      string.Equals(OrderId, "__company_start__", StringComparison.OrdinalIgnoreCase) ||
                                      string.Equals(OrderId, "__company_end__", StringComparison.OrdinalIgnoreCase) ||
                                      (OrderId ?? string.Empty).StartsWith("__company_", StringComparison.OrdinalIgnoreCase);
 
-    public string DisplayPosition => IsCompanyDisplay ? string.Empty : Position.ToString(CultureInfo.InvariantCulture);
+    public bool IsRouteStart => string.Equals(OrderId, "__company_start__", StringComparison.OrdinalIgnoreCase);
+    public bool IsRouteEnd => string.Equals(OrderId, "__company_end__", StringComparison.OrdinalIgnoreCase);
+    public string RouteBadgeText => IsRouteStart ? "Start" : IsRouteEnd ? "Ende" : string.Empty;
+    public bool HasNextLeg => !string.IsNullOrWhiteSpace(NextLegDurationText) && !string.IsNullOrWhiteSpace(NextLegDistanceText);
+    public string DisplayPosition => ToAlphaLabel(Position);
     public string DisplayName => IsCompanyDisplay ? Address : (!string.IsNullOrWhiteSpace(Customer) ? Customer : Address);
-    public string DisplayOrder => IsCompanyDisplay ? string.Empty : OrderId;
+    public string DisplayAddress => string.Equals(DisplayName, Address, StringComparison.OrdinalIgnoreCase) ? string.Empty : Address;
+    public string DisplayWindow => "--";
+    public string DisplayOrder => string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId;
     public string DisplayStay => IsCompanyDisplay ? string.Empty : $"{PlannedStayMinutes} min";
-    public string DisplayEta => IsCompanyDisplay ? string.Empty : EtaText;
+    public string DisplayEta => string.IsNullOrWhiteSpace(EtaText) ? "--:--" : EtaText;
+
+    public void SetNextLeg(string durationText, string distanceText, string departureText, string arrivalText, string accentColorHex)
+    {
+        NextLegDurationText = durationText ?? string.Empty;
+        NextLegDistanceText = distanceText ?? string.Empty;
+        NextLegDepartureText = departureText ?? string.Empty;
+        NextLegArrivalText = arrivalText ?? string.Empty;
+        NextLegAccentColor = string.IsNullOrWhiteSpace(accentColorHex) ? "#8EC6E8" : accentColorHex;
+    }
+
+    public void ClearNextLeg()
+    {
+        NextLegDurationText = string.Empty;
+        NextLegDistanceText = string.Empty;
+        NextLegDepartureText = string.Empty;
+        NextLegArrivalText = string.Empty;
+        NextLegAccentColor = "#8EC6E8";
+    }
+
+    private static string ToAlphaLabel(int position)
+    {
+        var value = Math.Max(1, position);
+        var label = string.Empty;
+        while (value > 0)
+        {
+            var remainder = (value - 1) % 26;
+            label = (char)('A' + remainder) + label;
+            value = (value - 1) / 26;
+        }
+
+        return label;
+    }
 }
 
 public sealed record MapOrderVisualInfo(string DeliveryLabel, string StatusLabel, bool IsAssigned, string AvisoStatusLabel);

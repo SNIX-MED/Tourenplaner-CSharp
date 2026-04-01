@@ -187,6 +187,12 @@ public partial class KarteSectionView : UserControl
             {
                 await ApplyPinInfoCardsVisibilityAsync();
             }
+            else if (e.PropertyName == nameof(KarteSectionViewModel.IsDetailsOpen) ||
+                     e.PropertyName == nameof(KarteSectionViewModel.IsDetailsPanelExpanded) ||
+                     e.PropertyName == nameof(KarteSectionViewModel.DetailsToggleGlyph))
+            {
+                await ApplyDetailsToggleStateAsync();
+            }
         }
         catch
         {
@@ -231,6 +237,29 @@ public partial class KarteSectionView : UserControl
         e.Handled = true;
     }
 
+    private void OnRouteStopsPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer stopsViewer || stopsViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        var delta = e.Delta / 3d;
+        var target = stopsViewer.VerticalOffset - delta;
+
+        if (target < 0)
+        {
+            target = 0;
+        }
+        else if (target > stopsViewer.ScrollableHeight)
+        {
+            target = stopsViewer.ScrollableHeight;
+        }
+
+        stopsViewer.ScrollToVerticalOffset(target);
+        e.Handled = true;
+    }
+
     private async Task EnsureMapInitializedAsync()
     {
         if (!_viewInitialized)
@@ -246,12 +275,14 @@ public partial class KarteSectionView : UserControl
         try
         {
             await MapWebView.EnsureCoreWebView2Async();
+            MapWebView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
             MapWebView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
             MapWebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
             MapWebView.NavigateToString(BuildMapHtml());
             _mapReady = true;
             MapWebView.Visibility = Visibility.Visible;
             MapFallbackNotice.Visibility = Visibility.Collapsed;
+            await ApplyDetailsToggleStateAsync();
         }
         catch (WebView2RuntimeNotFoundException)
         {
@@ -282,6 +313,7 @@ public partial class KarteSectionView : UserControl
             {
                 await PushMarkersToMapAsync();
                 await PushRouteToMapAsync();
+                await ApplyDetailsToggleStateAsync();
             }
         }
         catch
@@ -421,6 +453,19 @@ public partial class KarteSectionView : UserControl
             $"if (typeof window.gawelaSetAllMarkerPopupsVisible === 'function') window.gawelaSetAllMarkerPopupsVisible({(vm.ArePinInfoCardsVisible ? "true" : "false")});");
     }
 
+    private async Task ApplyDetailsToggleStateAsync()
+    {
+        if (!_mapReady || !_mapScriptReady || MapWebView.CoreWebView2 is null || DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        var isVisible = vm.IsDetailsOpen && !vm.IsDetailsPanelExpanded;
+        var glyph = vm.DetailsToggleGlyph;
+        await MapWebView.CoreWebView2.ExecuteScriptAsync(
+            $"if (typeof window.gawelaSetDetailsToggle === 'function') window.gawelaSetDetailsToggle({(isVisible ? "true" : "false")}, {JsonSerializer.Serialize(glyph)});");
+    }
+
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm)
@@ -470,6 +515,16 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
+        if (string.Equals(raw, "toggleDetails", StringComparison.OrdinalIgnoreCase))
+        {
+            if (vm.ToggleDetailsPanelCommand.CanExecute(null))
+            {
+                vm.ToggleDetailsPanelCommand.Execute(null);
+            }
+
+            return;
+        }
+
         var match = vm.MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, raw, StringComparison.OrdinalIgnoreCase));
         if (match is null)
         {
@@ -487,14 +542,14 @@ public partial class KarteSectionView : UserControl
         }
     }
 
-    private void RouteStopsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    private void RouteStopsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm)
         {
             return;
         }
 
-        if (RouteStopsGrid.SelectedItem is not RouteStopItem)
+        if (RouteStopsList.SelectedItem is not RouteStopItem)
         {
             return;
         }
@@ -502,34 +557,34 @@ public partial class KarteSectionView : UserControl
         vm.EditSelectedRouteStopStayMinutes();
     }
 
-    private void RouteStopsGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void RouteStopsList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _routeGridDragStart = null;
         _routeGridDragItem = null;
 
-        if (FindVisualParent<DataGridColumnHeader>(e.OriginalSource as DependencyObject) is not null)
+        if (FindVisualParent<ScrollBar>(e.OriginalSource as DependencyObject) is not null)
         {
             return;
         }
 
-        var row = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
-        if (row?.Item is not RouteStopItem item || item.IsCompanyAnchor)
+        var listItem = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (listItem?.DataContext is not RouteStopItem item || item.IsCompanyAnchor)
         {
             return;
         }
 
-        _routeGridDragStart = e.GetPosition(RouteStopsGrid);
+        _routeGridDragStart = e.GetPosition(RouteStopsList);
         _routeGridDragItem = item;
     }
 
-    private void RouteStopsGrid_MouseMove(object sender, MouseEventArgs e)
+    private void RouteStopsList_MouseMove(object sender, MouseEventArgs e)
     {
         if (_routeGridDragStart is null || _routeGridDragItem is null || e.LeftButton != MouseButtonState.Pressed)
         {
             return;
         }
 
-        var current = e.GetPosition(RouteStopsGrid);
+        var current = e.GetPosition(RouteStopsList);
         var delta = current - _routeGridDragStart.Value;
         if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
             Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
@@ -540,10 +595,10 @@ public partial class KarteSectionView : UserControl
         var dragItem = _routeGridDragItem;
         _routeGridDragStart = null;
         _routeGridDragItem = null;
-        DragDrop.DoDragDrop(RouteStopsGrid, new DataObject(typeof(string), dragItem.OrderId), DragDropEffects.Move);
+        DragDrop.DoDragDrop(RouteStopsList, new DataObject(typeof(string), dragItem.OrderId), DragDropEffects.Move);
     }
 
-    private void RouteStopsGrid_DragOver(object sender, DragEventArgs e)
+    private void RouteStopsList_DragOver(object sender, DragEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
             !e.Data.GetDataPresent(typeof(string)))
@@ -554,8 +609,8 @@ public partial class KarteSectionView : UserControl
         }
 
         var sourceOrderId = e.Data.GetData(typeof(string)) as string;
-        var targetRow = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
-        var targetStop = targetRow?.Item as RouteStopItem;
+        var targetItem = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        var targetStop = targetItem?.DataContext as RouteStopItem;
         if (string.IsNullOrWhiteSpace(sourceOrderId) ||
             targetStop is null ||
             targetStop.IsCompanyAnchor)
@@ -579,7 +634,7 @@ public partial class KarteSectionView : UserControl
         e.Handled = true;
     }
 
-    private void RouteStopsGrid_Drop(object sender, DragEventArgs e)
+    private void RouteStopsList_Drop(object sender, DragEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
             !e.Data.GetDataPresent(typeof(string)))
@@ -588,8 +643,8 @@ public partial class KarteSectionView : UserControl
         }
 
         var sourceOrderId = e.Data.GetData(typeof(string)) as string;
-        var targetRow = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
-        var targetStop = targetRow?.Item as RouteStopItem;
+        var targetItem = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        var targetStop = targetItem?.DataContext as RouteStopItem;
         if (string.IsNullOrWhiteSpace(sourceOrderId) || targetStop is null)
         {
             return;
@@ -598,8 +653,8 @@ public partial class KarteSectionView : UserControl
         var moved = vm.MoveRouteStopByOrderIds(sourceOrderId, targetStop.OrderId);
         if (moved && vm.SelectedRouteStop is not null)
         {
-            RouteStopsGrid.SelectedItem = vm.SelectedRouteStop;
-            RouteStopsGrid.ScrollIntoView(vm.SelectedRouteStop);
+            RouteStopsList.SelectedItem = vm.SelectedRouteStop;
+            RouteStopsList.ScrollIntoView(vm.SelectedRouteStop);
         }
     }
 
@@ -627,9 +682,82 @@ public partial class KarteSectionView : UserControl
                  <meta charset="utf-8" />
                  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-                 <style>
-                   html, body, #map { height: 100%; margin: 0; padding: 0; }
+                  <style>
+                   html, body, #map-shell, #map { height: 100%; margin: 0; padding: 0; }
+                   html, body { overflow: hidden; background: transparent; }
                    body { font-family: Segoe UI, sans-serif; }
+                   #map-shell {
+                     position: relative;
+                     width: 100%;
+                     height: 100%;
+                     overflow: hidden;
+                     background: transparent;
+                     clip-path: inset(0 round 14px);
+                   }
+                   #map {
+                     position: absolute;
+                     inset: 0;
+                     background: transparent;
+                   }
+                   .leaflet-container { background: transparent; }
+                   .leaflet-top,
+                   .leaflet-bottom {
+                     pointer-events: none;
+                   }
+                   .leaflet-top .leaflet-control,
+                   .leaflet-bottom .leaflet-control {
+                     pointer-events: auto;
+                     margin: 14px;
+                   }
+                   .leaflet-control-zoom,
+                   .leaflet-bar {
+                     border-radius: 10px;
+                     overflow: hidden;
+                     border: 1px solid #D4DCE9;
+                     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+                   }
+                   .leaflet-bar a,
+                   .leaflet-bar a:hover {
+                     border-radius: 0;
+                   }
+                   .gawela-details-toggle {
+                     position: absolute;
+                     right: 10px;
+                     top: 50%;
+                     transform: translateY(-50%);
+                     width: 22px;
+                     height: 64px;
+                     border-radius: 12px;
+                     border: 1px solid #CBD5E1;
+                     background: rgba(248, 250, 252, 0.96);
+                     color: #64748B;
+                     cursor: pointer;
+                     display: none;
+                     z-index: 650;
+                     box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+                     align-items: center;
+                     justify-content: center;
+                   }
+                   .gawela-details-toggle svg {
+                     width: 12px;
+                     height: 12px;
+                     stroke: currentColor;
+                     stroke-width: 2.25;
+                     fill: none;
+                     stroke-linecap: round;
+                     stroke-linejoin: round;
+                     shape-rendering: geometricPrecision;
+                     transition: transform 120ms ease;
+                     transform-origin: center;
+                   }
+                   .gawela-details-toggle.is-right svg {
+                     transform: rotate(180deg);
+                   }
+                   .gawela-details-toggle:hover {
+                     background: #FFFFFF;
+                     border-color: #94A3B8;
+                     color: #334155;
+                   }
                    .leaflet-popup.gawela-pin-popup {
                      transform-origin: center bottom;
                    }
@@ -667,8 +795,13 @@ public partial class KarteSectionView : UserControl
                    }
                  </style>
                </head>
-               <body>
-                 <div id="map"></div>
+                <body>
+                 <div id="map-shell"><div id="map"></div></div>
+                 <button id="details-toggle" class="gawela-details-toggle" type="button" aria-label="Details einblenden">
+                   <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+                     <polyline points="8.5,1.8 3.8,6 8.5,10.2"></polyline>
+                   </svg>
+                 </button>
                  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                  <script>
                    const map = L.map('map').setView([47.3769, 8.5417], 10);
@@ -686,6 +819,15 @@ public partial class KarteSectionView : UserControl
                    let routeMarkerMap = new Map();
                    let keepAllMarkerPopupsOpen = false;
                    let hasInitialViewport = false;
+                   const detailsToggle = document.getElementById('details-toggle');
+
+                   if (detailsToggle) {
+                     detailsToggle.addEventListener('click', () => {
+                       if (window.chrome && window.chrome.webview) {
+                         window.chrome.webview.postMessage('toggleDetails');
+                       }
+                     });
+                   }
 
                    function clearMarkers() {
                      markerLayer.clearLayers();
@@ -913,6 +1055,16 @@ public partial class KarteSectionView : UserControl
 
                    window.gawelaSetAllMarkerPopupsVisible = function(show) {
                      setAllMarkerPopupsVisible(show);
+                   };
+
+                   window.gawelaSetDetailsToggle = function(show, glyph) {
+                     if (!detailsToggle) {
+                       return;
+                     }
+
+                     detailsToggle.style.display = show ? 'flex' : 'none';
+                     const isRight = (glyph || '<').trim() === '>';
+                     detailsToggle.classList.toggle('is-right', isRight);
                    };
 
                    window.gawelaSetCompanyMarker = function(company) {
