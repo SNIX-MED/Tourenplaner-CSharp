@@ -31,6 +31,12 @@ public sealed class AppSettings
     public int CalendarLoadCriticalPeopleThreshold { get; set; } = 2;
     public bool MapDetailsPanelExpanded { get; set; } = true;
     public bool MapSearchDimNonMatchingPins { get; set; } = true;
+    public bool MapPinInfoCardShowName { get; set; } = true;
+    public bool MapPinInfoCardShowOrderNumber { get; set; } = true;
+    public bool MapPinInfoCardShowStreet { get; set; } = true;
+    public bool MapPinInfoCardShowPostalCodeCity { get; set; } = true;
+    public bool MapPinInfoCardShowProducts { get; set; } = true;
+    public bool MapPinInfoCardShowTotalWeight { get; set; } = true;
     public List<string> QuickAccessItems { get; set; } = new() { "action:export_route", string.Empty, string.Empty, string.Empty };
     public bool BackupsEnabled { get; set; }
     public string BackupDir { get; set; } = string.Empty;

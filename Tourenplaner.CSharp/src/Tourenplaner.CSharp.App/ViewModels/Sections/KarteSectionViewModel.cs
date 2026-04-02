@@ -98,6 +98,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _isMapFilterPanelVisible;
     private bool _isMapLegendPanelVisible;
     private double _pinInfoCardScale = 1.0;
+    private bool _mapPinInfoCardShowName = true;
+    private bool _mapPinInfoCardShowOrderNumber = true;
+    private bool _mapPinInfoCardShowStreet = true;
+    private bool _mapPinInfoCardShowPostalCodeCity = true;
+    private bool _mapPinInfoCardShowProducts = true;
+    private bool _mapPinInfoCardShowTotalWeight = true;
     private int _routeGeometryRevision;
     private int _activeTourId;
     private string _currentRouteVehicleId = string.Empty;
@@ -372,6 +378,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
     }
 
+    public bool MapPinInfoCardShowName => _mapPinInfoCardShowName;
+    public bool MapPinInfoCardShowOrderNumber => _mapPinInfoCardShowOrderNumber;
+    public bool MapPinInfoCardShowStreet => _mapPinInfoCardShowStreet;
+    public bool MapPinInfoCardShowPostalCodeCity => _mapPinInfoCardShowPostalCodeCity;
+    public bool MapPinInfoCardShowProducts => _mapPinInfoCardShowProducts;
+    public bool MapPinInfoCardShowTotalWeight => _mapPinInfoCardShowTotalWeight;
+
     public string RouteName
     {
         get => _routeName;
@@ -611,6 +624,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _statusColorInStock = NormalizeStatusColor(settings.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         _statusColorPlanned = NormalizeStatusColor(settings.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
         _mapSearchDimNonMatchingPins = settings.MapSearchDimNonMatchingPins;
+        _mapPinInfoCardShowName = settings.MapPinInfoCardShowName;
+        _mapPinInfoCardShowOrderNumber = settings.MapPinInfoCardShowOrderNumber;
+        _mapPinInfoCardShowStreet = settings.MapPinInfoCardShowStreet;
+        _mapPinInfoCardShowPostalCodeCity = settings.MapPinInfoCardShowPostalCodeCity;
+        _mapPinInfoCardShowProducts = settings.MapPinInfoCardShowProducts;
+        _mapPinInfoCardShowTotalWeight = settings.MapPinInfoCardShowTotalWeight;
         NotifyLegendColorsChanged();
         IsDetailsPanelExpanded = settings.MapDetailsPanelExpanded;
         _companyLocation = await AddressGeocodingService.TryGeocodeAddressAsync(
@@ -3644,11 +3663,16 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     private MapOrderItem BuildMapOrderItem(Order order, bool isDimmed = false)
     {
+        var totalWeightKg = Math.Max(0d, (order.Products ?? []).Sum(OrderProductFormatter.ResolveTotalWeightKg));
         return new MapOrderItem
         {
             OrderId = order.Id,
             Customer = NormalizeUiText(order.CustomerName),
             Address = NormalizeUiText(order.Address),
+            Street = ResolveStreet(order),
+            PostalCodeCity = ResolvePostalCodeCity(order),
+            ProductLines = BuildProductLineItems(order.Products),
+            TotalWeightKgText = totalWeightKg.ToString("0.##", CultureInfo.CurrentCulture),
             ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
             AssignedTourId = order.AssignedTourId ?? string.Empty,
             IsAssigned = IsOrderAssignedOrInDraftRoute(order),
@@ -3671,6 +3695,79 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                NormalizeOrderStatus(order.OrderStatus).Contains(query, StringComparison.OrdinalIgnoreCase) ||
                NormalizeAvisoStatus(order.AvisoStatus).Contains(query, StringComparison.OrdinalIgnoreCase) ||
                (order.AssignedTourId ?? string.Empty).Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ResolveStreet(Order order)
+    {
+        var street = (order.DeliveryAddress?.Street ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(street))
+        {
+            return NormalizeUiText(street);
+        }
+
+        street = (order.OrderAddress?.Street ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(street))
+        {
+            return NormalizeUiText(street);
+        }
+
+        var fallback = (order.Address ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(fallback))
+        {
+            return string.Empty;
+        }
+
+        var commaIndex = fallback.IndexOf(',');
+        return NormalizeUiText(commaIndex < 0 ? fallback : fallback[..commaIndex].Trim());
+    }
+
+    private static string ResolvePostalCodeCity(Order order)
+    {
+        var delivery = string.Join(' ', new[]
+        {
+            (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim(),
+            (order.DeliveryAddress?.City ?? string.Empty).Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        if (!string.IsNullOrWhiteSpace(delivery))
+        {
+            return NormalizeUiText(delivery);
+        }
+
+        var orderAddress = string.Join(' ', new[]
+        {
+            (order.OrderAddress?.PostalCode ?? string.Empty).Trim(),
+            (order.OrderAddress?.City ?? string.Empty).Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        if (!string.IsNullOrWhiteSpace(orderAddress))
+        {
+            return NormalizeUiText(orderAddress);
+        }
+
+        var fallback = (order.Address ?? string.Empty).Trim();
+        var commaIndex = fallback.IndexOf(',');
+        if (commaIndex >= 0 && commaIndex + 1 < fallback.Length)
+        {
+            return NormalizeUiText(fallback[(commaIndex + 1)..].Trim());
+        }
+
+        return string.Empty;
+    }
+
+    private static List<string> BuildProductLineItems(IEnumerable<OrderProductInfo>? products)
+    {
+        var lines = new List<string>();
+        foreach (var product in products ?? [])
+        {
+            if (product is null || string.IsNullOrWhiteSpace(product.Name))
+            {
+                continue;
+            }
+
+            var quantity = Math.Max(1, product.Quantity);
+            lines.Add($"{quantity}x {NormalizeUiText(product.Name)}");
+        }
+
+        return lines;
     }
 
     private static string NormalizeUiText(string? value)
@@ -3828,6 +3925,10 @@ public sealed class MapOrderItem
     public string OrderId { get; set; } = string.Empty;
     public string Customer { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
+    public string Street { get; set; } = string.Empty;
+    public string PostalCodeCity { get; set; } = string.Empty;
+    public List<string> ProductLines { get; set; } = new();
+    public string TotalWeightKgText { get; set; } = string.Empty;
     public string ScheduledDate { get; set; } = string.Empty;
     public string AssignedTourId { get; set; } = string.Empty;
     public bool IsAssigned { get; set; }

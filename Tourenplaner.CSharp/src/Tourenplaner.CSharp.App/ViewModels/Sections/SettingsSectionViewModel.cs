@@ -57,6 +57,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private int _calendarLoadCriticalPeopleThreshold = 2;
     private bool _mapDetailsPanelExpanded = true;
     private bool _mapSearchDimNonMatchingPins;
+    private bool _mapPinInfoCardShowName = true;
+    private bool _mapPinInfoCardShowOrderNumber = true;
+    private bool _mapPinInfoCardShowStreet = true;
+    private bool _mapPinInfoCardShowPostalCodeCity = true;
+    private bool _mapPinInfoCardShowProducts = true;
+    private bool _mapPinInfoCardShowTotalWeight = true;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
     private string _backupModeDefault = "full";
@@ -258,6 +264,42 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _mapSearchDimNonMatchingPins;
         set => SetProperty(ref _mapSearchDimNonMatchingPins, value);
+    }
+
+    public bool MapPinInfoCardShowName
+    {
+        get => _mapPinInfoCardShowName;
+        set => SetProperty(ref _mapPinInfoCardShowName, value);
+    }
+
+    public bool MapPinInfoCardShowOrderNumber
+    {
+        get => _mapPinInfoCardShowOrderNumber;
+        set => SetProperty(ref _mapPinInfoCardShowOrderNumber, value);
+    }
+
+    public bool MapPinInfoCardShowStreet
+    {
+        get => _mapPinInfoCardShowStreet;
+        set => SetProperty(ref _mapPinInfoCardShowStreet, value);
+    }
+
+    public bool MapPinInfoCardShowPostalCodeCity
+    {
+        get => _mapPinInfoCardShowPostalCodeCity;
+        set => SetProperty(ref _mapPinInfoCardShowPostalCodeCity, value);
+    }
+
+    public bool MapPinInfoCardShowProducts
+    {
+        get => _mapPinInfoCardShowProducts;
+        set => SetProperty(ref _mapPinInfoCardShowProducts, value);
+    }
+
+    public bool MapPinInfoCardShowTotalWeight
+    {
+        get => _mapPinInfoCardShowTotalWeight;
+        set => SetProperty(ref _mapPinInfoCardShowTotalWeight, value);
     }
 
     public bool BackupsEnabled
@@ -682,6 +724,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             CalendarLoadCriticalPeopleThreshold = CalendarLoadCriticalPeopleThreshold,
             MapDetailsPanelExpanded = MapDetailsPanelExpanded,
             MapSearchDimNonMatchingPins = MapSearchDimNonMatchingPins,
+            MapPinInfoCardShowName = MapPinInfoCardShowName,
+            MapPinInfoCardShowOrderNumber = MapPinInfoCardShowOrderNumber,
+            MapPinInfoCardShowStreet = MapPinInfoCardShowStreet,
+            MapPinInfoCardShowPostalCodeCity = MapPinInfoCardShowPostalCodeCity,
+            MapPinInfoCardShowProducts = MapPinInfoCardShowProducts,
+            MapPinInfoCardShowTotalWeight = MapPinInfoCardShowTotalWeight,
             BackupsEnabled = BackupsEnabled,
             BackupDir = (BackupDir ?? string.Empty).Trim(),
             BackupModeDefault = (BackupModeDefault ?? string.Empty).Trim(),
@@ -728,6 +776,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         CalendarLoadCriticalPeopleThreshold = settings.CalendarLoadCriticalPeopleThreshold < 1 ? 2 : settings.CalendarLoadCriticalPeopleThreshold;
         MapDetailsPanelExpanded = settings.MapDetailsPanelExpanded;
         MapSearchDimNonMatchingPins = settings.MapSearchDimNonMatchingPins;
+        MapPinInfoCardShowName = settings.MapPinInfoCardShowName;
+        MapPinInfoCardShowOrderNumber = settings.MapPinInfoCardShowOrderNumber;
+        MapPinInfoCardShowStreet = settings.MapPinInfoCardShowStreet;
+        MapPinInfoCardShowPostalCodeCity = settings.MapPinInfoCardShowPostalCodeCity;
+        MapPinInfoCardShowProducts = settings.MapPinInfoCardShowProducts;
+        MapPinInfoCardShowTotalWeight = settings.MapPinInfoCardShowTotalWeight;
         BackupsEnabled = settings.BackupsEnabled;
         BackupDir = settings.BackupDir;
         BackupModeDefault = settings.BackupModeDefault;

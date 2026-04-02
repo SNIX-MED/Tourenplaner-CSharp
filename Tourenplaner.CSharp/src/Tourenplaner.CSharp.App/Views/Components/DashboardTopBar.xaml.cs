@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using Tourenplaner.CSharp.App.ViewModels.Sections;
 
 namespace Tourenplaner.CSharp.App.Views.Components;
 
@@ -27,6 +28,17 @@ public partial class DashboardTopBar : UserControl
         }
 
         button.IsChecked = false;
+        e.Handled = true;
+    }
+
+    private void PinInfoCardScaleSlider_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        vm.PinInfoCardScale = 1.0d;
         e.Handled = true;
     }
 }

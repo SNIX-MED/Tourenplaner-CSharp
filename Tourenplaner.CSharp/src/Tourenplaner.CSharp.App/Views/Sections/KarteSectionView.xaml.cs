@@ -351,6 +351,16 @@ public partial class KarteSectionView : UserControl
             id = x.OrderId,
             customer = x.Customer,
             address = x.Address,
+            street = x.Street,
+            postalCodeCity = x.PostalCodeCity,
+            products = x.ProductLines,
+            totalWeightKgText = x.TotalWeightKgText,
+            showName = vm.MapPinInfoCardShowName,
+            showOrderNumber = vm.MapPinInfoCardShowOrderNumber,
+            showStreet = vm.MapPinInfoCardShowStreet,
+            showPostalCodeCity = vm.MapPinInfoCardShowPostalCodeCity,
+            showProducts = vm.MapPinInfoCardShowProducts,
+            showTotalWeight = vm.MapPinInfoCardShowTotalWeight,
             status = x.StatusLabel,
             avisoStatus = x.AvisoStatusLabel,
             isAssigned = x.IsAssigned,
@@ -813,6 +823,14 @@ public partial class KarteSectionView : UserControl
                      margin-bottom: var(--gawela-popup-address-gap, 8px);
                      color: #334155;
                    }
+                   .leaflet-popup.gawela-pin-popup .gawela-popup-line {
+                     margin-bottom: 4px;
+                     color: #334155;
+                   }
+                   .leaflet-popup.gawela-pin-popup .gawela-popup-products {
+                     margin-bottom: 6px;
+                     color: #334155;
+                   }
                    .leaflet-popup.gawela-pin-popup .gawela-popup-action {
                      height: var(--gawela-popup-button-height, 24px);
                      padding: 0 var(--gawela-popup-button-pad-x, 8px);
@@ -1028,24 +1046,57 @@ public partial class KarteSectionView : UserControl
                      return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned, false)}<div style="position:absolute;inset:0;top:${labelTopOffset};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;line-height:1;text-shadow:0 1px 2px rgba(15,23,42,0.85);pointer-events:none;">${safeLabel}</div></div>`;
                    }
 
-                   function buildPopupAddressHtml(address) {
-                     const raw = (address || '').trim();
-                     if (!raw) {
-                       return '';
+                   function escapeHtml(value) {
+                     return String(value || '')
+                       .replace(/&/g, '&amp;')
+                       .replace(/</g, '&lt;')
+                       .replace(/>/g, '&gt;')
+                       .replace(/"/g, '&quot;')
+                       .replace(/'/g, '&#39;');
+                   }
+
+                   function buildPopupContent(m) {
+                     const sections = [];
+                     const name = (m.customer || '').trim();
+                     const orderId = (m.id || '').trim();
+                     const street = (m.street || '').trim();
+                     const postalCodeCity = (m.postalCodeCity || '').trim();
+                     const products = Array.isArray(m.products) ? m.products : [];
+                     const totalWeight = (m.totalWeightKgText || '').trim();
+
+                     if (m.showName && name) {
+                       sections.push(`<div class="gawela-popup-title">${escapeHtml(name)}</div>`);
                      }
-                     const commaIndex = raw.indexOf(',');
-                     if (commaIndex < 0) {
-                       return raw;
+                     if (m.showOrderNumber && orderId) {
+                       sections.push(`<div class="gawela-popup-line"><strong>Auftrag:</strong> ${escapeHtml(orderId)}</div>`);
                      }
-                     const street = raw.substring(0, commaIndex).trim();
-                     const postalAndCity = raw.substring(commaIndex + 1).trim();
-                     if (!street) {
-                       return postalAndCity;
+                     if (m.showStreet && street) {
+                       sections.push(`<div class="gawela-popup-line">${escapeHtml(street)}</div>`);
                      }
-                     if (!postalAndCity) {
-                       return street;
+                     if (m.showPostalCodeCity && postalCodeCity) {
+                       sections.push(`<div class="gawela-popup-address">${escapeHtml(postalCodeCity)}</div>`);
                      }
-                     return `${street}<br/>${postalAndCity}`;
+                     if (m.showProducts && products.length > 0) {
+                       const productLines = products
+                         .map(x => (x || '').trim())
+                         .filter(x => x.length > 0)
+                         .map(x => escapeHtml(x))
+                         .join('<br/>');
+                       if (productLines) {
+                         sections.push(`<div class="gawela-popup-products"><strong>Produkte:</strong><br/>${productLines}</div>`);
+                       }
+                     }
+                     if (m.showTotalWeight && totalWeight) {
+                       sections.push(`<div class="gawela-popup-line"><strong>Gesamtgewicht:</strong> ${escapeHtml(totalWeight)} kg</div>`);
+                     }
+
+                     if (sections.length === 0) {
+                       sections.push(`<div class="gawela-popup-title">${escapeHtml(orderId || name || 'Auftrag')}</div>`);
+                     }
+
+                     const orderIdForJs = orderId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                     sections.push(`<button class="gawela-popup-action" onclick="window.gawelaAddToRoute('${orderIdForJs}')">Add to route</button>`);
+                     return sections.join('');
                    }
 
                    window.gawelaSetMarkers = function(markers) {
@@ -1064,12 +1115,8 @@ public partial class KarteSectionView : UserControl
                          iconAnchor: [14, 14]
                        });
                        const marker = L.marker([m.lat, m.lon], { icon });
-                       const title = (m.customer && m.customer.trim().length > 0)
-                         ? `${m.customer} (${m.id})`
-                         : (m.id || '');
-                       const addressHtml = buildPopupAddressHtml(m.address);
                        marker.bindPopup(
-                         `<div class="gawela-popup-title">${title}</div><div class="gawela-popup-address">${addressHtml}</div><button class="gawela-popup-action" onclick="window.gawelaAddToRoute('${m.id}')">Add to route</button>`,
+                         buildPopupContent(m),
                          {
                            className: 'gawela-pin-popup',
                            autoClose: false,
