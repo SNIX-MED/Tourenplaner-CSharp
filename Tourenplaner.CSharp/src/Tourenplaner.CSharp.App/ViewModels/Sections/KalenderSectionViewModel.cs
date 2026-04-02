@@ -298,22 +298,26 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             .GroupBy(x => x.Date!.Value.Date)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Tour).OrderBy(t => t.StartTime).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList());
 
+        var daysFromWeekStart = ((int)DateTime.Today.DayOfWeek + 6) % 7; // Monday = 0
+        var previewStartDate = DateTime.Today.AddDays(-daysFromWeekStart).Date;
+
         StartWeekGroupItem? currentWeek = null;
-        for (var i = 0; i < 60; i++)
+        for (var i = 0; i < PreviewWeekCount * 7; i++)
         {
-            var date = DateTime.Today.AddDays(i).Date;
+            var date = previewStartDate.AddDays(i).Date;
             toursByDate.TryGetValue(date, out var toursForDay);
             toursForDay ??= [];
             var assignedPeopleCount = toursForDay.Sum(GetAssignedPeopleCount);
+            var weekdayShort = UiCulture.DateTimeFormat.GetAbbreviatedDayName(date.DayOfWeek).TrimEnd('.');
 
             var card = new UpcomingDayCardItem
             {
                 Date = date,
-                DateText = date.ToString("dd.MM.yyyy", UiCulture),
+                DateText = $"{weekdayShort} {date:dd.MM.yyyy}",
                 TourCountText = $"{toursForDay.Count} geplante Tour(en)",
                 SummaryText = toursForDay.Count == 0
-                    ? "Keine Tour geplant."
-                    : string.Join(Environment.NewLine, toursForDay.Select(t => BuildTourSummary(t, includeName: true))),
+                    ? string.Empty
+                    : string.Join(Environment.NewLine, toursForDay.Select(t => BuildTourSummary(t, includeName: false))),
                 IsToday = date == DateTime.Today
             };
             ApplyDayLoadAppearance(card, assignedPeopleCount);
@@ -322,11 +326,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             var weekLabel = BuildWeekLabel(date);
             if (currentWeek is null || !string.Equals(currentWeek.Label, weekLabel, StringComparison.Ordinal))
             {
-                if (UpcomingWeeks.Count >= PreviewWeekCount)
-                {
-                    break;
-                }
-
                 currentWeek = new StartWeekGroupItem
                 {
                     Label = weekLabel
@@ -509,6 +508,15 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         if (match is not null)
         {
             SelectedDay = match;
+            return;
+        }
+
+        var rangeStart = new DateTime(_rangeStartMonth.Year, _rangeStartMonth.Month, 1);
+        var rangeEnd = rangeStart.AddMonths(2).AddDays(-1);
+        if (date.Date < rangeStart || date.Date > rangeEnd)
+        {
+            _rangeStartMonth = new DateTime(date.Year, date.Month, 1);
+            BuildCalendarRange(date);
         }
     }
 

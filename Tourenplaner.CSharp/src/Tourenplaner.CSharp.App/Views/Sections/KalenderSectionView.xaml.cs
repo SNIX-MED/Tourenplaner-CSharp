@@ -35,7 +35,7 @@ public partial class KalenderSectionView : UserControl
 
     private void OnUpcomingDayCardMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not Border card || card.DataContext is not UpcomingDayCardItem day)
+        if (sender is not FrameworkElement element || element.DataContext is not UpcomingDayCardItem day)
         {
             return;
         }
@@ -43,6 +43,7 @@ public partial class KalenderSectionView : UserControl
         if (DataContext is KalenderSectionViewModel vm)
         {
             vm.SelectedUpcomingDay = day;
+            e.Handled = true;
         }
     }
 
