@@ -466,7 +466,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             Id = order.Id,
             CustomerName = order.CustomerName,
             Address = order.Address,
-            ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
+            ScheduledDate = order.ScheduledDate.ToString("dd.MM.yyyy"),
             AssignedTourId = order.AssignedTourId ?? string.Empty,
             Latitude = order.Location?.Latitude.ToString("0.######") ?? string.Empty,
             Longitude = order.Location?.Longitude.ToString("0.######") ?? string.Empty,
@@ -599,6 +599,66 @@ public sealed class OrderItem : ObservableObject
     {
         get => _scheduledDate;
         set => SetProperty(ref _scheduledDate, value);
+    }
+
+    public string OrderAddressLine
+    {
+        get
+        {
+            var street = (OrderAddressStreet ?? string.Empty).Trim();
+            var postal = (OrderAddressPostalCode ?? string.Empty).Trim();
+            var city = (OrderAddressCity ?? string.Empty).Trim();
+            var postalCity = string.Join(' ', new[] { postal, city }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            return string.Join(", ", new[] { street, postalCity }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        }
+    }
+
+    public string DeliveryStreetLine
+    {
+        get
+        {
+            var street = (DeliveryStreet ?? string.Empty).Trim();
+            return string.IsNullOrWhiteSpace(street) ? (Address ?? string.Empty).Trim() : street;
+        }
+    }
+
+    public string DeliveryPostalCityLine
+    {
+        get
+        {
+            var postal = (DeliveryPostalCode ?? string.Empty).Trim();
+            var city = (DeliveryCity ?? string.Empty).Trim();
+            return string.Join(' ', new[] { postal, city }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        }
+    }
+
+    public string DeliveryPersonPrimary
+    {
+        get
+        {
+            var contact = (DeliveryContactPerson ?? string.Empty).Trim();
+            if (!string.IsNullOrWhiteSpace(contact))
+            {
+                return contact;
+            }
+
+            return (DeliveryName ?? string.Empty).Trim();
+        }
+    }
+
+    public string DeliveryPersonSecondary
+    {
+        get
+        {
+            var phone = (Phone ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                return string.Empty;
+            }
+
+            var primary = DeliveryPersonPrimary;
+            return string.Equals(primary, phone, StringComparison.OrdinalIgnoreCase) ? string.Empty : phone;
+        }
     }
 
     public string AssignedTourId

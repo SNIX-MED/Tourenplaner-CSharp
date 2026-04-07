@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Tourenplaner.CSharp.App.ViewModels.Sections;
 
 namespace Tourenplaner.CSharp.App.Views.Sections;
 
@@ -58,5 +59,24 @@ public partial class OrdersSectionView : UserControl
         }
 
         return null;
+    }
+
+    private void OnOpenOrderClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not OrdersSectionViewModel vm)
+        {
+            return;
+        }
+
+        if (sender is FrameworkElement { DataContext: OrderItem item })
+        {
+            OrdersGrid.SelectedItem = item;
+            vm.SelectedOrder = item;
+        }
+
+        if (vm.EditSelectedOrderCommand.CanExecute(null))
+        {
+            vm.EditSelectedOrderCommand.Execute(null);
+        }
     }
 }
