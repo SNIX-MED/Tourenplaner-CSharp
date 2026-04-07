@@ -9,7 +9,7 @@ public sealed class SpediteurSectionViewModel : SectionViewModelBase
 {
     private string _configuredUrl = AppSettings.DefaultSpediteurToolUrl;
     private string _loadedUrl = AppSettings.DefaultSpediteurToolUrl;
-    private string _statusText = "Spediteur-Portal wird geladen.";
+    private string _statusText = string.Empty;
     private bool _webView2Available;
 
     public SpediteurSectionViewModel() : base("Spediteur", "Eingebettetes Spediteur-Portal.")
@@ -64,7 +64,7 @@ public sealed class SpediteurSectionViewModel : SectionViewModelBase
     {
         LoadedUrl = _configuredUrl;
         StatusText = _webView2Available
-            ? "Spediteur-Portal geladen."
+            ? string.Empty
             : "WebView2 nicht verfuegbar. Bitte Spediteur-Portal im Browser oeffnen.";
     }
 

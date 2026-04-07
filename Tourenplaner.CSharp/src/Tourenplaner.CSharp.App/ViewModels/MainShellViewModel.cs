@@ -129,8 +129,6 @@ public sealed class MainShellViewModel : ObservableObject
         _settingsSection.PropertyChanged += OnSettingsSectionPropertyChanged;
 
         OpenSettingsCommand = new DelegateCommand(OpenSettings);
-        ExportCurrentRouteCommand = new DelegateCommand(ExportCurrentRoute, CanExportCurrentRoute);
-        _mapSection.ExportRouteCommand.CanExecuteChanged += (_, _) => ExportCurrentRouteCommand.RaiseCanExecuteChanged();
         ToastNotificationService.NotificationRequested += OnToastNotificationRequested;
         SelectedNavigationItem = NavigationItems[0];
 
@@ -142,8 +140,6 @@ public sealed class MainShellViewModel : ObservableObject
     public ObservableCollection<NavigationItemViewModel> SidebarNavigationItems { get; }
 
     public DelegateCommand OpenSettingsCommand { get; }
-
-    public DelegateCommand ExportCurrentRouteCommand { get; }
 
     public string GlobalSearchText
     {
@@ -173,7 +169,6 @@ public sealed class MainShellViewModel : ObservableObject
             {
                 CurrentSection = value?.Section;
                 TriggerSectionRefreshOnce(value?.Section);
-                ExportCurrentRouteCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -279,21 +274,6 @@ public sealed class MainShellViewModel : ObservableObject
     private void OpenSettings()
     {
         SelectedNavigationItem = _settingsNavigationItem;
-    }
-
-    private bool CanExportCurrentRoute()
-    {
-        return ReferenceEquals(CurrentSection, _mapSection) && _mapSection.ExportRouteCommand.CanExecute(null);
-    }
-
-    private void ExportCurrentRoute()
-    {
-        if (!CanExportCurrentRoute())
-        {
-            return;
-        }
-
-        _mapSection.ExportRouteCommand.Execute(null);
     }
 
     private void TriggerSectionRefreshOnce(object? section)

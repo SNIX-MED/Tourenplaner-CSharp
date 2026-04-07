@@ -69,7 +69,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         RefreshCommand = new AsyncCommand(RefreshAsync);
         OpenSelectedTourCommand = new AsyncCommand(OpenSelectedTourAsync, () => SelectedDayTour is not null);
         DeleteSelectedTourCommand = new AsyncCommand(DeleteSelectedTourAsync, () => SelectedDayTour is not null);
-        OpenSelectedDayInToursCommand = new AsyncCommand(OpenSelectedDayInToursAsync, CanOpenSelectedDayInTours);
         OpenSplitScreenCommand = new AsyncCommand(OpenSplitScreenAsync, () => _openSplitScreenAsync is not null);
         _dataSyncService.DataChanged += OnDataChanged;
 
@@ -92,8 +91,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     public ICommand OpenSelectedTourCommand { get; }
 
     public ICommand DeleteSelectedTourCommand { get; }
-
-    public ICommand OpenSelectedDayInToursCommand { get; }
 
     public ICommand OpenSplitScreenCommand { get; }
 
@@ -828,11 +825,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         if (DeleteSelectedTourCommand is AsyncCommand deleteTour)
         {
             deleteTour.RaiseCanExecuteChanged();
-        }
-
-        if (OpenSelectedDayInToursCommand is AsyncCommand openDay)
-        {
-            openDay.RaiseCanExecuteChanged();
         }
     }
 

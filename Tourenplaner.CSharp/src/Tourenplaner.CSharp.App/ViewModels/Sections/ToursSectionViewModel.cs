@@ -1303,23 +1303,34 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
-        foreach (var stop in SelectedTour.Source.Stops
-                     .OrderBy(GetStopDisplayOrderGroup)
-                     .ThenBy(s => s.Order))
+        var orderedStops = SelectedTour.Source.Stops
+            .OrderBy(GetStopDisplayOrderGroup)
+            .ThenBy(s => s.Order)
+            .ToList();
+
+        for (var index = 0; index < orderedStops.Count; index++)
         {
+            var stop = orderedStops[index];
             var isCompanyStop = IsCompanyStop(stop);
+            var isRouteStart = index == 0;
+            var isRouteEnd = index == orderedStops.Count - 1;
+            var arrival = stop.PlannedArrival ?? string.Empty;
+            var departure = stop.PlannedDeparture ?? string.Empty;
+
             SelectedTourStops.Add(new TourStopOverviewItem
             {
                 SourceTourId = SelectedTour.TourId,
                 Source = stop,
                 IsCompanyStop = isCompanyStop,
+                IsRouteStart = isRouteStart,
+                IsRouteEnd = isRouteEnd,
                 Order = isCompanyStop ? string.Empty : stop.Order.ToString(CultureInfo.InvariantCulture),
                 OrderNumber = isCompanyStop ? string.Empty : stop.Auftragsnummer,
                 Name = isCompanyStop ? NormalizeCompanyStopName(stop.Name) : stop.Name,
                 Address = isCompanyStop ? string.Empty : stop.Address,
                 Window = isCompanyStop ? string.Empty : $"{stop.TimeWindowStart} - {stop.TimeWindowEnd}".Trim(' ', '-'),
-                Arrival = isCompanyStop ? string.Empty : stop.PlannedArrival,
-                Departure = isCompanyStop ? string.Empty : stop.PlannedDeparture,
+                Arrival = arrival,
+                Departure = departure,
                 Weight = isCompanyStop ? string.Empty : $"{ParseWeightKg(stop.Gewicht)} kg",
                 Conflict = isCompanyStop ? string.Empty : (stop.ScheduleConflict ? (string.IsNullOrWhiteSpace(stop.ScheduleConflictText) ? "Yes" : stop.ScheduleConflictText) : string.Empty)
             });
@@ -1878,6 +1889,8 @@ public sealed class TourStopOverviewItem
     public int SourceTourId { get; set; }
     public TourStopRecord Source { get; set; } = new();
     public bool IsCompanyStop { get; set; }
+    public bool IsRouteStart { get; set; }
+    public bool IsRouteEnd { get; set; }
     public string Order { get; set; } = string.Empty;
     public string OrderNumber { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -1887,6 +1900,8 @@ public sealed class TourStopOverviewItem
     public string Departure { get; set; } = string.Empty;
     public string Weight { get; set; } = string.Empty;
     public string Conflict { get; set; } = string.Empty;
+    public string DisplayName => string.IsNullOrWhiteSpace(OrderNumber) ? Name : $"{Name} ({OrderNumber})";
+    public string DisplayTime => !string.IsNullOrWhiteSpace(Arrival) ? Arrival : Departure;
 }
 
 public sealed class LookupItem

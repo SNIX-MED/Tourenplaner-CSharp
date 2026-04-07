@@ -6,6 +6,33 @@
              mc:Ignorable="d"
              d:DesignHeight="900"
              d:DesignWidth="1450">
+    <UserControl.Resources>
+        <Style x:Key="TourStopCardsListStyle" TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+
+        <Style x:Key="TourStopCardListItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border Background="{TemplateBinding Background}" BorderThickness="0">
+                            <ContentPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
     <Grid Margin="{StaticResource Spacing.PageMargin}">
         <Grid>
             <Grid.ColumnDefinitions>
@@ -67,7 +94,7 @@
                           ResizeDirection="Columns"
                           Background="{DynamicResource Brush.BorderSoft}" />
 
-            <Border Grid.Column="2" Margin="12,0,0,0" Style="{StaticResource FlatCardStyle}" Padding="12">
+            <Border Grid.Column="2" Margin="12,0,0,0" Style="{StaticResource FlatCardStyle}" Padding="12" Effect="{x:Null}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -100,28 +127,224 @@
                         </Border>
                     </Grid>
 
-                    <DataGrid x:Name="SelectedTourStopsGrid"
-                              Grid.Row="1"
-                              AutoGenerateColumns="False"
-                              AllowDrop="True"
-                              IsReadOnly="True"
-                              ItemsSource="{Binding SelectedTourStops}"
-                              PreviewMouseLeftButtonDown="SelectedTourStopsGrid_PreviewMouseLeftButtonDown"
-                              MouseMove="SelectedTourStopsGrid_MouseMove"
-                              DragOver="SelectedTourStopsGrid_DragOver"
-                              DragLeave="SelectedTourStopsGrid_DragLeave"
-                              Drop="SelectedTourStopsGrid_Drop">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="#" Width="44" Binding="{Binding Order}" />
-                            <DataGridTextColumn Header="Auftrag" Width="110" Binding="{Binding OrderNumber}" />
-                            <DataGridTextColumn Header="Name" Width="1.55*" Binding="{Binding Name}" />
-                            <DataGridTextColumn Header="Adresse" Width="2.1*" Binding="{Binding Address}" />
-                            <DataGridTextColumn Header="Zeitfenster" Width="98" Binding="{Binding Window}" />
-                            <DataGridTextColumn Header="Ankunft" Width="60" Binding="{Binding Arrival}" />
-                            <DataGridTextColumn Header="Abfahrt" Width="60" Binding="{Binding Departure}" />
-                            <DataGridTextColumn Header="Gewicht" Width="72" Binding="{Binding Weight}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <Border Grid.Row="1"
+                            BorderBrush="{DynamicResource Brush.BorderSoft}"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Background="{DynamicResource Brush.TableBackground}"
+                            Padding="12"
+                            UseLayoutRounding="True"
+                            SnapsToDevicePixels="True"
+                            TextOptions.TextFormattingMode="Display"
+                            TextOptions.TextRenderingMode="ClearType"
+                            RenderOptions.ClearTypeHint="Enabled">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ListBox x:Name="SelectedTourStopsGrid"
+                                     ItemsSource="{Binding SelectedTourStops}"
+                                     AllowDrop="True"
+                                     PreviewMouseLeftButtonDown="SelectedTourStopsGrid_PreviewMouseLeftButtonDown"
+                                     MouseMove="SelectedTourStopsGrid_MouseMove"
+                                     DragOver="SelectedTourStopsGrid_DragOver"
+                                     DragLeave="SelectedTourStopsGrid_DragLeave"
+                                     Drop="SelectedTourStopsGrid_Drop"
+                                     UseLayoutRounding="True"
+                                     SnapsToDevicePixels="True"
+                                     TextOptions.TextFormattingMode="Display"
+                                     TextOptions.TextRenderingMode="ClearType"
+                                     RenderOptions.ClearTypeHint="Enabled"
+                                     Style="{StaticResource TourStopCardsListStyle}"
+                                     ItemContainerStyle="{StaticResource TourStopCardListItemStyle}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border CornerRadius="14"
+                                                BorderThickness="1"
+                                                Margin="0,0,0,10"
+                                                UseLayoutRounding="True"
+                                                SnapsToDevicePixels="True"
+                                                TextOptions.TextFormattingMode="Display"
+                                                TextOptions.TextRenderingMode="ClearType"
+                                                RenderOptions.ClearTypeHint="Enabled">
+                                            <Border.Style>
+                                                <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+                                                    <Setter Property="Padding" Value="12" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+                                                    <Setter Property="Effect" Value="{x:Null}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsRouteStart}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="#7BC6A4" />
+                                                            <Setter Property="Background" Value="#F2FBF6" />
+                                                            <Setter Property="Padding" Value="6,4" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsRouteEnd}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="#8EC6E8" />
+                                                            <Setter Property="Background" Value="#F2F9FF" />
+                                                            <Setter Property="Padding" Value="6,4" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="84" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border Width="38"
+                                                        Height="38"
+                                                        CornerRadius="19"
+                                                        VerticalAlignment="Top"
+                                                        HorizontalAlignment="Center"
+                                                        Background="#4EBA74">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock Text="{Binding Order}"
+                                                               Foreground="White"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="16"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center" />
+                                                </Border>
+
+                                                <TextBlock Text="{Binding Order}"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Center"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="12"
+                                                           Visibility="Collapsed">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <StackPanel Grid.Column="1" Margin="8,0,6,0">
+                                                    <StackPanel.Style>
+                                                        <Style TargetType="StackPanel">
+                                                            <Setter Property="Margin" Value="8,0,6,0" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
+                                                                    <Setter Property="Margin" Value="2,0,4,0" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </StackPanel.Style>
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontSize="17"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource Brush.TextPrimary}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="FontSize" Value="17" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
+                                                                        <Setter Property="FontSize" Value="12" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock Text="{Binding Address}"
+                                                               Margin="0,2,0,0"
+                                                               Foreground="{DynamicResource Brush.TextSecondary}"
+                                                               TextWrapping="Wrap">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <StackPanel.Style>
+                                                            <Style TargetType="StackPanel">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </StackPanel.Style>
+                                                        <TextBlock Text="{Binding Window, StringFormat=Zeitfenster: {0}}"
+                                                                   Foreground="{DynamicResource Brush.TextMuted}" />
+                                                        <TextBlock Text="  |  "
+                                                                   Margin="8,0,0,0"
+                                                                   Foreground="{DynamicResource Brush.TextMuted}" />
+                                                        <TextBlock Text="{Binding Departure, StringFormat=Abfahrt: {0}}"
+                                                                   Foreground="{DynamicResource Brush.TextSecondary}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DisplayTime}"
+                                                               HorizontalAlignment="Right"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="18"
+                                                               Foreground="{DynamicResource Brush.TextPrimary}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="FontSize" Value="18" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
+                                                                        <Setter Property="FontSize" Value="12" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock HorizontalAlignment="Right"
+                                                               Foreground="{DynamicResource Brush.TextMuted}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="Ankunft" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsRouteStart}" Value="True">
+                                                                        <Setter Property="Text" Value="Start" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsRouteEnd}" Value="True">
+                                                                        <Setter Property="Text" Value="Ende" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </ScrollViewer>
+                    </Border>
 
                     <Grid Grid.Row="2" Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
@@ -129,7 +352,16 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource SoftCardStyle}" Padding="10">
+                        <Border Grid.Column="0"
+                                Margin="0,0,12,0"
+                                Style="{StaticResource SoftCardStyle}"
+                                Padding="10"
+                                Effect="{x:Null}"
+                                UseLayoutRounding="True"
+                                SnapsToDevicePixels="True"
+                                TextOptions.TextFormattingMode="Display"
+                                TextOptions.TextRenderingMode="ClearType"
+                                RenderOptions.ClearTypeHint="Enabled">
                             <StackPanel>
                                 <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourWeightText}" />
                                 <TextBlock Margin="0,4,0,0"

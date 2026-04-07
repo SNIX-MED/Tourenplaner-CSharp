@@ -62,14 +62,6 @@
                     </Border>
 
                     <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">
-                        <Border Style="{StaticResource SoftCardStyle}" Padding="10">
-                            <StackPanel>
-                                <TextBlock FontWeight="SemiBold" FontSize="13" Text="Schnellzugriff" Margin="0,0,0,8" />
-                                <Button Content="Route exportieren"
-                                        Style="{StaticResource SuccessButtonStyle}"
-                                        Command="{Binding ExportCurrentRouteCommand}" />
-                            </StackPanel>
-                        </Border>
                         <TextBlock Margin="4,8,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextSubtle}" Text="(c) GAWELA" />
                     </StackPanel>
 

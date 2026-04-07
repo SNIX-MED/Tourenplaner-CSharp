@@ -9,7 +9,7 @@ public sealed class GpsSectionViewModel : SectionViewModelBase
 {
     private string _configuredUrl = AppSettings.DefaultGpsToolUrl;
     private string _loadedUrl = AppSettings.DefaultGpsToolUrl;
-    private string _statusText = "GPS wird geladen.";
+    private string _statusText = string.Empty;
     private bool _webView2Available;
 
     public GpsSectionViewModel() : base("GPS", "Minimal eingebettete GPS-Ansicht.")
@@ -65,7 +65,7 @@ public sealed class GpsSectionViewModel : SectionViewModelBase
     {
         LoadedUrl = _configuredUrl;
         StatusText = _webView2Available
-            ? "GPS geladen."
+            ? string.Empty
             : "WebView2 nicht verfuegbar. Bitte GPS im Browser oeffnen.";
     }
 

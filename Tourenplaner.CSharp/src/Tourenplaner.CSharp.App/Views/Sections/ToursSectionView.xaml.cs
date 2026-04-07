@@ -11,7 +11,7 @@ public partial class ToursSectionView : UserControl
 {
     private Point? _stopsGridDragStart;
     private TourStopOverviewItem? _stopsGridDragItem;
-    private DataGridRow? _activeStopsDropRow;
+    private ListBoxItem? _activeStopsDropRow;
     private DataGridRow? _activeToursDropRow;
     private Brush? _dropHighlightBrush;
 
@@ -38,13 +38,8 @@ public partial class ToursSectionView : UserControl
         _stopsGridDragStart = null;
         _stopsGridDragItem = null;
 
-        if (FindVisualParent<DataGridColumnHeader>(e.OriginalSource as DependencyObject) is not null)
-        {
-            return;
-        }
-
-        var row = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
-        if (row?.Item is not TourStopOverviewItem item || item.IsCompanyStop)
+        var itemContainer = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (itemContainer?.DataContext is not TourStopOverviewItem item || item.IsCompanyStop)
         {
             return;
         }
@@ -98,8 +93,8 @@ public partial class ToursSectionView : UserControl
             return;
         }
 
-        var targetRow = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
-        var target = targetRow?.Item as TourStopOverviewItem;
+        var targetRow = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        var target = targetRow?.DataContext as TourStopOverviewItem;
         if (target is not null &&
             (target.IsCompanyStop || ReferenceEquals(target, source)))
         {
@@ -134,8 +129,8 @@ public partial class ToursSectionView : UserControl
             return;
         }
 
-        var targetRow = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
-        var target = targetRow?.Item as TourStopOverviewItem;
+        var targetRow = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        var target = targetRow?.DataContext as TourStopOverviewItem;
         var moved = await vm.MoveStopWithinSelectedTourAsync(source, target);
         if (moved)
         {
@@ -217,6 +212,23 @@ public partial class ToursSectionView : UserControl
         currentRow.Background = ResolveDropHighlightBrush();
     }
 
+    private void SetDropMarker(ref ListBoxItem? currentRow, ListBoxItem? nextRow)
+    {
+        if (ReferenceEquals(currentRow, nextRow))
+        {
+            return;
+        }
+
+        ClearDropMarker(ref currentRow);
+        if (nextRow is null)
+        {
+            return;
+        }
+
+        currentRow = nextRow;
+        currentRow.Background = ResolveDropHighlightBrush();
+    }
+
     private void ClearDropMarker(ref DataGridRow? row)
     {
         if (row is null)
@@ -225,6 +237,17 @@ public partial class ToursSectionView : UserControl
         }
 
         row.ClearValue(DataGridRow.BackgroundProperty);
+        row = null;
+    }
+
+    private void ClearDropMarker(ref ListBoxItem? row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        row.ClearValue(ListBoxItem.BackgroundProperty);
         row = null;
     }
 
