@@ -35,6 +35,9 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private OrderItem? _selectedOrder;
     private string _selectedDeliveryTypeFilter = AllDeliveryTypesLabel;
     private string _selectedStatusFilter = AllStatusesLabel;
+    private bool _isCustomerColumnVisible = true;
+    private bool _isDeliveryAddressColumnVisible = true;
+    private bool _isDeliveryPersonColumnVisible = true;
 
     public NonMapOrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService)
         : base("Post/Spedition/Abholung", "Auftraege fuer Post, Spedition oder Selbstabholung.")
@@ -110,6 +113,24 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     {
         get => _statusText;
         private set => SetProperty(ref _statusText, value);
+    }
+
+    public bool IsCustomerColumnVisible
+    {
+        get => _isCustomerColumnVisible;
+        set => SetProperty(ref _isCustomerColumnVisible, value);
+    }
+
+    public bool IsDeliveryAddressColumnVisible
+    {
+        get => _isDeliveryAddressColumnVisible;
+        set => SetProperty(ref _isDeliveryAddressColumnVisible, value);
+    }
+
+    public bool IsDeliveryPersonColumnVisible
+    {
+        get => _isDeliveryPersonColumnVisible;
+        set => SetProperty(ref _isDeliveryPersonColumnVisible, value);
     }
 
     public OrderItem? SelectedOrder
@@ -464,7 +485,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             Id = order.Id,
             CustomerName = order.CustomerName,
             Address = order.Address,
-            ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
+            ScheduledDate = order.ScheduledDate.ToString("dd.MM.yyyy"),
             AssignedTourId = order.AssignedTourId ?? string.Empty,
             Latitude = string.Empty,
             Longitude = string.Empty,

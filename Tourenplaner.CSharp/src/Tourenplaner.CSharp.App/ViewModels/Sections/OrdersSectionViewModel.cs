@@ -35,6 +35,9 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private OrderItem? _selectedOrder;
     private string _selectedDeliveryTypeFilter = AllDeliveryTypesLabel;
     private string _selectedStatusFilter = AllStatusesLabel;
+    private bool _isCustomerColumnVisible = true;
+    private bool _isDeliveryAddressColumnVisible = true;
+    private bool _isDeliveryPersonColumnVisible = true;
 
     public OrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService)
         : base("Aufträge", "Aufträge mit Adresse, Zuordnung und Filterung.")
@@ -111,6 +114,24 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     {
         get => _statusText;
         private set => SetProperty(ref _statusText, value);
+    }
+
+    public bool IsCustomerColumnVisible
+    {
+        get => _isCustomerColumnVisible;
+        set => SetProperty(ref _isCustomerColumnVisible, value);
+    }
+
+    public bool IsDeliveryAddressColumnVisible
+    {
+        get => _isDeliveryAddressColumnVisible;
+        set => SetProperty(ref _isDeliveryAddressColumnVisible, value);
+    }
+
+    public bool IsDeliveryPersonColumnVisible
+    {
+        get => _isDeliveryPersonColumnVisible;
+        set => SetProperty(ref _isDeliveryPersonColumnVisible, value);
     }
 
     public OrderItem? SelectedOrder

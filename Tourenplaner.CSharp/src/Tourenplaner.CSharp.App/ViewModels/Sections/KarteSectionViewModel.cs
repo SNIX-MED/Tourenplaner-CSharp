@@ -609,7 +609,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var settingsTask = _settingsRepository.LoadAsync();
         var ordersTask = _orderRepository.GetAllAsync();
         var vehiclesTask = _vehicleRepository.LoadAsync();
-        await Task.WhenAll(settingsTask, ordersTask, vehiclesTask);
+        var employeesTask = _employeeRepository.LoadAsync();
+        await Task.WhenAll(settingsTask, ordersTask, vehiclesTask, employeesTask);
 
         var settings = await settingsTask;
         _vehicleData = await vehiclesTask;
@@ -637,6 +638,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             settings.CompanyPostalCode,
             settings.CompanyCity,
             _companyAddress);
+        _employeeLabelsById.Clear();
+        foreach (var employee in await employeesTask)
+        {
+            if (!string.IsNullOrWhiteSpace(employee.Id))
+            {
+                _employeeLabelsById[employee.Id] = employee.DisplayName;
+            }
+        }
         EnsureCompanyAnchors();
         OnPropertyChanged(nameof(CompanyMarker));
         _allOrders.Clear();
@@ -2305,7 +2314,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             .ToList();
 
         snapshot = new RouteExportSnapshot(
-            string.IsNullOrWhiteSpace(RouteName) ? "Aktuelle Route" : RouteName.Trim(),
+            BuildExportTourNameWithEmployees(),
             string.IsNullOrWhiteSpace(RouteDate) ? string.Empty : RouteDate.Trim(),
             $"{NormalizeTimePart(RouteStartHour, 23)}:{NormalizeTimePart(RouteStartMinute, 59)}",
             ResolveVehicleLabel(_currentRouteVehicleId),
@@ -2318,6 +2327,37 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 : new RouteExportCompanyInfo(_companyName, _companyAddress, _companyLocation.Latitude, _companyLocation.Longitude));
 
         return true;
+    }
+
+    private string BuildExportTourNameWithEmployees()
+    {
+        var baseName = string.IsNullOrWhiteSpace(RouteName) ? "Aktuelle Route" : RouteName.Trim();
+        var tourId = ResolveCurrentTourId();
+        if (tourId <= 0)
+        {
+            return baseName;
+        }
+
+        var selectedTour = _savedTours.FirstOrDefault(x => x.Id == tourId);
+        if (selectedTour is null || selectedTour.EmployeeIds is null || selectedTour.EmployeeIds.Count == 0)
+        {
+            return baseName;
+        }
+
+        var employees = selectedTour.EmployeeIds
+            .Select(ResolveEmployeeLabel)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (employees.Count == 0)
+        {
+            return baseName;
+        }
+
+        var suffix = $"({string.Join(", ", employees)})";
+        return baseName.Contains(suffix, StringComparison.OrdinalIgnoreCase)
+            ? baseName
+            : $"{baseName} {suffix}";
     }
 
     private string ResolveTimeWindow(string orderId)

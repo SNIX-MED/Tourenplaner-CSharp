@@ -227,8 +227,6 @@
                                     <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding StatusColorOnTheWay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="An Lager" />
                                     <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding StatusColorInStock, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Tourstatus Eingeplant" />
-                                    <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding StatusColorPlanned, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Suche Nichttreffer" />
                                     <CheckBox Grid.Row="5" Grid.Column="1" Margin="0,6,0,6" Content="Pins ausgrauen statt ausblenden" IsChecked="{Binding MapSearchDimNonMatchingPins, Mode=TwoWay}" />
                                     <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,10,12,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Infokarte Felder" />

@@ -7,8 +7,16 @@
              xmlns:v="clr-namespace:Tourenplaner.CSharp.App.Views.Sections"
              mc:Ignorable="d"
              d:DesignHeight="900"
-             d:DesignWidth="1500">
+             d:DesignWidth="1500"
+             TextOptions.TextFormattingMode="Display"
+             TextOptions.TextRenderingMode="ClearType">
     <UserControl.Resources>
+        <Style x:Key="SharpFlatCardStyle" TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
+            <Setter Property="Effect" Value="{x:Null}" />
+        </Style>
+        <Style x:Key="SharpSoftCardStyle" TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+            <Setter Property="Effect" Value="{x:Null}" />
+        </Style>
         <DataTemplate DataType="{x:Type vm:KarteSectionViewModel}">
             <v:KarteSectionView />
         </DataTemplate>
@@ -48,7 +56,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Style="{StaticResource SoftCardStyle}" Padding="12" Margin="0,0,6,0">
+            <Border Grid.Column="0" Style="{StaticResource SharpSoftCardStyle}" Padding="12" Margin="0,0,6,0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -107,7 +115,7 @@
                             <DataTemplate>
                                 <Border Margin="0,0,0,10"
                                         Padding="10"
-                                        Style="{StaticResource FlatCardStyle}">
+                                        Style="{StaticResource SharpFlatCardStyle}">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
@@ -144,7 +152,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border Margin="0,0,0,8"
-                                                            Style="{StaticResource SoftCardStyle}"
+                                                            Style="{StaticResource SharpSoftCardStyle}"
                                                             Padding="10">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>

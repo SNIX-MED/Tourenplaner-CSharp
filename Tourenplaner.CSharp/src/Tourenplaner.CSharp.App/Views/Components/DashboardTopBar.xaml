@@ -276,7 +276,7 @@
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0"
                                                            Foreground="{DynamicResource Brush.TextMuted}"
-                                                           Text="Form = Lieferart | Farbe = Lieferstatus | Badge = Avisierungsstatus | Blaue Linie = aktuelle Route" />
+                                                           Text="Form = Lieferart | Farbe = Lieferstatus | Badge = Eingeplant/Avisierungsstatus | Blaue Linie = aktuelle Route" />
 
                                                 <Grid Grid.Row="1" Margin="0,10,0,0">
                                                     <Grid.ColumnDefinitions>
@@ -329,7 +329,6 @@
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
                                                         </Grid.RowDefinitions>
                                                         <TextBlock FontWeight="SemiBold" Text="Lieferstatus (Farbe)" />
 
@@ -348,10 +347,6 @@
                                                         <StackPanel Grid.Row="4" Margin="0,6,0,0" Orientation="Horizontal">
                                                             <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorInStock}" Stroke="White" StrokeThickness="2" />
                                                             <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="An Lager" />
-                                                        </StackPanel>
-                                                        <StackPanel Grid.Row="5" Margin="0,6,0,0" Orientation="Horizontal">
-                                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorPlanned}" Stroke="White" StrokeThickness="2" />
-                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Eingeplant" />
                                                         </StackPanel>
                                                     </Grid>
 

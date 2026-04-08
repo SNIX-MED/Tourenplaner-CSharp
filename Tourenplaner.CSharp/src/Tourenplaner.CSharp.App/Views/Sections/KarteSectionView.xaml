@@ -229,7 +229,7 @@
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0"
                                            Foreground="{DynamicResource Brush.TextMuted}"
-                                           Text="Form = Lieferart | Farbe = Lieferstatus | Badge = Avisierungsstatus | Blaue Linie = aktuelle Route" />
+                                           Text="Form = Lieferart | Farbe = Lieferstatus | Badge = Eingeplant/Avisierungsstatus | Blaue Linie = aktuelle Route" />
 
                                 <Grid Grid.Row="1"
                                       Margin="0,10,0,0">
@@ -328,12 +328,6 @@
                                                         Orientation="Horizontal">
                                                 <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorOrdered}" Stroke="White" StrokeThickness="2" />
                                                 <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Bestellt" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1"
-                                                        Margin="14,0,0,0"
-                                                        Orientation="Horizontal">
-                                                <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorPlanned}" Stroke="White" StrokeThickness="2" />
-                                                <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Eingeplant" />
                                             </StackPanel>
                                         </Grid>
                                         <StackPanel Grid.Row="3"

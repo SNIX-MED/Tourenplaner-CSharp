@@ -1,11 +1,83 @@
-﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.NonMapOrdersSectionView"
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.NonMapOrdersSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
-             d:DesignHeight="650"
-             d:DesignWidth="1000">
+             d:DesignHeight="720"
+             d:DesignWidth="1200">
+    <UserControl.Resources>
+        <Style x:Key="OrdersGridStyle" TargetType="DataGrid">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="RowBackground" Value="Transparent" />
+            <Setter Property="AlternatingRowBackground" Value="Transparent" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Brush.TableGrid}" />
+            <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="CanUserResizeRows" Value="False" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="SelectionMode" Value="Single" />
+            <Setter Property="SelectionUnit" Value="FullRow" />
+            <Setter Property="RowHeaderWidth" Value="0" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
+        </Style>
+
+        <Style x:Key="OrdersGridHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="OrdersGridRowStyle" TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="MinHeight" Value="60" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Brush.RowHover}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="OrdersGridCellStyle" TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+
+        <Style x:Key="PrimaryTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="SecondaryTextStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,1,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+    </UserControl.Resources>
+
     <Grid Margin="{StaticResource Spacing.PageMargin}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -42,11 +114,28 @@
                                    HorizontalAlignment="Center"
                                    Foreground="{DynamicResource Brush.TextMuted}"
                                    Text="&#xE721;" />
-                        <TextBox Grid.Column="1"
-                                 BorderThickness="0"
-                                 Background="Transparent"
-                                 ToolTip="Search by id, customer, address or tour"
-                                 Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <Grid Grid.Column="1">
+                            <TextBox BorderThickness="0"
+                                     Background="Transparent"
+                                     ToolTip="Suche nach Nummer, Auftraggeber, Lieferadresse oder Tour"
+                                     Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock IsHitTestVisible="False"
+                                       Margin="2,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Brush.TextSubtle}"
+                                       Text="Suche...">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SearchText}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </Grid>
                 </Border>
 
@@ -63,56 +152,207 @@
                           SelectedItem="{Binding SelectedStatusFilter, Mode=TwoWay}" />
 
                 <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="ColumnsPopupButton"
+                            Width="110"
+                            Margin="10,0,0,0"
+                            Content="Spalten"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="OnColumnsPopupButtonClick" />
+                    <Popup x:Name="ColumnsPopup"
+                           PlacementTarget="{Binding ElementName=ColumnsPopupButton}"
+                           Placement="Bottom"
+                           StaysOpen="False"
+                           AllowsTransparency="True">
+                        <Border Style="{StaticResource SoftCardStyle}"
+                                Margin="0,6,0,0"
+                                Padding="10"
+                                MinWidth="190">
+                            <StackPanel>
+                                <CheckBox Margin="0,0,0,8"
+                                          Content="Auftraggeber"
+                                          IsChecked="{Binding IsCustomerColumnVisible, Mode=TwoWay}" />
+                                <CheckBox Margin="0,0,0,8"
+                                          Content="Lieferadresse"
+                                          IsChecked="{Binding IsDeliveryAddressColumnVisible, Mode=TwoWay}" />
+                                <CheckBox Content="Lieferperson"
+                                          IsChecked="{Binding IsDeliveryPersonColumnVisible, Mode=TwoWay}" />
+                            </StackPanel>
+                        </Border>
+                    </Popup>
                     <Button Width="110" Margin="10,0,0,0" Content="Zurück" Command="{Binding UndoDeleteCommand}" />
                     <Button Width="182"
                             Margin="10,0,0,0"
                             Content="Manuell hinzufügen"
                             Style="{StaticResource SuccessButtonStyle}"
                             Command="{Binding AddManualOrderCommand}" />
-                    <Button Width="110" Margin="10,0,0,0" Content="Löschen" Style="{StaticResource DangerOutlineButtonStyle}" Command="{Binding RemoveCommand}" />
+                    <Button Width="110"
+                            Margin="10,0,0,0"
+                            Content="Löschen"
+                            Style="{StaticResource DangerOutlineButtonStyle}"
+                            Command="{Binding RemoveCommand}" />
                 </StackPanel>
 
-                <Border Grid.Row="1" Grid.ColumnSpan="4" Margin="0,12,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding StatusText}" />
-                    </StackPanel>
+                <Border Grid.Row="1"
+                        Grid.ColumnSpan="4"
+                        Margin="0,12,0,0"
+                        Padding="10,8"
+                        CornerRadius="12"
+                        BorderBrush="{DynamicResource Brush.BorderSoft}"
+                        BorderThickness="1"
+                        Background="{DynamicResource Brush.CardMuted}">
+                    <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding StatusText}" />
                 </Border>
             </Grid>
         </Border>
 
         <Border Grid.Row="1" Style="{StaticResource FlatCardStyle}" Padding="12">
-            <DataGrid x:Name="NonMapOrdersGrid"
-                      AutoGenerateColumns="False"
-                      CanUserAddRows="False"
-                      IsReadOnly="True"
-                      FrozenColumnCount="2"
-                      ItemsSource="{Binding NonMapOrders}"
-                      SelectedItem="{Binding SelectedOrder, Mode=TwoWay}">
-                <DataGrid.InputBindings>
-                    <MouseBinding MouseAction="LeftDoubleClick" Command="{Binding EditSelectedOrderCommand}" />
-                </DataGrid.InputBindings>
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Auftragsnummer" Width="130" Binding="{Binding Id}" />
-                    <DataGridTextColumn Header="Auftragsdatum" Width="110" Binding="{Binding ScheduledDate}" />
-                    <DataGridTextColumn Header="Auftragsadresse Name" Width="180" Binding="{Binding OrderAddressName}" />
-                    <DataGridTextColumn Header="Auftragsstrasse" Width="180" Binding="{Binding OrderAddressStreet}" />
-                    <DataGridTextColumn Header="Auftrags-PLZ" Width="90" Binding="{Binding OrderAddressPostalCode}" />
-                    <DataGridTextColumn Header="Auftragsort" Width="130" Binding="{Binding OrderAddressCity}" />
-                    <DataGridTextColumn Header="Liefername" Width="180" Binding="{Binding DeliveryName}" />
-                    <DataGridTextColumn Header="Lieferperson" Width="160" Binding="{Binding DeliveryContactPerson}" />
-                    <DataGridTextColumn Header="Lieferstrasse" Width="190" Binding="{Binding DeliveryStreet}" />
-                    <DataGridTextColumn Header="Liefer-PLZ" Width="90" Binding="{Binding DeliveryPostalCode}" />
-                    <DataGridTextColumn Header="Lieferort" Width="130" Binding="{Binding DeliveryCity}" />
-                    <DataGridTextColumn Header="E-Mail" Width="220" Binding="{Binding Email}" />
-                    <DataGridTextColumn Header="Telefon" Width="130" Binding="{Binding Phone}" />
-                    <DataGridTextColumn Header="Produkte" Width="220" Binding="{Binding ProductsSummary}" />
-                    <DataGridTextColumn Header="Lieferart" Width="170" Binding="{Binding DeliveryType}" />
-                    <DataGridTextColumn Header="Status" Width="130" Binding="{Binding OrderStatus}" />
-                    <DataGridTextColumn Header="Notizen" Width="220" Binding="{Binding Notes}" />
-                </DataGrid.Columns>
-            </DataGrid>
+            <Border BorderBrush="{DynamicResource Brush.BorderSoft}"
+                    BorderThickness="1"
+                    CornerRadius="14"
+                    Background="{DynamicResource Brush.TableBackground}"
+                    ClipToBounds="True">
+                <DataGrid x:Name="NonMapOrdersGrid"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          FrozenColumnCount="2"
+                          CanUserReorderColumns="False"
+                          CanUserResizeColumns="True"
+                          ItemsSource="{Binding NonMapOrders}"
+                          SelectedItem="{Binding SelectedOrder, Mode=TwoWay}"
+                          Style="{StaticResource OrdersGridStyle}"
+                          ColumnHeaderStyle="{StaticResource OrdersGridHeaderStyle}"
+                          RowStyle="{StaticResource OrdersGridRowStyle}"
+                          CellStyle="{StaticResource OrdersGridCellStyle}">
+                    <DataGrid.InputBindings>
+                        <MouseBinding MouseAction="LeftDoubleClick" Command="{Binding EditSelectedOrderCommand}" />
+                    </DataGrid.InputBindings>
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="Auftragsnummer" Width="150" IsReadOnly="True">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Id}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="8,0,0,0"
+                                                   FontSize="20"
+                                                   FontWeight="SemiBold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="Black" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                                                            <Setter Property="Foreground" Value="Black" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn Header="Auftragsdatum" Width="130" IsReadOnly="True">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ScheduledDate}" VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn x:Name="CustomerColumn" Header="Auftraggeber" Width="2.1*" MinWidth="180" IsReadOnly="True">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Style="{StaticResource PrimaryTextStyle}" Text="{Binding OrderAddressName}" />
+                                        <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="{Binding OrderAddressLine}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn x:Name="DeliveryAddressColumn" Header="Lieferadresse" Width="1.9*" MinWidth="180" IsReadOnly="True">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Style="{StaticResource PrimaryTextStyle}" Text="{Binding DeliveryStreetLine}" />
+                                        <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="{Binding DeliveryPostalCityLine}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn x:Name="DeliveryPersonColumn" Header="Lieferperson" Width="1.7*" MinWidth="170" IsReadOnly="True">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Style="{StaticResource PrimaryTextStyle}" Text="{Binding DeliveryPersonPrimary}" />
+                                        <TextBlock Text="{Binding DeliveryPersonSecondary}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource SecondaryTextStyle}">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DeliveryPersonSecondary}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn Header="Lieferart / Status" Width="1.25*" MinWidth="170" IsReadOnly="True">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Style="{StaticResource PrimaryTextStyle}" Text="{Binding DeliveryType}" />
+                                        <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="{Binding OrderStatus}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTemplateColumn Width="68" IsReadOnly="True">
+                            <DataGridTemplateColumn.HeaderTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text=" " />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.HeaderTemplate>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Width="36"
+                                            Height="36"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Padding="0"
+                                            Click="OnOpenOrderClick"
+                                            Style="{StaticResource SecondaryButtonStyle}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="18">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <TextBlock FontFamily="Segoe Fluent Icons"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="&#xE72A;" />
+                                    </Button>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
         </Border>
     </Grid>
 </UserControl>
-
-
