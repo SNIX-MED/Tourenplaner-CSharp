@@ -13,7 +13,9 @@ public sealed record VehicleEditorSeed(
     int WidthCm,
     int HeightCm,
     string Notes,
-    bool Active);
+    bool RegisterOutage,
+    string OutageStartDate,
+    string OutageEndDate);
 
 public sealed record VehicleEditorResult(
     string? Id,
@@ -28,7 +30,9 @@ public sealed record VehicleEditorResult(
     int WidthCm,
     int HeightCm,
     string Notes,
-    bool Active);
+    bool RegisterOutage,
+    string OutageStartDate,
+    string OutageEndDate);
 
 public sealed record VehicleCombinationEditorSeed(
     string? Id,

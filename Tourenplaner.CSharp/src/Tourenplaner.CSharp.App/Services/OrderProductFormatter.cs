@@ -61,7 +61,13 @@ public static class OrderProductFormatter
 
         var quantity = Math.Max(1, product.Quantity);
         var totalWeightKg = ResolveTotalWeightKg(product);
-        return $"{quantity}x {product.Name.Trim()} ({totalWeightKg.ToString("0.##", CultureInfo.InvariantCulture)} kg)";
+        var summary = $"{quantity}x {product.Name.Trim()} ({totalWeightKg.ToString("0.##", CultureInfo.InvariantCulture)} kg)";
+        if (!string.IsNullOrWhiteSpace(product.Supplier))
+        {
+            summary += $" [{product.Supplier.Trim()}]";
+        }
+
+        return summary;
     }
 
     private static string BuildSingleDetail(OrderProductInfo? product)
@@ -80,6 +86,11 @@ public static class OrderProductFormatter
             $"{unitWeightKg.ToString("0.##", CultureInfo.InvariantCulture)} kg/Stk",
             $"Total: {totalWeightKg.ToString("0.##", CultureInfo.InvariantCulture)} kg"
         };
+
+        if (!string.IsNullOrWhiteSpace(product.Supplier))
+        {
+            parts.Add($"Lieferant: {product.Supplier.Trim()}");
+        }
 
         if (!string.IsNullOrWhiteSpace(product.Dimensions))
         {

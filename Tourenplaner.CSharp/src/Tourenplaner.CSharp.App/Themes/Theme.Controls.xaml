@@ -314,7 +314,7 @@
         <Setter Property="Background" Value="{DynamicResource Brush.InputBackground}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.InputBorder}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Padding" Value="2,0" />
         <Setter Property="CaretBrush" Value="{DynamicResource Brush.Accent}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="MinHeight" Value="38" />
@@ -345,7 +345,7 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="AcceptsReturn" Value="True">
-                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="Padding" Value="2,8" />
                 <Setter Property="VerticalContentAlignment" Value="Top" />
             </Trigger>
         </Style.Triggers>

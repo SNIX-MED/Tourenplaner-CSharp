@@ -1,16 +1,21 @@
-<Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.CreateTourDialogWindow"
+﻿<Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.CreateTourDialogWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
         Title="Neue Tour erstellen"
         Width="700"
-        Height="760"
+        Height="860"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource Brush.WindowBackground}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </Window.Resources>
     <Border Margin="12" Style="{StaticResource FlatCardStyle}" Padding="14">
         <Grid>
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -60,16 +65,40 @@
                 <ComboBox Margin="0,4,0,0" ItemsSource="{Binding TrailerOptions}" SelectedItem="{Binding SelectedTrailer}" DisplayMemberPath="Label" />
             </StackPanel>
 
-            <StackPanel Grid.Row="6" Margin="0,12,0,0">
+            <StackPanel Grid.Row="6" Margin="0,10,0,0">
+                <CheckBox Content="Mehrere Fahrzeuge verwenden"
+                          IsChecked="{Binding UseSecondaryVehicle, Mode=TwoWay}" />
+            </StackPanel>
+
+            <Border Grid.Row="7"
+                    Margin="0,8,0,0"
+                    Style="{StaticResource SoftCardStyle}"
+                    Padding="10"
+                    Visibility="{Binding UseSecondaryVehicle, Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold" Text="Zusätzliches Fahrzeug" />
+                    <ComboBox Margin="0,4,0,0"
+                              ItemsSource="{Binding VehicleOptions}"
+                              SelectedItem="{Binding SelectedSecondaryVehicle}"
+                              DisplayMemberPath="Label" />
+                    <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Zusätzlicher Anhänger" />
+                    <ComboBox Margin="0,4,0,0"
+                              ItemsSource="{Binding TrailerOptions}"
+                              SelectedItem="{Binding SelectedSecondaryTrailer}"
+                              DisplayMemberPath="Label" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel Grid.Row="8" Margin="0,12,0,0">
                 <TextBlock FontWeight="SemiBold" Text="{Binding SelectedEmployeesSummary}" />
                 <Button Margin="0,8,0,0" Height="34" Content="Mitarbeiter wählen" Style="{StaticResource SecondaryButtonStyle}" Click="OnSelectEmployeesClicked" />
             </StackPanel>
 
-            <Border Grid.Row="7" Margin="0,12,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">
-                <TextBlock Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" Text="Es müssen 1 bis 2 Mitarbeiter ausgewählt werden. Fahrzeug ist Pflicht." />
+            <Border Grid.Row="9" Margin="0,12,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">
+                <TextBlock Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" Text="Es müssen 1 bis 2 Mitarbeiter ausgewählt werden. Bei mehreren Fahrzeugen sind mindestens 2 Mitarbeiter erforderlich." />
             </Border>
 
-            <Grid Grid.Row="8" Margin="0,16,0,0">
+            <Grid Grid.Row="10" Margin="0,16,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
@@ -89,3 +118,4 @@
         </Grid>
     </Border>
 </Window>
+

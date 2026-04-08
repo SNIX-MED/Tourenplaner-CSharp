@@ -188,10 +188,10 @@ public sealed class WebViewRouteExportService
                 },
             stops = sanitizedStops.Select(x => new
             {
-                x.Position,
-                x.Label,
-                x.Name,
-                x.Address,
+                position = x.Position,
+                label = x.Label,
+                name = x.Name,
+                address = x.Address,
                 lat = x.Latitude,
                 lon = x.Longitude
             }),

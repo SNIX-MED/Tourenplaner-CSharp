@@ -64,6 +64,12 @@ public static class TourPdfHtmlBuilder
                        color: #475569;
                        font-weight: 600;
                      }
+                     .meta-value {
+                       white-space: pre-line;
+                     }
+                     .meta-value-wide {
+                       grid-column: 2 / -1;
+                     }
                      .content {
                        display: grid;
                        grid-template-columns: 0.75fr 1.55fr;
@@ -195,7 +201,7 @@ public static class TourPdfHtmlBuilder
 
         if (!string.IsNullOrWhiteSpace(snapshot.VehicleLabel))
         {
-            entries.Add(("Fahrzeug", snapshot.VehicleLabel!.Trim()));
+            entries.Add(("Fahrzeug & Anhänger", snapshot.VehicleLabel!.Trim()));
         }
 
         if (!string.IsNullOrWhiteSpace(snapshot.TrailerLabel))
@@ -204,7 +210,11 @@ public static class TourPdfHtmlBuilder
         }
 
         return string.Join(Environment.NewLine, entries.Select(x =>
-            $"<div class=\"meta-label\">{Html(x.Label)}</div><div>{Html(x.Value)}</div>"));
+        {
+            var isVehicleLine = string.Equals(x.Label, "Fahrzeug & Anhänger", StringComparison.OrdinalIgnoreCase);
+            var valueClass = isVehicleLine ? "meta-value meta-value-wide" : "meta-value";
+            return $"<div class=\"meta-label\">{Html(x.Label)}</div><div class=\"{valueClass}\">{Html(x.Value)}</div>";
+        }));
     }
 
     private static string BuildStopHtml(RouteExportStopInfo stop)

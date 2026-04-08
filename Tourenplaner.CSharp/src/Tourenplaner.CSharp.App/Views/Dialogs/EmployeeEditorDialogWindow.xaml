@@ -3,10 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Mitarbeiter"
         Width="540"
-        Height="460"
+        Height="560"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource Brush.WindowBackground}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </Window.Resources>
     <Border Margin="10" Style="{StaticResource FlatCardStyle}" Padding="12">
         <Grid>
             <Grid.RowDefinitions>
@@ -47,10 +50,29 @@
                          Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
 
-            <CheckBox Grid.Row="4"
-                      Margin="0,14,0,0"
-                      Content="Mitarbeiter ist aktiv"
-                      IsChecked="{Binding Active}" />
+            <StackPanel Grid.Row="4" Margin="0,14,0,0">
+                <CheckBox Content="Abwesenheit eintragen"
+                          IsChecked="{Binding RegisterAbsence}" />
+                <Grid Margin="0,8,0,0"
+                      Visibility="{Binding RegisterAbsence, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                        <TextBlock FontWeight="SemiBold" Text="Von (DD.MM.YYYY)" />
+                        <TextBox Margin="0,6,0,0"
+                                 Height="38"
+                                 Text="{Binding AbsenceStartDate, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                        <TextBlock FontWeight="SemiBold" Text="Bis (DD.MM.YYYY)" />
+                        <TextBox Margin="0,6,0,0"
+                                 Height="38"
+                                 Text="{Binding AbsenceEndDate, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
 
             <Grid Grid.Row="5" Margin="0,18,0,0">
                 <Grid.ColumnDefinitions>

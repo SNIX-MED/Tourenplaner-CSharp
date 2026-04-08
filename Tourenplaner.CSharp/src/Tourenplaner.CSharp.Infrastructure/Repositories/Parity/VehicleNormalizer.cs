@@ -19,6 +19,7 @@ internal static class VehicleNormalizer
         source.CreatedAt = string.IsNullOrWhiteSpace(source.CreatedAt) ? Timestamp() : source.CreatedAt.Trim();
         source.UpdatedAt = Timestamp();
         source.Notes = (source.Notes ?? string.Empty).Trim();
+        source.UnavailabilityPeriods = ResourceUnavailabilityNormalizer.NormalizePeriods(source.UnavailabilityPeriods);
         return source;
     }
 
@@ -33,6 +34,7 @@ internal static class VehicleNormalizer
         source.CreatedAt = string.IsNullOrWhiteSpace(source.CreatedAt) ? Timestamp() : source.CreatedAt.Trim();
         source.UpdatedAt = Timestamp();
         source.Notes = (source.Notes ?? string.Empty).Trim();
+        source.UnavailabilityPeriods = ResourceUnavailabilityNormalizer.NormalizePeriods(source.UnavailabilityPeriods);
         return source;
     }
 

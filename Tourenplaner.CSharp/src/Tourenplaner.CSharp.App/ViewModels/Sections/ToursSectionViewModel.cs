@@ -54,7 +54,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private string _filterInfoText = "Alle Touren | Treffer: 0";
     private string _selectedTourWeightText = "Totalgewicht: 0 kg";
     private string _selectedTourLoadSummaryText = string.Empty;
-    private string _selectedTourVehicleText = "Fahrzeug: -";
+    private string _selectedTourVehicleText = "Fahrzeug & Anhänger: -";
     private LookupItem? _selectedVehicle;
     private LookupItem? _selectedTrailer;
     private TourOverviewItem? _selectedTour;
@@ -525,13 +525,32 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Take(2)
             .ToList();
 
+        var availabilityError = await BuildAvailabilityErrorAsync(
+            target.Date,
+            target.VehicleId,
+            target.TrailerId,
+            target.SecondaryVehicleId,
+            target.SecondaryTrailerId,
+            target.EmployeeIds);
+        if (!string.IsNullOrWhiteSpace(availabilityError))
+        {
+            MessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            RestoreAssignment(target, originalAssignment);
+            return;
+        }
+
         if (!ConfirmAssignmentConflictWarning(_loadedTours, target.Id))
         {
             RestoreAssignment(target, originalAssignment);
             return;
         }
 
-        if (!ConfirmCapacityWarning(target.VehicleId, target.TrailerId, CalculateTourWeightKg(target)))
+        if (!ConfirmCapacityWarning(
+                target.VehicleId,
+                target.TrailerId,
+                target.SecondaryVehicleId,
+                target.SecondaryTrailerId,
+                CalculateTourWeightKg(target)))
         {
             RestoreAssignment(target, originalAssignment);
             return;
@@ -916,7 +935,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var tour = SelectedTour.Source;
         var (editHour, editMinute) = ParseStartTimeParts(tour.StartTime);
-        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync();
+        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date);
 
         var dialog = new CreateTourDialogWindow(
             routeDate: string.IsNullOrWhiteSpace(tour.Date) ? DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : tour.Date.Trim(),
@@ -928,6 +947,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             employeeOptions: employees,
             selectedVehicleId: tour.VehicleId,
             selectedTrailerId: tour.TrailerId,
+            selectedSecondaryVehicleId: tour.SecondaryVehicleId,
+            selectedSecondaryTrailerId: tour.SecondaryTrailerId,
             selectedEmployeeIds: tour.EmployeeIds,
             showOpenOnMapButton: true)
         {
@@ -955,6 +976,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var originalStartTime = tour.StartTime;
         var originalVehicleId = tour.VehicleId;
         var originalTrailerId = tour.TrailerId;
+        var originalSecondaryVehicleId = tour.SecondaryVehicleId;
+        var originalSecondaryTrailerId = tour.SecondaryTrailerId;
         var originalEmployeeIds = tour.EmployeeIds.ToList();
 
         tour.Name = result.RouteName;
@@ -962,12 +985,35 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         tour.StartTime = result.StartTime;
         tour.VehicleId = string.IsNullOrWhiteSpace(result.VehicleId) ? null : result.VehicleId.Trim();
         tour.TrailerId = string.IsNullOrWhiteSpace(result.TrailerId) ? null : result.TrailerId.Trim();
+        tour.SecondaryVehicleId = string.IsNullOrWhiteSpace(result.SecondaryVehicleId) ? null : result.SecondaryVehicleId.Trim();
+        tour.SecondaryTrailerId = string.IsNullOrWhiteSpace(result.SecondaryTrailerId) ? null : result.SecondaryTrailerId.Trim();
         tour.EmployeeIds = (result.EmployeeIds ?? [])
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(2)
             .ToList();
+
+        var availabilityError = await BuildAvailabilityErrorAsync(
+            tour.Date,
+            tour.VehicleId,
+            tour.TrailerId,
+            tour.SecondaryVehicleId,
+            tour.SecondaryTrailerId,
+            tour.EmployeeIds);
+        if (!string.IsNullOrWhiteSpace(availabilityError))
+        {
+            MessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            tour.Name = originalName;
+            tour.Date = originalDate;
+            tour.StartTime = originalStartTime;
+            tour.VehicleId = originalVehicleId;
+            tour.TrailerId = originalTrailerId;
+            tour.SecondaryVehicleId = originalSecondaryVehicleId;
+            tour.SecondaryTrailerId = originalSecondaryTrailerId;
+            tour.EmployeeIds = originalEmployeeIds;
+            return;
+        }
 
         if (!ConfirmAssignmentConflictWarning(_loadedTours, tour.Id))
         {
@@ -976,17 +1022,26 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             tour.StartTime = originalStartTime;
             tour.VehicleId = originalVehicleId;
             tour.TrailerId = originalTrailerId;
+            tour.SecondaryVehicleId = originalSecondaryVehicleId;
+            tour.SecondaryTrailerId = originalSecondaryTrailerId;
             tour.EmployeeIds = originalEmployeeIds;
             return;
         }
 
-        if (!ConfirmCapacityWarning(tour.VehicleId, tour.TrailerId, CalculateTourWeightKg(tour)))
+        if (!ConfirmCapacityWarning(
+                tour.VehicleId,
+                tour.TrailerId,
+                tour.SecondaryVehicleId,
+                tour.SecondaryTrailerId,
+                CalculateTourWeightKg(tour)))
         {
             tour.Name = originalName;
             tour.Date = originalDate;
             tour.StartTime = originalStartTime;
             tour.VehicleId = originalVehicleId;
             tour.TrailerId = originalTrailerId;
+            tour.SecondaryVehicleId = originalSecondaryVehicleId;
+            tour.SecondaryTrailerId = originalSecondaryTrailerId;
             tour.EmployeeIds = originalEmployeeIds;
             return;
         }
@@ -999,26 +1054,30 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         StatusText = $"Tour {tour.Id} wurde aktualisiert.";
     }
 
-    private async Task<(List<TourEmployeeOption> Employees, List<TourLookupOption> Vehicles, List<TourLookupOption> Trailers)> LoadTourDialogOptionsAsync()
+    private async Task<(List<TourEmployeeOption> Employees, List<TourLookupOption> Vehicles, List<TourLookupOption> Trailers)> LoadTourDialogOptionsAsync(string? routeDate)
     {
         var employeesTask = _employeeRepository.LoadAsync();
         var vehiclesTask = _vehicleRepository.LoadAsync();
         await Task.WhenAll(employeesTask, vehiclesTask);
+        var selectedDate = ResourceAvailabilityService.ParseDate(routeDate);
 
         var employees = (await employeesTask)
-            .Where(x => x.Active)
+            .Where(x => x.Active &&
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
             .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourEmployeeOption(x.Id, x.DisplayName))
             .ToList();
 
         var vehicleData = await vehiclesTask;
         var vehicles = vehicleData.Vehicles
-            .Where(x => x.Active)
+            .Where(x => x.Active &&
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
             .ToList();
         var trailers = vehicleData.Trailers
-            .Where(x => x.Active)
+            .Where(x => x.Active &&
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
             .ToList();
@@ -1170,8 +1229,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 Date = tour.Date,
                 Start = schedule.Start.ToString("HH:mm"),
                 End = schedule.End.ToString("HH:mm"),
-                VehicleId = ResolveVehicleShortLabel(tour.VehicleId),
-                TrailerId = ResolveTrailerLabel(tour.TrailerId),
+                VehicleId = BuildVehicleOverviewText(tour),
+                TrailerId = BuildTrailerOverviewText(tour),
                 Employees = employeeText,
                 StopCount = tour.Stops.Count(s => !IsCompanyStop(s)),
                 TotalWeightKg = totalWeight,
@@ -1252,6 +1311,51 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         return label;
+    }
+
+    private string BuildVehicleOverviewText(TourRecord tour)
+    {
+        var lines = BuildVehicleTrailerOverviewLines(
+            tour.VehicleId,
+            tour.TrailerId,
+            tour.SecondaryVehicleId,
+            tour.SecondaryTrailerId,
+            useShortVehicleLabel: true);
+
+        return lines.Count == 0 ? "-" : string.Join(Environment.NewLine, lines);
+    }
+
+    private string BuildTrailerOverviewText(TourRecord tour)
+    {
+        var lines = BuildVehicleAssignments(
+            tour.VehicleId,
+            tour.TrailerId,
+            tour.SecondaryVehicleId,
+            tour.SecondaryTrailerId)
+            .Select(x => ResolveTrailerLabel(x.TrailerId))
+            .Select(x => string.IsNullOrWhiteSpace(x) ? "-" : x)
+            .ToList();
+
+        return lines.Count == 0 ? "-" : string.Join(Environment.NewLine, lines);
+    }
+
+    private List<string> BuildVehicleTrailerOverviewLines(
+        string? vehicleId,
+        string? trailerId,
+        string? secondaryVehicleId,
+        string? secondaryTrailerId,
+        bool useShortVehicleLabel)
+    {
+        return BuildVehicleAssignments(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId)
+            .Select(x =>
+            {
+                var vehicleLabel = useShortVehicleLabel
+                    ? ResolveVehicleShortLabel(x.VehicleId)
+                    : ResolveVehicleLabel(x.VehicleId);
+                var trailerLabel = ResolveTrailerLabel(x.TrailerId);
+                return $"{(string.IsNullOrWhiteSpace(vehicleLabel) ? "-" : vehicleLabel)} & {(string.IsNullOrWhiteSpace(trailerLabel) ? "-" : trailerLabel)}";
+            })
+            .ToList();
     }
 
     private string ResolveTrailerLabel(string? trailerId)
@@ -1360,7 +1464,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         {
             SelectedTourWeightText = "Totalgewicht: 0 kg";
             SelectedTourLoadSummaryText = string.Empty;
-            SelectedTourVehicleText = "Fahrzeug: -";
+            SelectedTourVehicleText = "Fahrzeug & Anhänger: -";
             return;
         }
 
@@ -1369,36 +1473,37 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Sum(s => ParseWeightKg(s.Gewicht));
         SelectedTourWeightText = $"Totalgewicht: {totalWeight} kg";
 
-        var display = VehicleCombinationDisplayResolver.Resolve(
-            _vehicleData,
-            SelectedVehicle?.Id,
-            SelectedTrailer?.Id);
-        var vehicleLabel = string.IsNullOrWhiteSpace(display.VehicleLabel)
-            ? ResolveVehicleLabel(SelectedTour.Source.VehicleId)
-            : display.VehicleLabel;
-        var trailerLabel = string.IsNullOrWhiteSpace(display.TrailerLabel)
-            ? ResolveTrailerLabel(SelectedTour.Source.TrailerId)
-            : display.TrailerLabel;
+        var assignments = BuildVehicleAssignments(
+            SelectedTour.Source.VehicleId,
+            SelectedTour.Source.TrailerId,
+            SelectedTour.Source.SecondaryVehicleId,
+            SelectedTour.Source.SecondaryTrailerId);
 
-        var summaryLines = new List<string>
-        {
-            $"Fahrzeug: {(!string.IsNullOrWhiteSpace(vehicleLabel) ? vehicleLabel : "-")}"
-        };
+        var vehicleTrailerLines = BuildVehicleTrailerOverviewLines(
+            SelectedTour.Source.VehicleId,
+            SelectedTour.Source.TrailerId,
+            SelectedTour.Source.SecondaryVehicleId,
+            SelectedTour.Source.SecondaryTrailerId,
+            useShortVehicleLabel: false);
 
-        if (!string.IsNullOrWhiteSpace(trailerLabel))
-        {
-            summaryLines.Add($"Anhänger: {trailerLabel}");
-        }
+        var summaryLines = new List<string> { "Fahrzeug & Anhänger:" };
+        summaryLines.AddRange(vehicleTrailerLines.Count == 0 ? ["-"] : vehicleTrailerLines);
 
         var loadSummaryLines = new List<string>();
-        if (display.HasVehiclePayload)
+        for (var i = 0; i < assignments.Count; i++)
         {
-            loadSummaryLines.Add($"Ladegewicht: {display.VehiclePayloadKg} kg");
-        }
+            var assignment = assignments[i];
+            var display = VehicleCombinationDisplayResolver.Resolve(_vehicleData, assignment.VehicleId, assignment.TrailerId);
+            var prefix = assignments.Count > 1 ? $"Fahrzeug {i + 1}: " : string.Empty;
+            if (display.HasVehiclePayload)
+            {
+                loadSummaryLines.Add($"{prefix}Ladegewicht: {display.VehiclePayloadKg} kg");
+            }
 
-        if (display.TrailerLoadKg.HasValue)
-        {
-            loadSummaryLines.Add($"Anhängelast: {display.TrailerLoadKg} kg");
+            if (display.TrailerLoadKg.HasValue)
+            {
+                loadSummaryLines.Add($"{prefix}Anhängelast: {display.TrailerLoadKg} kg");
+            }
         }
 
         SelectedTourLoadSummaryText = string.Join(Environment.NewLine, loadSummaryLines);
@@ -1509,6 +1614,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             RouteMode = source.RouteMode,
             VehicleId = source.VehicleId,
             TrailerId = source.TrailerId,
+            SecondaryVehicleId = source.SecondaryVehicleId,
+            SecondaryTrailerId = source.SecondaryTrailerId,
             EmployeeIds = source.EmployeeIds.ToList(),
             TravelTimeCache = source.TravelTimeCache.ToDictionary(kv => kv.Key, kv => kv.Value),
             Stops = source.Stops.Select(stop => new TourStopRecord
@@ -1598,6 +1705,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             target.StartTime,
             target.VehicleId,
             target.TrailerId,
+            target.SecondaryVehicleId,
+            target.SecondaryTrailerId,
             target.EmployeeIds.ToList());
     }
 
@@ -1607,6 +1716,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         target.StartTime = snapshot.StartTime;
         target.VehicleId = snapshot.VehicleId;
         target.TrailerId = snapshot.TrailerId;
+        target.SecondaryVehicleId = snapshot.SecondaryVehicleId;
+        target.SecondaryTrailerId = snapshot.SecondaryTrailerId;
         target.EmployeeIds = snapshot.EmployeeIds;
     }
 
@@ -1623,6 +1734,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         string StartTime,
         string? VehicleId,
         string? TrailerId,
+        string? SecondaryVehicleId,
+        string? SecondaryTrailerId,
         List<string> EmployeeIds);
 
     private bool ConfirmAssignmentConflictWarning(IEnumerable<TourRecord> tours, int targetTourId)
@@ -1739,9 +1852,93 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         };
     }
 
-    private bool ConfirmCapacityWarning(string? vehicleId, string? trailerId, int totalWeightKg)
+    private static List<(string VehicleId, string TrailerId)> BuildVehicleAssignments(
+        string? vehicleId,
+        string? trailerId,
+        string? secondaryVehicleId,
+        string? secondaryTrailerId)
     {
-        var warning = TourCapacityWarningService.Evaluate(_vehicleData, vehicleId, trailerId, totalWeightKg);
+        var items = new List<(string VehicleId, string TrailerId)>
+        {
+            ((vehicleId ?? string.Empty).Trim(), (trailerId ?? string.Empty).Trim()),
+            ((secondaryVehicleId ?? string.Empty).Trim(), (secondaryTrailerId ?? string.Empty).Trim())
+        };
+
+        return items
+            .Where(x => !string.IsNullOrWhiteSpace(x.VehicleId) || !string.IsNullOrWhiteSpace(x.TrailerId))
+            .GroupBy(x => $"{x.VehicleId}|{x.TrailerId}", StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+    }
+
+    private async Task<string?> BuildAvailabilityErrorAsync(
+        string routeDate,
+        string? vehicleId,
+        string? trailerId,
+        string? secondaryVehicleId,
+        string? secondaryTrailerId,
+        IReadOnlyList<string> employeeIds)
+    {
+        var date = ResourceAvailabilityService.ParseDate(routeDate);
+        if (!date.HasValue)
+        {
+            return null;
+        }
+
+        var employeesTask = _employeeRepository.LoadAsync();
+        var vehiclesTask = _vehicleRepository.LoadAsync();
+        await Task.WhenAll(employeesTask, vehiclesTask);
+
+        var employees = await employeesTask;
+        var vehicleData = await vehiclesTask;
+        var blocked = new List<string>();
+
+        var normalizedEmployeeIds = (employeeIds ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var employee in employees.Where(x => normalizedEmployeeIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase)))
+        {
+            if (ResourceAvailabilityService.IsUnavailableOnDate(employee.UnavailabilityPeriods, date.Value))
+            {
+                blocked.Add($"Mitarbeiter: {employee.DisplayName}");
+            }
+        }
+
+        foreach (var assignment in BuildVehicleAssignments(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId))
+        {
+            var vehicle = vehicleData.Vehicles.FirstOrDefault(x => string.Equals(x.Id, assignment.VehicleId, StringComparison.OrdinalIgnoreCase));
+            if (vehicle is not null && ResourceAvailabilityService.IsUnavailableOnDate(vehicle.UnavailabilityPeriods, date.Value))
+            {
+                blocked.Add($"Fahrzeug: {vehicle.Name}");
+            }
+
+            var trailer = vehicleData.Trailers.FirstOrDefault(x => string.Equals(x.Id, assignment.TrailerId, StringComparison.OrdinalIgnoreCase));
+            if (trailer is not null && ResourceAvailabilityService.IsUnavailableOnDate(trailer.UnavailabilityPeriods, date.Value))
+            {
+                blocked.Add($"Anhänger: {trailer.Name}");
+            }
+        }
+
+        if (blocked.Count == 0)
+        {
+            return null;
+        }
+
+        return $"Für {routeDate} sind folgende Ressourcen nicht verfügbar:{Environment.NewLine}{string.Join(Environment.NewLine, blocked.Distinct(StringComparer.OrdinalIgnoreCase))}";
+    }
+
+    private bool ConfirmCapacityWarning(
+        string? vehicleId,
+        string? trailerId,
+        string? secondaryVehicleId,
+        string? secondaryTrailerId,
+        int totalWeightKg)
+    {
+        var assignments = BuildVehicleAssignments(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId);
+        var warning = TourCapacityWarningService.EvaluateFleet(_vehicleData, assignments, totalWeightKg);
         if (!warning.IsOverCapacity)
         {
             return true;

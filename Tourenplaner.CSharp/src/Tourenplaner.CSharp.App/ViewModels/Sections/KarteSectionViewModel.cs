@@ -64,8 +64,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private RouteStopItem? _selectedRouteStop;
     private string _routeName = $"Tour {DateOnly.FromDateTime(DateTime.Today):dd.MM.yyyy}";
     private string _routeDate = DateOnly.FromDateTime(DateTime.Today).ToString("dd.MM.yyyy");
-    private string _routeStartHour = "08";
-    private string _routeStartMinute = "00";
+    private string _routeStartHour = "07";
+    private string _routeStartMinute = "30";
+    private string _defaultRouteStartHour = "07";
+    private string _defaultRouteStartMinute = "30";
     private double _routeDistanceKm;
     private string _statusText = "Loading map orders...";
     private string _routeTimingSummary = "Noch keine Stopps geplant.";
@@ -102,12 +104,15 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _mapPinInfoCardShowOrderNumber = true;
     private bool _mapPinInfoCardShowStreet = true;
     private bool _mapPinInfoCardShowPostalCodeCity = true;
+    private bool _mapPinInfoCardShowNotes = true;
     private bool _mapPinInfoCardShowProducts = true;
     private bool _mapPinInfoCardShowTotalWeight = true;
     private int _routeGeometryRevision;
     private int _activeTourId;
     private string _currentRouteVehicleId = string.Empty;
     private string _currentRouteTrailerId = string.Empty;
+    private string _currentRouteSecondaryVehicleId = string.Empty;
+    private string _currentRouteSecondaryTrailerId = string.Empty;
     private SavedTourLookupItem? _selectedSavedTour;
     private string _detailSelectedStatus = "nicht festgelegt";
     private string _detailSelectedAvisoStatus = "nicht avisiert";
@@ -382,6 +387,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public bool MapPinInfoCardShowOrderNumber => _mapPinInfoCardShowOrderNumber;
     public bool MapPinInfoCardShowStreet => _mapPinInfoCardShowStreet;
     public bool MapPinInfoCardShowPostalCodeCity => _mapPinInfoCardShowPostalCodeCity;
+    public bool MapPinInfoCardShowNotes => _mapPinInfoCardShowNotes;
     public bool MapPinInfoCardShowProducts => _mapPinInfoCardShowProducts;
     public bool MapPinInfoCardShowTotalWeight => _mapPinInfoCardShowTotalWeight;
 
@@ -427,9 +433,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         get => _routeStartHour;
         set
         {
-            if (SetProperty(ref _routeStartHour, value))
+            var normalized = NormalizeTimeInputPartForEditing(value);
+            if (SetProperty(ref _routeStartHour, normalized))
             {
                 MarkRouteChanged();
+                ApplyRouteStartTimeFromInput();
             }
         }
     }
@@ -439,9 +447,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         get => _routeStartMinute;
         set
         {
-            if (SetProperty(ref _routeStartMinute, value))
+            var normalized = NormalizeTimeInputPartForEditing(value);
+            if (SetProperty(ref _routeStartMinute, normalized))
             {
                 MarkRouteChanged();
+                ApplyRouteStartTimeFromInput();
             }
         }
     }
@@ -583,6 +593,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(DetailEmail));
                 OnPropertyChanged(nameof(DetailPhone));
                 OnPropertyChanged(nameof(DetailDeliveryType));
+                OnPropertyChanged(nameof(DetailNotes));
                 RaiseCommandStates();
             }
         }
@@ -629,8 +640,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _mapPinInfoCardShowOrderNumber = settings.MapPinInfoCardShowOrderNumber;
         _mapPinInfoCardShowStreet = settings.MapPinInfoCardShowStreet;
         _mapPinInfoCardShowPostalCodeCity = settings.MapPinInfoCardShowPostalCodeCity;
+        _mapPinInfoCardShowNotes = settings.MapPinInfoCardShowNotes;
         _mapPinInfoCardShowProducts = settings.MapPinInfoCardShowProducts;
         _mapPinInfoCardShowTotalWeight = settings.MapPinInfoCardShowTotalWeight;
+        var (defaultHour, defaultMinute) = ParseStartTimePartsOrDefault(settings.TourDefaultStartTime);
+        _defaultRouteStartHour = defaultHour;
+        _defaultRouteStartMinute = defaultMinute;
         NotifyLegendColorsChanged();
         IsDetailsPanelExpanded = settings.MapDetailsPanelExpanded;
         _companyLocation = await AddressGeocodingService.TryGeocodeAddressAsync(
@@ -682,6 +697,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public string DetailEmail => FindSelectedOrderModel()?.Email ?? "n/a";
     public string DetailPhone => FindSelectedOrderModel()?.Phone ?? "n/a";
     public string DetailDeliveryType => FindSelectedOrderModel()?.DeliveryType ?? SelectedOrder?.DeliveryLabel ?? "Frei Bordsteinkante";
+    public string DetailNotes => NormalizeUiText(FindSelectedOrderModel()?.Notes);
 
     public CompanyMarkerInfo? CompanyMarker =>
         _companyLocation is null
@@ -777,6 +793,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             .Select(x => new RouteStopItem
         {
             Position = x.Position,
+            DisplayIndex = x.DisplayIndex,
             OrderId = x.OrderId,
             Customer = x.Customer,
             Address = x.Address,
@@ -1500,6 +1517,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             startTime: RouteStartTime,
             vehicleId: null,
             trailerId: null,
+            secondaryVehicleId: null,
+            secondaryTrailerId: null,
             employeeIds: []);
     }
 
@@ -1538,6 +1557,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 RouteStartTime,
                 tour.VehicleId,
                 tour.TrailerId,
+                tour.SecondaryVehicleId,
+                tour.SecondaryTrailerId,
                 tour.EmployeeIds ?? []);
             return;
         }
@@ -1548,7 +1569,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private async Task OpenCreateTourDialogAsync()
     {
         var hasRouteStops = RouteStops.Any(x => !IsCompanyStop(x));
-        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync();
+        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(RouteDate);
 
         var dialog = new CreateTourDialogWindow(
             RouteDate,
@@ -1584,6 +1605,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             result.StartTime,
             result.VehicleId,
             result.TrailerId,
+            result.SecondaryVehicleId,
+            result.SecondaryTrailerId,
             result.EmployeeIds);
     }
 
@@ -1617,8 +1640,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var (editHour, editMinute) = ParseStartTimeParts(tour.StartTime);
-        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync();
+        var (editHour, editMinute) = ParseStartTimePartsOrDefault(tour.StartTime);
+        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date);
 
         var dialog = new CreateTourDialogWindow(
             routeDate: string.IsNullOrWhiteSpace(tour.Date) ? RouteDate : tour.Date.Trim(),
@@ -1630,6 +1653,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             employeeOptions: employees,
             selectedVehicleId: tour.VehicleId,
             selectedTrailerId: tour.TrailerId,
+            selectedSecondaryVehicleId: tour.SecondaryVehicleId,
+            selectedSecondaryTrailerId: tour.SecondaryTrailerId,
             selectedEmployeeIds: tour.EmployeeIds)
         {
             Owner = System.Windows.Application.Current?.MainWindow
@@ -1648,17 +1673,21 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             result.StartTime,
             result.VehicleId,
             result.TrailerId,
+            result.SecondaryVehicleId,
+            result.SecondaryTrailerId,
             result.EmployeeIds);
     }
 
-    private async Task<(List<TourEmployeeOption> Employees, List<TourLookupOption> Vehicles, List<TourLookupOption> Trailers)> LoadTourDialogOptionsAsync()
+    private async Task<(List<TourEmployeeOption> Employees, List<TourLookupOption> Vehicles, List<TourLookupOption> Trailers)> LoadTourDialogOptionsAsync(string? routeDate)
     {
         var employeeTask = _employeeRepository.LoadAsync();
         var vehicleTask = _vehicleRepository.LoadAsync();
         await Task.WhenAll(employeeTask, vehicleTask);
+        var selectedDate = ResourceAvailabilityService.ParseDate(routeDate);
 
         var employees = (await employeeTask)
-            .Where(x => x.Active)
+            .Where(x => x.Active &&
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
             .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourEmployeeOption(x.Id, x.DisplayName))
             .ToList();
@@ -1673,12 +1702,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         var vehicleData = await vehicleTask;
         var vehicles = vehicleData.Vehicles
-            .Where(x => x.Active)
+            .Where(x => x.Active &&
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
             .ToList();
         var trailers = vehicleData.Trailers
-            .Where(x => x.Active)
+            .Where(x => x.Active &&
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
             .ToList();
@@ -1686,7 +1717,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return (employees, vehicles, trailers);
     }
 
-    private static (string Hour, string Minute) ParseStartTimeParts(string? startTime)
+    private (string Hour, string Minute) ParseStartTimePartsOrDefault(string? startTime)
     {
         var value = (startTime ?? string.Empty).Trim();
         if (TimeOnly.TryParseExact(value, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
@@ -1694,7 +1725,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return (parsed.Hour.ToString("00", CultureInfo.InvariantCulture), parsed.Minute.ToString("00", CultureInfo.InvariantCulture));
         }
 
-        return ("08", "00");
+        return (_defaultRouteStartHour, _defaultRouteStartMinute);
     }
 
     private async Task SaveRouteAsTourAsync(
@@ -1703,6 +1734,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         string startTime,
         string? vehicleId,
         string? trailerId,
+        string? secondaryVehicleId,
+        string? secondaryTrailerId,
         IReadOnlyList<string> employeeIds)
     {
         try
@@ -1712,7 +1745,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        if (!ConfirmCapacityWarning(vehicleId, trailerId))
+        var availabilityError = await BuildAvailabilityErrorAsync(routeDate, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
+        if (!string.IsNullOrWhiteSpace(availabilityError))
+        {
+            MessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (!ConfirmCapacityWarning(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId))
         {
             return;
         }
@@ -1731,6 +1771,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             defaultServiceMinutes: 10);
         tour.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
         tour.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
+        tour.SecondaryVehicleId = string.IsNullOrWhiteSpace(secondaryVehicleId) ? null : secondaryVehicleId.Trim();
+        tour.SecondaryTrailerId = string.IsNullOrWhiteSpace(secondaryTrailerId) ? null : secondaryTrailerId.Trim();
         tour.EmployeeIds = (employeeIds ?? [])
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
@@ -1783,6 +1825,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         string startTime,
         string? vehicleId,
         string? trailerId,
+        string? secondaryVehicleId,
+        string? secondaryTrailerId,
         IReadOnlyList<string> employeeIds)
     {
         try
@@ -1797,7 +1841,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        if (!ConfirmCapacityWarning(vehicleId, trailerId))
+        var availabilityError = await BuildAvailabilityErrorAsync(routeDate, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
+        if (!string.IsNullOrWhiteSpace(availabilityError))
+        {
+            MessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (!ConfirmCapacityWarning(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId))
         {
             return;
         }
@@ -1827,6 +1878,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             defaultServiceMinutes: 10);
         updated.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
         updated.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
+        updated.SecondaryVehicleId = string.IsNullOrWhiteSpace(secondaryVehicleId) ? null : secondaryVehicleId.Trim();
+        updated.SecondaryTrailerId = string.IsNullOrWhiteSpace(secondaryTrailerId) ? null : secondaryTrailerId.Trim();
         updated.EmployeeIds = (employeeIds ?? [])
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
@@ -1979,6 +2032,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _activeTourId = tour.Id;
         _currentRouteVehicleId = (tour.VehicleId ?? string.Empty).Trim();
         _currentRouteTrailerId = (tour.TrailerId ?? string.Empty).Trim();
+        _currentRouteSecondaryVehicleId = (tour.SecondaryVehicleId ?? string.Empty).Trim();
+        _currentRouteSecondaryTrailerId = (tour.SecondaryTrailerId ?? string.Empty).Trim();
         _suppressRouteChangeTracking = true;
         try
         {
@@ -2317,8 +2372,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             BuildExportTourNameWithEmployees(),
             string.IsNullOrWhiteSpace(RouteDate) ? string.Empty : RouteDate.Trim(),
             $"{NormalizeTimePart(RouteStartHour, 23)}:{NormalizeTimePart(RouteStartMinute, 59)}",
-            ResolveVehicleLabel(_currentRouteVehicleId),
-            ResolveTrailerLabel(_currentRouteTrailerId),
+            BuildVehicleTrailerLinesForExport(
+                _currentRouteVehicleId,
+                _currentRouteTrailerId,
+                _currentRouteSecondaryVehicleId,
+                _currentRouteSecondaryTrailerId),
+            null,
             stops,
             googleMapsPoints,
             _routeGeometryPoints.ToList(),
@@ -2444,7 +2503,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         return RouteStops
             .Where(x => !IsCompanyStop(x))
-            .Select(x => new MapRouteStop(x.Position, x.OrderId, x.Customer, x.Address, x.Latitude, x.Longitude, x.PlannedStayMinutes))
+            .Select((x, index) => new MapRouteStop(index + 1, x.OrderId, x.Customer, x.Address, x.Latitude, x.Longitude, x.PlannedStayMinutes))
             .ToList();
     }
 
@@ -2501,8 +2560,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _activeTourId = 0;
         _currentRouteVehicleId = string.Empty;
         _currentRouteTrailerId = string.Empty;
+        _currentRouteSecondaryVehicleId = string.Empty;
+        _currentRouteSecondaryTrailerId = string.Empty;
         _suppressRouteChangeTracking = true;
         RouteDate = DateOnly.FromDateTime(DateTime.Today).ToString("dd.MM.yyyy");
+        RouteStartHour = _defaultRouteStartHour;
+        RouteStartMinute = _defaultRouteStartMinute;
         _isRouteNameAutoManaged = true;
         SetRouteNameFromDate(RouteDate);
         ResetRouteToCompanyAnchors();
@@ -2642,9 +2705,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private void RebuildPositions()
     {
         EnsureCompanyAnchorOrdering();
+        var displayIndex = 0;
         for (var i = 0; i < RouteStops.Count; i++)
         {
-            RouteStops[i].Position = i + 1;
+            var stop = RouteStops[i];
+            stop.Position = i + 1;
+            stop.DisplayIndex = IsCompanyStop(stop) ? 0 : ++displayIndex;
         }
 
         ClearRouteStopEtaValues();
@@ -2701,19 +2767,35 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             .Sum();
         RouteTotalWeightText = $"Totalgewicht: {totalWeightKg} kg";
 
-        var display = VehicleCombinationDisplayResolver.Resolve(_vehicleData, _currentRouteVehicleId, _currentRouteTrailerId);
+        var assignments = BuildVehicleAssignments(
+            _currentRouteVehicleId,
+            _currentRouteTrailerId,
+            _currentRouteSecondaryVehicleId,
+            _currentRouteSecondaryTrailerId);
         var loadSummaryParts = new List<string>();
-        if (display.HasVehiclePayload)
+        for (var i = 0; i < assignments.Count; i++)
         {
-            loadSummaryParts.Add($"Ladegewicht: {display.VehiclePayloadKg} kg");
+            var assignment = assignments[i];
+            var display = VehicleCombinationDisplayResolver.Resolve(_vehicleData, assignment.VehicleId, assignment.TrailerId);
+            var prefix = assignments.Count > 1 ? $"Fahrzeug {i + 1}: " : string.Empty;
+            var details = new List<string>();
+            if (display.HasVehiclePayload)
+            {
+                details.Add($"Ladegewicht: {display.VehiclePayloadKg} kg");
+            }
+
+            if (display.TrailerLoadKg.HasValue)
+            {
+                details.Add($"Anhängelast: {display.TrailerLoadKg} kg");
+            }
+
+            if (details.Count > 0)
+            {
+                loadSummaryParts.Add($"{prefix}{string.Join(" | ", details)}");
+            }
         }
 
-        if (display.TrailerLoadKg.HasValue)
-        {
-            loadSummaryParts.Add($"Anhängelast: {display.TrailerLoadKg} kg");
-        }
-
-        RouteLoadSummaryText = string.Join(" | ", loadSummaryParts);
+        RouteLoadSummaryText = string.Join(Environment.NewLine, loadSummaryParts);
     }
 
     private bool ConfirmAssignmentConflictWarning(IEnumerable<TourRecord> tours, int targetTourId)
@@ -2841,13 +2923,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return _employeeLabelsById.TryGetValue(id, out var label) ? label : id;
     }
 
-    private bool ConfirmCapacityWarning(string? vehicleId, string? trailerId)
+    private bool ConfirmCapacityWarning(string? vehicleId, string? trailerId, string? secondaryVehicleId, string? secondaryTrailerId)
     {
         var totalWeightKg = RouteStops
             .Where(x => !IsCompanyStop(x))
             .Select(x => FindOrderWeightKg(x.OrderId))
             .Sum();
-        var warning = TourCapacityWarningService.Evaluate(_vehicleData, vehicleId, trailerId, totalWeightKg);
+        var assignments = BuildVehicleAssignments(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId);
+        var warning = TourCapacityWarningService.EvaluateFleet(_vehicleData, assignments, totalWeightKg);
         if (!warning.IsOverCapacity)
         {
             return true;
@@ -2858,6 +2941,102 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                    "Kapazitätswarnung",
                    MessageBoxButton.YesNo,
                    MessageBoxImage.Warning) == MessageBoxResult.Yes;
+    }
+
+    private static List<(string VehicleId, string TrailerId)> BuildVehicleAssignments(
+        string? vehicleId,
+        string? trailerId,
+        string? secondaryVehicleId,
+        string? secondaryTrailerId)
+    {
+        var items = new List<(string VehicleId, string TrailerId)>
+        {
+            ((vehicleId ?? string.Empty).Trim(), (trailerId ?? string.Empty).Trim()),
+            ((secondaryVehicleId ?? string.Empty).Trim(), (secondaryTrailerId ?? string.Empty).Trim())
+        };
+
+        return items
+            .Where(x => !string.IsNullOrWhiteSpace(x.VehicleId) || !string.IsNullOrWhiteSpace(x.TrailerId))
+            .GroupBy(x => $"{x.VehicleId}|{x.TrailerId}", StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+    }
+
+    private async Task<string?> BuildAvailabilityErrorAsync(
+        string routeDate,
+        string? vehicleId,
+        string? trailerId,
+        string? secondaryVehicleId,
+        string? secondaryTrailerId,
+        IReadOnlyList<string> employeeIds)
+    {
+        var date = ResourceAvailabilityService.ParseDate(routeDate);
+        if (!date.HasValue)
+        {
+            return null;
+        }
+
+        var employeesTask = _employeeRepository.LoadAsync();
+        var vehiclesTask = _vehicleRepository.LoadAsync();
+        await Task.WhenAll(employeesTask, vehiclesTask);
+
+        var employees = await employeesTask;
+        var vehicleData = await vehiclesTask;
+        var blocked = new List<string>();
+
+        var normalizedEmployeeIds = (employeeIds ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var employee in employees.Where(x => normalizedEmployeeIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase)))
+        {
+            if (ResourceAvailabilityService.IsUnavailableOnDate(employee.UnavailabilityPeriods, date.Value))
+            {
+                blocked.Add($"Mitarbeiter: {employee.DisplayName}");
+            }
+        }
+
+        foreach (var assignment in BuildVehicleAssignments(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId))
+        {
+            var vehicle = vehicleData.Vehicles.FirstOrDefault(x => string.Equals(x.Id, assignment.VehicleId, StringComparison.OrdinalIgnoreCase));
+            if (vehicle is not null && ResourceAvailabilityService.IsUnavailableOnDate(vehicle.UnavailabilityPeriods, date.Value))
+            {
+                blocked.Add($"Fahrzeug: {vehicle.Name}");
+            }
+
+            var trailer = vehicleData.Trailers.FirstOrDefault(x => string.Equals(x.Id, assignment.TrailerId, StringComparison.OrdinalIgnoreCase));
+            if (trailer is not null && ResourceAvailabilityService.IsUnavailableOnDate(trailer.UnavailabilityPeriods, date.Value))
+            {
+                blocked.Add($"Anhänger: {trailer.Name}");
+            }
+        }
+
+        if (blocked.Count == 0)
+        {
+            return null;
+        }
+
+        return $"Für {routeDate} sind folgende Ressourcen nicht verfügbar:{Environment.NewLine}{string.Join(Environment.NewLine, blocked.Distinct(StringComparer.OrdinalIgnoreCase))}";
+    }
+
+    private string? BuildVehicleTrailerLinesForExport(
+        string? primaryVehicleId,
+        string? primaryTrailerId,
+        string? secondaryVehicleId,
+        string? secondaryTrailerId)
+    {
+        var lines = BuildVehicleAssignments(primaryVehicleId, primaryTrailerId, secondaryVehicleId, secondaryTrailerId)
+            .Select(x =>
+            {
+                var vehicleLabel = ResolveVehicleLabel(x.VehicleId);
+                var trailerLabel = ResolveTrailerLabel(x.TrailerId);
+                return $"{(string.IsNullOrWhiteSpace(vehicleLabel) ? "-" : vehicleLabel)} & {(string.IsNullOrWhiteSpace(trailerLabel) ? "-" : trailerLabel)}";
+            })
+            .ToList();
+
+        return lines.Count == 0 ? null : string.Join(Environment.NewLine, lines);
     }
 
     private int FindOrderWeightKg(string? orderId)
@@ -2944,6 +3123,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     }
 
     private string RouteStartTime => $"{NormalizeTimePart(RouteStartHour, 23)}:{NormalizeTimePart(RouteStartMinute, 59)}";
+
+    private void ApplyRouteStartTimeFromInput()
+    {
+        RefreshDriveTimesFromCurrentRoute();
+        UpdateStatus();
+    }
 
     private void ApplyRouteStartTime()
     {
@@ -3431,6 +3616,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return parsed.ToString("00");
     }
 
+    private static string NormalizeTimeInputPartForEditing(string? value)
+    {
+        return new string((value ?? string.Empty).Where(char.IsDigit).Take(2).ToArray());
+    }
+
     private async Task RebuildRouteGeometryAsync()
     {
         var revision = Interlocked.Increment(ref _routeGeometryRevision);
@@ -3711,6 +3901,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             Address = NormalizeUiText(order.Address),
             Street = ResolveStreet(order),
             PostalCodeCity = ResolvePostalCodeCity(order),
+            Notes = NormalizeUiText(order.Notes),
             ProductLines = BuildProductLineItems(order.Products),
             TotalWeightKgText = totalWeightKg.ToString("0.##", CultureInfo.CurrentCulture),
             ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
@@ -3804,7 +3995,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             }
 
             var quantity = Math.Max(1, product.Quantity);
-            lines.Add($"{quantity}x {NormalizeUiText(product.Name)}");
+            var supplier = NormalizeUiText(product.Supplier);
+            var supplierSuffix = string.IsNullOrWhiteSpace(supplier) ? string.Empty : $" [{supplier}]";
+            lines.Add($"{quantity}x {NormalizeUiText(product.Name)}{supplierSuffix}");
         }
 
         return lines;
@@ -3936,7 +4129,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             var weightLine = $"Gewicht: {unitWeightKg.ToString("0.##", culture)} kg/Stk";
             var totalLine = $"Gesamt: {totalWeightKg.ToString("0.##", culture)} kg";
 
-            items.Add(new DetailProductItem($"{quantity}x {product.Name.Trim()}", dimensionsLine, weightLine, totalLine));
+            items.Add(new DetailProductItem(
+                $"{quantity}x {product.Name.Trim()}",
+                (product.Supplier ?? string.Empty).Trim(),
+                dimensionsLine,
+                weightLine,
+                totalLine));
         }
 
         return items;
@@ -3945,18 +4143,21 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
 public sealed class DetailProductItem
 {
-    public DetailProductItem(string title, string dimensionsLine, string weightLine, string totalLine)
+    public DetailProductItem(string title, string supplier, string dimensionsLine, string weightLine, string totalLine)
     {
         Title = title;
+        Supplier = supplier ?? string.Empty;
         DimensionsLine = dimensionsLine ?? string.Empty;
         WeightLine = weightLine ?? string.Empty;
         TotalLine = totalLine ?? string.Empty;
     }
 
     public string Title { get; }
+    public string Supplier { get; }
     public string DimensionsLine { get; }
     public string WeightLine { get; }
     public string TotalLine { get; }
+    public bool HasSupplier => !string.IsNullOrWhiteSpace(Supplier);
     public bool HasDimensions => !string.IsNullOrWhiteSpace(DimensionsLine);
 }
 
@@ -3967,6 +4168,7 @@ public sealed class MapOrderItem
     public string Address { get; set; } = string.Empty;
     public string Street { get; set; } = string.Empty;
     public string PostalCodeCity { get; set; } = string.Empty;
+    public string Notes { get; set; } = string.Empty;
     public List<string> ProductLines { get; set; } = new();
     public string TotalWeightKgText { get; set; } = string.Empty;
     public string ScheduledDate { get; set; } = string.Empty;
@@ -4003,6 +4205,7 @@ public sealed class MapOrderFilterOption : ObservableObject
 public sealed class RouteStopItem : ObservableObject
 {
     private int _position;
+    private int _displayIndex;
     private string _orderId = string.Empty;
     private string _customer = string.Empty;
     private string _address = string.Empty;
@@ -4026,6 +4229,18 @@ public sealed class RouteStopItem : ObservableObject
             {
                 OnPropertyChanged(nameof(DisplayPosition));
                 OnPropertyChanged(nameof(DisplayEta));
+            }
+        }
+    }
+
+    public int DisplayIndex
+    {
+        get => _displayIndex;
+        set
+        {
+            if (SetProperty(ref _displayIndex, value))
+            {
+                OnPropertyChanged(nameof(DisplayPosition));
             }
         }
     }
@@ -4183,7 +4398,7 @@ public sealed class RouteStopItem : ObservableObject
     public bool IsRouteEnd => string.Equals(OrderId, "__company_end__", StringComparison.OrdinalIgnoreCase);
     public string RouteBadgeText => IsRouteStart ? "Start" : IsRouteEnd ? "Ende" : string.Empty;
     public bool HasNextLeg => !string.IsNullOrWhiteSpace(NextLegDurationText) && !string.IsNullOrWhiteSpace(NextLegDistanceText);
-    public string DisplayPosition => ToAlphaLabel(Position);
+    public string DisplayPosition => ToAlphaLabel(DisplayIndex > 0 ? DisplayIndex : Position);
     public string DisplayName => IsCompanyDisplay ? Address : (!string.IsNullOrWhiteSpace(Customer) ? Customer : Address);
     public string DisplayNameWithOrder =>
         IsCompanyDisplay || string.IsNullOrWhiteSpace(DisplayOrder) || string.Equals(DisplayOrder, "-", StringComparison.Ordinal)

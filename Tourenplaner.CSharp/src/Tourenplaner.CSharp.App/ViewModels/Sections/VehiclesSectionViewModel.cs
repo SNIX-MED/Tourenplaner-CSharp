@@ -10,6 +10,7 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 public sealed class VehiclesSectionViewModel : SectionViewModelBase
 {
     private readonly JsonVehicleDataRepository _repository;
+    private readonly JsonToursRepository _tourRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly List<Vehicle> _vehicles = new();
     private readonly List<TrailerRecord> _trailers = new();
@@ -19,10 +20,11 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
     private string _statusText = "Lade Fahrzeuge...";
     private string _modeCountText = string.Empty;
 
-    public VehiclesSectionViewModel(string vehiclesJsonPath, AppDataSyncService dataSyncService)
-        : base("Fahrzeugverwaltung", "Zugfahrzeuge, Anhänger und Fahrzeugkombinationen verwalten.")
+    public VehiclesSectionViewModel(string vehiclesJsonPath, string toursJsonPath, AppDataSyncService dataSyncService)
+        : base("Fahrzeugverwaltung", "Zugfahrzeuge, Anhänger und Ausfälle verwalten.")
     {
         _repository = new JsonVehicleDataRepository(vehiclesJsonPath);
+        _tourRepository = new JsonToursRepository(toursJsonPath);
         _dataSyncService = dataSyncService;
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
@@ -91,11 +93,16 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             WidthCm: 0,
             HeightCm: 0,
             Notes: string.Empty,
-            Active: true);
+            RegisterOutage: false,
+            OutageStartDate: string.Empty,
+            OutageEndDate: string.Empty);
     }
 
     public VehicleEditorSeed CreateSeedForEdit(FleetEntryCardItem entry)
     {
+        var sourceVehicle = _vehicles.FirstOrDefault(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+        var sourceTrailer = _trailers.FirstOrDefault(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+        var editablePeriod = GetEditablePeriod((entry.IsTrailer ? sourceTrailer?.UnavailabilityPeriods : sourceVehicle?.UnavailabilityPeriods) ?? []);
         return new VehicleEditorSeed(
             Id: entry.Id,
             IsTrailer: entry.IsTrailer,
@@ -109,7 +116,9 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             WidthCm: entry.WidthCm,
             HeightCm: entry.HeightCm,
             Notes: entry.Notes,
-            Active: entry.Active);
+            RegisterOutage: editablePeriod is not null,
+            OutageStartDate: editablePeriod?.StartDate.ToString("dd.MM.yyyy") ?? string.Empty,
+            OutageEndDate: editablePeriod?.EndDate.ToString("dd.MM.yyyy") ?? string.Empty);
     }
 
     public VehicleCombinationEditorSeed CreateCombinationSeedForCreate()
@@ -154,10 +163,15 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             .ToList();
     }
 
-    public async Task ApplyEditorResultAsync(VehicleEditorResult result)
+    public async Task<string?> ApplyEditorResultAsync(VehicleEditorResult result)
     {
         var id = string.IsNullOrWhiteSpace(result.Id) ? Guid.NewGuid().ToString() : result.Id.Trim();
         ValidateVehicleResult(result, id);
+
+        string? warning = null;
+
+        var existingVehicle = _vehicles.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+        var existingTrailer = _trailers.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
 
         _vehicles.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
         _trailers.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -165,6 +179,18 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         var loadingArea = BuildDimensions(result.LengthCm, result.WidthCm, result.HeightCm);
         if (result.IsTrailer)
         {
+            var periods = new List<ResourceUnavailabilityPeriod>();
+            if (result.RegisterOutage)
+            {
+                AppendOutagePeriod(periods, result.OutageStartDate, result.OutageEndDate);
+                warning = await BuildOutageAssignmentWarningAsync(
+                    id,
+                    result.Name,
+                    result.OutageStartDate,
+                    result.OutageEndDate,
+                    isTrailer: true);
+            }
+
             _trailers.Add(new TrailerRecord
             {
                 Id = id,
@@ -173,13 +199,26 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                 MaxPayloadKg = Math.Max(0, result.MaxPayloadKg),
                 VolumeM3 = Math.Max(0, result.VolumeM3),
                 LoadingArea = loadingArea,
-                Active = result.Active,
-                Notes = result.Notes.Trim()
+                Active = existingTrailer?.Active ?? true,
+                Notes = result.Notes.Trim(),
+                UnavailabilityPeriods = periods
             });
             _displayMode = FleetDisplayMode.Trailers;
         }
         else
         {
+            var periods = new List<ResourceUnavailabilityPeriod>();
+            if (result.RegisterOutage)
+            {
+                AppendOutagePeriod(periods, result.OutageStartDate, result.OutageEndDate);
+                warning = await BuildOutageAssignmentWarningAsync(
+                    id,
+                    result.Name,
+                    result.OutageStartDate,
+                    result.OutageEndDate,
+                    isTrailer: false);
+            }
+
             _vehicles.Add(new Vehicle
             {
                 Id = id,
@@ -190,13 +229,15 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                 MaxTrailerLoadKg = Math.Max(0, result.MaxTrailerLoadKg),
                 VolumeM3 = Math.Max(0, result.VolumeM3),
                 LoadingArea = loadingArea,
-                Active = result.Active,
-                Notes = result.Notes.Trim()
+                Active = existingVehicle?.Active ?? true,
+                Notes = result.Notes.Trim(),
+                UnavailabilityPeriods = periods
             });
             _displayMode = FleetDisplayMode.Vehicles;
         }
 
         await SaveCurrentStateAsync();
+        return warning;
     }
 
     public async Task ApplyCombinationEditorResultAsync(VehicleCombinationEditorResult result)
@@ -372,10 +413,14 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         var vehiclesById = _vehicles.ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
         var trailersById = _trailers.ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
 
+        var today = DateOnly.FromDateTime(DateTime.Today);
         if (_displayMode == FleetDisplayMode.Vehicles)
         {
-            foreach (var vehicle in _vehicles.OrderBy(x => !x.Active).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+            foreach (var vehicle in _vehicles
+                         .OrderByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
+                         .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
             {
+                var isUnavailableToday = ResourceAvailabilityService.IsUnavailableOnDate(vehicle.UnavailabilityPeriods, today);
                 Entries.Add(new FleetEntryCardItem
                 {
                     Id = vehicle.Id,
@@ -391,14 +436,19 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                     WidthCm = vehicle.LoadingArea?.WidthCm ?? 0,
                     HeightCm = vehicle.LoadingArea?.HeightCm ?? 0,
                     Notes = vehicle.Notes,
-                    Active = vehicle.Active
+                    Active = vehicle.Active,
+                    IsUnavailableToday = isUnavailableToday,
+                    NextUnavailabilityText = BuildNextUnavailabilityText(vehicle.UnavailabilityPeriods, today)
                 });
             }
         }
         else if (_displayMode == FleetDisplayMode.Trailers)
         {
-            foreach (var trailer in _trailers.OrderBy(x => !x.Active).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+            foreach (var trailer in _trailers
+                         .OrderByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
+                         .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
             {
+                var isUnavailableToday = ResourceAvailabilityService.IsUnavailableOnDate(trailer.UnavailabilityPeriods, today);
                 Entries.Add(new FleetEntryCardItem
                 {
                     Id = trailer.Id,
@@ -414,7 +464,9 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                     WidthCm = trailer.LoadingArea?.WidthCm ?? 0,
                     HeightCm = trailer.LoadingArea?.HeightCm ?? 0,
                     Notes = trailer.Notes,
-                    Active = trailer.Active
+                    Active = trailer.Active,
+                    IsUnavailableToday = isUnavailableToday,
+                    NextUnavailabilityText = BuildNextUnavailabilityText(trailer.UnavailabilityPeriods, today)
                 });
             }
         }
@@ -436,15 +488,16 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                     CombinationVehiclePayloadKg = combination.VehiclePayloadKg,
                     CombinationTrailerLoadKg = combination.TrailerLoadKg,
                     Notes = combination.Notes,
-                    Active = combination.Active
+                    Active = combination.Active,
+                    IsUnavailableToday = false,
+                    NextUnavailabilityText = "Keine Ausfallplanung"
                 });
             }
         }
 
-        var activeVehicles = _vehicles.Count(x => x.Active);
-        var activeTrailers = _trailers.Count(x => x.Active);
-        var activeCombinations = _combinations.Count(x => x.Active);
-        StatusText = $"Zugfahrzeuge: {_vehicles.Count} (aktiv {activeVehicles}) | Anhänger: {_trailers.Count} (aktiv {activeTrailers}) | Kombinationen: {_combinations.Count} (aktiv {activeCombinations})";
+        var unavailableVehicles = _vehicles.Count(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today));
+        var unavailableTrailers = _trailers.Count(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today));
+        StatusText = $"Zugfahrzeuge: {_vehicles.Count} (heute Ausfall {unavailableVehicles}) | Anhänger: {_trailers.Count} (heute Ausfall {unavailableTrailers}) | Kombinationen: {_combinations.Count}";
         ModeCountText = _displayMode switch
         {
             FleetDisplayMode.Vehicles => $"Zugfahrzeuge: {Entries.Count}",
@@ -535,6 +588,127 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             showCombinations.RaiseCanExecuteChanged();
         }
     }
+
+    private static void AppendOutagePeriod(List<ResourceUnavailabilityPeriod> periods, string? startRaw, string? endRaw)
+    {
+        var start = ResourceAvailabilityService.ParseDate(startRaw);
+        var end = ResourceAvailabilityService.ParseDate(endRaw);
+        if (!start.HasValue || !end.HasValue)
+        {
+            return;
+        }
+
+        var from = start.Value <= end.Value ? start.Value : end.Value;
+        var to = start.Value <= end.Value ? end.Value : start.Value;
+        periods.Add(new ResourceUnavailabilityPeriod
+        {
+            StartDate = from.ToString("yyyy-MM-dd"),
+            EndDate = to.ToString("yyyy-MM-dd")
+        });
+    }
+
+    private async Task<string?> BuildOutageAssignmentWarningAsync(
+        string resourceId,
+        string resourceName,
+        string? startRaw,
+        string? endRaw,
+        bool isTrailer)
+    {
+        var start = ResourceAvailabilityService.ParseDate(startRaw);
+        var end = ResourceAvailabilityService.ParseDate(endRaw);
+        if (!start.HasValue || !end.HasValue)
+        {
+            return null;
+        }
+
+        var from = start.Value <= end.Value ? start.Value : end.Value;
+        var to = start.Value <= end.Value ? end.Value : start.Value;
+
+        var tours = await _tourRepository.LoadAsync();
+        var affected = tours
+            .Where(t =>
+            {
+                var date = ResourceAvailabilityService.ParseDate(t.Date);
+                if (!date.HasValue || date.Value < from || date.Value > to)
+                {
+                    return false;
+                }
+
+                return isTrailer
+                    ? string.Equals(t.TrailerId, resourceId, StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(t.SecondaryTrailerId, resourceId, StringComparison.OrdinalIgnoreCase)
+                    : string.Equals(t.VehicleId, resourceId, StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(t.SecondaryVehicleId, resourceId, StringComparison.OrdinalIgnoreCase);
+            })
+            .OrderBy(t => ResourceAvailabilityService.ParseDate(t.Date))
+            .ThenBy(t => t.StartTime, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (affected.Count == 0)
+        {
+            return null;
+        }
+
+        var lines = affected
+            .Take(6)
+            .Select(t => $"{t.Date} {t.StartTime} - {t.Name}")
+            .ToList();
+        if (affected.Count > lines.Count)
+        {
+            lines.Add($"... und {affected.Count - lines.Count} weitere Tour(en).");
+        }
+
+        var label = isTrailer ? "Anhänger" : "Fahrzeug";
+        return $"Achtung: {label} \"{resourceName}\" ist im gewählten Ausfallzeitraum bereits in Touren eingeplant:{Environment.NewLine}{string.Join(Environment.NewLine, lines)}";
+    }
+
+    private static string BuildNextUnavailabilityText(IEnumerable<ResourceUnavailabilityPeriod>? periods, DateOnly today)
+    {
+        var upcoming = (periods ?? [])
+            .Select(x => new
+            {
+                Start = ResourceAvailabilityService.ParseDate(x.StartDate),
+                End = ResourceAvailabilityService.ParseDate(x.EndDate)
+            })
+            .Where(x => x.Start.HasValue && x.End.HasValue)
+            .Select(x => new
+            {
+                Start = x.Start!.Value <= x.End!.Value ? x.Start.Value : x.End.Value,
+                End = x.Start!.Value <= x.End!.Value ? x.End.Value : x.Start.Value
+            })
+            .Where(x => x.End >= today)
+            .OrderBy(x => x.Start)
+            .FirstOrDefault();
+
+        if (upcoming is null)
+        {
+            return "Kein Ausfall geplant";
+        }
+
+        return $"Ausfall: {upcoming.Start:dd.MM.yyyy} - {upcoming.End:dd.MM.yyyy}";
+    }
+
+    private static (DateOnly StartDate, DateOnly EndDate)? GetEditablePeriod(IEnumerable<ResourceUnavailabilityPeriod>? periods)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var upcoming = (periods ?? [])
+            .Select(x => new
+            {
+                Start = ResourceAvailabilityService.ParseDate(x.StartDate),
+                End = ResourceAvailabilityService.ParseDate(x.EndDate)
+            })
+            .Where(x => x.Start.HasValue && x.End.HasValue)
+            .Select(x => new
+            {
+                Start = x.Start!.Value <= x.End!.Value ? x.Start.Value : x.End.Value,
+                End = x.Start!.Value <= x.End!.Value ? x.End.Value : x.Start.Value
+            })
+            .Where(x => x.End >= today)
+            .OrderBy(x => x.Start)
+            .FirstOrDefault();
+
+        return upcoming is null ? null : (upcoming.Start, upcoming.End);
+    }
 }
 
 public sealed class FleetEntryCardItem : ObservableObject
@@ -553,6 +727,8 @@ public sealed class FleetEntryCardItem : ObservableObject
     public int HeightCm { get; set; }
     public string Notes { get; set; } = string.Empty;
     public bool Active { get; set; } = true;
+    public bool IsUnavailableToday { get; set; }
+    public string NextUnavailabilityText { get; set; } = string.Empty;
     public string VehicleId { get; set; } = string.Empty;
     public string TrailerId { get; set; } = string.Empty;
     public string VehicleName { get; set; } = string.Empty;
@@ -560,7 +736,7 @@ public sealed class FleetEntryCardItem : ObservableObject
     public int CombinationVehiclePayloadKg { get; set; }
     public int CombinationTrailerLoadKg { get; set; }
 
-    public string ActiveLabel => Active ? "Aktiv" : "Inaktiv";
+    public string AvailabilityLabel => IsUnavailableToday ? "Ausfall" : "Verfügbar";
 
     public string HeaderTypeLabel => IsCombination ? "Fahrzeugkombination" : (IsTrailer ? "Anhänger" : "Zugfahrzeug");
 
@@ -610,6 +786,11 @@ public sealed class FleetEntryCardItem : ObservableObject
             if (LengthCm > 0 || WidthCm > 0 || HeightCm > 0)
             {
                 parts.Add($"Ladefläche: {LengthCm} x {WidthCm} x {HeightCm} cm");
+            }
+
+            if (!string.IsNullOrWhiteSpace(NextUnavailabilityText))
+            {
+                parts.Add(NextUnavailabilityText);
             }
 
             return string.Join(" | ", parts);

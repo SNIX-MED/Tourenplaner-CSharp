@@ -65,4 +65,33 @@ public class TourConflictServiceTests
 
         Assert.Empty(conflicts);
     }
+
+    [Fact]
+    public void FindAssignmentConflicts_DetectsOverlap_WithSecondaryAssignments()
+    {
+        var service = new TourConflictService();
+        var tours = new[]
+        {
+            new TourRecord
+            {
+                Id = 300,
+                Date = "21.03.2026",
+                StartTime = "08:00",
+                SecondaryVehicleId = "V-2",
+                Stops = [new TourStopRecord { Id = "A", Order = 1, ServiceMinutes = 60 }]
+            },
+            new TourRecord
+            {
+                Id = 301,
+                Date = "21.03.2026",
+                StartTime = "08:30",
+                VehicleId = "V-2",
+                Stops = [new TourStopRecord { Id = "B", Order = 1, ServiceMinutes = 30 }]
+            }
+        };
+
+        var conflicts = service.FindAssignmentConflicts(tours);
+
+        Assert.Contains(conflicts, c => c.ResourceType == "vehicle" && c.ResourceId == "V-2");
+    }
 }

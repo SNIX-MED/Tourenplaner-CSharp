@@ -12,4 +12,5 @@ public sealed class TrailerRecord
     public VehicleDimensions? LoadingArea { get; set; }
     public string CreatedAt { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;
+    public List<ResourceUnavailabilityPeriod> UnavailabilityPeriods { get; set; } = new();
 }

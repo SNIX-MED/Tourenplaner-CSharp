@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 
@@ -69,7 +70,9 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
     private string _name;
     private string _shortCode;
     private string _phone;
-    private bool _active;
+    private bool _registerAbsence;
+    private string _absenceStartDate;
+    private string _absenceEndDate;
 
     public EmployeeEditorDialogViewModel(EmployeeEditorSeed seed)
     {
@@ -77,7 +80,9 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
         _name = seed.Name ?? string.Empty;
         _shortCode = seed.ShortCode ?? string.Empty;
         _phone = seed.Phone ?? string.Empty;
-        _active = seed.Active;
+        _registerAbsence = seed.RegisterAbsence;
+        _absenceStartDate = seed.AbsenceStartDate ?? string.Empty;
+        _absenceEndDate = seed.AbsenceEndDate ?? string.Empty;
     }
 
     public string Name
@@ -98,10 +103,22 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
         set => SetProperty(ref _phone, value);
     }
 
-    public bool Active
+    public bool RegisterAbsence
     {
-        get => _active;
-        set => SetProperty(ref _active, value);
+        get => _registerAbsence;
+        set => SetProperty(ref _registerAbsence, value);
+    }
+
+    public string AbsenceStartDate
+    {
+        get => _absenceStartDate;
+        set => SetProperty(ref _absenceStartDate, value);
+    }
+
+    public string AbsenceEndDate
+    {
+        get => _absenceEndDate;
+        set => SetProperty(ref _absenceEndDate, value);
     }
 
     public bool TryBuildResult(out EmployeeEditorResult result, out string error)
@@ -114,12 +131,25 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
             return false;
         }
 
+        if (RegisterAbsence)
+        {
+            var start = ResourceAvailabilityService.ParseDate(AbsenceStartDate);
+            var end = ResourceAvailabilityService.ParseDate(AbsenceEndDate);
+            if (!start.HasValue || !end.HasValue)
+            {
+                error = "Bitte für die Abwesenheit ein gültiges Start- und Enddatum im Format DD.MM.YYYY eingeben.";
+                return false;
+            }
+        }
+
         result = new EmployeeEditorResult(
             Id: _id,
             Name: Name.Trim(),
             ShortCode: (ShortCode ?? string.Empty).Trim(),
             Phone: (Phone ?? string.Empty).Trim(),
-            Active: Active);
+            RegisterAbsence: RegisterAbsence,
+            AbsenceStartDate: (AbsenceStartDate ?? string.Empty).Trim(),
+            AbsenceEndDate: (AbsenceEndDate ?? string.Empty).Trim());
         return true;
     }
 }

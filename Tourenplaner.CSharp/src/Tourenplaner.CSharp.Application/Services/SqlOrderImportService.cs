@@ -129,6 +129,7 @@ public class SqlOrderImportService : ISqlOrderImportService
             Products = sqlOrder.Produkte.Select((p, idx) => new OrderProductInfo
             {
                 Name = p.Bezeichnung,
+                Supplier = string.Empty,
                 Quantity = (int)p.Menge,
                 UnitWeightKg = (double)p.Gewicht,
                 WeightKg = (double)(p.Bruttogewicht * p.Menge),
@@ -183,6 +184,7 @@ public class SqlOrderImportService : ISqlOrderImportService
         existingOrder.Products = sqlOrder.Produkte.Select((p, idx) => new OrderProductInfo
         {
             Name = p.Bezeichnung,
+            Supplier = string.Empty,
             Quantity = (int)p.Menge,
             UnitWeightKg = (double)p.Gewicht,
             WeightKg = (double)(p.Bruttogewicht * p.Menge),

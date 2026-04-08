@@ -13,6 +13,7 @@ public sealed class AppSettings
     public const string DefaultCalendarLoadCriticalColor = "#DC2626";
     public const string DefaultGpsToolUrl = "https://map.ktrac.ch/";
     public const string DefaultSpediteurToolUrl = "https://portal.haslertransport.ch/";
+    public const string DefaultTourStartTime = "07:30";
 
     public string AppearanceMode { get; set; } = "Light";
     public string AvisoEmailSubjectTemplate { get; set; } = DefaultAvisoEmailSubjectTemplate;
@@ -35,6 +36,7 @@ public sealed class AppSettings
     public bool MapPinInfoCardShowOrderNumber { get; set; } = true;
     public bool MapPinInfoCardShowStreet { get; set; } = true;
     public bool MapPinInfoCardShowPostalCodeCity { get; set; } = true;
+    public bool MapPinInfoCardShowNotes { get; set; } = true;
     public bool MapPinInfoCardShowProducts { get; set; } = true;
     public bool MapPinInfoCardShowTotalWeight { get; set; } = true;
     public List<string> QuickAccessItems { get; set; } = new() { "action:export_route", string.Empty, string.Empty, string.Empty };
@@ -50,6 +52,7 @@ public sealed class AppSettings
     public string GpsToolUrl { get; set; } = DefaultGpsToolUrl;
     public bool ShowSpediteurTool { get; set; } = true;
     public string SpediteurToolUrl { get; set; } = DefaultSpediteurToolUrl;
+    public string TourDefaultStartTime { get; set; } = DefaultTourStartTime;
     
     // SQL Server Import Settings
     public SqlConnectionSettings SqlImportSettings { get; set; } = new();

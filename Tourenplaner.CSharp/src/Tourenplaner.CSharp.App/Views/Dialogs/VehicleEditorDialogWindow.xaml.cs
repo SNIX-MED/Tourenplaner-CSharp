@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 
@@ -62,7 +63,9 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
     private string _widthCmText;
     private string _heightCmText;
     private string _notes;
-    private bool _active;
+    private bool _registerOutage;
+    private string _outageStartDate;
+    private string _outageEndDate;
 
     public VehicleEditorDialogViewModel(VehicleEditorSeed seed)
     {
@@ -78,7 +81,9 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         _widthCmText = seed.WidthCm <= 0 ? string.Empty : seed.WidthCm.ToString(CultureInfo.InvariantCulture);
         _heightCmText = seed.HeightCm <= 0 ? string.Empty : seed.HeightCm.ToString(CultureInfo.InvariantCulture);
         _notes = seed.Notes ?? string.Empty;
-        _active = seed.Active;
+        _registerOutage = seed.RegisterOutage;
+        _outageStartDate = seed.OutageStartDate ?? string.Empty;
+        _outageEndDate = seed.OutageEndDate ?? string.Empty;
     }
 
     public string Heading => IsTrailer ? "Anhänger" : "Zugfahrzeug";
@@ -153,10 +158,22 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         set => SetProperty(ref _notes, value);
     }
 
-    public bool Active
+    public bool RegisterOutage
     {
-        get => _active;
-        set => SetProperty(ref _active, value);
+        get => _registerOutage;
+        set => SetProperty(ref _registerOutage, value);
+    }
+
+    public string OutageStartDate
+    {
+        get => _outageStartDate;
+        set => SetProperty(ref _outageStartDate, value);
+    }
+
+    public string OutageEndDate
+    {
+        get => _outageEndDate;
+        set => SetProperty(ref _outageEndDate, value);
     }
 
     public void SetTrailer(bool isTrailer)
@@ -210,6 +227,17 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
             trailerLoadKg = 0;
         }
 
+        if (RegisterOutage)
+        {
+            var start = ResourceAvailabilityService.ParseDate(OutageStartDate);
+            var end = ResourceAvailabilityService.ParseDate(OutageEndDate);
+            if (!start.HasValue || !end.HasValue)
+            {
+                error = "Bitte für den Ausfall ein gültiges Start- und Enddatum im Format DD.MM.YYYY eingeben.";
+                return false;
+            }
+        }
+
         result = new VehicleEditorResult(
             Id: _id,
             IsTrailer: IsTrailer,
@@ -223,7 +251,9 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
             WidthCm: widthCm,
             HeightCm: heightCm,
             Notes: (Notes ?? string.Empty).Trim(),
-            Active: Active);
+            RegisterOutage: RegisterOutage,
+            OutageStartDate: (OutageStartDate ?? string.Empty).Trim(),
+            OutageEndDate: (OutageEndDate ?? string.Empty).Trim());
         return true;
     }
 

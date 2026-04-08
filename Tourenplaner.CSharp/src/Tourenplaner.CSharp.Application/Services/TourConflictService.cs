@@ -38,16 +38,16 @@ public sealed class TourConflictService
                     continue;
                 }
 
-                if (!string.IsNullOrWhiteSpace(a.Tour.VehicleId) &&
-                    string.Equals(a.Tour.VehicleId, b.Tour.VehicleId, StringComparison.OrdinalIgnoreCase))
+                foreach (var vehicleId in GetAssignedResourceIds(a.Tour.VehicleId, a.Tour.SecondaryVehicleId)
+                    .Intersect(GetAssignedResourceIds(b.Tour.VehicleId, b.Tour.SecondaryVehicleId), StringComparer.OrdinalIgnoreCase))
                 {
-                    conflicts.Add(BuildConflict("vehicle", a.Tour.VehicleId!, a, b));
+                    conflicts.Add(BuildConflict("vehicle", vehicleId, a, b));
                 }
 
-                if (!string.IsNullOrWhiteSpace(a.Tour.TrailerId) &&
-                    string.Equals(a.Tour.TrailerId, b.Tour.TrailerId, StringComparison.OrdinalIgnoreCase))
+                foreach (var trailerId in GetAssignedResourceIds(a.Tour.TrailerId, a.Tour.SecondaryTrailerId)
+                    .Intersect(GetAssignedResourceIds(b.Tour.TrailerId, b.Tour.SecondaryTrailerId), StringComparer.OrdinalIgnoreCase))
                 {
-                    conflicts.Add(BuildConflict("trailer", a.Tour.TrailerId!, a, b));
+                    conflicts.Add(BuildConflict("trailer", trailerId, a, b));
                 }
 
                 foreach (var employeeId in a.Tour.EmployeeIds.Intersect(b.Tour.EmployeeIds, StringComparer.OrdinalIgnoreCase))
@@ -81,16 +81,16 @@ public sealed class TourConflictService
                     continue;
                 }
 
-                if (!string.IsNullOrWhiteSpace(a.Tour.VehicleId) &&
-                    string.Equals(a.Tour.VehicleId, b.Tour.VehicleId, StringComparison.OrdinalIgnoreCase))
+                foreach (var vehicleId in GetAssignedResourceIds(a.Tour.VehicleId, a.Tour.SecondaryVehicleId)
+                    .Intersect(GetAssignedResourceIds(b.Tour.VehicleId, b.Tour.SecondaryVehicleId), StringComparer.OrdinalIgnoreCase))
                 {
-                    conflicts.Add(BuildConflict("Fahrzeug", a.Tour.VehicleId!, a, b));
+                    conflicts.Add(BuildConflict("Fahrzeug", vehicleId, a, b));
                 }
 
-                if (!string.IsNullOrWhiteSpace(a.Tour.TrailerId) &&
-                    string.Equals(a.Tour.TrailerId, b.Tour.TrailerId, StringComparison.OrdinalIgnoreCase))
+                foreach (var trailerId in GetAssignedResourceIds(a.Tour.TrailerId, a.Tour.SecondaryTrailerId)
+                    .Intersect(GetAssignedResourceIds(b.Tour.TrailerId, b.Tour.SecondaryTrailerId), StringComparer.OrdinalIgnoreCase))
                 {
-                    conflicts.Add(BuildConflict("Anhänger", a.Tour.TrailerId!, a, b));
+                    conflicts.Add(BuildConflict("Anhänger", trailerId, a, b));
                 }
 
                 foreach (var employeeId in a.Tour.EmployeeIds.Intersect(b.Tour.EmployeeIds, StringComparer.OrdinalIgnoreCase))
@@ -106,6 +106,15 @@ public sealed class TourConflictService
     private static bool IsOverlapping(DateTime startA, DateTime endA, DateTime startB, DateTime endB)
     {
         return startA < endB && startB < endA;
+    }
+
+    private static IReadOnlyList<string> GetAssignedResourceIds(params string?[] ids)
+    {
+        return ids
+            .Select(x => (x ?? string.Empty).Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static TourAssignmentConflict BuildConflict(

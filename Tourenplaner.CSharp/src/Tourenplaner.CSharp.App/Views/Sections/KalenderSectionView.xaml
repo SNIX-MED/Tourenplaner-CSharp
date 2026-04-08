@@ -27,6 +27,40 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.Card}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
+        <Style x:Key="WeekNavButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="86" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                CornerRadius="18"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.CardSoft}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.86" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <ScrollViewer x:Name="PageScrollViewer"
@@ -36,84 +70,126 @@
                   PanningMode="VerticalFirst">
     <StackPanel Margin="6">
 
-        <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding UpcomingWeeks}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <UniformGrid Rows="1" Columns="4" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Border Margin="0,0,8,0"
-                            Padding="8"
-                            CornerRadius="12"
-                            Background="{DynamicResource Brush.CardSoft}"
-                            BorderBrush="{DynamicResource Brush.BorderSoft}"
-                            BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Brush.TextPrimary}"
-                                       Text="{Binding Label}" />
+        <Grid Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-                            <ItemsControl Margin="0,6,0,0"
-                                          ItemsSource="{Binding Days}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <UniformGrid Columns="2" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{Binding LoadBackground}"
-                                                Margin="0,0,6,6"
-                                                Cursor="Hand"
-                                                PreviewMouseLeftButtonDown="OnUpcomingDayCardMouseLeftButtonDown">
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
+            <Button Grid.Column="0"
+                    Margin="0,0,8,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource WeekNavButtonStyle}"
+                    Command="{Binding PreviousWeekRangeCommand}"
+                    ToolTip="Eine Woche zurück">
+                <Path Width="10"
+                      Height="16"
+                      Data="M 8 2 L 3 8 L 8 14"
+                      Stroke="{DynamicResource Brush.TextMuted}"
+                      StrokeThickness="2"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      StrokeLineJoin="Round" />
+            </Button>
 
-                                                <TextBlock Grid.Row="0"
-                                                           FontSize="12"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{Binding LoadForeground}"
-                                                           Text="{Binding DateText}" />
+            <ItemsControl Grid.Column="1" ItemsSource="{Binding UpcomingWeeks}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Rows="1" Columns="4" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,0,8,0"
+                                Padding="8"
+                                CornerRadius="12"
+                                Background="{DynamicResource Brush.CardSoft}"
+                                BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                           Text="{Binding Label}" />
 
-                                                <TextBlock Grid.Row="1"
-                                                           Margin="0,2,0,0"
-                                                           VerticalAlignment="Top"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           TextWrapping="NoWrap"
-                                                           Foreground="{Binding LoadForeground}"
-                                                           Opacity="0.9"
-                                                           FontSize="11"
-                                                           Text="{Binding SummaryText}" />
-                                            </Grid>
-                                            <Border.Style>
-                                                <Style TargetType="Border" BasedOn="{StaticResource StartUpcomingCardStyle}">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsToday}" Value="True">
-                                                            <Setter Property="BorderThickness" Value="2" />
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Focus}" />
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                            <Setter Property="BorderThickness" Value="2" />
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+                                <ItemsControl Margin="0,6,0,0"
+                                              ItemsSource="{Binding Days}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="2" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{Binding LoadBackground}"
+                                                    Margin="0,0,6,6"
+                                                    Cursor="Hand"
+                                                    PreviewMouseLeftButtonDown="OnUpcomingDayCardMouseLeftButtonDown">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+
+                                                    <TextBlock Grid.Row="0"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{Binding LoadForeground}"
+                                                               Text="{Binding DateText}" />
+
+                                                    <TextBlock Grid.Row="1"
+                                                               Margin="0,2,0,0"
+                                                               VerticalAlignment="Top"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               TextWrapping="NoWrap"
+                                                               Foreground="{Binding LoadForeground}"
+                                                               Opacity="0.9"
+                                                               FontSize="11"
+                                                               Text="{Binding SummaryText}" />
+                                                </Grid>
+                                                <Border.Style>
+                                                    <Style TargetType="Border" BasedOn="{StaticResource StartUpcomingCardStyle}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsPast}" Value="True">
+                                                                <Setter Property="Opacity" Value="0.58" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                                <Setter Property="BorderThickness" Value="2" />
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Focus}" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter Property="BorderThickness" Value="2" />
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Button Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource WeekNavButtonStyle}"
+                    Command="{Binding NextWeekRangeCommand}"
+                    ToolTip="Eine Woche vor">
+                <Path Width="10"
+                      Height="16"
+                      Data="M 2 2 L 7 8 L 2 14"
+                      Stroke="{DynamicResource Brush.TextMuted}"
+                      StrokeThickness="2"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      StrokeLineJoin="Round" />
+            </Button>
+        </Grid>
 
         <Border Margin="0,14,0,0" Style="{StaticResource SharpFlatCardStyle}" Padding="14">
                 <Grid>

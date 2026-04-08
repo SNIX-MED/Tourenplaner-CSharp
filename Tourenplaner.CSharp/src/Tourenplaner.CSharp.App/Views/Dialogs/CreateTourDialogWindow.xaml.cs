@@ -17,6 +17,8 @@ public partial class CreateTourDialogWindow : Window
         IReadOnlyList<TourEmployeeOption> employeeOptions,
         string? selectedVehicleId = null,
         string? selectedTrailerId = null,
+        string? selectedSecondaryVehicleId = null,
+        string? selectedSecondaryTrailerId = null,
         IReadOnlyList<string>? selectedEmployeeIds = null,
         bool showOpenOnMapButton = false)
     {
@@ -31,6 +33,8 @@ public partial class CreateTourDialogWindow : Window
             employeeOptions,
             selectedVehicleId,
             selectedTrailerId,
+            selectedSecondaryVehicleId,
+            selectedSecondaryTrailerId,
             selectedEmployeeIds);
         DataContext = ViewModel;
         ShowOpenOnMapButton = showOpenOnMapButton;
@@ -93,10 +97,13 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     private string _name = string.Empty;
     private bool _isNameAutoManaged = true;
     private bool _suppressNameAutoDetection;
-    private string _selectedHour = "08";
-    private string _selectedMinute = "00";
+    private string _selectedHour = "07";
+    private string _selectedMinute = "30";
     private TourLookupOption? _selectedVehicle;
     private TourLookupOption? _selectedTrailer;
+    private bool _useSecondaryVehicle;
+    private TourLookupOption? _selectedSecondaryVehicle;
+    private TourLookupOption? _selectedSecondaryTrailer;
 
     public CreateTourDialogViewModel(
         string routeDate,
@@ -108,6 +115,8 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         IReadOnlyList<TourEmployeeOption> employeeOptions,
         string? selectedVehicleId = null,
         string? selectedTrailerId = null,
+        string? selectedSecondaryVehicleId = null,
+        string? selectedSecondaryTrailerId = null,
         IReadOnlyList<string>? selectedEmployeeIds = null)
     {
         HourOptions = Enumerable.Range(0, 24).Select(x => x.ToString("00", CultureInfo.InvariantCulture)).ToList();
@@ -133,8 +142,8 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         }
         var normalizedStartHour = routeStartHour ?? string.Empty;
         var normalizedStartMinute = routeStartMinute ?? string.Empty;
-        _selectedHour = HourOptions.Contains(normalizedStartHour) ? normalizedStartHour : "08";
-        _selectedMinute = MinuteOptions.Contains(normalizedStartMinute) ? normalizedStartMinute : "00";
+        _selectedHour = HourOptions.Contains(normalizedStartHour) ? normalizedStartHour : "07";
+        _selectedMinute = MinuteOptions.Contains(normalizedStartMinute) ? normalizedStartMinute : "30";
 
         VehicleOptions = new List<TourLookupOption> { new(string.Empty, "Bitte wählen") };
         VehicleOptions.AddRange(vehicleOptions ?? []);
@@ -147,6 +156,14 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         var normalizedTrailerId = (selectedTrailerId ?? string.Empty).Trim();
         SelectedTrailer = TrailerOptions.FirstOrDefault(x =>
             string.Equals(x.Id, normalizedTrailerId, StringComparison.OrdinalIgnoreCase)) ?? TrailerOptions.FirstOrDefault();
+        var normalizedSecondaryVehicleId = (selectedSecondaryVehicleId ?? string.Empty).Trim();
+        SelectedSecondaryVehicle = VehicleOptions.FirstOrDefault(x =>
+            string.Equals(x.Id, normalizedSecondaryVehicleId, StringComparison.OrdinalIgnoreCase)) ?? VehicleOptions.FirstOrDefault();
+        var normalizedSecondaryTrailerId = (selectedSecondaryTrailerId ?? string.Empty).Trim();
+        SelectedSecondaryTrailer = TrailerOptions.FirstOrDefault(x =>
+            string.Equals(x.Id, normalizedSecondaryTrailerId, StringComparison.OrdinalIgnoreCase)) ?? TrailerOptions.FirstOrDefault();
+        UseSecondaryVehicle = !string.IsNullOrWhiteSpace(normalizedSecondaryVehicleId) ||
+                              !string.IsNullOrWhiteSpace(normalizedSecondaryTrailerId);
 
         Employees = (employeeOptions ?? []).Select(x => new SelectableEmployee(x.Id, x.Label)).ToList();
         if (selectedEmployeeIds is not null)
@@ -229,6 +246,24 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         set => SetProperty(ref _selectedTrailer, value);
     }
 
+    public bool UseSecondaryVehicle
+    {
+        get => _useSecondaryVehicle;
+        set => SetProperty(ref _useSecondaryVehicle, value);
+    }
+
+    public TourLookupOption? SelectedSecondaryVehicle
+    {
+        get => _selectedSecondaryVehicle;
+        set => SetProperty(ref _selectedSecondaryVehicle, value);
+    }
+
+    public TourLookupOption? SelectedSecondaryTrailer
+    {
+        get => _selectedSecondaryTrailer;
+        set => SetProperty(ref _selectedSecondaryTrailer, value);
+    }
+
     private string _selectedEmployeesSummary = "Keine Mitarbeiter ausgewählt";
     public string SelectedEmployeesSummary
     {
@@ -259,9 +294,32 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             return false;
         }
 
-        if (SelectedVehicle is null || string.IsNullOrWhiteSpace(SelectedVehicle.Id))
+        if (parsedDate.Date < DateTime.Today)
+        {
+            error = $"Touren können nicht in der Vergangenheit geplant werden. Bitte ein Datum ab {DateTime.Today:dd.MM.yyyy} wählen.";
+            return false;
+        }
+
+        var primaryVehicleId = (SelectedVehicle?.Id ?? string.Empty).Trim();
+        var secondaryVehicleId = (SelectedSecondaryVehicle?.Id ?? string.Empty).Trim();
+        var secondaryTrailerId = (SelectedSecondaryTrailer?.Id ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(primaryVehicleId))
         {
             error = "Bitte ein Fahrzeug auswählen.";
+            return false;
+        }
+
+        if (UseSecondaryVehicle && string.IsNullOrWhiteSpace(secondaryVehicleId))
+        {
+            error = "Bitte für das zweite Fahrzeug eine Auswahl treffen.";
+            return false;
+        }
+
+        if (UseSecondaryVehicle &&
+            string.Equals(primaryVehicleId, secondaryVehicleId, StringComparison.OrdinalIgnoreCase))
+        {
+            error = "Das zweite Fahrzeug muss sich vom ersten Fahrzeug unterscheiden.";
             return false;
         }
 
@@ -272,16 +330,24 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             return false;
         }
 
+        if (UseSecondaryVehicle && employees.Count < 2)
+        {
+            error = "Bei zwei Fahrzeugen müssen mindestens 2 Mitarbeiter ausgewählt werden.";
+            return false;
+        }
+
         var tourDate = parsedDate.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         var tourName = string.IsNullOrWhiteSpace(Name) ? BuildDefaultTourName(tourDate) : Name.Trim();
-        var startTime = $"{(SelectedHour ?? "08").PadLeft(2, '0')}:{(SelectedMinute ?? "00").PadLeft(2, '0')}";
+        var startTime = $"{(SelectedHour ?? "07").PadLeft(2, '0')}:{(SelectedMinute ?? "30").PadLeft(2, '0')}";
 
         result = new CreateTourDialogResult(
             tourName,
             tourDate,
             startTime,
-            SelectedVehicle.Id,
+            primaryVehicleId,
             SelectedTrailer?.Id,
+            UseSecondaryVehicle ? secondaryVehicleId : null,
+            UseSecondaryVehicle && !string.IsNullOrWhiteSpace(secondaryTrailerId) ? secondaryTrailerId : null,
             employees);
         return true;
     }
@@ -354,6 +420,8 @@ public sealed record CreateTourDialogResult(
     string StartTime,
     string? VehicleId,
     string? TrailerId,
+    string? SecondaryVehicleId,
+    string? SecondaryTrailerId,
     IReadOnlyList<string> EmployeeIds);
 
 

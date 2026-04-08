@@ -46,7 +46,7 @@
                                             <Style TargetType="Border">
                                                 <Setter Property="Background" Value="{DynamicResource Brush.DangerSoft}" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Active}" Value="True">
+                                                    <DataTrigger Binding="{Binding IsUnavailableToday}" Value="False">
                                                         <Setter Property="Background" Value="{DynamicResource Brush.SuccessSoft}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -56,7 +56,7 @@
                                                    VerticalAlignment="Center"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource Brush.TextPrimary}"
-                                                   Text="{Binding ActiveLabel}" />
+                                                   Text="{Binding AvailabilityLabel}" />
                                     </Border>
 
                                     <TextBlock Grid.Row="1"

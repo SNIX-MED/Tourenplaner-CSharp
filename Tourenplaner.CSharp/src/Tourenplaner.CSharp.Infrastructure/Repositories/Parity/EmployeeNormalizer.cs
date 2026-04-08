@@ -15,6 +15,8 @@ internal static class EmployeeNormalizer
         {
             source.ShortCode = source.Role;
         }
+
+        source.UnavailabilityPeriods = ResourceUnavailabilityNormalizer.NormalizePeriods(source.UnavailabilityPeriods);
         return source;
     }
 }

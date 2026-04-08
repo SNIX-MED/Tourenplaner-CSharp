@@ -15,6 +15,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private static readonly CultureInfo UiCulture = new("de-CH");
     private static readonly string[] SupportedDateFormats = ["dd.MM.yyyy", "yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy"];
     private const int PreviewWeekCount = 4;
+    private const int PreviewNavigationMonths = 6;
 
     private readonly JsonToursRepository _repository;
     private readonly JsonOrderRepository _orderRepository;
@@ -31,6 +32,9 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private readonly Guid _instanceId = Guid.NewGuid();
 
     private DateTime _rangeStartMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _upcomingWeeksStartDate = GetStartOfWeek(DateTime.Today);
+    private DateTime _upcomingWeeksMinStartDate = GetStartOfWeek(DateTime.Today.AddMonths(-PreviewNavigationMonths));
+    private DateTime _upcomingWeeksMaxStartDate = GetStartOfWeek(DateTime.Today.AddMonths(PreviewNavigationMonths));
     private string _rangeTitleText = string.Empty;
     private string _statusText = "Kalender wird geladen...";
     private string _selectedDayHeadline = "Ausgewählter Tag";
@@ -66,6 +70,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
         PreviousRangeCommand = new DelegateCommand(ShowPreviousRange);
         NextRangeCommand = new DelegateCommand(ShowNextRange);
+        PreviousWeekRangeCommand = new DelegateCommand(ShowPreviousWeekRange, CanShowPreviousWeekRange);
+        NextWeekRangeCommand = new DelegateCommand(ShowNextWeekRange, CanShowNextWeekRange);
         RefreshCommand = new AsyncCommand(RefreshAsync);
         OpenSelectedTourCommand = new AsyncCommand(OpenSelectedTourAsync, () => SelectedDayTour is not null);
         DeleteSelectedTourCommand = new AsyncCommand(DeleteSelectedTourAsync, () => SelectedDayTour is not null);
@@ -93,6 +99,10 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     public ICommand DeleteSelectedTourCommand { get; }
 
     public ICommand OpenSplitScreenCommand { get; }
+
+    public ICommand PreviousWeekRangeCommand { get; }
+
+    public ICommand NextWeekRangeCommand { get; }
 
     public string RangeTitleText
     {
@@ -179,7 +189,11 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         _allTours.AddRange(await toursTask);
         _allOrders.Clear();
         _allOrders.AddRange(await ordersTask);
+        _upcomingWeeksMinStartDate = GetStartOfWeek(DateTime.Today.AddMonths(-PreviewNavigationMonths));
+        _upcomingWeeksMaxStartDate = GetStartOfWeek(DateTime.Today.AddMonths(PreviewNavigationMonths));
+        _upcomingWeeksStartDate = ClampUpcomingWeekStart(_upcomingWeeksStartDate);
         BuildCalendarRange(preserveSelectionDate: SelectedDay?.Date ?? DateTime.Today);
+        RaiseWeekRangeCommandStates();
     }
 
     public void HandleDayDoubleClick()
@@ -200,6 +214,38 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     {
         _rangeStartMonth = _rangeStartMonth.AddMonths(1);
         BuildCalendarRange(preserveSelectionDate: SelectedDay?.Date ?? _rangeStartMonth);
+    }
+
+    private bool CanShowPreviousWeekRange() => _upcomingWeeksStartDate > _upcomingWeeksMinStartDate;
+
+    private bool CanShowNextWeekRange() => _upcomingWeeksStartDate < _upcomingWeeksMaxStartDate;
+
+    private void ShowPreviousWeekRange()
+    {
+        var next = ClampUpcomingWeekStart(_upcomingWeeksStartDate.AddDays(-7));
+        if (next == _upcomingWeeksStartDate)
+        {
+            return;
+        }
+
+        _upcomingWeeksStartDate = next;
+        BuildUpcomingCards();
+        SyncSelectedUpcomingCardFromSelectedDay();
+        RaiseWeekRangeCommandStates();
+    }
+
+    private void ShowNextWeekRange()
+    {
+        var next = ClampUpcomingWeekStart(_upcomingWeeksStartDate.AddDays(7));
+        if (next == _upcomingWeeksStartDate)
+        {
+            return;
+        }
+
+        _upcomingWeeksStartDate = next;
+        BuildUpcomingCards();
+        SyncSelectedUpcomingCardFromSelectedDay();
+        RaiseWeekRangeCommandStates();
     }
 
     private void BuildCalendarRange(DateTime? preserveSelectionDate)
@@ -295,8 +341,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             .GroupBy(x => x.Date!.Value.Date)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Tour).OrderBy(t => t.StartTime).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList());
 
-        var daysFromWeekStart = ((int)DateTime.Today.DayOfWeek + 6) % 7; // Monday = 0
-        var previewStartDate = DateTime.Today.AddDays(-daysFromWeekStart).Date;
+        var previewStartDate = _upcomingWeeksStartDate.Date;
 
         StartWeekGroupItem? currentWeek = null;
         for (var i = 0; i < PreviewWeekCount * 7; i++)
@@ -315,7 +360,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 SummaryText = toursForDay.Count == 0
                     ? string.Empty
                     : string.Join(Environment.NewLine, toursForDay.Select(t => BuildTourSummary(t, includeName: false))),
-                IsToday = date == DateTime.Today
+                IsToday = date == DateTime.Today,
+                IsPast = date < DateTime.Today
             };
             ApplyDayLoadAppearance(card, assignedPeopleCount);
             UpcomingDayCards.Add(card);
@@ -331,6 +377,35 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             }
 
             currentWeek.Days.Add(card);
+        }
+    }
+
+    private DateTime ClampUpcomingWeekStart(DateTime value)
+    {
+        var normalized = GetStartOfWeek(value);
+        if (normalized < _upcomingWeeksMinStartDate)
+        {
+            return _upcomingWeeksMinStartDate;
+        }
+
+        if (normalized > _upcomingWeeksMaxStartDate)
+        {
+            return _upcomingWeeksMaxStartDate;
+        }
+
+        return normalized;
+    }
+
+    private void RaiseWeekRangeCommandStates()
+    {
+        if (PreviousWeekRangeCommand is DelegateCommand previous)
+        {
+            previous.RaiseCanExecuteChanged();
+        }
+
+        if (NextWeekRangeCommand is DelegateCommand next)
+        {
+            next.RaiseCanExecuteChanged();
         }
     }
 
@@ -361,7 +436,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 DateText = selectedDate.ToString("dd.MM.yyyy", UiCulture),
                 Name = tour.Name,
                 StartTime = NormalizeStartTime(tour.StartTime),
-                VehicleId = string.IsNullOrWhiteSpace(tour.VehicleId) ? "-" : tour.VehicleId!,
+                VehicleId = BuildVehicleSummary(tour),
                 Employees = string.Join(", ", tour.EmployeeIds),
                 StopCount = tour.Stops.Count(s => !TourStopIdentity.IsCompanyStop(s)),
                 Summary = BuildTourSummary(tour, includeName: false),
@@ -390,6 +465,25 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         }
 
         await _openDayInToursAsync(selectedDate);
+    }
+
+    private static string BuildVehicleSummary(TourRecord tour)
+    {
+        var assignments = new List<(string VehicleId, string TrailerId)>
+        {
+            ((tour.VehicleId ?? string.Empty).Trim(), (tour.TrailerId ?? string.Empty).Trim()),
+            ((tour.SecondaryVehicleId ?? string.Empty).Trim(), (tour.SecondaryTrailerId ?? string.Empty).Trim())
+        }
+        .Where(x => !string.IsNullOrWhiteSpace(x.VehicleId) || !string.IsNullOrWhiteSpace(x.TrailerId))
+        .GroupBy(x => $"{x.VehicleId}|{x.TrailerId}", StringComparer.OrdinalIgnoreCase)
+        .Select(g => g.First())
+        .ToList();
+
+        var lines = assignments
+            .Select(x => $"{(string.IsNullOrWhiteSpace(x.VehicleId) ? "-" : x.VehicleId)} & {(string.IsNullOrWhiteSpace(x.TrailerId) ? "-" : x.TrailerId)}")
+            .ToList();
+
+        return lines.Count == 0 ? "-" : string.Join(Environment.NewLine, lines);
     }
 
     public async Task OpenOrderEditorAsync(string? orderId)
@@ -576,7 +670,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private List<CalendarTourStopCardItem> BuildTourStopCards(TourRecord tour)
     {
         var cards = new List<CalendarTourStopCardItem>();
-        var letterIndex = 1; // Start with B to keep A implicitly reserved for depot/company.
+        var letterIndex = 1;
         foreach (var stop in tour.Stops
                      .Where(s => !TourStopIdentity.IsCompanyStop(s))
                      .OrderBy(s => s.Order))
@@ -688,11 +782,13 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 .Select(p =>
                 {
                     var name = (p.Name ?? string.Empty).Trim();
+                    var supplier = (p.Supplier ?? string.Empty).Trim();
                     var quantity = Math.Max(1, p.Quantity);
                     var weight = Math.Max(0d, p.WeightKg);
+                    var supplierSuffix = string.IsNullOrWhiteSpace(supplier) ? string.Empty : $" [{supplier}]";
                     return string.IsNullOrWhiteSpace(name)
                         ? $"{quantity}x ({weight:0.##} kg)"
-                        : $"{quantity}x {name} ({weight:0.##} kg)";
+                        : $"{quantity}x {name}{supplierSuffix} ({weight:0.##} kg)";
                 })
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .ToList();
@@ -741,8 +837,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
     private static string ToStopLetter(int index)
     {
-        // 1 -> B, 2 -> C, ... 25 -> Z, 26 -> AA
-        var value = index + 1;
+        // 1 -> A, 2 -> B, ... 26 -> Z, 27 -> AA
+        var value = Math.Max(1, index);
         var label = string.Empty;
         while (value > 0)
         {
@@ -899,6 +995,12 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         var weekEnd = weekStart.AddDays(6);
         return $"KW {week} · {weekStart:dd.MM} - {weekEnd:dd.MM}";
     }
+
+    private static DateTime GetStartOfWeek(DateTime date)
+    {
+        var daysFromWeekStart = ((int)date.DayOfWeek + 6) % 7; // Monday = 0
+        return date.Date.AddDays(-daysFromWeekStart);
+    }
 }
 
 public sealed class CalendarMonthItem
@@ -1009,6 +1111,8 @@ public sealed class UpcomingDayCardItem : CalendarLoadItem
     public string SummaryText { get; set; } = string.Empty;
 
     public bool IsToday { get; set; }
+
+    public bool IsPast { get; set; }
 
     public bool IsSelected
     {

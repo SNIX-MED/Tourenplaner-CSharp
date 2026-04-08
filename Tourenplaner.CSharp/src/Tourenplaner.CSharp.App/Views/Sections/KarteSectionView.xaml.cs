@@ -1,6 +1,7 @@
 ﻿using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Windows;
@@ -8,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Globalization;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
 using Tourenplaner.CSharp.App.Services;
@@ -265,6 +267,57 @@ public partial class KarteSectionView : UserControl
         e.Handled = true;
     }
 
+    private void OnStartTimePreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        e.Handled = string.IsNullOrWhiteSpace(e.Text) || !e.Text.All(char.IsDigit);
+    }
+
+    private void OnStartTimePasting(object sender, DataObjectPastingEventArgs e)
+    {
+        if (!e.DataObject.GetDataPresent(DataFormats.Text))
+        {
+            e.CancelCommand();
+            return;
+        }
+
+        var text = e.DataObject.GetData(DataFormats.Text) as string;
+        if (string.IsNullOrWhiteSpace(text) || !text.All(char.IsDigit))
+        {
+            e.CancelCommand();
+        }
+    }
+
+    private void OnStartTimeFieldLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm || sender is not TextBox textBox)
+        {
+            return;
+        }
+
+        var isMinuteField = string.Equals(textBox.Tag as string, "minute", StringComparison.OrdinalIgnoreCase);
+        var max = isMinuteField ? 59 : 23;
+        var normalized = NormalizeTwoDigitTimePart(textBox.Text, max);
+        if (isMinuteField)
+        {
+            vm.RouteStartMinute = normalized;
+        }
+        else
+        {
+            vm.RouteStartHour = normalized;
+        }
+    }
+
+    private static string NormalizeTwoDigitTimePart(string? value, int max)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            parsed = 0;
+        }
+
+        parsed = Math.Clamp(parsed, 0, max);
+        return parsed.ToString("00", CultureInfo.InvariantCulture);
+    }
+
     private void OnMainSplitterMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (RoutePanelColumn is null)
@@ -353,12 +406,14 @@ public partial class KarteSectionView : UserControl
             address = x.Address,
             street = x.Street,
             postalCodeCity = x.PostalCodeCity,
+            notes = x.Notes,
             products = x.ProductLines,
             totalWeightKgText = x.TotalWeightKgText,
             showName = vm.MapPinInfoCardShowName,
             showOrderNumber = vm.MapPinInfoCardShowOrderNumber,
             showStreet = vm.MapPinInfoCardShowStreet,
             showPostalCodeCity = vm.MapPinInfoCardShowPostalCodeCity,
+            showNotes = vm.MapPinInfoCardShowNotes,
             showProducts = vm.MapPinInfoCardShowProducts,
             showTotalWeight = vm.MapPinInfoCardShowTotalWeight,
             status = x.StatusLabel,
@@ -428,6 +483,7 @@ public partial class KarteSectionView : UserControl
                 {
                     id = r.OrderId,
                     position = r.Position,
+                    label = r.DisplayPosition,
                     avisoStatus = visual.AvisoStatusLabel,
                     isAssigned = visual.IsAssigned,
                     color = vm.ResolveOrderStatusColor(visual.StatusLabel, visual.IsAssigned),
@@ -831,6 +887,11 @@ public partial class KarteSectionView : UserControl
                      margin-bottom: 6px;
                      color: #334155;
                    }
+                   .leaflet-popup.gawela-pin-popup .gawela-popup-note-text {
+                     display: inline;
+                     color: #dc2626;
+                     font-weight: 700;
+                   }
                    .leaflet-popup.gawela-pin-popup .gawela-popup-action {
                      height: var(--gawela-popup-button-height, 24px);
                      padding: 0 var(--gawela-popup-button-pad-x, 8px);
@@ -1061,6 +1122,8 @@ public partial class KarteSectionView : UserControl
                      const orderId = (m.id || '').trim();
                      const street = (m.street || '').trim();
                      const postalCodeCity = (m.postalCodeCity || '').trim();
+                     const notes = (m.notes || '').trim();
+                     const notesHtml = escapeHtml(notes).replace(/\r?\n/g, '<br/>');
                      const products = Array.isArray(m.products) ? m.products : [];
                      const totalWeight = (m.totalWeightKgText || '').trim();
 
@@ -1088,6 +1151,9 @@ public partial class KarteSectionView : UserControl
                      }
                      if (m.showTotalWeight && totalWeight) {
                        sections.push(`<div class="gawela-popup-line"><strong>Gesamtgewicht:</strong> ${escapeHtml(totalWeight)} kg</div>`);
+                     }
+                     if (m.showNotes && notes) {
+                       sections.push(`<div class="gawela-popup-line"><strong>Notiz:</strong> <span class="gawela-popup-note-text">${notesHtml}</span></div>`);
                      }
 
                      if (sections.length === 0) {
@@ -1239,7 +1305,9 @@ public partial class KarteSectionView : UserControl
                      routePolyline = L.polyline(path, { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(routeLayer);
 
                      routeStops.forEach(stop => {
-                       const stopLabel = toAlphaLabel(stop.position);
+                       const stopLabel = (typeof stop.label === 'string' && stop.label.length > 0)
+                         ? stop.label
+                         : toAlphaLabel(stop.position);
                        const icon = L.divIcon({
                          className: 'gawela-route-stop',
                          html: buildRouteStopMarkerHtml(stop.shape || 'circle', stop.color || '#2563eb', stopLabel, stop.avisoStatus, stop.isAssigned),

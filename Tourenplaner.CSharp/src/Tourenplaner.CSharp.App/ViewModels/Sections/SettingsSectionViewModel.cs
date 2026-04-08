@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows.Input;
 using System.Diagnostics;
 using System.Reflection;
+using System.Globalization;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Services;
@@ -61,6 +62,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private bool _mapPinInfoCardShowOrderNumber = true;
     private bool _mapPinInfoCardShowStreet = true;
     private bool _mapPinInfoCardShowPostalCodeCity = true;
+    private bool _mapPinInfoCardShowNotes = true;
     private bool _mapPinInfoCardShowProducts = true;
     private bool _mapPinInfoCardShowTotalWeight = true;
     private bool _backupsEnabled;
@@ -79,6 +81,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _gpsToolUrl = AppSettings.DefaultGpsToolUrl;
     private bool _showSpediteurTool = true;
     private string _spediteurToolUrl = AppSettings.DefaultSpediteurToolUrl;
+    private string _tourDefaultStartTime = AppSettings.DefaultTourStartTime;
     private string _latestReleaseVersion = "Noch nicht geprüft";
     private string _latestReleasePublishedAt = "n/a";
     private string _updateCheckResult = "Noch nicht geprüft.";
@@ -290,6 +293,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _mapPinInfoCardShowPostalCodeCity, value);
     }
 
+    public bool MapPinInfoCardShowNotes
+    {
+        get => _mapPinInfoCardShowNotes;
+        set => SetProperty(ref _mapPinInfoCardShowNotes, value);
+    }
+
     public bool MapPinInfoCardShowProducts
     {
         get => _mapPinInfoCardShowProducts;
@@ -396,6 +405,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _spediteurToolUrl;
         set => SetProperty(ref _spediteurToolUrl, value);
+    }
+
+    public string TourDefaultStartTime
+    {
+        get => _tourDefaultStartTime;
+        set => SetProperty(ref _tourDefaultStartTime, value);
     }
 
     public string LatestReleaseVersion
@@ -728,6 +743,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             MapPinInfoCardShowOrderNumber = MapPinInfoCardShowOrderNumber,
             MapPinInfoCardShowStreet = MapPinInfoCardShowStreet,
             MapPinInfoCardShowPostalCodeCity = MapPinInfoCardShowPostalCodeCity,
+            MapPinInfoCardShowNotes = MapPinInfoCardShowNotes,
             MapPinInfoCardShowProducts = MapPinInfoCardShowProducts,
             MapPinInfoCardShowTotalWeight = MapPinInfoCardShowTotalWeight,
             BackupsEnabled = BackupsEnabled,
@@ -742,6 +758,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             GpsToolUrl = string.IsNullOrWhiteSpace(GpsToolUrl) ? AppSettings.DefaultGpsToolUrl : GpsToolUrl.Trim(),
             ShowSpediteurTool = ShowSpediteurTool,
             SpediteurToolUrl = string.IsNullOrWhiteSpace(SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : SpediteurToolUrl.Trim(),
+            TourDefaultStartTime = NormalizeTourDefaultStartTime(TourDefaultStartTime),
             SqlImportSettings = new SqlConnectionSettings
             {
                 Server = string.IsNullOrWhiteSpace(SqlServer) ? SqlConnectionSettings.DefaultServer : SqlServer.Trim(),
@@ -780,6 +797,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         MapPinInfoCardShowOrderNumber = settings.MapPinInfoCardShowOrderNumber;
         MapPinInfoCardShowStreet = settings.MapPinInfoCardShowStreet;
         MapPinInfoCardShowPostalCodeCity = settings.MapPinInfoCardShowPostalCodeCity;
+        MapPinInfoCardShowNotes = settings.MapPinInfoCardShowNotes;
         MapPinInfoCardShowProducts = settings.MapPinInfoCardShowProducts;
         MapPinInfoCardShowTotalWeight = settings.MapPinInfoCardShowTotalWeight;
         BackupsEnabled = settings.BackupsEnabled;
@@ -794,6 +812,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         GpsToolUrl = string.IsNullOrWhiteSpace(settings.GpsToolUrl) ? AppSettings.DefaultGpsToolUrl : settings.GpsToolUrl;
         ShowSpediteurTool = settings.ShowSpediteurTool;
         SpediteurToolUrl = string.IsNullOrWhiteSpace(settings.SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : settings.SpediteurToolUrl;
+        TourDefaultStartTime = NormalizeTourDefaultStartTime(settings.TourDefaultStartTime);
         
         // SQL Settings
         SqlServer = string.IsNullOrWhiteSpace(settings.SqlImportSettings?.Server)
@@ -809,6 +828,27 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         SqlUserId = settings.SqlImportSettings?.UserId ?? string.Empty;
         SqlPassword = settings.SqlImportSettings?.Password ?? string.Empty;
         SqlImportEnabled = settings.SqlImportEnabled;
+    }
+
+    private static string NormalizeTourDefaultStartTime(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (TimeOnly.TryParseExact(normalized, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+        {
+            return parsed.ToString("HH:mm", CultureInfo.InvariantCulture);
+        }
+
+        var parts = normalized.Split(':', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 2 &&
+            int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var hour) &&
+            int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var minute) &&
+            hour is >= 0 and <= 23 &&
+            minute is >= 0 and <= 59)
+        {
+            return $"{hour:00}:{minute:00}";
+        }
+
+        return AppSettings.DefaultTourStartTime;
     }
 
     private void UpdateBackupStatus(string? backupDir)

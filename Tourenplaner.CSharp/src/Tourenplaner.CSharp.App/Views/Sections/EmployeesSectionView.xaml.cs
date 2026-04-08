@@ -58,7 +58,11 @@ public partial class EmployeesSectionView : UserControl
 
         if (dialog.ShowDialog() == true && dialog.Result is not null)
         {
-            await vm.ApplyEditorResultAsync(dialog.Result);
+            var warning = await vm.ApplyEditorResultAsync(dialog.Result);
+            if (!string.IsNullOrWhiteSpace(warning))
+            {
+                MessageBox.Show(warning, "Abwesenheit prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
     }
 
@@ -77,7 +81,11 @@ public partial class EmployeesSectionView : UserControl
 
         if (dialog.ShowDialog() == true && dialog.Result is not null)
         {
-            await vm.ApplyEditorResultAsync(dialog.Result);
+            var warning = await vm.ApplyEditorResultAsync(dialog.Result);
+            if (!string.IsNullOrWhiteSpace(warning))
+            {
+                MessageBox.Show(warning, "Abwesenheit prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
     }
 

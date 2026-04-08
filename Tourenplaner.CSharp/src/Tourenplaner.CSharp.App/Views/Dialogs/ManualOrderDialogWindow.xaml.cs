@@ -470,6 +470,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 public sealed class ProductLineInput : INotifyPropertyChanged
 {
     private string _name = string.Empty;
+    private string _supplier = string.Empty;
     private int _quantity = 1;
     private double _unitWeightKg;
     private string _dimensions = string.Empty;
@@ -484,6 +485,18 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             if (SetProperty(ref _name, value))
             {
                 OnPropertyChanged(nameof(TotalWeightKg));
+                OnPropertyChanged(nameof(Summary));
+            }
+        }
+    }
+
+    public string Supplier
+    {
+        get => _supplier;
+        set
+        {
+            if (SetProperty(ref _supplier, value))
+            {
                 OnPropertyChanged(nameof(Summary));
             }
         }
@@ -538,6 +551,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
         return new OrderProductInfo
         {
             Name = (Name ?? string.Empty).Trim(),
+            Supplier = (Supplier ?? string.Empty).Trim(),
             Quantity = Math.Max(1, Quantity),
             UnitWeightKg = Math.Max(0d, UnitWeightKg),
             WeightKg = Math.Max(1, Quantity) * Math.Max(0d, UnitWeightKg),
@@ -550,6 +564,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
         return new ProductLineInput
         {
             Name = product.Name ?? string.Empty,
+            Supplier = product.Supplier ?? string.Empty,
             Quantity = Math.Max(1, product.Quantity),
             UnitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(product),
             Dimensions = product.Dimensions ?? string.Empty

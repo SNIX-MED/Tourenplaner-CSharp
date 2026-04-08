@@ -42,6 +42,7 @@ public partial class OrderProductDialogWindow : Window
 public sealed class OrderProductDialogViewModel : ObservableObject
 {
     private string _name = string.Empty;
+    private string _supplier = string.Empty;
     private string _quantityText = "1";
     private string _unitWeightKgText = string.Empty;
     private string _dimensions = string.Empty;
@@ -54,6 +55,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
         }
 
         _name = existingProduct.Name;
+        _supplier = existingProduct.Supplier;
         _quantityText = Math.Max(1, existingProduct.Quantity).ToString(CultureInfo.InvariantCulture);
         _unitWeightKgText = existingProduct.UnitWeightKg.ToString("0.###", CultureInfo.InvariantCulture);
         _dimensions = existingProduct.Dimensions;
@@ -69,6 +71,18 @@ public sealed class OrderProductDialogViewModel : ObservableObject
             if (SetProperty(ref _name, value))
             {
                 OnPropertyChanged(nameof(Heading));
+                OnPropertyChanged(nameof(SummaryText));
+            }
+        }
+    }
+
+    public string Supplier
+    {
+        get => _supplier;
+        set
+        {
+            if (SetProperty(ref _supplier, value))
+            {
                 OnPropertyChanged(nameof(SummaryText));
             }
         }
@@ -120,6 +134,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
             var product = new OrderProductInfo
             {
                 Name = (Name ?? string.Empty).Trim(),
+                Supplier = (Supplier ?? string.Empty).Trim(),
                 Quantity = quantity,
                 UnitWeightKg = unitWeightKg,
                 WeightKg = totalWeightKg,
@@ -155,6 +170,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
         result = new ProductLineInput
         {
             Name = Name.Trim(),
+            Supplier = (Supplier ?? string.Empty).Trim(),
             Quantity = quantity,
             UnitWeightKg = unitWeightKg,
             Dimensions = (Dimensions ?? string.Empty).Trim()

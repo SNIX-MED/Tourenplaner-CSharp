@@ -3,10 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Fahrzeug"
         Width="540"
-        Height="900"
+        Height="980"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource Brush.WindowBackground}">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </Window.Resources>
     <Border Margin="10" Style="{StaticResource FlatCardStyle}" Padding="12">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="10">
@@ -97,7 +100,29 @@
                          VerticalScrollBarVisibility="Auto"
                          Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" />
 
-                <CheckBox Margin="0,14,0,0" Content="Fahrzeug ist aktiv" IsChecked="{Binding Active}" />
+                <StackPanel Margin="0,14,0,0">
+                    <CheckBox Content="Ausfall eintragen"
+                              IsChecked="{Binding RegisterOutage}" />
+                    <Grid Margin="0,8,0,0"
+                          Visibility="{Binding RegisterOutage, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock FontWeight="SemiBold" Text="Von (DD.MM.YYYY)" />
+                            <TextBox Margin="0,6,0,0"
+                                     Height="38"
+                                     Text="{Binding OutageStartDate, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <TextBlock FontWeight="SemiBold" Text="Bis (DD.MM.YYYY)" />
+                            <TextBox Margin="0,6,0,0"
+                                     Height="38"
+                                     Text="{Binding OutageEndDate, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
 
                 <Grid Margin="0,18,0,0">
                     <Grid.ColumnDefinitions>

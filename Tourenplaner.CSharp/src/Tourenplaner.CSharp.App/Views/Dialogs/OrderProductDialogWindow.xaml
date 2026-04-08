@@ -20,6 +20,9 @@
                 <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Produktname" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
 
+                <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Lieferant (optional)" />
+                <TextBox Margin="0,6,0,0" Height="38" Text="{Binding Supplier, UpdateSourceTrigger=PropertyChanged}" />
+
                 <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Menge" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
 

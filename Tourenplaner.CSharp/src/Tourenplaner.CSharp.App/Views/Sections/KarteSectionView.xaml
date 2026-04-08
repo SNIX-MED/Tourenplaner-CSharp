@@ -442,15 +442,13 @@
                                     <ColumnDefinition Width="68" />
                                     <ColumnDefinition Width="14" />
                                     <ColumnDefinition Width="68" />
-                                    <ColumnDefinition Width="108" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Startzeit" Margin="0,0,8,0" />
-                                <TextBox Grid.Column="1" Height="34" Text="{Binding RouteStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
+                                <TextBox Grid.Column="1" Height="34" MaxLength="2" Tag="hour" PreviewTextInput="OnStartTimePreviewTextInput" DataObject.Pasting="OnStartTimePasting" LostFocus="OnStartTimeFieldLostFocus" Text="{Binding RouteStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
                                 <TextBlock Grid.Column="2" Text=":" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                <TextBox Grid.Column="3" Height="34" Text="{Binding RouteStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
-                                <Button Grid.Column="4" Height="34" Margin="10,0,8,0" Content="Übernehmen" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ApplyStartTimeCommand}" />
-                                <Button Grid.Column="5" Height="34" Content="Route optimieren" Style="{StaticResource SuccessButtonStyle}" Command="{Binding OptimizeRouteCommand}" />
+                                <TextBox Grid.Column="3" Height="34" MaxLength="2" Tag="minute" PreviewTextInput="OnStartTimePreviewTextInput" DataObject.Pasting="OnStartTimePasting" LostFocus="OnStartTimeFieldLostFocus" Text="{Binding RouteStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
+                                <Button Grid.Column="4" Height="34" Margin="10,0,0,0" Content="Route optimieren" Style="{StaticResource SuccessButtonStyle}" Command="{Binding OptimizeRouteCommand}" />
                             </Grid>
                         </Border>
 
@@ -768,6 +766,7 @@
                                 <TextBlock FontWeight="SemiBold" Text="{Binding RouteTotalWeightText}" />
                                 <TextBlock Margin="0,4,0,0"
                                            FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
                                            Text="{Binding RouteLoadSummaryText}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -976,9 +975,32 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
                                                         <StackPanel Margin="0,0,0,8">
-                                                            <TextBlock FontWeight="SemiBold"
-                                                                       Text="{Binding Title}"
-                                                                       TextWrapping="Wrap" />
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Grid.Column="0"
+                                                                           FontWeight="SemiBold"
+                                                                           Text="{Binding Title}"
+                                                                           TextWrapping="Wrap" />
+                                                                <TextBlock Grid.Column="1"
+                                                                           Margin="12,0,0,0"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                                           Text="{Binding Supplier}">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding HasSupplier}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </Grid>
                                                             <StackPanel Margin="0,4,0,0"
                                                                         Orientation="Horizontal">
                                                                 <StackPanel.Style>
@@ -1046,6 +1068,56 @@
 
                                         <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Lieferart:" />
                                         <TextBlock Text="{Binding DetailDeliveryType}" />
+
+                                        <TextBlock Margin="0,12,0,0"
+                                                   FontWeight="SemiBold"
+                                                   Text="Notizen:" />
+                                        <Border Margin="0,4,0,0"
+                                                Padding="10"
+                                                CornerRadius="12"
+                                                Background="{DynamicResource Brush.CardSoft}"
+                                                BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                BorderThickness="1">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DetailNotes}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="{Binding DetailNotes}"
+                                                       TextWrapping="Wrap"
+                                                       FontWeight="Bold"
+                                                       Foreground="#DC2626">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DetailNotes}" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="Keine Notizen vorhanden.">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DetailNotes}" Value="">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
 
                                     </StackPanel>
                                 </ScrollViewer>

@@ -199,6 +199,7 @@
                                       SelectedItem="{Binding SelectedProductLine}">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Produkt" Width="*" Binding="{Binding Name}" />
+                                    <DataGridTextColumn Header="Lieferant" Width="180" Binding="{Binding Supplier}" />
                                     <DataGridTextColumn Header="Menge" Width="90" Binding="{Binding Quantity}" />
                                     <DataGridTextColumn Header="Gewicht/Stk (kg)" Width="140" Binding="{Binding UnitWeightKg}" />
                                     <DataGridTextColumn Header="Totalgewicht (kg)" Width="150" Binding="{Binding TotalWeightKg}" />

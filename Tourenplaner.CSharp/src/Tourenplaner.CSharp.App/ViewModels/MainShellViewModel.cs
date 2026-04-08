@@ -87,8 +87,8 @@ public sealed class MainShellViewModel : ObservableObject
         calendar.SetOpenSplitScreenAction(OpenSplitScreenAsync);
         var orders = new OrdersSectionViewModel(ordersJsonPath, dataSyncService);
         var nonMapOrders = new NonMapOrdersSectionViewModel(ordersJsonPath, dataSyncService);
-        var employees = new EmployeesSectionViewModel(employeesJsonPath, dataSyncService);
-        var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath, dataSyncService);
+        var employees = new EmployeesSectionViewModel(employeesJsonPath, toursJsonPath, dataSyncService);
+        var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath, toursJsonPath, dataSyncService);
         
         // Repositories für SQL Import
         var orderRepository = new JsonOrderRepository(ordersJsonPath);

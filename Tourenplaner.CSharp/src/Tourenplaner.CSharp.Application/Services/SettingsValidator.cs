@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Globalization;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 
@@ -64,6 +65,12 @@ public sealed class SettingsValidator
         if (!Uri.TryCreate((settings.SpediteurToolUrl ?? string.Empty).Trim(), UriKind.Absolute, out _))
         {
             errors.Add("SpediteurToolUrl must be a valid absolute URL.");
+        }
+
+        var normalizedTourStartTime = (settings.TourDefaultStartTime ?? string.Empty).Trim();
+        if (!TimeOnly.TryParseExact(normalizedTourStartTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+        {
+            errors.Add("TourDefaultStartTime must be in the format HH:mm.");
         }
 
         var hasAnyCompanyAddressPart =

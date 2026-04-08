@@ -26,6 +26,8 @@ internal static class TourNormalizer
         source.RouteMode = string.IsNullOrWhiteSpace(source.RouteMode) ? "car" : source.RouteMode.Trim();
         source.VehicleId = string.IsNullOrWhiteSpace(source.VehicleId) ? null : source.VehicleId.Trim();
         source.TrailerId = string.IsNullOrWhiteSpace(source.TrailerId) ? null : source.TrailerId.Trim();
+        source.SecondaryVehicleId = string.IsNullOrWhiteSpace(source.SecondaryVehicleId) ? null : source.SecondaryVehicleId.Trim();
+        source.SecondaryTrailerId = string.IsNullOrWhiteSpace(source.SecondaryTrailerId) ? null : source.SecondaryTrailerId.Trim();
         source.EmployeeIds = source.EmployeeIds
             .Select(x => (x ?? string.Empty).Trim())
             .Where(x => !string.IsNullOrWhiteSpace(x))

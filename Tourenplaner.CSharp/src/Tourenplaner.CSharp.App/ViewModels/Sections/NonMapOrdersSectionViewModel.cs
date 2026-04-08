@@ -559,6 +559,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             Products = (source.Products ?? []).Select(p => new OrderProductInfo
             {
                 Name = p.Name,
+                Supplier = p.Supplier,
                 Quantity = p.Quantity,
                 UnitWeightKg = p.UnitWeightKg,
                 WeightKg = p.WeightKg,

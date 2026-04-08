@@ -78,7 +78,11 @@ public partial class VehiclesSectionView : UserControl
         {
             try
             {
-                await vm.ApplyEditorResultAsync(dialog.Result);
+                var warning = await vm.ApplyEditorResultAsync(dialog.Result);
+                if (!string.IsNullOrWhiteSpace(warning))
+                {
+                    MessageBox.Show(warning, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
             catch (InvalidOperationException ex)
             {
@@ -129,7 +133,11 @@ public partial class VehiclesSectionView : UserControl
         {
             try
             {
-                await vm.ApplyEditorResultAsync(dialog.Result);
+                var warning = await vm.ApplyEditorResultAsync(dialog.Result);
+                if (!string.IsNullOrWhiteSpace(warning))
+                {
+                    MessageBox.Show(warning, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
             catch (InvalidOperationException ex)
             {
