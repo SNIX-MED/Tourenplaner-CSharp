@@ -119,6 +119,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _detailSelectedStatus = Order.DefaultOrderStatus;
     private string _detailSelectedAvisoStatus = "nicht avisiert";
     private readonly List<MapOrderItem> _dimmedMapOrders = new();
+    private readonly HashSet<int> _selectedDetailProductIndices = new();
+    private string? _detailSelectedProductStatus;
+    private bool _suppressDetailSelectedProductStatusApply;
     private readonly Guid _instanceId = Guid.NewGuid();
     private Func<Task>? _openSplitScreenAsync;
 
@@ -583,6 +586,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                     _suppressDetailStatusSave = false;
                     _suppressDetailAvisoStatusSave = false;
                 }
+                ClearDetailProductSelection(raiseDetailItemsChanged: false);
                 OnPropertyChanged(nameof(DetailAddress));
                 OnPropertyChanged(nameof(DetailCustomer));
                 OnPropertyChanged(nameof(DetailOrderNumber));
@@ -700,6 +704,37 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public string DetailTourStatus => SelectedOrder?.TourStatusLabel ?? "Offen";
     public string DetailProducts => OrderProductFormatter.BuildDetails(FindSelectedOrderModel()?.Products);
     public IReadOnlyList<DetailProductItem> DetailProductItems => BuildDetailProductItems(FindSelectedOrderModel()?.Products);
+    public IReadOnlyList<string> DetailProductDeliveryStatusOptions => OrderProductInfo.DeliveryStatusOptions;
+    public string? DetailSelectedProductStatus
+    {
+        get => _detailSelectedProductStatus;
+        set
+        {
+            var normalized = string.IsNullOrWhiteSpace(value)
+                ? null
+                : OrderProductInfo.NormalizeDeliveryStatus(value);
+            if (!SetProperty(ref _detailSelectedProductStatus, normalized))
+            {
+                return;
+            }
+
+            if (_suppressDetailSelectedProductStatusApply)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(normalized) || _selectedDetailProductIndices.Count == 0)
+            {
+                return;
+            }
+
+            _ = ApplySelectedDetailProductStatusAsync(normalized);
+        }
+    }
+    public bool HasSelectedDetailProducts => _selectedDetailProductIndices.Count > 0;
+    public string DetailSelectedProductsSummary => HasSelectedDetailProducts
+        ? $"{_selectedDetailProductIndices.Count} Produkt(e) ausgewählt"
+        : "Ctrl + Linksklick für Mehrfachauswahl";
     public string DetailEmail => FindSelectedOrderModel()?.Email ?? "n/a";
     public string DetailPhone => FindSelectedOrderModel()?.Phone ?? "n/a";
     public string DetailDeliveryType => FindSelectedOrderModel()?.DeliveryType ?? SelectedOrder?.DeliveryLabel ?? "Frei Bordsteinkante";
@@ -3326,6 +3361,151 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         StatusText = $"Produkt in Auftrag {order.Id} wurde aktualisiert.";
     }
 
+    public void ToggleDetailProductSelection(DetailProductItem? detailItem)
+    {
+        var productIndex = detailItem?.ProductIndex ?? -1;
+        if (productIndex < 0)
+        {
+            return;
+        }
+
+        if (_selectedDetailProductIndices.Contains(productIndex))
+        {
+            _selectedDetailProductIndices.Remove(productIndex);
+        }
+        else
+        {
+            _selectedDetailProductIndices.Add(productIndex);
+        }
+
+        SyncDetailSelectedProductStatusFromSelection();
+        OnPropertyChanged(nameof(DetailProductItems));
+        OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(DetailSelectedProductsSummary));
+        RaiseCommandStates();
+    }
+
+    public void SelectSingleDetailProduct(DetailProductItem? detailItem)
+    {
+        var productIndex = detailItem?.ProductIndex ?? -1;
+        if (productIndex < 0)
+        {
+            return;
+        }
+
+        if (_selectedDetailProductIndices.Count == 1 && _selectedDetailProductIndices.Contains(productIndex))
+        {
+            return;
+        }
+
+        _selectedDetailProductIndices.Clear();
+        _selectedDetailProductIndices.Add(productIndex);
+        SyncDetailSelectedProductStatusFromSelection();
+        OnPropertyChanged(nameof(DetailProductItems));
+        OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(DetailSelectedProductsSummary));
+        RaiseCommandStates();
+    }
+
+    private void ClearDetailProductSelection(bool raiseDetailItemsChanged = true)
+    {
+        if (_selectedDetailProductIndices.Count == 0)
+        {
+            SyncDetailSelectedProductStatusFromSelection();
+            return;
+        }
+
+        _selectedDetailProductIndices.Clear();
+        if (raiseDetailItemsChanged)
+        {
+            OnPropertyChanged(nameof(DetailProductItems));
+        }
+
+        SyncDetailSelectedProductStatusFromSelection();
+        OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(DetailSelectedProductsSummary));
+        RaiseCommandStates();
+    }
+
+    private void SyncDetailSelectedProductStatusFromSelection()
+    {
+        string? nextStatus = null;
+        var order = FindSelectedOrderModel();
+        if (order is not null && _selectedDetailProductIndices.Count > 0)
+        {
+            var products = order.Products ?? [];
+            var distinctStatuses = _selectedDetailProductIndices
+                .Where(index => index >= 0 && index < products.Count && products[index] is not null)
+                .Select(index => OrderProductInfo.NormalizeDeliveryStatus(products[index]!.DeliveryStatus))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (distinctStatuses.Count == 1)
+            {
+                nextStatus = distinctStatuses[0];
+            }
+        }
+
+        _suppressDetailSelectedProductStatusApply = true;
+        try
+        {
+            DetailSelectedProductStatus = nextStatus;
+        }
+        finally
+        {
+            _suppressDetailSelectedProductStatusApply = false;
+        }
+    }
+
+    private async Task ApplySelectedDetailProductStatusAsync(string statusToApply)
+    {
+        var order = FindSelectedOrderModel();
+        if (order is null)
+        {
+            return;
+        }
+
+        var products = order.Products ?? [];
+        if (products.Count == 0 || _selectedDetailProductIndices.Count == 0)
+        {
+            return;
+        }
+
+        var normalizedStatus = OrderProductInfo.NormalizeDeliveryStatus(statusToApply);
+        var changedCount = 0;
+        foreach (var index in _selectedDetailProductIndices.OrderBy(x => x))
+        {
+            if (index < 0 || index >= products.Count)
+            {
+                continue;
+            }
+
+            var product = products[index];
+            if (product is null)
+            {
+                continue;
+            }
+
+            product.DeliveryStatus = normalizedStatus;
+            changedCount++;
+        }
+
+        if (changedCount == 0)
+        {
+            return;
+        }
+
+        order.OrderStatus = Order.ResolveOrderStatusFromProducts(products);
+        await _orderRepository.SaveAllAsync(_allOrders);
+        RebuildOrderGrid(order.Id);
+        ClearDetailProductSelection(raiseDetailItemsChanged: false);
+        OnPropertyChanged(nameof(DetailProducts));
+        OnPropertyChanged(nameof(DetailProductItems));
+        OnPropertyChanged(nameof(DetailOrderStatus));
+        OnPropertyChanged(nameof(DetailOrderStatusColor));
+        PublishOrderChange(order.Id, order.Id);
+        StatusText = $"{changedCount} Produkt(e) in Auftrag {order.Id} auf \"{normalizedStatus}\" gesetzt.";
+    }
+
     private Order? FindSelectedOrderModel()
     {
         if (SelectedOrder is null)
@@ -4188,8 +4368,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return _statusColorOrdered;
         }
 
+        if (string.Equals(normalized, Order.PartiallyInTransitStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return _statusColorOrdered;
+        }
+
         if (string.Equals(normalized, Order.InTransitStatus, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(normalized, Order.PartiallyInTransitStatus, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(normalized, Order.PartiallyReadyStatus, StringComparison.OrdinalIgnoreCase))
         {
             return _statusColorOnTheWay;
@@ -4228,7 +4412,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             var dimensionsLine = string.IsNullOrWhiteSpace(product.Dimensions)
                 ? string.Empty
                 : $"Masse: {product.Dimensions.Trim()}";
-            var weightLine = $"Gewicht: {unitWeightKg.ToString("0.##", culture)} kg/Stk";
+            var weightLine = $"{unitWeightKg.ToString("0.##", culture)} kg/Stk";
             var totalLine = $"Gesamt: {totalWeightKg.ToString("0.##", culture)} kg";
             var deliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus);
             var borderColor = ResolveOrderStatusColor(deliveryStatus, isAssigned: false);
@@ -4243,7 +4427,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 totalLine,
                 deliveryStatus,
                 backgroundColor,
-                borderColor));
+                borderColor,
+                _selectedDetailProductIndices.Contains(i)));
         }
 
         return items;
@@ -4280,7 +4465,8 @@ public sealed class DetailProductItem
         string totalLine,
         string deliveryStatus,
         string backgroundColor,
-        string borderColor)
+        string borderColor,
+        bool isSelected)
     {
         ProductIndex = productIndex;
         Title = title;
@@ -4291,6 +4477,7 @@ public sealed class DetailProductItem
         DeliveryStatus = deliveryStatus ?? OrderProductInfo.DefaultDeliveryStatus;
         BackgroundColor = backgroundColor ?? "#FFF8FAFC";
         BorderColor = borderColor ?? "#D7E0EC";
+        IsSelected = isSelected;
     }
 
     public int ProductIndex { get; }
@@ -4302,6 +4489,7 @@ public sealed class DetailProductItem
     public string DeliveryStatus { get; }
     public string BackgroundColor { get; }
     public string BorderColor { get; }
+    public bool IsSelected { get; }
     public bool HasSupplier => !string.IsNullOrWhiteSpace(Supplier);
     public bool HasDimensions => !string.IsNullOrWhiteSpace(DimensionsLine);
 }

@@ -274,15 +274,25 @@ public partial class KarteSectionView : UserControl
 
     private async void OnDetailProductMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount != 2)
-        {
-            return;
-        }
-
         if (DataContext is not KarteSectionViewModel vm ||
             sender is not FrameworkElement element ||
             element.DataContext is not DetailProductItem productItem)
         {
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            vm.ToggleDetailProductSelection(productItem);
+            e.Handled = true;
+            return;
+        }
+
+        vm.SelectSingleDetailProduct(productItem);
+
+        if (e.ClickCount != 2)
+        {
+            e.Handled = true;
             return;
         }
 

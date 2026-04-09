@@ -199,7 +199,7 @@
                                 <DockPanel LastChildFill="False">
                                     <StackPanel DockPanel.Dock="Left">
                                         <TextBlock FontSize="26" FontWeight="SemiBold" Text="Status-Farben" />
-                                        <TextBlock Margin="0,2,0,10" Foreground="{DynamicResource Brush.TextMuted}" Text="Farbcodes fuer die Pins auf der Kartenansicht im Format #RRGGBB." />
+                                        <TextBlock Margin="0,2,0,10" Foreground="{DynamicResource Brush.TextMuted}" Text="Farbcodes für die Pins auf der Kartenansicht im Format #RRGGBB." />
                                     </StackPanel>
                                     <Button DockPanel.Dock="Right" Margin="12,0,0,0" VerticalAlignment="Top" Content="Standardwerte" Command="{Binding ResetStatusColorsCommand}" />
                                 </DockPanel>
@@ -254,7 +254,7 @@
                                 </Grid>
 
                                 <TextBlock Margin="0,16,0,0" FontSize="26" FontWeight="SemiBold" Text="Kalender-Auslastung" />
-                                <TextBlock Margin="0,2,0,10" Foreground="{DynamicResource Brush.TextMuted}" Text="Farben und Schwellenwerte fuer Kalendertage anhand der eingeplanten Personen." />
+                                <TextBlock Margin="0,2,0,10" Foreground="{DynamicResource Brush.TextMuted}" Text="Farben und Schwellenwerte für Kalendertage anhand der eingeplanten Personen." />
 
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -294,7 +294,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Style="{StaticResource SettingsSectionTitleStyle}" Text="Tools" />
-                                    <TextBlock Style="{StaticResource SettingsSectionSubtitleStyle}" Text="Sichtbarkeit und Standard-Links fuer GPS und Spediteur-Portal konfigurieren." />
+                                    <TextBlock Style="{StaticResource SettingsSectionSubtitleStyle}" Text="Sichtbarkeit und Standard-Links für GPS und Spediteur-Portal konfigurieren." />
                                 </StackPanel>
                             </Grid>
                         </Expander.Header>
@@ -335,7 +335,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Style="{StaticResource SettingsSectionTitleStyle}" Text="Firma" />
-                                    <TextBlock Style="{StaticResource SettingsSectionSubtitleStyle}" Text="Absender- und Standortdaten fuer Touren und Kartenansicht." />
+                                    <TextBlock Style="{StaticResource SettingsSectionSubtitleStyle}" Text="Absender- und Standortdaten für Touren und Kartenansicht." />
                                 </StackPanel>
                             </Grid>
                         </Expander.Header>
@@ -455,7 +455,7 @@
                                 </Border>
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Style="{StaticResource SettingsSectionTitleStyle}" Text="Updates &amp; Versionen" />
-                                    <TextBlock Style="{StaticResource SettingsSectionSubtitleStyle}" Text="Release-Notizen fuer neue Versionen einsehen und Release-Seite oeffnen." />
+                                    <TextBlock Style="{StaticResource SettingsSectionSubtitleStyle}" Text="Release-Notizen für neue Versionen einsehen und Release-Seite öffnen." />
                                 </StackPanel>
                             </Grid>
                         </Expander.Header>
@@ -464,7 +464,7 @@
                                 <WrapPanel Margin="0,0,0,10">
                                     <Button Width="150" Content="Updates pruefen" Command="{Binding CheckForUpdatesCommand}" />
                                     <Button Width="170" Margin="8,0,0,0" Content="Update laden" Command="{Binding DownloadLatestUpdateCommand}" />
-                                    <Button Width="150" Margin="8,0,0,0" Content="Release oeffnen" Command="{Binding OpenUpdateFeedCommand}" />
+                                    <Button Width="150" Margin="8,0,0,0" Content="Release öffnen" Command="{Binding OpenUpdateFeedCommand}" />
                                 </WrapPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -486,7 +486,7 @@
                                     <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Text="{Binding RuntimeVersion}" />
                                     <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Neueste GitHub-Version" />
                                     <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Text="{Binding LatestReleaseVersion}" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Veroeffentlicht" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Veröffentlicht" />
                                     <TextBlock Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Text="{Binding LatestReleasePublishedAt}" />
                                     <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Download-Asset" />
                                     <TextBlock Grid.Row="4" Grid.Column="1" VerticalAlignment="Center" Text="{Binding LatestReleaseAsset}" />
@@ -499,7 +499,7 @@
                                             <ColumnDefinition Width="150" />
                                         </Grid.ColumnDefinitions>
                                         <TextBox Grid.Column="0" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Margin="0,0,8,0" Text="{Binding UpdateFeedUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <Button Grid.Column="1" Content="Update oeffnen" Command="{Binding OpenUpdateFeedCommand}" />
+                                        <Button Grid.Column="1" Content="Update öffnen" Command="{Binding OpenUpdateFeedCommand}" />
                                     </Grid>
                                 </Grid>
                             </StackPanel>
