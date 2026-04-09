@@ -230,9 +230,9 @@
                                     <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding StatusColorNotSpecified, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Bestellt" />
                                     <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding StatusColorOrdered, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Auf dem Weg" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Unterwegs / Teilweise bereit" />
                                     <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding StatusColorOnTheWay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="An Lager" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Lieferbereit" />
                                     <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding StatusColorInStock, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Suche Nichttreffer" />
                                     <CheckBox Grid.Row="5" Grid.Column="1" Margin="0,6,0,6" Content="Pins ausgrauen statt ausblenden" IsChecked="{Binding MapSearchDimNonMatchingPins, Mode=TwoWay}" />

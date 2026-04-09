@@ -28,10 +28,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private const string AvisoBadgeColorBestaetigt = "#16A34A";
     private static readonly IReadOnlyList<string> _orderStatusOptions =
     [
-        "nicht festgelegt",
-        "Bestellt",
-        "Auf dem Weg",
-        "An Lager"
+        Order.DefaultOrderStatus,
+        Order.OrderedStatus,
+        Order.InTransitStatus,
+        Order.PartiallyInTransitStatus,
+        Order.PartiallyReadyStatus,
+        Order.ReadyToDeliverStatus
     ];
     private static readonly IReadOnlyList<string> _avisoStatusOptions =
     [
@@ -114,7 +116,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _currentRouteSecondaryVehicleId = string.Empty;
     private string _currentRouteSecondaryTrailerId = string.Empty;
     private SavedTourLookupItem? _selectedSavedTour;
-    private string _detailSelectedStatus = "nicht festgelegt";
+    private string _detailSelectedStatus = Order.DefaultOrderStatus;
     private string _detailSelectedAvisoStatus = "nicht avisiert";
     private readonly List<MapOrderItem> _dimmedMapOrders = new();
     private readonly Guid _instanceId = Guid.NewGuid();
@@ -585,6 +587,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(DetailCustomer));
                 OnPropertyChanged(nameof(DetailOrderNumber));
                 OnPropertyChanged(nameof(DetailOrderStatus));
+                OnPropertyChanged(nameof(DetailOrderStatusColor));
                 OnPropertyChanged(nameof(DetailAvisoStatus));
                 OnPropertyChanged(nameof(CanEditDetailAvisoStatus));
                 OnPropertyChanged(nameof(DetailTourStatus));
@@ -666,7 +669,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _allOrders.Clear();
         _allOrders.AddRange(await ordersTask);
 
-        if (await BackfillMissingLocationsAsync())
+        var statusSynchronized = SyncDerivedOrderStatuses(_allOrders);
+        var locationBackfilled = await BackfillMissingLocationsAsync();
+        if (statusSynchronized || locationBackfilled)
         {
             await _orderRepository.SaveAllAsync(_allOrders);
         }
@@ -681,7 +686,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public string DetailAddress => FormatOrderAddress(FindSelectedOrderModel());
     public string DetailCustomer => FormatDeliveryAddress(FindSelectedOrderModel());
     public string DetailOrderNumber => SelectedOrder?.OrderId ?? "n/a";
-    public string DetailOrderStatus => FindSelectedOrderModel()?.OrderStatus ?? SelectedOrder?.StatusLabel ?? "nicht festgelegt";
+    public string DetailOrderStatus => FindSelectedOrderModel()?.OrderStatus ?? SelectedOrder?.StatusLabel ?? Order.DefaultOrderStatus;
+    public string DetailOrderStatusColor => ResolveOrderStatusColor(DetailOrderStatus, isAssigned: false);
     public string DetailAvisoStatus => NormalizeAvisoStatus(FindSelectedOrderModel()?.AvisoStatus);
     public bool CanEditDetailAvisoStatus
     {
@@ -810,7 +816,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         {
             return new MapOrderVisualInfo(
                 DeliveryLabel: "Frei Bordsteinkante",
-                StatusLabel: "nicht festgelegt",
+                StatusLabel: Order.DefaultOrderStatus,
                 IsAssigned: false,
                 AvisoStatusLabel: "nicht avisiert");
         }
@@ -1235,6 +1241,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(LegendAvisoBadgeColorNotAvisiert));
         OnPropertyChanged(nameof(LegendAvisoBadgeColorInformiert));
         OnPropertyChanged(nameof(LegendAvisoBadgeColorBestaetigt));
+        OnPropertyChanged(nameof(DetailOrderStatusColor));
+        OnPropertyChanged(nameof(DetailProductItems));
     }
 
     private void AddSelectedOrderToRoute()
@@ -3281,6 +3289,43 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
     }
 
+    public async Task EditDetailProductAsync(DetailProductItem? detailItem)
+    {
+        var order = FindSelectedOrderModel();
+        if (order is null || detailItem is null)
+        {
+            return;
+        }
+
+        var products = order.Products ?? [];
+        var productIndex = detailItem.ProductIndex;
+        if (productIndex < 0 || productIndex >= products.Count)
+        {
+            return;
+        }
+
+        var dialog = new OrderProductDialogWindow(ProductLineInput.FromOrderProductInfo(products[productIndex]))
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        if (dialog.ShowDialog() != true || dialog.Result is null)
+        {
+            return;
+        }
+
+        products[productIndex] = dialog.Result.ToOrderProductInfo();
+        order.OrderStatus = Order.ResolveOrderStatusFromProducts(products);
+        await _orderRepository.SaveAllAsync(_allOrders);
+        RebuildOrderGrid(order.Id);
+        OnPropertyChanged(nameof(DetailProducts));
+        OnPropertyChanged(nameof(DetailProductItems));
+        OnPropertyChanged(nameof(DetailOrderStatus));
+        OnPropertyChanged(nameof(DetailOrderStatusColor));
+        PublishOrderChange(order.Id, order.Id);
+        StatusText = $"Produkt in Auftrag {order.Id} wurde aktualisiert.";
+    }
+
     private Order? FindSelectedOrderModel()
     {
         if (SelectedOrder is null)
@@ -3335,6 +3380,35 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
+        if ((order.Products ?? []).Count > 0)
+        {
+            var derivedStatus = Order.ResolveOrderStatusFromProducts(order.Products);
+            var currentStatus = NormalizeOrderStatus(order.OrderStatus);
+            if (!string.Equals(currentStatus, derivedStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                order.OrderStatus = derivedStatus;
+                await _orderRepository.SaveAllAsync(_allOrders);
+                RebuildOrderGrid(order.Id);
+                OnPropertyChanged(nameof(RouteStops));
+                OnPropertyChanged(nameof(DetailOrderStatus));
+                OnPropertyChanged(nameof(DetailOrderStatusColor));
+                PublishOrderChange(order.Id, order.Id);
+            }
+
+            _suppressDetailStatusSave = true;
+            try
+            {
+                DetailSelectedStatus = derivedStatus;
+            }
+            finally
+            {
+                _suppressDetailStatusSave = false;
+            }
+
+            StatusText = $"Status für Auftrag {order.Id} wird automatisch aus den Produktstatuswerten abgeleitet ({derivedStatus}).";
+            return;
+        }
+
         var normalizedStatus = NormalizeOrderStatus(nextStatus);
         if (string.Equals(NormalizeOrderStatus(order.OrderStatus), normalizedStatus, StringComparison.OrdinalIgnoreCase))
         {
@@ -3357,7 +3431,31 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RebuildOrderGrid(order.Id);
         OnPropertyChanged(nameof(RouteStops));
         OnPropertyChanged(nameof(DetailOrderStatus));
+        OnPropertyChanged(nameof(DetailOrderStatusColor));
         StatusText = $"Status für Auftrag {order.Id} gespeichert.";
+    }
+
+    private static bool SyncDerivedOrderStatuses(IEnumerable<Order> orders)
+    {
+        var changed = false;
+        foreach (var order in orders)
+        {
+            if (order is null)
+            {
+                continue;
+            }
+
+            var derivedStatus = Order.ResolveOrderStatusFromProducts(order.Products);
+            if (string.Equals(NormalizeOrderStatus(order.OrderStatus), derivedStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            order.OrderStatus = derivedStatus;
+            changed = true;
+        }
+
+        return changed;
     }
 
     private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)
@@ -4040,10 +4138,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     private static string NormalizeOrderStatus(string? status)
     {
-        var normalized = string.IsNullOrWhiteSpace(status) ? "nicht festgelegt" : status.Trim();
+        var normalized = string.IsNullOrWhiteSpace(status) ? Order.DefaultOrderStatus : status.Trim();
         return string.Equals(normalized, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase)
-            ? "nicht festgelegt"
-            : normalized;
+            ? Order.DefaultOrderStatus
+            : Order.NormalizeOrderStatus(normalized);
     }
 
     private static string NormalizeDeliveryType(string? deliveryType)
@@ -4085,17 +4183,19 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         var normalized = NormalizeOrderStatus(orderStatus);
-        if (string.Equals(normalized, "Bestellt", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(normalized, Order.OrderedStatus, StringComparison.OrdinalIgnoreCase))
         {
             return _statusColorOrdered;
         }
 
-        if (string.Equals(normalized, "Auf dem Weg", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(normalized, Order.InTransitStatus, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalized, Order.PartiallyInTransitStatus, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(normalized, Order.PartiallyReadyStatus, StringComparison.OrdinalIgnoreCase))
         {
             return _statusColorOnTheWay;
         }
 
-        if (string.Equals(normalized, "An Lager", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(normalized, Order.ReadyToDeliverStatus, StringComparison.OrdinalIgnoreCase))
         {
             return _statusColorInStock;
         }
@@ -4109,12 +4209,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return normalized.Length == 7 && normalized.StartsWith('#') ? normalized.ToUpperInvariant() : fallback;
     }
 
-    private static IReadOnlyList<DetailProductItem> BuildDetailProductItems(IEnumerable<OrderProductInfo>? products)
+    private IReadOnlyList<DetailProductItem> BuildDetailProductItems(IEnumerable<OrderProductInfo>? products)
     {
         var culture = CultureInfo.CurrentCulture;
         var items = new List<DetailProductItem>();
-        foreach (var product in products ?? [])
+        var sourceProducts = (products ?? []).ToList();
+        for (var i = 0; i < sourceProducts.Count; i++)
         {
+            var product = sourceProducts[i];
             if (product is null || string.IsNullOrWhiteSpace(product.Name))
             {
                 continue;
@@ -4128,35 +4230,78 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 : $"Masse: {product.Dimensions.Trim()}";
             var weightLine = $"Gewicht: {unitWeightKg.ToString("0.##", culture)} kg/Stk";
             var totalLine = $"Gesamt: {totalWeightKg.ToString("0.##", culture)} kg";
+            var deliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus);
+            var borderColor = ResolveOrderStatusColor(deliveryStatus, isAssigned: false);
+            var backgroundColor = CreateSoftStatusBackground(deliveryStatus, borderColor);
 
             items.Add(new DetailProductItem(
+                i,
                 $"{quantity}x {product.Name.Trim()}",
                 (product.Supplier ?? string.Empty).Trim(),
                 dimensionsLine,
                 weightLine,
-                totalLine));
+                totalLine,
+                deliveryStatus,
+                backgroundColor,
+                borderColor));
         }
 
         return items;
+    }
+
+    private static string CreateSoftStatusBackground(string? deliveryStatus, string? statusColor)
+    {
+        if (string.Equals(
+                OrderProductInfo.NormalizeDeliveryStatus(deliveryStatus),
+                OrderProductInfo.DefaultDeliveryStatus,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "#FFFFFFFF";
+        }
+
+        var normalized = (statusColor ?? string.Empty).Trim();
+        if (normalized.Length == 7 && normalized.StartsWith('#'))
+        {
+            return $"#33{normalized[1..]}";
+        }
+
+        return "#FFF8FAFC";
     }
 }
 
 public sealed class DetailProductItem
 {
-    public DetailProductItem(string title, string supplier, string dimensionsLine, string weightLine, string totalLine)
+    public DetailProductItem(
+        int productIndex,
+        string title,
+        string supplier,
+        string dimensionsLine,
+        string weightLine,
+        string totalLine,
+        string deliveryStatus,
+        string backgroundColor,
+        string borderColor)
     {
+        ProductIndex = productIndex;
         Title = title;
         Supplier = supplier ?? string.Empty;
         DimensionsLine = dimensionsLine ?? string.Empty;
         WeightLine = weightLine ?? string.Empty;
         TotalLine = totalLine ?? string.Empty;
+        DeliveryStatus = deliveryStatus ?? OrderProductInfo.DefaultDeliveryStatus;
+        BackgroundColor = backgroundColor ?? "#FFF8FAFC";
+        BorderColor = borderColor ?? "#D7E0EC";
     }
 
+    public int ProductIndex { get; }
     public string Title { get; }
     public string Supplier { get; }
     public string DimensionsLine { get; }
     public string WeightLine { get; }
     public string TotalLine { get; }
+    public string DeliveryStatus { get; }
+    public string BackgroundColor { get; }
+    public string BorderColor { get; }
     public bool HasSupplier => !string.IsNullOrWhiteSpace(Supplier);
     public bool HasDimensions => !string.IsNullOrWhiteSpace(DimensionsLine);
 }
@@ -4177,7 +4322,7 @@ public sealed class MapOrderItem
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public string DeliveryLabel { get; set; } = "Frei Bordsteinkante";
-    public string StatusLabel { get; set; } = "nicht festgelegt";
+    public string StatusLabel { get; set; } = Order.DefaultOrderStatus;
     public string AvisoStatusLabel { get; set; } = "nicht avisiert";
     public string TourStatusLabel { get; set; } = "Offen";
     public bool IsDimmed { get; set; }

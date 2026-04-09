@@ -133,13 +133,16 @@ public class SqlOrderImportService : ISqlOrderImportService
                 Quantity = (int)p.Menge,
                 UnitWeightKg = (double)p.Gewicht,
                 WeightKg = (double)(p.Bruttogewicht * p.Menge),
-                Dimensions = string.Empty
+                Dimensions = string.Empty,
+                DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus
             }).ToList(),
             
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
-            OrderStatus = "nicht festgelegt",
+            OrderStatus = Order.DefaultOrderStatus,
             Notes = sqlOrder.Notiz
         };
+
+        order.OrderStatus = Order.ResolveOrderStatusFromProducts(order.Products);
 
         return order;
     }
@@ -188,8 +191,10 @@ public class SqlOrderImportService : ISqlOrderImportService
             Quantity = (int)p.Menge,
             UnitWeightKg = (double)p.Gewicht,
             WeightKg = (double)(p.Bruttogewicht * p.Menge),
-            Dimensions = string.Empty
+            Dimensions = string.Empty,
+            DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus
         }).ToList();
+        existingOrder.OrderStatus = Order.ResolveOrderStatusFromProducts(existingOrder.Products);
 
         // Lieferadresse aktualisieren
         existingOrder.DeliveryAddress = new DeliveryAddressInfo

@@ -112,10 +112,12 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 {
     private static readonly IReadOnlyList<string> Statuses =
     [
-        "nicht festgelegt",
-        "Bestellt",
-        "Auf dem Weg",
-        "An Lager"
+        Order.DefaultOrderStatus,
+        Order.OrderedStatus,
+        Order.InTransitStatus,
+        Order.PartiallyInTransitStatus,
+        Order.PartiallyReadyStatus,
+        Order.ReadyToDeliverStatus
     ];
 
     private readonly IReadOnlyList<string> _deliveryTypes;
@@ -352,9 +354,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Products = products,
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(
                 (SelectedDeliveryType ?? _deliveryTypes[0]).Trim()),
-            OrderStatus = string.IsNullOrWhiteSpace(SelectedStatus)
-                ? Statuses[0]
-                : SelectedStatus.Trim(),
+            OrderStatus = Order.ResolveOrderStatusFromProducts(products),
             Notes = (Notes ?? string.Empty).Trim(),
             AssignedTourId = _existingAssignedTourId,
             Location = _existingLocation
@@ -437,7 +437,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         SelectedStatus = string.IsNullOrWhiteSpace(existingOrder.OrderStatus) ||
                          string.Equals(existingOrder.OrderStatus, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase)
             ? Statuses[0]
-            : existingOrder.OrderStatus;
+            : Order.NormalizeOrderStatus(existingOrder.OrderStatus);
         Notes = existingOrder.Notes ?? string.Empty;
 
         ProductLines.Clear();
@@ -474,6 +474,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
     private int _quantity = 1;
     private double _unitWeightKg;
     private string _dimensions = string.Empty;
+    private string _deliveryStatus = OrderProductInfo.DefaultDeliveryStatus;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -542,6 +543,19 @@ public sealed class ProductLineInput : INotifyPropertyChanged
         }
     }
 
+    public string DeliveryStatus
+    {
+        get => _deliveryStatus;
+        set
+        {
+            var normalized = OrderProductInfo.NormalizeDeliveryStatus(value);
+            if (SetProperty(ref _deliveryStatus, normalized))
+            {
+                OnPropertyChanged(nameof(Summary));
+            }
+        }
+    }
+
     public double TotalWeightKg => Quantity * UnitWeightKg;
 
     public string Summary => OrderProductFormatter.BuildDetails([ToOrderProductInfo()]);
@@ -555,7 +569,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             Quantity = Math.Max(1, Quantity),
             UnitWeightKg = Math.Max(0d, UnitWeightKg),
             WeightKg = Math.Max(1, Quantity) * Math.Max(0d, UnitWeightKg),
-            Dimensions = (Dimensions ?? string.Empty).Trim()
+            Dimensions = (Dimensions ?? string.Empty).Trim(),
+            DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(DeliveryStatus)
         };
     }
 
@@ -567,7 +582,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             Supplier = product.Supplier ?? string.Empty,
             Quantity = Math.Max(1, product.Quantity),
             UnitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(product),
-            Dimensions = product.Dimensions ?? string.Empty
+            Dimensions = product.Dimensions ?? string.Empty,
+            DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus)
         };
     }
 

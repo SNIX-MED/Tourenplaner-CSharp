@@ -276,7 +276,7 @@
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0"
                                                            Foreground="{DynamicResource Brush.TextMuted}"
-                                                           Text="Form = Lieferart | Farbe = Lieferstatus | Badge = Eingeplant/Avisierungsstatus | Blaue Linie = aktuelle Route" />
+                                                           Text="Form = Lieferart | Farbe = Auftragsstatus | Badge = Eingeplant/Avisierungsstatus | Blaue Linie = aktuelle Route" />
 
                                                 <Grid Grid.Row="1" Margin="0,10,0,0">
                                                     <Grid.ColumnDefinitions>
@@ -330,7 +330,7 @@
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="Auto" />
                                                         </Grid.RowDefinitions>
-                                                        <TextBlock FontWeight="SemiBold" Text="Lieferstatus (Farbe)" />
+                                                        <TextBlock FontWeight="SemiBold" Text="Auftragsstatus (Farbe)" />
 
                                                         <StackPanel Grid.Row="1" Margin="0,8,0,0" Orientation="Horizontal">
                                                             <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorNotSpecified}" Stroke="White" StrokeThickness="2" />
@@ -342,11 +342,11 @@
                                                         </StackPanel>
                                                         <StackPanel Grid.Row="3" Margin="0,6,0,0" Orientation="Horizontal">
                                                             <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorOnTheWay}" Stroke="White" StrokeThickness="2" />
-                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Auf dem Weg" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Unterwegs / Teilweise Unterwegs / Teilweise bereit" />
                                                         </StackPanel>
                                                         <StackPanel Grid.Row="4" Margin="0,6,0,0" Orientation="Horizontal">
                                                             <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorInStock}" Stroke="White" StrokeThickness="2" />
-                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="An Lager" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Lieferbereit" />
                                                         </StackPanel>
                                                     </Grid>
 

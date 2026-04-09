@@ -3,9 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Produkt"
         Width="560"
-        Height="520"
+        Height="620"
+        MinWidth="520"
+        MinHeight="520"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
+        ResizeMode="CanResizeWithGrip"
         Background="{DynamicResource Brush.WindowBackground}">
     <Border Margin="12" Style="{StaticResource FlatCardStyle}" Padding="16">
         <Grid>
@@ -14,7 +16,11 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <StackPanel>
+            <ScrollViewer Grid.Row="0"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          CanContentScroll="True">
+                <StackPanel Margin="0,0,4,0">
                 <TextBlock FontSize="28" FontWeight="Bold" Text="{Binding Heading}" />
 
                 <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Produktname" />
@@ -32,18 +38,14 @@
                 <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Masse (optional)" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding Dimensions, UpdateSourceTrigger=PropertyChanged}" />
 
-                <Border Margin="0,18,0,0"
-                        Padding="12"
-                        CornerRadius="14"
-                        Background="{DynamicResource Brush.CardSoft}"
-                        BorderBrush="{DynamicResource Brush.BorderSoft}"
-                        BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Text="Vorschau" />
-                        <TextBlock Margin="0,8,0,0" Text="{Binding SummaryText}" TextWrapping="Wrap" />
-                    </StackPanel>
-                </Border>
-            </StackPanel>
+                <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Lieferstatus" />
+                <ComboBox Margin="0,6,0,0"
+                          Height="38"
+                          ItemsSource="{Binding DeliveryStatusOptions}"
+                          SelectedItem="{Binding SelectedDeliveryStatus, Mode=TwoWay}" />
+
+                </StackPanel>
+            </ScrollViewer>
 
             <Grid Grid.Row="1" Margin="0,18,0,0">
                 <Grid.ColumnDefinitions>

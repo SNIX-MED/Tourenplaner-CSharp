@@ -14,13 +14,15 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 {
     private const string AllDeliveryTypesLabel = "Alle Lieferarten";
     private const string AllStatusesLabel = "Alle Status";
-    private const string DefaultOrderStatus = "nicht festgelegt";
+    private const string DefaultOrderStatus = Order.DefaultOrderStatus;
     private static readonly IReadOnlyList<string> KnownStatusOptions =
     [
         DefaultOrderStatus,
-        "Bestellt",
-        "Auf dem Weg",
-        "An Lager"
+        Order.OrderedStatus,
+        Order.InTransitStatus,
+        Order.PartiallyInTransitStatus,
+        Order.PartiallyReadyStatus,
+        Order.ReadyToDeliverStatus
     ];
 
     private readonly JsonOrderRepository _repository;
@@ -152,6 +154,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     public async Task SaveAsync()
     {
+        SyncDerivedOrderStatuses(_allOrders);
         await _repository.SaveAllAsync(_allOrders);
         PublishOrderChange(SelectedOrder?.Id, SelectedOrder?.Id);
         StatusText = $"Post/Spedition/Abholung gespeichert: {_allOrders.Count(x => x.Type == OrderType.NonMap)}";
@@ -350,6 +353,11 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     {
         _allOrders.Clear();
         _allOrders.AddRange(await _repository.GetAllAsync());
+        if (SyncDerivedOrderStatuses(_allOrders))
+        {
+            await _repository.SaveAllAsync(_allOrders);
+        }
+
         UpdateFilterOptions();
         RebuildGrid(preferredSelectedId);
     }
@@ -400,14 +408,36 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     private static string NormalizeOrderStatus(string? status)
     {
-        var normalized = (status ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalized) ||
-            string.Equals(normalized, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase))
+        var normalized = Order.NormalizeOrderStatus(status);
+        if (string.Equals(normalized, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase))
         {
             return DefaultOrderStatus;
         }
 
         return normalized;
+    }
+
+    private static bool SyncDerivedOrderStatuses(IEnumerable<Order> orders)
+    {
+        var changed = false;
+        foreach (var order in orders)
+        {
+            if (order is null)
+            {
+                continue;
+            }
+
+            var derivedStatus = Order.ResolveOrderStatusFromProducts(order.Products);
+            if (string.Equals(Order.NormalizeOrderStatus(order.OrderStatus), derivedStatus, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            order.OrderStatus = derivedStatus;
+            changed = true;
+        }
+
+        return changed;
     }
 
     private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)
@@ -563,7 +593,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
                 Quantity = p.Quantity,
                 UnitWeightKg = p.UnitWeightKg,
                 WeightKg = p.WeightKg,
-                Dimensions = p.Dimensions
+                Dimensions = p.Dimensions,
+                DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(p.DeliveryStatus)
             }).ToList(),
             DeliveryType = source.DeliveryType,
             OrderStatus = source.OrderStatus,

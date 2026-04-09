@@ -97,6 +97,9 @@ public static class OrderProductFormatter
             parts.Add($"Masse: {product.Dimensions.Trim()}");
         }
 
+        var deliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus);
+        parts.Add($"Status: {deliveryStatus}");
+
         return string.Join(" | ", parts);
     }
 }

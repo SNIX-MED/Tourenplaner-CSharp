@@ -204,6 +204,7 @@
                                     <DataGridTextColumn Header="Gewicht/Stk (kg)" Width="140" Binding="{Binding UnitWeightKg}" />
                                     <DataGridTextColumn Header="Totalgewicht (kg)" Width="150" Binding="{Binding TotalWeightKg}" />
                                     <DataGridTextColumn Header="Masse" Width="180" Binding="{Binding Dimensions}" />
+                                    <DataGridTextColumn Header="Lieferstatus" Width="130" Binding="{Binding DeliveryStatus}" />
                                 </DataGrid.Columns>
                             </DataGrid>
 

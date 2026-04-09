@@ -46,6 +46,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
     private string _quantityText = "1";
     private string _unitWeightKgText = string.Empty;
     private string _dimensions = string.Empty;
+    private string _selectedDeliveryStatus = OrderProductInfo.DefaultDeliveryStatus;
 
     public OrderProductDialogViewModel(ProductLineInput? existingProduct = null)
     {
@@ -59,6 +60,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
         _quantityText = Math.Max(1, existingProduct.Quantity).ToString(CultureInfo.InvariantCulture);
         _unitWeightKgText = existingProduct.UnitWeightKg.ToString("0.###", CultureInfo.InvariantCulture);
         _dimensions = existingProduct.Dimensions;
+        _selectedDeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(existingProduct.DeliveryStatus);
     }
 
     public string Heading => string.IsNullOrWhiteSpace(Name) ? "Produkt erfassen" : "Produkt bearbeiten";
@@ -124,6 +126,21 @@ public sealed class OrderProductDialogViewModel : ObservableObject
         }
     }
 
+    public IReadOnlyList<string> DeliveryStatusOptions => OrderProductInfo.DeliveryStatusOptions;
+
+    public string SelectedDeliveryStatus
+    {
+        get => _selectedDeliveryStatus;
+        set
+        {
+            var normalized = OrderProductInfo.NormalizeDeliveryStatus(value);
+            if (SetProperty(ref _selectedDeliveryStatus, normalized))
+            {
+                OnPropertyChanged(nameof(SummaryText));
+            }
+        }
+    }
+
     public string SummaryText
     {
         get
@@ -138,7 +155,8 @@ public sealed class OrderProductDialogViewModel : ObservableObject
                 Quantity = quantity,
                 UnitWeightKg = unitWeightKg,
                 WeightKg = totalWeightKg,
-                Dimensions = (Dimensions ?? string.Empty).Trim()
+                Dimensions = (Dimensions ?? string.Empty).Trim(),
+                DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(SelectedDeliveryStatus)
             };
             return OrderProductFormatter.BuildDetails([product]);
         }
@@ -173,7 +191,8 @@ public sealed class OrderProductDialogViewModel : ObservableObject
             Supplier = (Supplier ?? string.Empty).Trim(),
             Quantity = quantity,
             UnitWeightKg = unitWeightKg,
-            Dimensions = (Dimensions ?? string.Empty).Trim()
+            Dimensions = (Dimensions ?? string.Empty).Trim(),
+            DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(SelectedDeliveryStatus)
         };
         return true;
     }

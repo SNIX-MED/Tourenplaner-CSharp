@@ -267,6 +267,24 @@ public partial class KarteSectionView : UserControl
         e.Handled = true;
     }
 
+    private async void OnDetailProductMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2)
+        {
+            return;
+        }
+
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not DetailProductItem productItem)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await vm.EditDetailProductAsync(productItem);
+    }
+
     private void OnStartTimePreviewTextInput(object sender, TextCompositionEventArgs e)
     {
         e.Handled = string.IsNullOrWhiteSpace(e.Text) || !e.Text.All(char.IsDigit);
@@ -651,6 +669,68 @@ public partial class KarteSectionView : UserControl
         }
 
         vm.EditSelectedRouteStopStayMinutes();
+    }
+
+    private void OnRouteStopContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        vm.SelectRouteStopByOrderId(stopItem.OrderId);
+    }
+
+    private void OnRouteStopEditStayMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            return;
+        }
+
+        vm.SelectRouteStopByOrderId(stopItem.OrderId);
+        vm.EditSelectedRouteStopStayMinutes();
+    }
+
+    private void OnRouteStopRemoveMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            return;
+        }
+
+        vm.SelectRouteStopByOrderId(stopItem.OrderId);
+        if (vm.RemoveFromRouteCommand.CanExecute(null))
+        {
+            vm.RemoveFromRouteCommand.Execute(null);
+        }
+    }
+
+    private void OnRouteStopEditOrderMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            return;
+        }
+
+        vm.SelectRouteStopByOrderId(stopItem.OrderId);
+        if (vm.EditOrderCommand.CanExecute(null))
+        {
+            vm.EditOrderCommand.Execute(null);
+        }
     }
 
     private void RouteStopsList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
