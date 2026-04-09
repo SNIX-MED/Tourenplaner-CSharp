@@ -55,10 +55,29 @@
                             Background="{DynamicResource Brush.SidebarHeaderBackground}"
                             BorderBrush="{DynamicResource Brush.BorderSoft}"
                             BorderThickness="1">
-                        <StackPanel>
-                            <TextBlock FontSize="33" FontWeight="SemiBold" Text="GAWELA" />
-                            <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Tourenplaner" />
-                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock FontSize="33" FontWeight="SemiBold" Text="GAWELA" />
+                                <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Tourenplaner" />
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Width="30"
+                                    Height="56"
+                                    Margin="10,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Padding="0"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    ToolTip="{Binding SidebarToggleToolTip}"
+                                    Command="{Binding ToggleSidebarCommand}">
+                                <TextBlock FontFamily="Segoe MDL2 Assets"
+                                           FontSize="14"
+                                           Text="{Binding SidebarToggleGlyph}" />
+                            </Button>
+                        </Grid>
                     </Border>
 
                     <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0">

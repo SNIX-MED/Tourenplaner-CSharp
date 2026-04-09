@@ -66,15 +66,42 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,18,0">
-                <TextBlock FontSize="28"
-                           FontWeight="SemiBold"
-                           Text="{Binding SelectedNavigationItem.DisplayName}" />
-                <TextBlock Margin="0,2,0,0"
-                           Foreground="{DynamicResource Brush.TextMuted}"
-                           FontSize="12"
-                           Text="GAWELA Tourenplaner" />
-            </StackPanel>
+            <Grid Grid.Column="0" VerticalAlignment="Center" Margin="0,0,18,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0"
+                        Width="30"
+                        Height="40"
+                        Margin="0,0,10,0"
+                        Padding="0"
+                        ToolTip="{Binding SidebarToggleToolTip}"
+                        Command="{Binding ToggleSidebarCommand}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                            <Setter Property="Visibility" Value="{Binding IsSidebarToggleVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSidebarVisible}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                    <TextBlock FontFamily="Segoe MDL2 Assets"
+                               FontSize="14"
+                               Text="{Binding SidebarToggleGlyph}" />
+                </Button>
+                <StackPanel Grid.Column="1">
+                    <TextBlock FontSize="28"
+                               FontWeight="SemiBold"
+                               Text="{Binding SelectedNavigationItem.DisplayName}" />
+                    <TextBlock Margin="0,2,0,0"
+                               Foreground="{DynamicResource Brush.TextMuted}"
+                               FontSize="12"
+                               Text="GAWELA Tourenplaner" />
+                </StackPanel>
+            </Grid>
 
             <Grid Grid.Column="1" VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>

@@ -43,6 +43,7 @@ public sealed class MainShellViewModel : ObservableObject
     private readonly NavigationItemViewModel _gpsNavigationItem;
     private readonly NavigationItemViewModel _spediteurNavigationItem;
     private readonly HashSet<object> _activatedSections = new(ReferenceEqualityComparer.Instance);
+    private bool _isSidebarCollapsed;
 
     public MainShellViewModel(
         AppSnapshotService snapshotService,
@@ -129,6 +130,7 @@ public sealed class MainShellViewModel : ObservableObject
         _settingsSection.PropertyChanged += OnSettingsSectionPropertyChanged;
 
         OpenSettingsCommand = new DelegateCommand(OpenSettings);
+        ToggleSidebarCommand = new DelegateCommand(ToggleSidebar);
         ToastNotificationService.NotificationRequested += OnToastNotificationRequested;
         SelectedNavigationItem = NavigationItems[0];
 
@@ -140,6 +142,8 @@ public sealed class MainShellViewModel : ObservableObject
     public ObservableCollection<NavigationItemViewModel> SidebarNavigationItems { get; }
 
     public DelegateCommand OpenSettingsCommand { get; }
+
+    public DelegateCommand ToggleSidebarCommand { get; }
 
     public string GlobalSearchText
     {
@@ -189,9 +193,17 @@ public sealed class MainShellViewModel : ObservableObject
 
     public bool IsSplitScreenActive => CurrentSection is SplitScreenSectionViewModel;
 
-    public bool IsSidebarVisible => !IsSplitScreenActive;
+    public bool IsSidebarCollapsed => _isSidebarCollapsed;
 
-    public GridLength SidebarColumnWidth => IsSplitScreenActive ? new GridLength(0) : new GridLength(280);
+    public bool IsSidebarVisible => !IsSplitScreenActive && !IsSidebarCollapsed;
+
+    public GridLength SidebarColumnWidth => IsSidebarVisible ? new GridLength(280) : new GridLength(0);
+
+    public bool IsSidebarToggleVisible => !IsSplitScreenActive;
+
+    public string SidebarToggleGlyph => IsSidebarCollapsed ? "\uE76C" : "\uE76B";
+
+    public string SidebarToggleToolTip => IsSidebarCollapsed ? "Seitenmenü einblenden" : "Seitenmenü ausblenden";
 
     public bool IsMapSectionActive => CurrentSection is KarteSectionViewModel;
 
@@ -276,6 +288,24 @@ public sealed class MainShellViewModel : ObservableObject
         SelectedNavigationItem = _settingsNavigationItem;
     }
 
+    private void ToggleSidebar()
+    {
+        if (IsSplitScreenActive)
+        {
+            return;
+        }
+
+        if (SetProperty(ref _isSidebarCollapsed, !_isSidebarCollapsed))
+        {
+            OnPropertyChanged(nameof(IsSidebarCollapsed));
+            OnPropertyChanged(nameof(IsSidebarVisible));
+            OnPropertyChanged(nameof(SidebarColumnWidth));
+            OnPropertyChanged(nameof(IsSidebarToggleVisible));
+            OnPropertyChanged(nameof(SidebarToggleGlyph));
+            OnPropertyChanged(nameof(SidebarToggleToolTip));
+        }
+    }
+
     private void TriggerSectionRefreshOnce(object? section)
     {
         if (section is null || !_activatedSections.Add(section))
@@ -322,8 +352,12 @@ public sealed class MainShellViewModel : ObservableObject
     private void OnCurrentSectionChanged()
     {
         OnPropertyChanged(nameof(IsSplitScreenActive));
+        OnPropertyChanged(nameof(IsSidebarCollapsed));
         OnPropertyChanged(nameof(IsSidebarVisible));
         OnPropertyChanged(nameof(SidebarColumnWidth));
+        OnPropertyChanged(nameof(IsSidebarToggleVisible));
+        OnPropertyChanged(nameof(SidebarToggleGlyph));
+        OnPropertyChanged(nameof(SidebarToggleToolTip));
         OnPropertyChanged(nameof(IsMapSectionActive));
         OnPropertyChanged(nameof(IsToursSectionActive));
         OnPropertyChanged(nameof(IsEmployeesSectionActive));

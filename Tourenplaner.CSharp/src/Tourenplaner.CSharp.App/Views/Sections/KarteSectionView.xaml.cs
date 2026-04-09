@@ -20,6 +20,9 @@ namespace Tourenplaner.CSharp.App.Views.Sections;
 public partial class KarteSectionView : UserControl
 {
     private static readonly GridLength DefaultRoutePanelWidth = new(460d, GridUnitType.Pixel);
+    private static readonly GridLength DefaultDetailsPanelWidth = new(390d, GridUnitType.Pixel);
+    private static readonly GridLength HiddenDetailsPanelWidth = new(0d, GridUnitType.Pixel);
+    private const double DetailsPanelMinWidthExpanded = 280d;
     private bool _viewInitialized;
     private bool _mapReady;
     private bool _mapScriptReady;
@@ -27,6 +30,7 @@ public partial class KarteSectionView : UserControl
     private INotifyCollectionChanged? _ordersCollection;
     private INotifyCollectionChanged? _routeCollection;
     private bool _suppressSelectionSync;
+    private GridLength _lastDetailsPanelWidth = DefaultDetailsPanelWidth;
     private Point? _routeGridDragStart;
     private RouteStopItem? _routeGridDragItem;
     private int _markersRefreshRevision;
@@ -119,6 +123,7 @@ public partial class KarteSectionView : UserControl
             _routeCollection = vm.RouteStops;
             _routeCollection.CollectionChanged += OnRouteCollectionChanged;
             vm.PdfExportHandler = ExportRoutePdfAsync;
+            ApplyDetailsPanelLayout(vm);
         }
 
         _ = PushMarkersToMapAsync();
@@ -347,6 +352,24 @@ public partial class KarteSectionView : UserControl
         e.Handled = true;
     }
 
+    private void OnDetailsSplitterMouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (DetailsPanelColumn is null || DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        if (!vm.IsDetailsOpen || !vm.IsDetailsPanelExpanded)
+        {
+            return;
+        }
+
+        _lastDetailsPanelWidth = DefaultDetailsPanelWidth;
+        DetailsPanelColumn.MinWidth = DetailsPanelMinWidthExpanded;
+        DetailsPanelColumn.Width = DefaultDetailsPanelWidth;
+        e.Handled = true;
+    }
+
     private async Task EnsureMapInitializedAsync()
     {
         if (!_viewInitialized)
@@ -569,7 +592,14 @@ public partial class KarteSectionView : UserControl
 
     private async Task ApplyDetailsToggleStateAsync()
     {
-        if (!_mapReady || !_mapScriptReady || MapWebView.CoreWebView2 is null || DataContext is not KarteSectionViewModel vm)
+        if (DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        ApplyDetailsPanelLayout(vm);
+
+        if (!_mapReady || !_mapScriptReady || MapWebView.CoreWebView2 is null)
         {
             return;
         }
@@ -578,6 +608,36 @@ public partial class KarteSectionView : UserControl
         var glyph = vm.DetailsToggleGlyph;
         await MapWebView.CoreWebView2.ExecuteScriptAsync(
             $"if (typeof window.gawelaSetDetailsToggle === 'function') window.gawelaSetDetailsToggle({(isVisible ? "true" : "false")}, {JsonSerializer.Serialize(glyph)});");
+    }
+
+    private void ApplyDetailsPanelLayout(KarteSectionViewModel vm)
+    {
+        if (DetailsPanelColumn is null)
+        {
+            return;
+        }
+
+        var showDetailsPanel = vm.IsDetailsOpen && vm.IsDetailsPanelExpanded;
+        if (!showDetailsPanel)
+        {
+            if (DetailsPanelColumn.Width is { GridUnitType: GridUnitType.Pixel } currentWidth && currentWidth.Value > 0d)
+            {
+                _lastDetailsPanelWidth = currentWidth;
+            }
+
+            DetailsPanelColumn.MinWidth = 0d;
+            DetailsPanelColumn.Width = HiddenDetailsPanelWidth;
+            return;
+        }
+
+        var targetWidth = _lastDetailsPanelWidth;
+        if (targetWidth.GridUnitType != GridUnitType.Pixel || targetWidth.Value < DetailsPanelMinWidthExpanded)
+        {
+            targetWidth = DefaultDetailsPanelWidth;
+        }
+
+        DetailsPanelColumn.MinWidth = DetailsPanelMinWidthExpanded;
+        DetailsPanelColumn.Width = targetWidth;
     }
 
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
