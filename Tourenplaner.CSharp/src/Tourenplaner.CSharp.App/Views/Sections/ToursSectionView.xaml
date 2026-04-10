@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="900"
              d:DesignWidth="1450">
@@ -11,6 +12,98 @@
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
             <Setter Property="LineHeight" Value="16" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="ToursGridStyle" TargetType="DataGrid">
+            <Setter Property="Background" Value="{DynamicResource Brush.TableBackground}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="RowBackground" Value="Transparent" />
+            <Setter Property="AlternatingRowBackground" Value="Transparent" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Brush.TableGrid}" />
+            <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="CanUserResizeRows" Value="False" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="SelectionMode" Value="Single" />
+            <Setter Property="SelectionUnit" Value="FullRow" />
+            <Setter Property="RowHeaderWidth" Value="0" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
+        </Style>
+
+        <Style x:Key="ToursGridHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="ToursGridRowStyle" TargetType="DataGridRow">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Brush.RowHover}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsArchived}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Brush.DangerSoft}" />
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsArchived}" Value="True" />
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="#FFFDE2E2" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsArchived}" Value="True" />
+                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="#FFFACACA" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ToursGridCellStyle" TargetType="DataGridCell">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Brush.RowSelected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                </Trigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="True" />
+                        <Condition Binding="{Binding DataContext.IsArchived, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ToursGridTextStyle" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
@@ -38,6 +131,66 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="QuickActionsContextMenuStyle" TargetType="ContextMenu">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Popup.AllowsTransparency" Value="True" />
+            <Setter Property="HasDropShadow" Value="False" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12"
+                                Padding="2"
+                                ClipToBounds="True"
+                                SnapsToDevicePixels="True">
+                            <StackPanel>
+                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+                            </StackPanel>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="QuickActionsMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Margin" Value="4,1" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="ItemBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"
+                                              ContentSource="Header"
+                                              TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{DynamicResource Brush.CardMuted}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ItemBorder" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="{StaticResource Spacing.PageMargin}">
@@ -57,6 +210,40 @@
 
                     <DockPanel Grid.Row="0" Margin="0,0,0,10">
                         <TextBlock DockPanel.Dock="Left" FontSize="14" FontWeight="SemiBold" Text="Tourenübersicht" />
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Width="94"
+                                    Margin="0,0,8,0"
+                                    Content="Aktiv"
+                                    Command="{Binding ShowActiveToursCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowActiveTours}" Value="True">
+                                                <Setter Property="Foreground" Value="White" />
+                                                <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Width="110"
+                                    Margin="0,0,8,0"
+                                    Content="Archiviert"
+                                    Command="{Binding ShowArchivedToursCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowArchivedTours}" Value="True">
+                                                <Setter Property="Foreground" Value="White" />
+                                                <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
                         <Border DockPanel.Dock="Right"
                                 Padding="8,3"
                                 CornerRadius="10"
@@ -68,28 +255,63 @@
                         </Border>
                     </DockPanel>
 
-                    <DataGrid x:Name="ToursGrid"
-                              Grid.Row="1"
-                              AutoGenerateColumns="False"
-                              AllowDrop="True"
-                              IsReadOnly="True"
-                              ItemsSource="{Binding Tours}"
-                              SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
-                              DragOver="ToursGrid_DragOver"
-                              DragLeave="ToursGrid_DragLeave"
-                              Drop="ToursGrid_Drop"
-                              MouseDoubleClick="OnToursGridMouseDoubleClick"
-                              SelectionMode="Single"
-                              SelectionUnit="FullRow">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Datum" Width="112" Binding="{Binding Date}" />
-                            <DataGridTextColumn Header="Tour" Width="2.15*" Binding="{Binding Name}" />
-                            <DataGridTextColumn Header="Fahrzeug" Width="2.35*" Binding="{Binding VehicleId}" ElementStyle="{StaticResource MultiLineGridTextStyle}" />
-                            <DataGridTextColumn Header="Mitarbeiter" Width="92" Binding="{Binding Employees}" />
-                            <DataGridTextColumn Header="Stopps" Width="64" Binding="{Binding StopCount}" />
-                            <DataGridTextColumn Header="Gewicht (kg)" Width="92" Binding="{Binding TotalWeightKg}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <Border Grid.Row="1"
+                            BorderBrush="{DynamicResource Brush.BorderSoft}"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Background="{DynamicResource Brush.CardMuted}">
+                        <controls:RoundedClipBorder Margin="1"
+                                                    CornerRadius="13"
+                                                    Background="{DynamicResource Brush.TableBackground}"
+                                                    ClipToBounds="True">
+                            <DataGrid x:Name="ToursGrid"
+                                  AutoGenerateColumns="False"
+                                  AllowDrop="True"
+                                  IsReadOnly="True"
+                                  SnapsToDevicePixels="True"
+                                  ItemsSource="{Binding Tours}"
+                                  Style="{StaticResource ToursGridStyle}"
+                                  RowStyle="{StaticResource ToursGridRowStyle}"
+                                  CellStyle="{StaticResource ToursGridCellStyle}"
+                                  ColumnHeaderStyle="{StaticResource ToursGridHeaderStyle}"
+                                  SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
+                                  PreviewMouseRightButtonDown="ToursGrid_PreviewMouseRightButtonDown"
+                                  DragOver="ToursGrid_DragOver"
+                                  DragLeave="ToursGrid_DragLeave"
+                                  Drop="ToursGrid_Drop"
+                                  MouseDoubleClick="OnToursGridMouseDoubleClick">
+                            <DataGrid.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                             Style="{StaticResource QuickActionsContextMenuStyle}">
+                                    <ContextMenu.Resources>
+                                        <Style TargetType="Separator">
+                                            <Setter Property="Margin" Value="8,4" />
+                                            <Setter Property="Background" Value="{DynamicResource Brush.BorderSoft}" />
+                                        </Style>
+                                    </ContextMenu.Resources>
+                                    <MenuItem Header="Tour bearbeiten"
+                                              Style="{StaticResource QuickActionsMenuItemStyle}"
+                                              Command="{Binding EditTourOnMapCommand}" />
+                                    <MenuItem Header="{Binding ToggleArchiveTourButtonText}"
+                                              Style="{StaticResource QuickActionsMenuItemStyle}"
+                                              Command="{Binding ToggleArchiveTourCommand}" />
+                                    <Separator />
+                                    <MenuItem Header="Tour löschen"
+                                              Style="{StaticResource QuickActionsMenuItemStyle}"
+                                              Command="{Binding DeleteTourCommand}"
+                                              Foreground="{DynamicResource Brush.Danger}" />
+                                </ContextMenu>
+                            </DataGrid.ContextMenu>
+                                <DataGrid.Columns>
+                                <DataGridTextColumn Header="Datum" Width="112" Binding="{Binding Date}" ElementStyle="{StaticResource ToursGridTextStyle}" />
+                                <DataGridTextColumn Header="Tour" Width="3.45*" Binding="{Binding Name}" ElementStyle="{StaticResource ToursGridTextStyle}" />
+                                <DataGridTextColumn Header="Mitarbeiter" Width="92" Binding="{Binding Employees}" ElementStyle="{StaticResource ToursGridTextStyle}" />
+                                <DataGridTextColumn Header="Stopps" Width="64" Binding="{Binding StopCount}" ElementStyle="{StaticResource ToursGridTextStyle}" />
+                                <DataGridTextColumn Header="Gewicht (kg)" Width="92" Binding="{Binding TotalWeightKg}" ElementStyle="{StaticResource ToursGridTextStyle}" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </controls:RoundedClipBorder>
+                    </Border>
                 </Grid>
             </Border>
 
@@ -149,8 +371,11 @@
                                       HorizontalScrollBarVisibility="Disabled">
                             <ListBox x:Name="SelectedTourStopsGrid"
                                      ItemsSource="{Binding SelectedTourStops}"
+                                     SelectedItem="{Binding SelectedTourStop, Mode=TwoWay}"
                                      AllowDrop="True"
+                                     ContextMenuOpening="OnSelectedTourStopContextMenuOpening"
                                      PreviewMouseLeftButtonDown="SelectedTourStopsGrid_PreviewMouseLeftButtonDown"
+                                     PreviewMouseRightButtonDown="SelectedTourStopsGrid_PreviewMouseRightButtonDown"
                                      MouseMove="SelectedTourStopsGrid_MouseMove"
                                      DragOver="SelectedTourStopsGrid_DragOver"
                                      DragLeave="SelectedTourStopsGrid_DragLeave"
@@ -162,6 +387,28 @@
                                      RenderOptions.ClearTypeHint="Enabled"
                                      Style="{StaticResource TourStopCardsListStyle}"
                                      ItemContainerStyle="{StaticResource TourStopCardListItemStyle}">
+                                <ListBox.ContextMenu>
+                                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                                 Style="{StaticResource QuickActionsContextMenuStyle}">
+                                        <ContextMenu.Resources>
+                                            <Style TargetType="Separator">
+                                                <Setter Property="Margin" Value="8,4" />
+                                                <Setter Property="Background" Value="{DynamicResource Brush.BorderSoft}" />
+                                            </Style>
+                                        </ContextMenu.Resources>
+                                        <MenuItem Header="Aufenthaltszeit ändern"
+                                                  Style="{StaticResource QuickActionsMenuItemStyle}"
+                                                  Click="OnSelectedTourStopEditStayMenuItemClick" />
+                                        <MenuItem Header="Stopp entfernen"
+                                                  Style="{StaticResource QuickActionsMenuItemStyle}"
+                                                  Foreground="{DynamicResource Brush.Danger}"
+                                                  Click="OnSelectedTourStopRemoveMenuItemClick" />
+                                        <Separator />
+                                        <MenuItem Header="Auftrag bearbeiten"
+                                                  Style="{StaticResource QuickActionsMenuItemStyle}"
+                                                  Click="OnSelectedTourStopEditOrderMenuItemClick" />
+                                    </ContextMenu>
+                                </ListBox.ContextMenu>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Border CornerRadius="14"

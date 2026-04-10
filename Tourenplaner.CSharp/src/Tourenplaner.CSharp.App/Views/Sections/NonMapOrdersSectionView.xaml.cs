@@ -66,6 +66,21 @@ public partial class NonMapOrdersSectionView : UserControl
         return null;
     }
 
+    private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T typed)
+            {
+                return typed;
+            }
+
+            child = VisualTreeHelper.GetParent(child);
+        }
+
+        return null;
+    }
+
     private void OnOpenOrderClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is not NonMapOrdersSectionViewModel vm)
@@ -85,9 +100,27 @@ public partial class NonMapOrdersSectionView : UserControl
         }
     }
 
+    private void NonMapOrdersGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var row = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        if (row?.Item is not OrderItem item || DataContext is not NonMapOrdersSectionViewModel vm)
+        {
+            return;
+        }
+
+        NonMapOrdersGrid.SelectedItem = item;
+        vm.SelectedOrder = item;
+    }
+
     private void OnColumnsPopupButtonClick(object sender, RoutedEventArgs e)
     {
         ColumnsPopup.IsOpen = !ColumnsPopup.IsOpen;
+        e.Handled = true;
+    }
+
+    private void OnFilterPopupButtonClick(object sender, RoutedEventArgs e)
+    {
+        FilterPopup.IsOpen = !FilterPopup.IsOpen;
         e.Handled = true;
     }
 

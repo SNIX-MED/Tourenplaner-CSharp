@@ -58,6 +58,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private LookupItem? _selectedVehicle;
     private LookupItem? _selectedTrailer;
     private TourOverviewItem? _selectedTour;
+    private TourStopOverviewItem? _selectedTourStop;
+    private bool _showArchivedTours;
 
     public ToursSectionViewModel(
         string toursJsonPath,
@@ -96,6 +98,12 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         PreviousToMonthCommand = new DelegateCommand(ShowPreviousToMonth);
         NextToMonthCommand = new DelegateCommand(ShowNextToMonth);
         DeleteTourCommand = new AsyncCommand(DeleteSelectedTourAsync, () => SelectedTour is not null);
+        ToggleArchiveTourCommand = new AsyncCommand(ToggleArchiveSelectedTourAsync, () => SelectedTour is not null);
+        ShowActiveToursCommand = new DelegateCommand(() => ShowArchivedTours = false);
+        ShowArchivedToursCommand = new DelegateCommand(() => ShowArchivedTours = true);
+        EditSelectedTourStopStayMinutesCommand = new AsyncCommand(EditSelectedTourStopStayMinutesAsync, () => SelectedTourStop is not null && !SelectedTourStop.IsCompanyStop);
+        RemoveSelectedTourStopCommand = new AsyncCommand(RemoveSelectedTourStopAsync, () => SelectedTourStop is not null && !SelectedTourStop.IsCompanyStop);
+        EditSelectedTourStopOrderCommand = new AsyncCommand(EditSelectedTourStopOrderAsync, () => SelectedTourStop is not null && !SelectedTourStop.IsCompanyStop);
         RebuildFromCalendarDays();
         RebuildToCalendarDays();
         _dataSyncService.DataChanged += OnDataChanged;
@@ -130,6 +138,18 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     public ICommand DeleteTourCommand { get; }
 
+    public ICommand ToggleArchiveTourCommand { get; }
+
+    public ICommand ShowActiveToursCommand { get; }
+
+    public ICommand ShowArchivedToursCommand { get; }
+
+    public ICommand EditSelectedTourStopStayMinutesCommand { get; }
+
+    public ICommand RemoveSelectedTourStopCommand { get; }
+
+    public ICommand EditSelectedTourStopOrderCommand { get; }
+
     public ICommand OpenTourOnMapCommand { get; }
 
     public ICommand EditTourOnMapCommand { get; }
@@ -151,6 +171,25 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         get => _statusText;
         private set => SetProperty(ref _statusText, value);
     }
+
+    public bool ShowArchivedTours
+    {
+        get => _showArchivedTours;
+        set
+        {
+            if (!SetProperty(ref _showArchivedTours, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(ShowActiveTours));
+            RebuildTourRowsWithCurrentFilter(keepSelectionTourId: SelectedTour?.TourId);
+        }
+    }
+
+    public bool ShowActiveTours => !ShowArchivedTours;
+
+    public string ToggleArchiveTourButtonText => SelectedTour?.Source.IsArchived == true ? "Tour reaktivieren" : "Tour archivieren";
 
     public string EditorDate
     {
@@ -231,6 +270,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 {
                     _fromDate = parsed;
                     OnPropertyChanged(nameof(FromDate));
+                    OnPropertyChanged(nameof(FromDateDisplayText));
+                    if (parsed.HasValue)
+                    {
+                        _fromCalendarMonth = new DateTime(parsed.Value.Year, parsed.Value.Month, 1);
+                    }
+
+                    RebuildFromCalendarDays();
+                    ApplyDateFilter();
                 }
             }
             finally
@@ -263,6 +310,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 {
                     _toDate = parsed;
                     OnPropertyChanged(nameof(ToDate));
+                    OnPropertyChanged(nameof(ToDateDisplayText));
+                    if (parsed.HasValue)
+                    {
+                        _toCalendarMonth = new DateTime(parsed.Value.Year, parsed.Value.Month, 1);
+                    }
+
+                    RebuildToCalendarDays();
+                    ApplyDateFilter();
                 }
             }
             finally
@@ -315,6 +370,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             }
 
             RebuildFromCalendarDays();
+            ApplyDateFilter();
         }
     }
 
@@ -361,6 +417,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             }
 
             RebuildToCalendarDays();
+            ApplyDateFilter();
         }
     }
 
@@ -407,7 +464,6 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             }
 
             FromDate = value.Date;
-            ApplyDateFilter();
             IsFromDatePopupOpen = false;
             _selectedFromCalendarDay = null;
             OnPropertyChanged();
@@ -425,7 +481,6 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             }
 
             ToDate = value.Date;
-            ApplyDateFilter();
             IsToDatePopupOpen = false;
             _selectedToCalendarDay = null;
             OnPropertyChanged();
@@ -466,6 +521,19 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 LoadSelectedTourStops();
                 SyncEditorFromSelection();
                 UpdateSelectedTourSummary();
+                OnPropertyChanged(nameof(ToggleArchiveTourButtonText));
+                RaiseCommandStates();
+            }
+        }
+    }
+
+    public TourStopOverviewItem? SelectedTourStop
+    {
+        get => _selectedTourStop;
+        set
+        {
+            if (SetProperty(ref _selectedTourStop, value))
+            {
                 RaiseCommandStates();
             }
         }
@@ -786,6 +854,147 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return true;
     }
 
+    public async Task EditSelectedTourStopStayMinutesAsync()
+    {
+        if (SelectedTourStop?.Source is null ||
+            SelectedTourStop.IsCompanyStop)
+        {
+            return;
+        }
+
+        var sourceTour = _loadedTours.FirstOrDefault(x => x.Id == SelectedTourStop.SourceTourId);
+        if (sourceTour is null)
+        {
+            return;
+        }
+
+        var stop = sourceTour.Stops.FirstOrDefault(x => ReferenceEquals(x, SelectedTourStop.Source)) ??
+                   sourceTour.Stops.FirstOrDefault(x =>
+                       x.Order == SelectedTourStop.Source.Order &&
+                       string.Equals(x.Auftragsnummer, SelectedTourStop.Source.Auftragsnummer, StringComparison.OrdinalIgnoreCase));
+        if (stop is null)
+        {
+            return;
+        }
+
+        var dialog = new RouteStopStayMinutesDialogWindow(stop.ServiceMinutes)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        if (dialog.ShowDialog() != true || !dialog.StayMinutes.HasValue)
+        {
+            return;
+        }
+
+        stop.ServiceMinutes = Math.Max(0, dialog.StayMinutes.Value);
+        _scheduleService.ApplySchedule(sourceTour);
+        await _tourRepository.SaveAsync(_loadedTours);
+        _dataSyncService.PublishTours(_instanceId, sourceTour.Id.ToString(CultureInfo.InvariantCulture), sourceTour.Id.ToString(CultureInfo.InvariantCulture));
+        RebuildTourRowsWithCurrentFilter(keepSelectionTourId: sourceTour.Id);
+        StatusText = $"Aufenthaltszeit für Auftrag {ExtractOrderIdFromStop(stop)} gesetzt: {stop.ServiceMinutes} min.";
+    }
+
+    public async Task RemoveSelectedTourStopAsync()
+    {
+        if (SelectedTourStop?.Source is null ||
+            SelectedTourStop.IsCompanyStop)
+        {
+            return;
+        }
+
+        var sourceTour = _loadedTours.FirstOrDefault(x => x.Id == SelectedTourStop.SourceTourId);
+        if (sourceTour is null)
+        {
+            return;
+        }
+
+        var movableStops = sourceTour.Stops.Where(s => !IsCompanyStop(s)).ToList();
+        var removeIndex = movableStops.IndexOf(SelectedTourStop.Source);
+        if (removeIndex < 0)
+        {
+            return;
+        }
+
+        var removedStop = movableStops[removeIndex];
+        var removedOrderId = ExtractOrderIdFromStop(removedStop);
+        movableStops.RemoveAt(removeIndex);
+        RebuildTourStopsWithAnchors(sourceTour, movableStops);
+        _scheduleService.ApplySchedule(sourceTour);
+
+        var updatedOrderAssignment = false;
+        if (!string.IsNullOrWhiteSpace(removedOrderId))
+        {
+            var orders = (await _orderRepository.GetAllAsync()).ToList();
+            var order = orders.FirstOrDefault(o => string.Equals(o.Id, removedOrderId, StringComparison.OrdinalIgnoreCase));
+            if (order is not null)
+            {
+                order.AssignedTourId = string.Empty;
+                await _orderRepository.SaveAllAsync(orders);
+                updatedOrderAssignment = true;
+            }
+        }
+
+        await _tourRepository.SaveAsync(_loadedTours);
+        _dataSyncService.PublishTours(_instanceId, sourceTour.Id.ToString(CultureInfo.InvariantCulture), sourceTour.Id.ToString(CultureInfo.InvariantCulture));
+        if (updatedOrderAssignment)
+        {
+            _dataSyncService.PublishOrders(_instanceId);
+        }
+
+        RebuildTourRowsWithCurrentFilter(keepSelectionTourId: sourceTour.Id);
+        StatusText = $"Stopp {removedOrderId} wurde aus der Tour entfernt.";
+    }
+
+    public async Task EditSelectedTourStopOrderAsync()
+    {
+        if (SelectedTourStop?.Source is null ||
+            SelectedTourStop.IsCompanyStop)
+        {
+            return;
+        }
+
+        var orderId = ExtractOrderIdFromStop(SelectedTourStop.Source);
+        if (string.IsNullOrWhiteSpace(orderId))
+        {
+            return;
+        }
+
+        var orders = (await _orderRepository.GetAllAsync()).ToList();
+        var existing = orders.FirstOrDefault(o => string.Equals(o.Id, orderId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            return;
+        }
+
+        var dialog = new ManualOrderDialogWindow(
+            existing,
+            deliveryTypes: DeliveryMethodExtensions.MapDeliveryTypeOptions,
+            defaultOrderType: existing.Type)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        if (dialog.ShowDialog() != true || dialog.CreatedOrder is null)
+        {
+            return;
+        }
+
+        var updated = dialog.CreatedOrder;
+        updated.Type = existing.Type;
+        updated.AssignedTourId = existing.AssignedTourId;
+        updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated) ?? existing.Location;
+
+        orders.RemoveAll(x => string.Equals(x.Id, existing.Id, StringComparison.OrdinalIgnoreCase));
+        orders.RemoveAll(x => !string.Equals(x.Id, existing.Id, StringComparison.OrdinalIgnoreCase) &&
+                              string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
+        orders.Add(updated);
+
+        await _orderRepository.SaveAllAsync(orders);
+        _dataSyncService.PublishOrders(_instanceId);
+        StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
+    }
+
     private static bool ConfirmStopReassignment(TourStopOverviewItem sourceItem, TourRecord sourceTour, TourRecord targetTour)
     {
         var orderNumber = string.IsNullOrWhiteSpace(sourceItem.OrderNumber)
@@ -878,6 +1087,32 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         {
             toDisable.IsSelected = false;
         }
+    }
+
+    private async Task ToggleArchiveSelectedTourAsync()
+    {
+        if (SelectedTour is null)
+        {
+            return;
+        }
+
+        var target = _loadedTours.FirstOrDefault(x => x.Id == SelectedTour.TourId);
+        if (target is null)
+        {
+            return;
+        }
+
+        target.IsArchived = !target.IsArchived;
+        await _tourRepository.SaveAsync(_loadedTours);
+        _dataSyncService.PublishTours(_instanceId, target.Id.ToString(CultureInfo.InvariantCulture), target.Id.ToString(CultureInfo.InvariantCulture));
+        RebuildTourRowsWithCurrentFilter(keepSelectionTourId: target.Id);
+        OnPropertyChanged(nameof(ToggleArchiveTourButtonText));
+
+        var label = string.IsNullOrWhiteSpace(target.Name)
+            ? target.Id.ToString(CultureInfo.InvariantCulture)
+            : target.Name.Trim();
+        var action = target.IsArchived ? "archiviert" : "reaktiviert";
+        ToastNotificationService.ShowInfo($"Tour {label} wurde {action}.");
     }
 
     private async Task DeleteSelectedTourAsync()
@@ -1120,14 +1355,15 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var to = ToDate ?? ParseDate(ToDateText);
         var filtered = ApplyDateFilterToTours(_loadedTours, from, to);
         RebuildTourRows(filtered, keepSelectionTourId);
-        FilterInfoText = BuildDateFilterInfoText(from, to, Tours.Count);
+        FilterInfoText = BuildDateFilterInfoText(from, to, Tours.Count, ShowArchivedTours);
     }
 
     private IEnumerable<TourRecord> ApplyDateFilterToTours(IEnumerable<TourRecord> tours, DateTime? from, DateTime? to)
     {
+        var modeFiltered = tours.Where(t => t.IsArchived == ShowArchivedTours);
         if (from is null && to is null)
         {
-            return tours;
+            return modeFiltered;
         }
 
         var fromValue = from ?? DateTime.MinValue.Date;
@@ -1137,7 +1373,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             (fromValue, toValue) = (toValue, fromValue);
         }
 
-        return tours.Where(t =>
+        return modeFiltered.Where(t =>
         {
             var tourDate = ParseDate(t.Date);
             if (tourDate is null)
@@ -1149,16 +1385,17 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         });
     }
 
-    private static string BuildDateFilterInfoText(DateTime? from, DateTime? to, int matches)
+    private static string BuildDateFilterInfoText(DateTime? from, DateTime? to, int matches, bool showArchived)
     {
+        var modeLabel = showArchived ? "Archiviert" : "Aktiv";
         if (from is null && to is null)
         {
-            return $"Alle Touren | Treffer: {matches}";
+            return $"{modeLabel} | Alle Touren | Treffer: {matches}";
         }
 
         var fromText = from?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "offen";
         var toText = to?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "offen";
-        return $"{fromText} - {toText} | Treffer: {matches}";
+        return $"{modeLabel} | {fromText} - {toText} | Treffer: {matches}";
     }
 
     private static DateTime? ParseDate(string? value)
@@ -1236,12 +1473,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 TotalWeightKg = totalWeight,
                 StopConflicts = schedule.Stops.Count(s => s.HasConflict),
                 AssignmentConflicts = conflicts.TryGetValue(tour.Id, out var count) ? count : 0,
+                IsArchived = tour.IsArchived,
                 Source = tour
             });
         }
 
         SelectedTour = Tours.FirstOrDefault(t => keepSelectionTourId.HasValue && t.TourId == keepSelectionTourId.Value) ?? Tours.FirstOrDefault();
-        StatusText = $"Tours: {Tours.Count} | Stop conflicts: {Tours.Sum(t => t.StopConflicts)} | Assignment conflicts: {Tours.Sum(t => t.AssignmentConflicts)}";
+        var modeLabel = ShowArchivedTours ? "Archiviert" : "Aktiv";
+        StatusText = $"Tours ({modeLabel}): {Tours.Count} | Stop conflicts: {Tours.Sum(t => t.StopConflicts)} | Assignment conflicts: {Tours.Sum(t => t.AssignmentConflicts)}";
     }
 
     private string ResolveVehicleLabel(string? vehicleId)
@@ -1402,6 +1641,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private void LoadSelectedTourStops()
     {
         SelectedTourStops.Clear();
+        SelectedTourStop = null;
         if (SelectedTour?.Source is null)
         {
             return;
@@ -1616,6 +1856,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             TrailerId = source.TrailerId,
             SecondaryVehicleId = source.SecondaryVehicleId,
             SecondaryTrailerId = source.SecondaryTrailerId,
+            IsArchived = source.IsArchived,
             EmployeeIds = source.EmployeeIds.ToList(),
             TravelTimeCache = source.TravelTimeCache.ToDictionary(kv => kv.Key, kv => kv.Value),
             Stops = source.Stops.Select(stop => new TourStopRecord
@@ -1647,8 +1888,12 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         RaiseCanExecuteChangedIfSupported(RecalculateCommand);
         RaiseCanExecuteChangedIfSupported(SaveAssignmentCommand);
         RaiseCanExecuteChangedIfSupported(DeleteTourCommand);
+        RaiseCanExecuteChangedIfSupported(ToggleArchiveTourCommand);
         RaiseCanExecuteChangedIfSupported(OpenTourOnMapCommand);
         RaiseCanExecuteChangedIfSupported(EditTourOnMapCommand);
+        RaiseCanExecuteChangedIfSupported(EditSelectedTourStopStayMinutesCommand);
+        RaiseCanExecuteChangedIfSupported(RemoveSelectedTourStopCommand);
+        RaiseCanExecuteChangedIfSupported(EditSelectedTourStopOrderCommand);
     }
 
     private void ToggleDatePopup(bool isFrom)
@@ -2078,6 +2323,7 @@ public sealed class TourOverviewItem
     public int TotalWeightKg { get; set; }
     public int StopConflicts { get; set; }
     public int AssignmentConflicts { get; set; }
+    public bool IsArchived { get; set; }
     public TourRecord Source { get; set; } = new();
 }
 

@@ -33,6 +33,21 @@ public partial class ToursSectionView : UserControl
         }
     }
 
+    private void ToursGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var row = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        if (row?.Item is not TourOverviewItem item)
+        {
+            return;
+        }
+
+        ToursGrid.SelectedItem = item;
+        if (DataContext is ToursSectionViewModel vm)
+        {
+            vm.SelectedTour = item;
+        }
+    }
+
     private void SelectedTourStopsGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _stopsGridDragStart = null;
@@ -46,6 +61,55 @@ public partial class ToursSectionView : UserControl
 
         _stopsGridDragStart = e.GetPosition(SelectedTourStopsGrid);
         _stopsGridDragItem = item;
+    }
+
+    private void SelectedTourStopsGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        SelectTourStopFromEvent(e.OriginalSource as DependencyObject);
+    }
+
+    private void OnSelectedTourStopContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (DataContext is not ToursSectionViewModel vm)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.SelectedTourStop is null || vm.SelectedTourStop.IsCompanyStop)
+        {
+            e.Handled = true;
+        }
+    }
+
+    private async void OnSelectedTourStopEditStayMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ToursSectionViewModel vm)
+        {
+            return;
+        }
+
+        await vm.EditSelectedTourStopStayMinutesAsync();
+    }
+
+    private async void OnSelectedTourStopRemoveMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ToursSectionViewModel vm)
+        {
+            return;
+        }
+
+        await vm.RemoveSelectedTourStopAsync();
+    }
+
+    private async void OnSelectedTourStopEditOrderMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ToursSectionViewModel vm)
+        {
+            return;
+        }
+
+        await vm.EditSelectedTourStopOrderAsync();
     }
 
     private void SelectedTourStopsGrid_MouseMove(object sender, MouseEventArgs e)
@@ -261,6 +325,21 @@ public partial class ToursSectionView : UserControl
         }
 
         return _dropHighlightBrush;
+    }
+
+    private void SelectTourStopFromEvent(DependencyObject? source)
+    {
+        var itemContainer = FindVisualParent<ListBoxItem>(source);
+        if (itemContainer?.DataContext is not TourStopOverviewItem item || item.IsCompanyStop)
+        {
+            return;
+        }
+
+        SelectedTourStopsGrid.SelectedItem = item;
+        if (DataContext is ToursSectionViewModel vm)
+        {
+            vm.SelectedTourStop = item;
+        }
     }
 
     private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject

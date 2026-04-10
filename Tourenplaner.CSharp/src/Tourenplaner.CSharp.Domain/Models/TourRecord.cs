@@ -13,5 +13,6 @@ public sealed class TourRecord
     public string? TrailerId { get; set; }
     public string? SecondaryVehicleId { get; set; }
     public string? SecondaryTrailerId { get; set; }
+    public bool IsArchived { get; set; }
     public Dictionary<string, int> TravelTimeCache { get; set; } = new();
 }

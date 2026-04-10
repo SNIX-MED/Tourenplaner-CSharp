@@ -139,7 +139,8 @@ public class SqlOrderImportService : ISqlOrderImportService
             
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
             OrderStatus = Order.DefaultOrderStatus,
-            Notes = sqlOrder.Notiz
+            Notes = sqlOrder.Notiz,
+            IsArchived = sqlOrder.Archiviert
         };
 
         order.OrderStatus = Order.ResolveOrderStatusFromProducts(order.Products);
@@ -155,6 +156,7 @@ public class SqlOrderImportService : ISqlOrderImportService
         existingOrder.Type = isMapOrder ? OrderType.Map : OrderType.NonMap;
         existingOrder.DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung);
         existingOrder.Notes = sqlOrder.Notiz;
+        existingOrder.IsArchived = sqlOrder.Archiviert;
         existingOrder.ScheduledDate = DateOnly.FromDateTime(sqlOrder.AuftragsDatum);
         existingOrder.CustomerName = BuildCustomerName(sqlOrder);
         existingOrder.Email = ResolvePreferredContact(sqlOrder.LieferEmail, sqlOrder.KundeEmail);

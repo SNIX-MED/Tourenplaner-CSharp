@@ -140,6 +140,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _selectedDeliveryType = string.Empty;
     private string _selectedStatus = Statuses[0];
     private string _notes = string.Empty;
+    private bool _isArchived;
 
     private GeoPoint? _existingLocation;
     private string? _existingAssignedTourId;
@@ -288,6 +289,20 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         set => SetProperty(ref _notes, value);
     }
 
+    public bool IsArchived
+    {
+        get => _isArchived;
+        set
+        {
+            if (SetProperty(ref _isArchived, value))
+            {
+                OnPropertyChanged(nameof(ArchiveToggleText));
+            }
+        }
+    }
+
+    public string ArchiveToggleText => IsArchived ? "Archiviert" : "Auftrag archivieren";
+
     public bool TryBuildOrder(out Order? order, out string error)
     {
         order = null;
@@ -357,7 +372,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             OrderStatus = Order.ResolveOrderStatusFromProducts(products),
             Notes = (Notes ?? string.Empty).Trim(),
             AssignedTourId = _existingAssignedTourId,
-            Location = _existingLocation
+            Location = _existingLocation,
+            IsArchived = IsArchived
         };
 
         return true;
@@ -439,6 +455,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             ? Statuses[0]
             : Order.NormalizeOrderStatus(existingOrder.OrderStatus);
         Notes = existingOrder.Notes ?? string.Empty;
+        IsArchived = existingOrder.IsArchived;
 
         ProductLines.Clear();
         foreach (var product in existingOrder.Products ?? [])

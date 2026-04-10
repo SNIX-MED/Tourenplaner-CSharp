@@ -40,6 +40,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private bool _isCustomerColumnVisible = true;
     private bool _isDeliveryAddressColumnVisible = true;
     private bool _isDeliveryPersonColumnVisible = true;
+    private bool _showArchivedOrders;
 
     public OrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService)
         : base("Aufträge", "Aufträge mit Adresse, Zuordnung und Filterung.")
@@ -54,6 +55,9 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         EditSelectedOrderCommand = new AsyncCommand(EditSelectedOrderAsync, () => SelectedOrder is not null);
         UndoDeleteCommand = new AsyncCommand(UndoDeleteAsync, () => _lastDeletedOrder is not null);
         RemoveCommand = new AsyncCommand(RemoveSelectedOrderAsync, () => SelectedOrder is not null);
+        ShowActiveOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = false);
+        ShowArchivedOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = true);
+        ToggleArchiveModeCommand = new DelegateCommand(() => ShowArchivedOrders = !ShowArchivedOrders);
         _dataSyncService.OrdersChanged += OnOrdersChanged;
         _ = RefreshAsync();
     }
@@ -75,6 +79,12 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     public ICommand UndoDeleteCommand { get; }
 
     public ICommand RemoveCommand { get; }
+
+    public ICommand ShowActiveOrdersCommand { get; }
+
+    public ICommand ShowArchivedOrdersCommand { get; }
+
+    public ICommand ToggleArchiveModeCommand { get; }
 
     public string SearchText
     {
@@ -135,6 +145,27 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         get => _isDeliveryPersonColumnVisible;
         set => SetProperty(ref _isDeliveryPersonColumnVisible, value);
     }
+
+    public bool ShowArchivedOrders
+    {
+        get => _showArchivedOrders;
+        set
+        {
+            if (!SetProperty(ref _showArchivedOrders, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(ShowActiveOrders));
+            OnPropertyChanged(nameof(ArchiveToggleButtonText));
+            UpdateFilterOptions();
+            RebuildGrid();
+        }
+    }
+
+    public bool ShowActiveOrders => !ShowArchivedOrders;
+
+    public string ArchiveToggleButtonText => ShowArchivedOrders ? "Aktiv anzeigen" : "Archiviert anzeigen";
 
     public OrderItem? SelectedOrder
     {
@@ -289,6 +320,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         var query = (_searchText ?? string.Empty).Trim();
         var map = _allOrders
             .Where(o => o.Type == OrderType.Map)
+            .Where(o => o.IsArchived == ShowArchivedOrders)
             .Where(o => MatchesDeliveryTypeFilter(o))
             .Where(o => MatchesStatusFilter(o))
             .Where(o => MatchesSearchQuery(o, query));
@@ -310,7 +342,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private void UpdateStatusText()
     {
         var assigned = MapOrders.Count(x => !string.IsNullOrWhiteSpace(x.AssignedTourId));
-        StatusText = $"Aufträge: {MapOrders.Count} | Zugeordnet: {assigned} | Offen: {MapOrders.Count - assigned}";
+        var modeLabel = ShowArchivedOrders ? "Archiviert" : "Aktiv";
+        StatusText = $"Aufträge ({modeLabel}): {MapOrders.Count} | Zugeordnet: {assigned} | Offen: {MapOrders.Count - assigned}";
     }
 
     private void RaiseCommandStates()
@@ -378,6 +411,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
         var statusOptions = _allOrders
             .Where(o => o.Type == OrderType.Map)
+            .Where(o => o.IsArchived == ShowArchivedOrders)
             .Select(o => NormalizeOrderStatus(o.OrderStatus))
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -535,7 +569,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
             OrderStatus = NormalizeOrderStatus(order.OrderStatus),
             ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
-            Notes = order.Notes ?? string.Empty
+            Notes = order.Notes ?? string.Empty,
+            IsArchived = order.IsArchived
         };
     }
 
@@ -600,7 +635,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             }).ToList(),
             DeliveryType = source.DeliveryType,
             OrderStatus = source.OrderStatus,
-            Notes = source.Notes
+            Notes = source.Notes,
+            IsArchived = source.IsArchived
         };
     }
 }
@@ -629,6 +665,7 @@ public sealed class OrderItem : ObservableObject
     private string _orderStatus = string.Empty;
     private string _productsSummary = string.Empty;
     private string _notes = string.Empty;
+    private bool _isArchived;
 
     public string Id
     {
@@ -820,6 +857,12 @@ public sealed class OrderItem : ObservableObject
     {
         get => _notes;
         set => SetProperty(ref _notes, value);
+    }
+
+    public bool IsArchived
+    {
+        get => _isArchived;
+        set => SetProperty(ref _isArchived, value);
     }
 }
 

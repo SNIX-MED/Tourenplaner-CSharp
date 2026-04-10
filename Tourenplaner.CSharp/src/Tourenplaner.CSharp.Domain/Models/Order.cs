@@ -37,6 +37,7 @@ public sealed class Order
     public string OrderStatus { get; set; } = DefaultOrderStatus;
     public string AvisoStatus { get; set; } = "nicht avisiert";
     public string Notes { get; set; } = string.Empty;
+    public bool IsArchived { get; set; }
 
     public static string NormalizeOrderStatus(string? value)
     {

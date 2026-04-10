@@ -40,6 +40,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private bool _isCustomerColumnVisible = true;
     private bool _isDeliveryAddressColumnVisible = true;
     private bool _isDeliveryPersonColumnVisible = true;
+    private bool _showArchivedOrders;
 
     public NonMapOrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService)
         : base("Post/Spedition/Abholung", "Auftraege fuer Post, Spedition oder Selbstabholung.")
@@ -53,6 +54,9 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         EditSelectedOrderCommand = new AsyncCommand(EditSelectedOrderAsync, () => SelectedOrder is not null);
         UndoDeleteCommand = new AsyncCommand(UndoDeleteAsync, () => _lastDeletedOrder is not null);
         RemoveCommand = new AsyncCommand(RemoveSelectedOrderAsync, () => SelectedOrder is not null);
+        ShowActiveOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = false);
+        ShowArchivedOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = true);
+        ToggleArchiveModeCommand = new DelegateCommand(() => ShowArchivedOrders = !ShowArchivedOrders);
         _dataSyncService.OrdersChanged += OnOrdersChanged;
         _ = RefreshAsync();
     }
@@ -74,6 +78,12 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     public ICommand UndoDeleteCommand { get; }
 
     public ICommand RemoveCommand { get; }
+
+    public ICommand ShowActiveOrdersCommand { get; }
+
+    public ICommand ShowArchivedOrdersCommand { get; }
+
+    public ICommand ToggleArchiveModeCommand { get; }
 
     public string SearchText
     {
@@ -134,6 +144,27 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         get => _isDeliveryPersonColumnVisible;
         set => SetProperty(ref _isDeliveryPersonColumnVisible, value);
     }
+
+    public bool ShowArchivedOrders
+    {
+        get => _showArchivedOrders;
+        set
+        {
+            if (!SetProperty(ref _showArchivedOrders, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(ShowActiveOrders));
+            OnPropertyChanged(nameof(ArchiveToggleButtonText));
+            UpdateFilterOptions();
+            RebuildGrid();
+        }
+    }
+
+    public bool ShowActiveOrders => !ShowArchivedOrders;
+
+    public string ArchiveToggleButtonText => ShowArchivedOrders ? "Aktiv anzeigen" : "Archiviert anzeigen";
 
     public OrderItem? SelectedOrder
     {
@@ -287,6 +318,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         var query = (_searchText ?? string.Empty).Trim();
         var items = _allOrders
             .Where(o => o.Type == OrderType.NonMap)
+            .Where(o => o.IsArchived == ShowArchivedOrders)
             .Where(o => MatchesDeliveryTypeFilter(o))
             .Where(o => MatchesStatusFilter(o))
             .Where(o => MatchesSearchQuery(o, query));
@@ -308,7 +340,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private void UpdateStatusText()
     {
         var assigned = NonMapOrders.Count(x => !string.IsNullOrWhiteSpace(x.AssignedTourId));
-        StatusText = $"Post/Spedition/Abholung: {NonMapOrders.Count} | Zugeordnet: {assigned} | Offen: {NonMapOrders.Count - assigned}";
+        var modeLabel = ShowArchivedOrders ? "Archiviert" : "Aktiv";
+        StatusText = $"Post/Spedition/Abholung ({modeLabel}): {NonMapOrders.Count} | Zugeordnet: {assigned} | Offen: {NonMapOrders.Count - assigned}";
     }
 
     private void RaiseCommandStates()
@@ -376,6 +409,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
         var statusOptions = _allOrders
             .Where(o => o.Type == OrderType.NonMap)
+            .Where(o => o.IsArchived == ShowArchivedOrders)
             .Select(o => NormalizeOrderStatus(o.OrderStatus))
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -533,7 +567,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
             OrderStatus = NormalizeOrderStatus(order.OrderStatus),
             ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
-            Notes = order.Notes ?? string.Empty
+            Notes = order.Notes ?? string.Empty,
+            IsArchived = order.IsArchived
         };
     }
 
@@ -598,7 +633,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             }).ToList(),
             DeliveryType = source.DeliveryType,
             OrderStatus = source.OrderStatus,
-            Notes = source.Notes
+            Notes = source.Notes,
+            IsArchived = source.IsArchived
         };
     }
 }

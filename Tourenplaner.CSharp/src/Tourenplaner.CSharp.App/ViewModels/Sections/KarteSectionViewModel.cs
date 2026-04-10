@@ -982,6 +982,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var query = (_searchText ?? string.Empty).Trim();
         IEnumerable<Order> filtered = _allOrders
             .Where(o => o.Type == OrderType.Map && o.Location is not null)
+            .Where(o => !o.IsArchived)
             .Where(o => !routeOrderIds.Contains(o.Id));
 
         if (!IncludeOpenOrders)
@@ -1105,6 +1106,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         {
             var mapOrders = _allOrders
                 .Where(o => o.Type == OrderType.Map && o.Location is not null)
+                .Where(o => !o.IsArchived)
                 .ToList();
 
             var statuses = mapOrders
@@ -1978,6 +1980,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         _savedTours.Clear();
         _savedTours.AddRange((await _tourRepository.LoadAsync())
+            .Where(t => !t.IsArchived)
             .OrderByDescending(t => ParseDateForSort(t.Date))
             .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase));
 
@@ -4144,6 +4147,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var changed = false;
         var candidates = _allOrders
             .Where(x => x.Type == OrderType.Map &&
+                        !x.IsArchived &&
                         (x.Location is null || AddressGeocodingService.IsLikelyCountryCentroid(x.Location)))
             .ToList();
 
