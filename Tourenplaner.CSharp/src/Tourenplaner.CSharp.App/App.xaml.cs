@@ -1,9 +1,11 @@
 ﻿using System.IO;
 using System.Linq;
+using System.Globalization;
 using System.Windows;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
+using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.Application.Common;
-using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
@@ -13,8 +15,9 @@ namespace Tourenplaner.CSharp.App;
 public partial class App : System.Windows.Application
 {
     private string _logPath = string.Empty;
+    private AppDataHistoryService? _historyService;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -35,18 +38,19 @@ public partial class App : System.Windows.Application
             var employeesJsonPath = Path.Combine(dataRoot, "employees.json");
             var vehiclesJsonPath = Path.Combine(dataRoot, "vehicles.json");
 
-            var orderRepository = new JsonOrderRepository(ordersJsonPath);
-            var tourRepository = new JsonTourRepository(toursJsonPath);
-            var employeeRepository = new JsonEmployeeRepository(employeesJsonPath);
-            var vehicleRepository = new JsonVehicleRepository(vehiclesJsonPath);
-
-            var snapshotService = new AppSnapshotService(orderRepository, tourRepository, employeeRepository, vehicleRepository);
-            _ = RunTourIntegrityCheckOnStartup(toursJsonPath, settingsPath);
-
+            var dataSyncService = new AppDataSyncService();
+            var historyService = new AppDataHistoryService(
+                dataSyncService,
+                ordersJsonPath,
+                toursJsonPath,
+                employeesJsonPath,
+                vehiclesJsonPath,
+                settingsPath);
             var mainWindow = new MainWindow
             {
                 DataContext = new MainShellViewModel(
-                    snapshotService,
+                    historyService,
+                    dataSyncService,
                     ordersJsonPath,
                     toursJsonPath,
                     employeesJsonPath,
@@ -55,7 +59,11 @@ public partial class App : System.Windows.Application
                     dataRoot)
             };
 
+            historyService.Initialize();
+            _historyService = historyService;
+            await RunTourIntegrityCheckOnStartup(toursJsonPath, settingsPath);
             mainWindow.Show();
+            await PromptPastTourArchivingOnStartupAsync(mainWindow, toursJsonPath, ordersJsonPath);
         }
         catch (Exception ex)
         {
@@ -68,6 +76,135 @@ public partial class App : System.Windows.Application
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             Shutdown(-1);
+        }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _historyService?.Dispose();
+        _historyService = null;
+        base.OnExit(e);
+    }
+
+    private async Task PromptPastTourArchivingOnStartupAsync(Window owner, string toursJsonPath, string ordersJsonPath)
+    {
+        try
+        {
+            var toursRepository = new JsonToursRepository(toursJsonPath);
+            var orderRepository = new JsonOrderRepository(ordersJsonPath);
+
+            var tours = (await toursRepository.LoadAsync()).ToList();
+            var orders = (await orderRepository.GetAllAsync()).ToList();
+
+            var pastTours = tours
+                .Where(t => !t.IsArchived && TryParseTourDate(t.Date, out var parsedDate) && parsedDate < DateTime.Today)
+                .OrderBy(t => ParseTourDateOrToday(t.Date))
+                .ThenBy(t => t.Id)
+                .ToList();
+
+            if (pastTours.Count == 0)
+            {
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                owner,
+                $"Es wurden {pastTours.Count} vergangene Tour(en) gefunden.{Environment.NewLine}{Environment.NewLine}" +
+                "Sollen diese inklusive Aufträge archiviert werden?",
+                "Vergangene Touren archivieren",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var toursChanged = false;
+            var ordersChanged = false;
+            var userCanceled = false;
+
+            for (var index = 0; index < pastTours.Count; index++)
+            {
+                var tour = pastTours[index];
+                var tourKey = tour.Id.ToString(CultureInfo.InvariantCulture);
+                var tourDate = ParseTourDateOrToday(tour.Date);
+                var candidateOrders = orders
+                    .Where(o => !o.IsArchived &&
+                                string.Equals((o.AssignedTourId ?? string.Empty).Trim(), tourKey, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var dialog = new StartupTourArchiveDialogWindow(
+                    tour,
+                    tourDate,
+                    index + 1,
+                    pastTours.Count,
+                    candidateOrders)
+                {
+                    Owner = owner
+                };
+
+                var result = dialog.ShowDialog();
+                if (result != true)
+                {
+                    if (dialog.CancelAll)
+                    {
+                        userCanceled = true;
+                        break;
+                    }
+
+                    continue;
+                }
+
+                if (!dialog.ShouldArchiveTour)
+                {
+                    continue;
+                }
+
+                tour.IsArchived = true;
+                toursChanged = true;
+
+                var selectedOrderIds = new HashSet<string>(dialog.SelectedOrderIds, StringComparer.OrdinalIgnoreCase);
+                foreach (var order in candidateOrders)
+                {
+                    if (selectedOrderIds.Contains(order.Id))
+                    {
+                        if (!order.IsArchived)
+                        {
+                            order.IsArchived = true;
+                            ordersChanged = true;
+                        }
+                    }
+                    else if (!string.IsNullOrWhiteSpace(order.AssignedTourId))
+                    {
+                        order.AssignedTourId = string.Empty;
+                        ordersChanged = true;
+                    }
+                }
+            }
+
+            if (toursChanged)
+            {
+                await toursRepository.SaveAsync(tours);
+            }
+
+            if (ordersChanged)
+            {
+                await orderRepository.SaveAllAsync(orders);
+            }
+
+            if (toursChanged || ordersChanged)
+            {
+                var scope = userCanceled ? "teilweise" : "vollständig";
+                TryLogInfo(
+                    "PromptPastTourArchivingOnStartupAsync",
+                    $"Vergangene Touren wurden {scope} archiviert. Touren geändert: {toursChanged}, Aufträge geändert: {ordersChanged}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            TryLogException("PromptPastTourArchivingOnStartupAsync", ex);
         }
     }
 
@@ -252,6 +389,18 @@ public partial class App : System.Windows.Application
         return parts.Length == 0 ? "Firmenadresse nicht gesetzt" : string.Join(", ", parts);
     }
 
+    private static bool TryParseTourDate(string? value, out DateTime date)
+    {
+        var input = (value ?? string.Empty).Trim();
+        return DateTime.TryParseExact(input, "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out date) ||
+               DateTime.TryParseExact(input, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+    }
+
+    private static DateTime ParseTourDateOrToday(string? value)
+    {
+        return TryParseTourDate(value, out var parsed) ? parsed : DateTime.Today;
+    }
+
     private static string CreateStartupRepairBackup(string toursJsonPath)
     {
         if (!File.Exists(toursJsonPath))
@@ -331,5 +480,6 @@ public partial class App : System.Windows.Application
         }
     }
 }
+
 
 

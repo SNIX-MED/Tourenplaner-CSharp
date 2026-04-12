@@ -22,6 +22,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 {
     private const string CompanyStartStopId = "__company_start__";
     private const string CompanyEndStopId = "__company_end__";
+    private const int MaxDraftRouteUndoEntries = 30;
     private const string PlannedTourStatus = "Eingeplant";
     private const string AvisoBadgeColorNotAvisiert = "#64748B";
     private const string AvisoBadgeColorInformiert = "#F59E0B";
@@ -120,6 +121,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _detailSelectedAvisoStatus = "nicht avisiert";
     private readonly List<MapOrderItem> _dimmedMapOrders = new();
     private readonly HashSet<int> _selectedDetailProductIndices = new();
+    private readonly Stack<RouteStopRemovalUndoSnapshot> _draftRouteStopRemovalUndoStack = new();
     private string? _detailSelectedProductStatus;
     private bool _suppressDetailSelectedProductStatusApply;
     private readonly Guid _instanceId = Guid.NewGuid();
@@ -235,6 +237,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public ICommand ShowSelectedOrderTourCommand { get; }
 
     public ICommand EditOrderCommand { get; }
+
+    public bool CanUndoDraftRouteStopRemoval => _draftRouteStopRemovalUndoStack.Count > 0;
 
     public ObservableCollection<MapOrderFilterOption> OrderStatusFilters { get; } = new();
 
@@ -1389,11 +1393,29 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
+        PushDraftRouteStopRemovalSnapshot(SelectedRouteStop);
+
         RouteStops.Remove(SelectedRouteStop);
         SelectedRouteStop = RouteStops.FirstOrDefault(x => !IsCompanyStop(x));
         RebuildPositions();
         RebuildOrderGrid();
         MarkRouteChanged();
+    }
+
+    public bool TryUndoDraftRouteStopRemoval()
+    {
+        if (_draftRouteStopRemovalUndoStack.Count == 0)
+        {
+            return false;
+        }
+
+        var snapshot = _draftRouteStopRemovalUndoStack.Pop();
+        ApplyRouteStops(snapshot.RouteStops, snapshot.SelectedOrderId, markRouteChanged: false);
+        RebuildOrderGrid(snapshot.SelectedOrderId);
+        SetRouteChanged(snapshot.HadUnsavedRouteChanges);
+        StatusText = $"Stopp {snapshot.SelectedOrderId} wurde wiederhergestellt.";
+        RaiseDraftRouteStopUndoStateChanged();
+        return true;
     }
 
     private async Task RemoveSelectedOrderFromTourAsync()
@@ -1849,6 +1871,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await RefreshAsync();
         await FocusTourAsync(nextId);
         SetRouteChanged(false);
+        ClearDraftRouteStopRemovalUndoHistory();
         StatusText = "Route gespeichert und auf Karte geladen.";
         ToastNotificationService.ShowInfo($"Neue Tour {nextId} wurde erstellt.");
         }
@@ -1963,6 +1986,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await RefreshAsync();
         await FocusTourAsync(tourId);
         SetRouteChanged(false);
+        ClearDraftRouteStopRemovalUndoHistory();
         StatusText = "Tour aktualisiert und auf Karte geladen.";
         }
         catch (IOException ioEx)
@@ -2099,9 +2123,52 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         ApplyTourStopsToRoute(tour);
         SetRouteChanged(false);
+        ClearDraftRouteStopRemovalUndoHistory();
         StatusText = "Tour auf Karte geladen.";
         RaiseCommandStates();
         UpdateRouteSummary();
+    }
+
+    private void PushDraftRouteStopRemovalSnapshot(RouteStopItem routeStop)
+    {
+        var selectedOrderId = (routeStop.OrderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(selectedOrderId))
+        {
+            return;
+        }
+
+        _draftRouteStopRemovalUndoStack.Push(new RouteStopRemovalUndoSnapshot(
+            ToMapRouteStops(),
+            selectedOrderId,
+            _hasUnsavedRouteChanges));
+
+        if (_draftRouteStopRemovalUndoStack.Count > MaxDraftRouteUndoEntries)
+        {
+            var kept = _draftRouteStopRemovalUndoStack.Take(MaxDraftRouteUndoEntries).Reverse().ToArray();
+            _draftRouteStopRemovalUndoStack.Clear();
+            foreach (var item in kept)
+            {
+                _draftRouteStopRemovalUndoStack.Push(item);
+            }
+        }
+
+        RaiseDraftRouteStopUndoStateChanged();
+    }
+
+    private void ClearDraftRouteStopRemovalUndoHistory()
+    {
+        if (_draftRouteStopRemovalUndoStack.Count == 0)
+        {
+            return;
+        }
+
+        _draftRouteStopRemovalUndoStack.Clear();
+        RaiseDraftRouteStopUndoStateChanged();
+    }
+
+    private void RaiseDraftRouteStopUndoStateChanged()
+    {
+        OnPropertyChanged(nameof(CanUndoDraftRouteStopRemoval));
     }
 
     private void ApplyTourStopsToRoute(TourRecord tour)
@@ -2553,7 +2620,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             .ToList();
     }
 
-    private void ApplyRouteStops(IReadOnlyList<MapRouteStop> routeStops, string? selectedOrderId = null)
+    private void ApplyRouteStops(IReadOnlyList<MapRouteStop> routeStops, string? selectedOrderId = null, bool markRouteChanged = true)
     {
         _suppressRouteChangeTracking = true;
         try
@@ -2598,11 +2665,15 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             _suppressRouteChangeTracking = false;
         }
 
-        MarkRouteChanged();
+        if (markRouteChanged)
+        {
+            MarkRouteChanged();
+        }
     }
 
     private void ClearRoute()
     {
+        ClearDraftRouteStopRemovalUndoHistory();
         _activeTourId = 0;
         _currentRouteVehicleId = string.Empty;
         _currentRouteTrailerId = string.Empty;
@@ -3313,6 +3384,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var updated = dialog.CreatedOrder;
         updated.Type = OrderType.Map;
         updated.AssignedTourId = selected.AssignedTourId;
+
+        if (!await ConfirmManualArchiveForAssignedActiveTourAsync(selected, updated))
+        {
+            return;
+        }
+
         updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated) ?? selected.Location;
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
@@ -3325,6 +3402,40 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, updated.Id, StringComparison.OrdinalIgnoreCase));
         PublishOrderChange(originalId, updated.Id);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
+    }
+
+    private async Task<bool> ConfirmManualArchiveForAssignedActiveTourAsync(Order existing, Order updated)
+    {
+        if (existing.IsArchived || !updated.IsArchived)
+        {
+            return true;
+        }
+
+        var assignedTourId = (existing.AssignedTourId ?? string.Empty).Trim();
+        if (!int.TryParse(assignedTourId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var assignedTourIdNumber) ||
+            assignedTourIdNumber <= 0)
+        {
+            return true;
+        }
+
+        var tours = await _tourRepository.LoadAsync();
+        var assignedTour = tours.FirstOrDefault(t => t.Id == assignedTourIdNumber);
+        if (assignedTour is null || assignedTour.IsArchived)
+        {
+            return true;
+        }
+
+        var tourLabel = string.IsNullOrWhiteSpace(assignedTour.Name)
+            ? $"Tour {assignedTour.Id}"
+            : $"{assignedTour.Name.Trim()} (Tour {assignedTour.Id})";
+        var confirmation = MessageBox.Show(
+            $"Der Auftrag ist in {tourLabel} eingeplant, und diese Tour ist nicht archiviert.{Environment.NewLine}{Environment.NewLine}" +
+            "Auftrag trotzdem archivieren?",
+            "Auftrag in aktiver Tour",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        return confirmation == MessageBoxResult.Yes;
     }
 
     public async Task EditDetailProductAsync(DetailProductItem? detailItem)
@@ -4538,6 +4649,11 @@ public sealed class MapOrderFilterOption : ObservableObject
         set => SetProperty(ref _isSelected, value);
     }
 }
+
+public sealed record RouteStopRemovalUndoSnapshot(
+    IReadOnlyList<MapRouteStop> RouteStops,
+    string SelectedOrderId,
+    bool HadUnsavedRouteChanges);
 
 public sealed class RouteStopItem : ObservableObject
 {

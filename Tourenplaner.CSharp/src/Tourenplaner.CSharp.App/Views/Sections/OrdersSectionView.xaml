@@ -220,8 +220,7 @@
                             Width="92"
                             Margin="8,0,0,0"
                             Content="Filter"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            Click="OnFilterPopupButtonClick" />
+                            Style="{StaticResource SecondaryButtonStyle}" />
                     <Popup x:Name="FilterPopup"
                            PlacementTarget="{Binding ElementName=FilterPopupButton}"
                            Placement="Bottom"
@@ -297,12 +296,11 @@
                             </StackPanel>
                         </Border>
                     </Popup>
-                    <Button Width="92"
+                    <Button x:Name="ColumnsPopupButton"
+                            Width="92"
                             Margin="8,0,0,0"
                             Content="Spalten"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            x:Name="ColumnsPopupButton"
-                            Click="OnColumnsPopupButtonClick" />
+                            Style="{StaticResource SecondaryButtonStyle}" />
                     <Popup x:Name="ColumnsPopup"
                            PlacementTarget="{Binding ElementName=ColumnsPopupButton}"
                            Placement="Bottom"
@@ -382,9 +380,18 @@
                                         <Setter Property="Background" Value="{DynamicResource Brush.BorderSoft}" />
                                     </Style>
                                 </ContextMenu.Resources>
+                                <MenuItem Header="Auftragsnummer kopieren"
+                                          Style="{StaticResource QuickActionsMenuItemStyle}"
+                                          Command="{Binding CopySelectedOrderNumberCommand}" />
                                 <MenuItem Header="Auftrag bearbeiten"
                                           Style="{StaticResource QuickActionsMenuItemStyle}"
                                           Command="{Binding EditSelectedOrderCommand}" />
+                                <MenuItem Header="Tour anzeigen"
+                                          Style="{StaticResource QuickActionsMenuItemStyle}"
+                                          Command="{Binding ShowAssignedTourCommand}" />
+                                <MenuItem Header="{Binding ToggleArchiveSelectedOrderMenuText}"
+                                          Style="{StaticResource QuickActionsMenuItemStyle}"
+                                          Command="{Binding ToggleArchiveSelectedOrderCommand}" />
                                 <Separator />
                                 <MenuItem Header="Auftrag löschen"
                                           Style="{StaticResource QuickActionsMenuItemStyle}"

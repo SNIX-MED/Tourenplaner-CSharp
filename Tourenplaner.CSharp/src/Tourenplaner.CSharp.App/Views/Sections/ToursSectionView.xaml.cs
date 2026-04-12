@@ -35,7 +35,7 @@ public partial class ToursSectionView : UserControl
 
     private void ToursGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        var row = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        var row = VisualTreeUtilities.FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
         if (row?.Item is not TourOverviewItem item)
         {
             return;
@@ -53,7 +53,7 @@ public partial class ToursSectionView : UserControl
         _stopsGridDragStart = null;
         _stopsGridDragItem = null;
 
-        var itemContainer = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        var itemContainer = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
         if (itemContainer?.DataContext is not TourStopOverviewItem item || item.IsCompanyStop)
         {
             return;
@@ -157,7 +157,7 @@ public partial class ToursSectionView : UserControl
             return;
         }
 
-        var targetRow = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        var targetRow = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
         var target = targetRow?.DataContext as TourStopOverviewItem;
         if (target is not null &&
             (target.IsCompanyStop || ReferenceEquals(target, source)))
@@ -193,7 +193,7 @@ public partial class ToursSectionView : UserControl
             return;
         }
 
-        var targetRow = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        var targetRow = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
         var target = targetRow?.DataContext as TourStopOverviewItem;
         var moved = await vm.MoveStopWithinSelectedTourAsync(source, target);
         if (moved)
@@ -214,7 +214,7 @@ public partial class ToursSectionView : UserControl
         }
 
         var source = e.Data.GetData(typeof(TourStopOverviewItem)) as TourStopOverviewItem;
-        var targetRow = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        var targetRow = VisualTreeUtilities.FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
         var targetTour = targetRow?.Item as TourOverviewItem;
         if (source is null || source.IsCompanyStop || targetTour is null || source.SourceTourId == targetTour.TourId)
         {
@@ -244,7 +244,7 @@ public partial class ToursSectionView : UserControl
         }
 
         var source = e.Data.GetData(typeof(TourStopOverviewItem)) as TourStopOverviewItem;
-        var targetRow = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        var targetRow = VisualTreeUtilities.FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
         var targetTour = targetRow?.Item as TourOverviewItem;
         if (source is null || targetTour is null)
         {
@@ -329,7 +329,7 @@ public partial class ToursSectionView : UserControl
 
     private void SelectTourStopFromEvent(DependencyObject? source)
     {
-        var itemContainer = FindVisualParent<ListBoxItem>(source);
+        var itemContainer = VisualTreeUtilities.FindAncestor<ListBoxItem>(source);
         if (itemContainer?.DataContext is not TourStopOverviewItem item || item.IsCompanyStop)
         {
             return;
@@ -342,18 +342,4 @@ public partial class ToursSectionView : UserControl
         }
     }
 
-    private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
-    {
-        while (child is not null)
-        {
-            if (child is T match)
-            {
-                return match;
-            }
-
-            child = VisualTreeHelper.GetParent(child);
-        }
-
-        return null;
-    }
 }

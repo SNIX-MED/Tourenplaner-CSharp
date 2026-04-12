@@ -2,7 +2,6 @@ using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.App.Views.Dialogs;
-using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
 using System.Threading;
@@ -25,6 +24,7 @@ public sealed class MainShellViewModel : ObservableObject
     private readonly KarteSectionViewModel _mapSection;
     private readonly KalenderSectionViewModel _calendarSection;
     private readonly SplitScreenSectionViewModel _splitScreenSection;
+    private readonly AppDataHistoryService _historyService;
     private readonly AppDataSyncService _dataSyncService;
     private readonly string _ordersJsonPath;
     private readonly Guid _instanceId = Guid.NewGuid();
@@ -46,7 +46,8 @@ public sealed class MainShellViewModel : ObservableObject
     private bool _isSidebarCollapsed;
 
     public MainShellViewModel(
-        AppSnapshotService snapshotService,
+        AppDataHistoryService historyService,
+        AppDataSyncService dataSyncService,
         string ordersJsonPath,
         string toursJsonPath,
         string employeesJsonPath,
@@ -54,7 +55,7 @@ public sealed class MainShellViewModel : ObservableObject
         string settingsJsonPath,
         string dataRootPath)
     {
-        var dataSyncService = new AppDataSyncService();
+        _historyService = historyService;
         _dataSyncService = dataSyncService;
         _ordersJsonPath = ordersJsonPath;
         var map = new KarteSectionViewModel(ordersJsonPath, toursJsonPath, settingsJsonPath, dataSyncService);
@@ -86,8 +87,14 @@ public sealed class MainShellViewModel : ObservableObject
         _splitScreenSection = new SplitScreenSectionViewModel(map, calendar, LeaveSplitScreenAsync);
         map.SetOpenSplitScreenAction(OpenSplitScreenAsync);
         calendar.SetOpenSplitScreenAction(OpenSplitScreenAsync);
-        var orders = new OrdersSectionViewModel(ordersJsonPath, dataSyncService);
-        var nonMapOrders = new NonMapOrdersSectionViewModel(ordersJsonPath, dataSyncService);
+        var orders = new OrdersSectionViewModel(
+            ordersJsonPath,
+            dataSyncService,
+            tourId => NavigateToTourAsync(tours, tourId));
+        var nonMapOrders = new NonMapOrdersSectionViewModel(
+            ordersJsonPath,
+            dataSyncService,
+            tourId => NavigateToTourAsync(tours, tourId));
         var employees = new EmployeesSectionViewModel(employeesJsonPath, toursJsonPath, dataSyncService);
         var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath, toursJsonPath, dataSyncService);
         
@@ -131,6 +138,10 @@ public sealed class MainShellViewModel : ObservableObject
 
         OpenSettingsCommand = new DelegateCommand(OpenSettings);
         ToggleSidebarCommand = new DelegateCommand(ToggleSidebar);
+        UndoCommand = new AsyncCommand(UndoAsync, () => CanUndo);
+        RedoCommand = new AsyncCommand(RedoAsync, () => _historyService.CanRedo);
+        _historyService.StateChanged += OnHistoryStateChanged;
+        _mapSection.PropertyChanged += OnMapSectionPropertyChanged;
         ToastNotificationService.NotificationRequested += OnToastNotificationRequested;
         SelectedNavigationItem = NavigationItems[0];
 
@@ -144,6 +155,24 @@ public sealed class MainShellViewModel : ObservableObject
     public DelegateCommand OpenSettingsCommand { get; }
 
     public DelegateCommand ToggleSidebarCommand { get; }
+
+    public AsyncCommand UndoCommand { get; }
+
+    public AsyncCommand RedoCommand { get; }
+
+    public bool CanUndo => CanUndoDraftRouteStopRemoval || _historyService.CanUndo;
+
+    public bool CanRedo => _historyService.CanRedo;
+
+    public string UndoToolTip => CanUndoDraftRouteStopRemoval
+        ? "Rückgängig: Stopp entfernen"
+        : (CanUndo
+            ? $"Rückgängig: {_historyService.UndoDescription}"
+            : "Keine rückgängig zu machende Änderung");
+
+    public string RedoToolTip => CanRedo
+        ? $"Wiederholen: {_historyService.RedoDescription}"
+        : "Keine wiederholbare Änderung";
 
     public string GlobalSearchText
     {
@@ -367,7 +396,15 @@ public sealed class MainShellViewModel : ObservableObject
         OnPropertyChanged(nameof(IsGpsSectionActive));
         OnPropertyChanged(nameof(IsSpediteurSectionActive));
         OnPropertyChanged(nameof(IsTopBarSectionControlsVisible));
+        RefreshUndoRedoState();
     }
+
+    private bool IsDraftRouteUndoContext()
+    {
+        return CurrentSection is KarteSectionViewModel || CurrentSection is SplitScreenSectionViewModel;
+    }
+
+    private bool CanUndoDraftRouteStopRemoval => IsDraftRouteUndoContext() && _mapSection.CanUndoDraftRouteStopRemoval;
 
     private void SelectNavigationItemForSection(object section)
     {
@@ -473,6 +510,53 @@ public sealed class MainShellViewModel : ObservableObject
 
         await repository.SaveAllAsync(orders);
         _dataSyncService.PublishOrders(_instanceId, originalId, updated.Id);
+    }
+
+    private async Task UndoAsync()
+    {
+        if (CanUndoDraftRouteStopRemoval && _mapSection.TryUndoDraftRouteStopRemoval())
+        {
+            RefreshUndoRedoState();
+            return;
+        }
+
+        await _historyService.UndoAsync();
+    }
+
+    private async Task RedoAsync()
+    {
+        await _historyService.RedoAsync();
+    }
+
+    private void OnHistoryStateChanged(object? sender, EventArgs e)
+    {
+        if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            _ = System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnHistoryStateChanged(sender, e));
+            return;
+        }
+
+        RefreshUndoRedoState();
+    }
+
+    private void OnMapSectionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!string.Equals(e.PropertyName, nameof(KarteSectionViewModel.CanUndoDraftRouteStopRemoval), StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        RefreshUndoRedoState();
+    }
+
+    private void RefreshUndoRedoState()
+    {
+        UndoCommand.RaiseCanExecuteChanged();
+        RedoCommand.RaiseCanExecuteChanged();
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        OnPropertyChanged(nameof(UndoToolTip));
+        OnPropertyChanged(nameof(RedoToolTip));
     }
 
     private async void OnToastNotificationRequested(object? sender, ToastNotification notification)

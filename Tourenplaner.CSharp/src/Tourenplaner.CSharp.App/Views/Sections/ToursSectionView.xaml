@@ -292,6 +292,9 @@
                                     <MenuItem Header="Tour bearbeiten"
                                               Style="{StaticResource QuickActionsMenuItemStyle}"
                                               Command="{Binding EditTourOnMapCommand}" />
+                                    <MenuItem Header="Tour anzeigen"
+                                              Style="{StaticResource QuickActionsMenuItemStyle}"
+                                              Command="{Binding OpenTourOnMapCommand}" />
                                     <MenuItem Header="{Binding ToggleArchiveTourButtonText}"
                                               Style="{StaticResource QuickActionsMenuItemStyle}"
                                               Command="{Binding ToggleArchiveTourCommand}" />

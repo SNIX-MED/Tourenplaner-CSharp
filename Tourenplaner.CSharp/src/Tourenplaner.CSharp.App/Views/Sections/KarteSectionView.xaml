@@ -605,14 +605,14 @@
                                                                 <MenuItem Header="Aufenthaltszeit ändern"
                                                                           Style="{StaticResource RouteStopContextMenuItemStyle}"
                                                                           Click="OnRouteStopEditStayMenuItemClick" />
+                                                                <MenuItem Header="Auftrag bearbeiten"
+                                                                          Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                                          Click="OnRouteStopEditOrderMenuItemClick" />
+                                                                <Separator />
                                                                 <MenuItem Header="Stopp entfernen"
                                                                           Style="{StaticResource RouteStopContextMenuItemStyle}"
                                                                           Foreground="{DynamicResource Brush.Danger}"
                                                                           Click="OnRouteStopRemoveMenuItemClick" />
-                                                                <Separator />
-                                                                <MenuItem Header="Auftrag bearbeiten"
-                                                                          Style="{StaticResource RouteStopContextMenuItemStyle}"
-                                                                          Click="OnRouteStopEditOrderMenuItemClick" />
                                                             </ContextMenu>
                                                         </Border.ContextMenu>
                                                         <Border.Style>

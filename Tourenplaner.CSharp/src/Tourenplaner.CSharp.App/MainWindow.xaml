@@ -13,6 +13,10 @@
         MinHeight="860"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Brush.WindowBackground}">
+    <Window.InputBindings>
+        <KeyBinding Key="Z" Modifiers="Control" Command="{Binding UndoCommand}" />
+        <KeyBinding Key="Y" Modifiers="Control" Command="{Binding RedoCommand}" />
+    </Window.InputBindings>
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <CollectionViewSource x:Key="SidebarNavigationItemsView"

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
@@ -7,6 +8,7 @@ using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
+using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
@@ -26,7 +28,9 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     ];
 
     private readonly JsonOrderRepository _repository;
+    private readonly JsonToursRepository _tourRepository;
     private readonly AppDataSyncService _dataSyncService;
+    private readonly Func<int, Task>? _openTourAsync;
     private readonly List<Order> _allOrders = new();
     private readonly Guid _instanceId = Guid.NewGuid();
     private Order? _lastDeletedOrder;
@@ -42,16 +46,28 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private bool _isDeliveryPersonColumnVisible = true;
     private bool _showArchivedOrders;
 
-    public NonMapOrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService)
+    public NonMapOrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService, Func<int, Task>? openTourAsync = null)
         : base("Post/Spedition/Abholung", "Auftraege fuer Post, Spedition oder Selbstabholung.")
     {
         _repository = new JsonOrderRepository(ordersJsonPath);
+        var dataRoot = Path.GetDirectoryName(ordersJsonPath) ?? string.Empty;
+        _tourRepository = new JsonToursRepository(Path.Combine(dataRoot, "tours.json"));
         _dataSyncService = dataSyncService;
+        _openTourAsync = openTourAsync;
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SaveCommand = new AsyncCommand(SaveAsync, () => NonMapOrders.Count > 0);
         AddCommand = new DelegateCommand(AddOrder);
         AddManualOrderCommand = new AsyncCommand(AddManualOrderAsync);
         EditSelectedOrderCommand = new AsyncCommand(EditSelectedOrderAsync, () => SelectedOrder is not null);
+        ShowAssignedTourCommand = new AsyncCommand(ShowAssignedTourAsync, CanShowAssignedTour);
+        CopySelectedOrderNumberCommand = new DelegateCommand(CopySelectedOrderNumber, () => SelectedOrder is not null);
+        SetSelectedOrderStatusDefaultCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.DefaultOrderStatus), () => SelectedOrder is not null);
+        SetSelectedOrderStatusOrderedCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.OrderedStatus), () => SelectedOrder is not null);
+        SetSelectedOrderStatusInTransitCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.InTransitStatus), () => SelectedOrder is not null);
+        SetSelectedOrderStatusPartiallyInTransitCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.PartiallyInTransitStatus), () => SelectedOrder is not null);
+        SetSelectedOrderStatusPartiallyReadyCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.PartiallyReadyStatus), () => SelectedOrder is not null);
+        SetSelectedOrderStatusReadyCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.ReadyToDeliverStatus), () => SelectedOrder is not null);
+        ToggleArchiveSelectedOrderCommand = new AsyncCommand(ToggleArchiveSelectedOrderAsync, () => SelectedOrder is not null);
         UndoDeleteCommand = new AsyncCommand(UndoDeleteAsync, () => _lastDeletedOrder is not null);
         RemoveCommand = new AsyncCommand(RemoveSelectedOrderAsync, () => SelectedOrder is not null);
         ShowActiveOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = false);
@@ -74,6 +90,24 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     public ICommand AddManualOrderCommand { get; }
 
     public ICommand EditSelectedOrderCommand { get; }
+
+    public ICommand ShowAssignedTourCommand { get; }
+
+    public ICommand CopySelectedOrderNumberCommand { get; }
+
+    public ICommand SetSelectedOrderStatusDefaultCommand { get; }
+
+    public ICommand SetSelectedOrderStatusOrderedCommand { get; }
+
+    public ICommand SetSelectedOrderStatusInTransitCommand { get; }
+
+    public ICommand SetSelectedOrderStatusPartiallyInTransitCommand { get; }
+
+    public ICommand SetSelectedOrderStatusPartiallyReadyCommand { get; }
+
+    public ICommand SetSelectedOrderStatusReadyCommand { get; }
+
+    public ICommand ToggleArchiveSelectedOrderCommand { get; }
 
     public ICommand UndoDeleteCommand { get; }
 
@@ -166,6 +200,10 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     public string ArchiveToggleButtonText => ShowArchivedOrders ? "Aktiv anzeigen" : "Archiviert anzeigen";
 
+    public string ToggleArchiveSelectedOrderMenuText => SelectedOrder?.IsArchived == true
+        ? "Auftrag reaktivieren"
+        : "Auftrag archivieren";
+
     public OrderItem? SelectedOrder
     {
         get => _selectedOrder;
@@ -173,6 +211,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         {
             if (SetProperty(ref _selectedOrder, value))
             {
+                OnPropertyChanged(nameof(ToggleArchiveSelectedOrderMenuText));
                 RaiseCommandStates();
             }
         }
@@ -268,6 +307,12 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         var updated = dialog.CreatedOrder;
         updated.Type = OrderType.NonMap;
         updated.AssignedTourId = existing.AssignedTourId;
+
+        if (!await ConfirmManualArchiveForAssignedActiveTourAsync(existing, updated.IsArchived))
+        {
+            return;
+        }
+
         updated.Location = null;
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
@@ -280,6 +325,150 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         SelectOrderById(updated.Id);
         PublishOrderChange(originalId, updated.Id);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert (Post/Spedition/Abholung).";
+    }
+
+    private async Task<bool> ConfirmManualArchiveForAssignedActiveTourAsync(Order existing, bool nextIsArchived)
+    {
+        if (existing.IsArchived || !nextIsArchived)
+        {
+            return true;
+        }
+
+        var assignedTourId = (existing.AssignedTourId ?? string.Empty).Trim();
+        if (!int.TryParse(assignedTourId, out var assignedTourIdNumber) || assignedTourIdNumber <= 0)
+        {
+            return true;
+        }
+
+        var tours = await _tourRepository.LoadAsync();
+        var assignedTour = tours.FirstOrDefault(t => t.Id == assignedTourIdNumber);
+        if (assignedTour is null || assignedTour.IsArchived)
+        {
+            return true;
+        }
+
+        var tourLabel = string.IsNullOrWhiteSpace(assignedTour.Name)
+            ? $"Tour {assignedTour.Id}"
+            : $"{assignedTour.Name.Trim()} (Tour {assignedTour.Id})";
+        var confirmation = MessageBox.Show(
+            $"Der Auftrag ist in {tourLabel} eingeplant, und diese Tour ist nicht archiviert.{Environment.NewLine}{Environment.NewLine}" +
+            "Auftrag trotzdem archivieren?",
+            "Auftrag in aktiver Tour",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        return confirmation == MessageBoxResult.Yes;
+    }
+
+    private async Task ToggleArchiveSelectedOrderAsync()
+    {
+        if (SelectedOrder is null)
+        {
+            return;
+        }
+
+        var target = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
+        if (target is null)
+        {
+            return;
+        }
+
+        var nextIsArchived = !target.IsArchived;
+        if (!await ConfirmManualArchiveForAssignedActiveTourAsync(target, nextIsArchived))
+        {
+            return;
+        }
+
+        target.IsArchived = nextIsArchived;
+        await _repository.SaveAllAsync(_allOrders);
+        await RefreshFromRepositoryAsync(target.Id);
+        SelectOrderById(target.Id);
+        PublishOrderChange(target.Id, target.Id);
+        StatusText = $"Auftrag {target.Id} wurde {(target.IsArchived ? "archiviert" : "reaktiviert")} (Post/Spedition/Abholung).";
+        ToastNotificationService.ShowInfo(StatusText);
+    }
+
+    private async Task ShowAssignedTourAsync()
+    {
+        if (SelectedOrder is null)
+        {
+            return;
+        }
+
+        var assignedTourIdText = (SelectedOrder.AssignedTourId ?? string.Empty).Trim();
+        if (!int.TryParse(assignedTourIdText, out var tourId) || tourId <= 0)
+        {
+            MessageBox.Show(
+                "Für diesen Auftrag ist keine gültige Tour zugeordnet.",
+                "Tour anzeigen",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        if (_openTourAsync is null)
+        {
+            MessageBox.Show(
+                $"Der Auftrag ist Tour {tourId} zugeordnet.",
+                "Tour anzeigen",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        await _openTourAsync(tourId);
+    }
+
+    private bool CanShowAssignedTour()
+    {
+        return SelectedOrder is not null &&
+               int.TryParse((SelectedOrder.AssignedTourId ?? string.Empty).Trim(), out var tourId) &&
+               tourId > 0;
+    }
+
+    private void CopySelectedOrderNumber()
+    {
+        if (SelectedOrder is null || string.IsNullOrWhiteSpace(SelectedOrder.Id))
+        {
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(SelectedOrder.Id);
+            StatusText = $"Auftragsnummer {SelectedOrder.Id} wurde in die Zwischenablage kopiert.";
+        }
+        catch
+        {
+            StatusText = "Auftragsnummer konnte nicht in die Zwischenablage kopiert werden.";
+        }
+    }
+
+    private async Task SetSelectedOrderStatusAsync(string status)
+    {
+        if (SelectedOrder is null)
+        {
+            return;
+        }
+
+        var target = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
+        if (target is null)
+        {
+            return;
+        }
+
+        var normalizedStatus = NormalizeOrderStatus(status);
+        if (string.Equals(NormalizeOrderStatus(target.OrderStatus), normalizedStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        target.OrderStatus = normalizedStatus;
+        await _repository.SaveAllAsync(_allOrders);
+        RebuildGrid(target.Id);
+        SelectOrderById(target.Id);
+        PublishOrderChange(target.Id, target.Id);
+        StatusText = $"Status für Auftrag {target.Id} wurde auf \"{normalizedStatus}\" gesetzt.";
     }
 
     private async Task RemoveSelectedOrderAsync()
@@ -349,6 +538,15 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         RaiseCanExecuteChangedIfSupported(SaveCommand);
         RaiseCanExecuteChangedIfSupported(RemoveCommand);
         RaiseCanExecuteChangedIfSupported(EditSelectedOrderCommand);
+        RaiseCanExecuteChangedIfSupported(ShowAssignedTourCommand);
+        RaiseCanExecuteChangedIfSupported(CopySelectedOrderNumberCommand);
+        RaiseCanExecuteChangedIfSupported(SetSelectedOrderStatusDefaultCommand);
+        RaiseCanExecuteChangedIfSupported(SetSelectedOrderStatusOrderedCommand);
+        RaiseCanExecuteChangedIfSupported(SetSelectedOrderStatusInTransitCommand);
+        RaiseCanExecuteChangedIfSupported(SetSelectedOrderStatusPartiallyInTransitCommand);
+        RaiseCanExecuteChangedIfSupported(SetSelectedOrderStatusPartiallyReadyCommand);
+        RaiseCanExecuteChangedIfSupported(SetSelectedOrderStatusReadyCommand);
+        RaiseCanExecuteChangedIfSupported(ToggleArchiveSelectedOrderCommand);
         RaiseCanExecuteChangedIfSupported(UndoDeleteCommand);
     }
 
@@ -586,6 +784,12 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     private static void RaiseCanExecuteChangedIfSupported(ICommand command)
     {
+        if (command is DelegateCommand delegateCommand)
+        {
+            delegateCommand.RaiseCanExecuteChanged();
+            return;
+        }
+
         if (command is AsyncCommand asyncCommand)
         {
             asyncCommand.RaiseCanExecuteChanged();

@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.ComponentModel;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 
@@ -10,18 +9,21 @@ namespace Tourenplaner.CSharp.App.Views.Sections;
 public partial class NonMapOrdersSectionView : UserControl
 {
     private NonMapOrdersSectionViewModel? _viewModel;
+    private PopupToggleController? _filterPopupController;
+    private PopupToggleController? _columnsPopupController;
 
     public NonMapOrdersSectionView()
     {
         InitializeComponent();
         AddHandler(MouseWheelEvent, new MouseWheelEventHandler(OnAnyMouseWheel), true);
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
         DataContextChanged += OnDataContextChanged;
     }
 
     private void OnAnyMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        var viewer = FindDescendantScrollViewer(NonMapOrdersGrid);
+        var viewer = VisualTreeUtilities.FindDescendant<ScrollViewer>(NonMapOrdersGrid);
         if (viewer is null || viewer.ScrollableHeight <= 0)
         {
             return;
@@ -39,46 +41,6 @@ public partial class NonMapOrdersSectionView : UserControl
 
         viewer.ScrollToVerticalOffset(target);
         e.Handled = true;
-    }
-
-    private static ScrollViewer? FindDescendantScrollViewer(DependencyObject? parent)
-    {
-        if (parent is null)
-        {
-            return null;
-        }
-
-        if (parent is ScrollViewer viewer)
-        {
-            return viewer;
-        }
-
-        var childCount = VisualTreeHelper.GetChildrenCount(parent);
-        for (var i = 0; i < childCount; i++)
-        {
-            var nested = FindDescendantScrollViewer(VisualTreeHelper.GetChild(parent, i));
-            if (nested is not null)
-            {
-                return nested;
-            }
-        }
-
-        return null;
-    }
-
-    private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
-    {
-        while (child is not null)
-        {
-            if (child is T typed)
-            {
-                return typed;
-            }
-
-            child = VisualTreeHelper.GetParent(child);
-        }
-
-        return null;
     }
 
     private void OnOpenOrderClick(object sender, RoutedEventArgs e)
@@ -102,7 +64,7 @@ public partial class NonMapOrdersSectionView : UserControl
 
     private void NonMapOrdersGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        var row = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+        var row = VisualTreeUtilities.FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
         if (row?.Item is not OrderItem item || DataContext is not NonMapOrdersSectionViewModel vm)
         {
             return;
@@ -112,26 +74,41 @@ public partial class NonMapOrdersSectionView : UserControl
         vm.SelectedOrder = item;
     }
 
-    private void OnColumnsPopupButtonClick(object sender, RoutedEventArgs e)
-    {
-        ColumnsPopup.IsOpen = !ColumnsPopup.IsOpen;
-        e.Handled = true;
-    }
-
-    private void OnFilterPopupButtonClick(object sender, RoutedEventArgs e)
-    {
-        FilterPopup.IsOpen = !FilterPopup.IsOpen;
-        e.Handled = true;
-    }
-
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        EnsurePopupControllers();
         BindViewModel(DataContext as NonMapOrdersSectionViewModel);
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        DisposePopupControllers();
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         BindViewModel(e.NewValue as NonMapOrdersSectionViewModel);
+    }
+
+    private void EnsurePopupControllers()
+    {
+        _filterPopupController ??= new PopupToggleController(
+            FilterPopupButton,
+            FilterPopup,
+            () => _columnsPopupController?.Close());
+
+        _columnsPopupController ??= new PopupToggleController(
+            ColumnsPopupButton,
+            ColumnsPopup,
+            () => _filterPopupController?.Close());
+    }
+
+    private void DisposePopupControllers()
+    {
+        _filterPopupController?.Dispose();
+        _columnsPopupController?.Dispose();
+        _filterPopupController = null;
+        _columnsPopupController = null;
     }
 
     private void BindViewModel(NonMapOrdersSectionViewModel? vm)

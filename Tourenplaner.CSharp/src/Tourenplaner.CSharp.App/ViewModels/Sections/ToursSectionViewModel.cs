@@ -1102,7 +1102,41 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
-        target.IsArchived = !target.IsArchived;
+        var nextTourArchivedState = !target.IsArchived;
+        var changedOrderCount = 0;
+
+        var tourKey = target.Id.ToString(CultureInfo.InvariantCulture);
+        var orders = (await _orderRepository.GetAllAsync()).ToList();
+        var relatedOrders = orders
+            .Where(x => string.Equals((x.AssignedTourId ?? string.Empty).Trim(), tourKey, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var affectedOrders = relatedOrders
+            .Where(x => x.IsArchived != nextTourArchivedState)
+            .ToList();
+
+        if (affectedOrders.Count > 0)
+        {
+            var orderActionQuestion = nextTourArchivedState ? "archiviert" : "reaktiviert";
+            var confirmation = MessageBox.Show(
+                $"Sollen die {affectedOrders.Count} zugehörigen Aufträge ebenfalls {orderActionQuestion} werden?",
+                "Aufträge mitführen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirmation == MessageBoxResult.Yes)
+            {
+                foreach (var order in affectedOrders)
+                {
+                    order.IsArchived = nextTourArchivedState;
+                }
+
+                await _orderRepository.SaveAllAsync(orders);
+                _dataSyncService.PublishOrders(_instanceId);
+                changedOrderCount = affectedOrders.Count;
+            }
+        }
+
+        target.IsArchived = nextTourArchivedState;
         await _tourRepository.SaveAsync(_loadedTours);
         _dataSyncService.PublishTours(_instanceId, target.Id.ToString(CultureInfo.InvariantCulture), target.Id.ToString(CultureInfo.InvariantCulture));
         RebuildTourRowsWithCurrentFilter(keepSelectionTourId: target.Id);
@@ -1112,7 +1146,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             ? target.Id.ToString(CultureInfo.InvariantCulture)
             : target.Name.Trim();
         var action = target.IsArchived ? "archiviert" : "reaktiviert";
-        ToastNotificationService.ShowInfo($"Tour {label} wurde {action}.");
+        var orderInfo = changedOrderCount > 0
+            ? $" {changedOrderCount} Auftrag/Aufträge wurden ebenfalls {action}."
+            : string.Empty;
+        ToastNotificationService.ShowInfo($"Tour {label} wurde {action}.{orderInfo}");
     }
 
     private async Task DeleteSelectedTourAsync()
