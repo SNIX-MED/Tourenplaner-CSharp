@@ -602,7 +602,7 @@
                                                                         </Setter>
                                                                     </Style>
                                                                 </ContextMenu.Resources>
-                                                                <MenuItem Header="Aufenthaltszeit ändern"
+                                                                <MenuItem Header="Stopp bearbeiten"
                                                                           Style="{StaticResource RouteStopContextMenuItemStyle}"
                                                                           Click="OnRouteStopEditStayMenuItemClick" />
                                                                 <MenuItem Header="Auftrag bearbeiten"
@@ -785,6 +785,21 @@
                                                                                Foreground="{DynamicResource Brush.TextSecondary}"
                                                                                FontWeight="SemiBold" />
                                                                 </StackPanel>
+                                                                <TextBlock Margin="0,4,0,0"
+                                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                                           TextWrapping="Wrap"
+                                                                           Text="{Binding DisplayEmployeeInfo, StringFormat=Info: {0}}">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding DisplayEmployeeInfo}" Value="">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
                                                             </StackPanel>
 
                                                             <StackPanel Grid.Column="2"
@@ -871,7 +886,7 @@
                                                                        Margin="8,0,0,0" />
                                                             <TextBlock Text="{Binding NextLegDepartureText}"
                                                                        Foreground="{DynamicResource Brush.TextSecondary}" />
-                                <TextBlock Text="  ?  "
+                                <TextBlock Text="  ->  "
                                            Foreground="{DynamicResource Brush.TextMuted}" />
                                                             <TextBlock Text="{Binding NextLegArrivalText}"
                                                                        Foreground="{DynamicResource Brush.TextSecondary}" />

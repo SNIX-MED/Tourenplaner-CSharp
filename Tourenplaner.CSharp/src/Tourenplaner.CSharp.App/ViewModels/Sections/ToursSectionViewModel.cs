@@ -24,6 +24,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private readonly AppDataSyncService _dataSyncService;
     private readonly TourScheduleService _scheduleService;
     private readonly TourConflictService _conflictService;
+    private readonly RouteOptimizationService _routeOptimizationService;
     private VehicleDataRecord _vehicleData = new();
 
     private readonly List<TourRecord> _loadedTours = new();
@@ -55,6 +56,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private string _selectedTourWeightText = "Totalgewicht: 0 kg";
     private string _selectedTourLoadSummaryText = string.Empty;
     private string _selectedTourVehicleText = "Fahrzeug & Anhänger: -";
+    private string _dragPreviewEtaText = string.Empty;
+    private string _dragPreviewDurationText = string.Empty;
+    private string _dragPreviewDistanceText = string.Empty;
+    private string _lastDragPreviewSignature = string.Empty;
     private LookupItem? _selectedVehicle;
     private LookupItem? _selectedTrailer;
     private TourOverviewItem? _selectedTour;
@@ -79,6 +84,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _scheduleService = new TourScheduleService();
         _conflictService = new TourConflictService(_scheduleService);
+        _routeOptimizationService = new RouteOptimizationService();
         _openTourOnMapAsync = openTourOnMapAsync;
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
@@ -246,6 +252,26 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         get => _editorConflictText;
         private set => SetProperty(ref _editorConflictText, value);
     }
+
+    public string DragPreviewEtaText
+    {
+        get => _dragPreviewEtaText;
+        private set => SetProperty(ref _dragPreviewEtaText, value);
+    }
+
+    public string DragPreviewDurationText
+    {
+        get => _dragPreviewDurationText;
+        private set => SetProperty(ref _dragPreviewDurationText, value);
+    }
+
+    public string DragPreviewDistanceText
+    {
+        get => _dragPreviewDistanceText;
+        private set => SetProperty(ref _dragPreviewDistanceText, value);
+    }
+
+    public bool HasDragPreview => !string.IsNullOrWhiteSpace(DragPreviewEtaText);
 
     public string FromDateText
     {
@@ -518,6 +544,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         {
             if (SetProperty(ref _selectedTour, value))
             {
+                ClearDragReorderPreview();
                 LoadSelectedTourStops();
                 SyncEditorFromSelection();
                 UpdateSelectedTourSummary();
@@ -607,18 +634,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
-        if (!ConfirmAssignmentConflictWarning(_loadedTours, target.Id))
-        {
-            RestoreAssignment(target, originalAssignment);
-            return;
-        }
-
-        if (!ConfirmCapacityWarning(
-                target.VehicleId,
-                target.TrailerId,
-                target.SecondaryVehicleId,
-                target.SecondaryTrailerId,
-                CalculateTourWeightKg(target)))
+        if (!ConfirmPlanningWarnings(_loadedTours, target.Id))
         {
             RestoreAssignment(target, originalAssignment);
             return;
@@ -731,7 +747,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         SelectedTour = Tours.FirstOrDefault();
     }
 
-    public async Task<bool> MoveStopWithinSelectedTourAsync(TourStopOverviewItem sourceItem, TourStopOverviewItem? targetItem)
+    public async Task<bool> MoveStopWithinSelectedTourAsync(
+        TourStopOverviewItem sourceItem,
+        TourStopOverviewItem? targetItem,
+        bool insertAfterTarget)
     {
         if (sourceItem.Source is null ||
             sourceItem.IsCompanyStop ||
@@ -746,45 +765,75 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return false;
         }
 
-        var movableStops = tour.Stops.Where(s => !IsCompanyStop(s)).ToList();
-        if (movableStops.Count < 2)
+        var beforeMetrics = BuildTourOrderMetrics(tour);
+        if (!TryBuildReorderedStops(tour, sourceItem.Source, targetItem?.Source, insertAfterTarget, out var reorderedStops))
         {
             return false;
         }
 
-        var sourceIndex = movableStops.IndexOf(sourceItem.Source);
-        if (sourceIndex < 0)
-        {
-            return false;
-        }
-
-        var targetStop = targetItem?.Source;
-        var targetIndex = targetStop is null || (targetItem?.IsCompanyStop ?? false)
-            ? movableStops.Count - 1
-            : movableStops.IndexOf(targetStop);
-
-        if (targetIndex < 0 || sourceIndex == targetIndex)
-        {
-            return false;
-        }
-
-        var moved = movableStops[sourceIndex];
-        movableStops.RemoveAt(sourceIndex);
-        if (sourceIndex < targetIndex)
-        {
-            targetIndex--;
-        }
-
-        movableStops.Insert(targetIndex, moved);
-        RebuildTourStopsWithAnchors(tour, movableStops);
+        tour.Stops = reorderedStops;
         _scheduleService.ApplySchedule(tour);
 
         await _tourRepository.SaveAsync(_loadedTours);
         _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
 
         RebuildTourRowsWithCurrentFilter(keepSelectionTourId: tour.Id);
-        StatusText = $"Stopps in Tour {tour.Name} wurden neu angeordnet.";
+        ClearDragReorderPreview();
+
+        var afterMetrics = BuildTourOrderMetrics(tour);
+        var etaDelta = FormatSignedMinutes(afterMetrics.EndMinutes - beforeMetrics.EndMinutes);
+        var durationDelta = FormatSignedMinutes(afterMetrics.DurationMinutes - beforeMetrics.DurationMinutes);
+        var distanceDelta = FormatSignedDistance(afterMetrics.DistanceKm - beforeMetrics.DistanceKm);
+        StatusText = $"Stopps in Tour {tour.Name} neu angeordnet | ETA: {afterMetrics.EndTime} ({etaDelta}) | Dauer: {FormatDuration(afterMetrics.DurationMinutes)} ({durationDelta}) | Distanz: {afterMetrics.DistanceKm:0.0} km ({distanceDelta})";
         return true;
+    }
+
+    public void UpdateDragReorderPreview(TourStopOverviewItem sourceItem, TourStopOverviewItem? targetItem, bool insertAfterTarget)
+    {
+        if (sourceItem.Source is null ||
+            sourceItem.IsCompanyStop ||
+            SelectedTour?.Source is null)
+        {
+            ClearDragReorderPreview();
+            return;
+        }
+
+        var tour = _loadedTours.FirstOrDefault(x => x.Id == SelectedTour.TourId);
+        if (tour is null)
+        {
+            ClearDragReorderPreview();
+            return;
+        }
+
+        var signature = $"{tour.Id}|{sourceItem.Source.Id}|{targetItem?.Source?.Id ?? "_tail"}|{insertAfterTarget}";
+        if (string.Equals(signature, _lastDragPreviewSignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastDragPreviewSignature = signature;
+        if (!TryBuildReorderedStops(tour, sourceItem.Source, targetItem?.Source, insertAfterTarget, out var reorderedStops))
+        {
+            ClearDragReorderPreview();
+            return;
+        }
+
+        var currentMetrics = BuildTourOrderMetrics(tour);
+        var previewMetrics = BuildTourOrderMetrics(tour, reorderedStops);
+
+        DragPreviewEtaText = $"ETA Ende: {previewMetrics.EndTime} ({FormatSignedMinutes(previewMetrics.EndMinutes - currentMetrics.EndMinutes)})";
+        DragPreviewDurationText = $"Dauer: {FormatDuration(previewMetrics.DurationMinutes)} ({FormatSignedMinutes(previewMetrics.DurationMinutes - currentMetrics.DurationMinutes)})";
+        DragPreviewDistanceText = $"Distanz: {previewMetrics.DistanceKm:0.0} km ({FormatSignedDistance(previewMetrics.DistanceKm - currentMetrics.DistanceKm)})";
+        OnPropertyChanged(nameof(HasDragPreview));
+    }
+
+    public void ClearDragReorderPreview()
+    {
+        _lastDragPreviewSignature = string.Empty;
+        DragPreviewEtaText = string.Empty;
+        DragPreviewDurationText = string.Empty;
+        DragPreviewDistanceText = string.Empty;
+        OnPropertyChanged(nameof(HasDragPreview));
     }
 
     public async Task<bool> MoveStopToTourAsync(TourStopOverviewItem sourceItem, TourOverviewItem targetTourItem)
@@ -1287,25 +1336,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
-        if (!ConfirmAssignmentConflictWarning(_loadedTours, tour.Id))
-        {
-            tour.Name = originalName;
-            tour.Date = originalDate;
-            tour.StartTime = originalStartTime;
-            tour.VehicleId = originalVehicleId;
-            tour.TrailerId = originalTrailerId;
-            tour.SecondaryVehicleId = originalSecondaryVehicleId;
-            tour.SecondaryTrailerId = originalSecondaryTrailerId;
-            tour.EmployeeIds = originalEmployeeIds;
-            return;
-        }
-
-        if (!ConfirmCapacityWarning(
-                tour.VehicleId,
-                tour.TrailerId,
-                tour.SecondaryVehicleId,
-                tour.SecondaryTrailerId,
-                CalculateTourWeightKg(tour)))
+        if (!ConfirmPlanningWarnings(_loadedTours, tour.Id))
         {
             tour.Name = originalName;
             tour.Date = originalDate;
@@ -1529,6 +1560,131 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         return _vehicleLabelsById.TryGetValue(id, out var label) ? label : id;
+    }
+
+    private bool TryBuildReorderedStops(
+        TourRecord tour,
+        TourStopRecord sourceStop,
+        TourStopRecord? targetStop,
+        bool insertAfterTarget,
+        out List<TourStopRecord> reorderedStops)
+    {
+        reorderedStops = new List<TourStopRecord>();
+        var movableStops = tour.Stops.Where(s => !IsCompanyStop(s)).ToList();
+        if (movableStops.Count < 2)
+        {
+            return false;
+        }
+
+        var sourceIndex = movableStops.IndexOf(sourceStop);
+        if (sourceIndex < 0)
+        {
+            return false;
+        }
+
+        var targetIndex = targetStop is null || IsCompanyStop(targetStop)
+            ? movableStops.Count
+            : movableStops.IndexOf(targetStop);
+        if (targetIndex < 0)
+        {
+            return false;
+        }
+
+        var moved = movableStops[sourceIndex];
+        movableStops.RemoveAt(sourceIndex);
+
+        if (sourceIndex < targetIndex)
+        {
+            targetIndex--;
+        }
+
+        if (insertAfterTarget && targetStop is not null && !IsCompanyStop(targetStop))
+        {
+            targetIndex++;
+        }
+
+        targetIndex = Math.Clamp(targetIndex, 0, movableStops.Count);
+        if (targetIndex == sourceIndex)
+        {
+            return false;
+        }
+
+        movableStops.Insert(targetIndex, moved);
+
+        var previewTour = CloneTour(tour);
+        RebuildTourStopsWithAnchors(previewTour, movableStops);
+        reorderedStops = previewTour.Stops;
+        return true;
+    }
+
+    private TourOrderMetrics BuildTourOrderMetrics(TourRecord tour, List<TourStopRecord>? orderedStopsOverride = null)
+    {
+        var scheduleSource = orderedStopsOverride is null
+            ? tour
+            : new TourRecord
+            {
+                Date = tour.Date,
+                StartTime = tour.StartTime,
+                TravelTimeCache = new Dictionary<string, int>(tour.TravelTimeCache),
+                Stops = orderedStopsOverride
+            };
+
+        var schedule = _scheduleService.BuildSchedule(scheduleSource);
+        var totalDurationMinutes = Math.Max(0, (int)Math.Round((schedule.End - schedule.Start).TotalMinutes));
+        var routeDistanceKm = CalculateRouteDistanceKm((orderedStopsOverride ?? tour.Stops)
+            .OrderBy(s => s.Order)
+            .ToList());
+
+        return new TourOrderMetrics(
+            EndTime: schedule.End.ToString("HH:mm"),
+            EndMinutes: (int)Math.Round(schedule.End.TimeOfDay.TotalMinutes),
+            DurationMinutes: totalDurationMinutes,
+            DistanceKm: routeDistanceKm);
+    }
+
+    private double CalculateRouteDistanceKm(IReadOnlyList<TourStopRecord> orderedStops)
+    {
+        var points = orderedStops
+            .Select(stop => new
+            {
+                Lat = stop.Lat,
+                Lon = stop.Lon ?? stop.Lng
+            })
+            .Where(p => p.Lat.HasValue && p.Lon.HasValue)
+            .Select(p => new GeoPoint(p.Lat!.Value, p.Lon!.Value))
+            .ToList();
+
+        return _routeOptimizationService.ComputeTotalDistanceKm(points, p => p.Latitude, p => p.Longitude);
+    }
+
+    private static string FormatSignedMinutes(int deltaMinutes)
+    {
+        if (deltaMinutes == 0)
+        {
+            return "±0 min";
+        }
+
+        var sign = deltaMinutes > 0 ? "+" : "-";
+        return $"{sign}{Math.Abs(deltaMinutes)} min";
+    }
+
+    private static string FormatSignedDistance(double deltaKm)
+    {
+        if (Math.Abs(deltaKm) < 0.05d)
+        {
+            return "±0.0 km";
+        }
+
+        var sign = deltaKm > 0 ? "+" : "-";
+        return $"{sign}{Math.Abs(deltaKm):0.0} km";
+    }
+
+    private static string FormatDuration(int totalMinutes)
+    {
+        var safeMinutes = Math.Max(0, totalMinutes);
+        var hours = safeMinutes / 60;
+        var minutes = safeMinutes % 60;
+        return $"{hours}h {minutes:00}m";
     }
 
     private static void RebuildTourStopsWithAnchors(TourRecord tour, List<TourStopRecord> movableStops)
@@ -1869,15 +2025,25 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         preview.TrailerId = SelectedTrailer?.Id;
         preview.EmployeeIds = AvailableEmployees.Where(e => e.IsSelected).Select(e => e.Id).Take(2).ToList();
 
-        var conflicts = _conflictService.FindAssignmentConflicts(previewTours)
-            .Where(c => c.TourIdA == selectedTourId || c.TourIdB == selectedTourId)
-            .Select(c => c.Message)
-            .Distinct()
+        var warnings = BuildPlanningWarnings(previewTours, selectedTourId);
+        if (warnings.Count == 0)
+        {
+            EditorConflictText = "Keine Konflikte in aktueller Auswahl.";
+            return;
+        }
+
+        var previewLines = warnings
+            .Take(3)
+            .Select(x => $"{x.Title}: {x.Message}")
             .ToList();
 
-        EditorConflictText = conflicts.Count == 0
-            ? "No assignment conflicts for current selection."
-            : string.Join(" | ", conflicts);
+        var remaining = warnings.Count - previewLines.Count;
+        if (remaining > 0)
+        {
+            previewLines.Add($"+{remaining} weitere Warnung(en)");
+        }
+
+        EditorConflictText = string.Join(" | ", previewLines);
     }
 
     private static TourRecord CloneTour(TourRecord source)
@@ -1914,7 +2080,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 WaitMinutes = stop.WaitMinutes,
                 ScheduleConflict = stop.ScheduleConflict,
                 ScheduleConflictText = stop.ScheduleConflictText,
-                Gewicht = stop.Gewicht
+                Gewicht = stop.Gewicht,
+                EmployeeInfoText = stop.EmployeeInfoText
             }).ToList()
         };
     }
@@ -2020,80 +2187,159 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         string? SecondaryTrailerId,
         List<string> EmployeeIds);
 
-    private bool ConfirmAssignmentConflictWarning(IEnumerable<TourRecord> tours, int targetTourId)
+    private bool ConfirmPlanningWarnings(IEnumerable<TourRecord> tours, int targetTourId)
     {
-        var conflicts = _conflictService.FindSameDayAssignmentConflicts(tours)
-            .Where(c => c.TourIdA == targetTourId || c.TourIdB == targetTourId)
-            .ToList();
-        if (conflicts.Count == 0)
+        var warnings = BuildPlanningWarnings(tours, targetTourId);
+        if (warnings.Count == 0)
         {
             return true;
         }
 
-        var grouped = conflicts
-            .Select(c => new
-            {
-                Group = GetAssignmentConflictGroupLabel(c),
-                Text = BuildAssignmentConflictDisplayText(c)
-            })
-            .GroupBy(x => x.Group)
-            .OrderBy(g => g.Key switch
-            {
-                "Fahrzeug" => 0,
-                "Anhänger" => 1,
-                "Mitarbeiter" => 2,
-                _ => 3
-            })
+        var grouped = warnings
+            .GroupBy(x => x.Title)
             .ToList();
 
-        var lines = new List<string>();
-        var shown = 0;
-        const int maxEntries = 12;
+        var lines = new List<string>
+        {
+            "Folgende Planungswarnungen wurden erkannt:",
+            string.Empty
+        };
+
         foreach (var group in grouped)
         {
-            if (shown >= maxEntries)
+            lines.Add($"{group.Key}:");
+            foreach (var item in group.Take(6))
             {
-                break;
+                lines.Add($"- {item.Message}");
+                if (!string.IsNullOrWhiteSpace(item.Suggestion))
+                {
+                    lines.Add($"  Vorschlag: {item.Suggestion}");
+                }
             }
 
-            lines.Add($"{group.Key}:");
-            foreach (var item in group.Select(x => x.Text).Distinct())
+            var remaining = group.Count() - 6;
+            if (remaining > 0)
             {
-                if (shown >= maxEntries)
-                {
-                    break;
-                }
-
-                lines.Add($"- {item}");
-                shown++;
+                lines.Add($"- ... und {remaining} weitere");
             }
 
             lines.Add(string.Empty);
         }
 
-        while (lines.Count > 0 && string.IsNullOrWhiteSpace(lines[^1]))
-        {
-            lines.RemoveAt(lines.Count - 1);
-        }
-
-        var totalDistinct = conflicts.Select(BuildAssignmentConflictDisplayText).Distinct().Count();
-        var remaining = Math.Max(0, totalDistinct - shown);
-        if (remaining > 0)
-        {
-            lines.Add($"... und {remaining} weitere Konflikte");
-        }
-
-        var listText = string.Join(Environment.NewLine, lines);
-        var message =
-            "Es wurden Doppelbelegungen am selben Tag erkannt:" + Environment.NewLine + Environment.NewLine +
-            listText + Environment.NewLine + Environment.NewLine +
-            "Trotzdem speichern?";
-
+        lines.Add("Trotzdem speichern?");
         return MessageBox.Show(
-                   message,
-                   "Konfliktwarnung",
+                   string.Join(Environment.NewLine, lines),
+                   "Planungswarnung",
                    MessageBoxButton.YesNo,
                    MessageBoxImage.Warning) == MessageBoxResult.Yes;
+    }
+
+    private IReadOnlyList<TourPlanningWarningItem> BuildPlanningWarnings(IEnumerable<TourRecord> tours, int targetTourId)
+    {
+        var allTours = (tours ?? [])
+            .Where(x => x is not null)
+            .ToList();
+        var targetTour = allTours.FirstOrDefault(x => x.Id == targetTourId);
+        if (targetTour is null)
+        {
+            return Array.Empty<TourPlanningWarningItem>();
+        }
+
+        var warnings = new List<TourPlanningWarningItem>();
+
+        var assignmentConflicts = _conflictService.FindSameDayAssignmentConflicts(allTours)
+            .Where(c => c.TourIdA == targetTourId || c.TourIdB == targetTourId)
+            .Select(BuildAssignmentConflictDisplayText)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var conflictText in assignmentConflicts)
+        {
+            warnings.Add(new TourPlanningWarningItem(
+                Title: "Doppelbelegung",
+                Message: conflictText,
+                Suggestion: "Startzeit oder Datum verschieben oder andere Ressourcen zuweisen."));
+        }
+
+        var schedulePreview = _scheduleService.BuildSchedule(targetTour);
+        var orderedStops = (targetTour.Stops ?? [])
+            .OrderBy(s => s.Order > 0 ? s.Order : int.MaxValue)
+            .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        for (var i = 0; i < schedulePreview.Stops.Count && i < orderedStops.Count; i++)
+        {
+            var scheduleEntry = schedulePreview.Stops[i];
+            if (!scheduleEntry.HasConflict)
+            {
+                continue;
+            }
+
+            var stop = orderedStops[i];
+            var stopLabel = string.IsNullOrWhiteSpace(stop.Auftragsnummer)
+                ? stop.Name
+                : $"{stop.Name} ({stop.Auftragsnummer})";
+
+            warnings.Add(new TourPlanningWarningItem(
+                Title: "Zeitfenster",
+                Message: $"{stopLabel}: {scheduleEntry.ConflictText}",
+                Suggestion: "Zeitfenster anpassen, Startzeit vorziehen oder Aufenthaltszeit reduzieren."));
+        }
+
+        var assignments = BuildVehicleAssignments(
+            targetTour.VehicleId,
+            targetTour.TrailerId,
+            targetTour.SecondaryVehicleId,
+            targetTour.SecondaryTrailerId);
+
+        var totalWeight = CalculateTourWeightKg(targetTour);
+        var capacity = TourCapacityWarningService.EvaluateFleet(_vehicleData, assignments, totalWeight);
+        if (capacity.IsOverCapacity)
+        {
+            var overloadKg = capacity.AllowedWeightKg.HasValue
+                ? Math.Max(0, totalWeight - capacity.AllowedWeightKg.Value)
+                : 0;
+            warnings.Add(new TourPlanningWarningItem(
+                Title: "Ueberladung",
+                Message: capacity.AllowedWeightKg.HasValue
+                    ? $"Totalgewicht {totalWeight} kg, zulaessig {capacity.AllowedWeightKg.Value} kg, Ueberladung {overloadKg} kg."
+                    : $"Totalgewicht {totalWeight} kg ist hoeher als die bekannte Kapazitaet.",
+                Suggestion: "Tour aufteilen oder Fahrzeug/Anhaenger mit hoeherer Kapazitaet waehlen."));
+        }
+
+        foreach (var assignment in assignments)
+        {
+            if (string.IsNullOrWhiteSpace(assignment.TrailerId))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(assignment.VehicleId))
+            {
+                warnings.Add(new TourPlanningWarningItem(
+                    Title: "Fahrzeugklasse",
+                    Message: $"Anhaenger {ResolveTrailerLabel(assignment.TrailerId)} ist ohne Zugfahrzeug zugewiesen.",
+                    Suggestion: "Passendes Zugfahrzeug zuweisen oder Anhaenger entfernen."));
+                continue;
+            }
+
+            var hasActiveCombination = _vehicleData.VehicleCombinations.Any(x =>
+                x.Active &&
+                string.Equals(x.VehicleId, assignment.VehicleId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(x.TrailerId, assignment.TrailerId, StringComparison.OrdinalIgnoreCase));
+
+            if (!hasActiveCombination)
+            {
+                warnings.Add(new TourPlanningWarningItem(
+                    Title: "Fahrzeugklasse",
+                    Message: $"Keine aktive Kombination fuer {ResolveVehicleLabel(assignment.VehicleId)} + {ResolveTrailerLabel(assignment.TrailerId)}.",
+                    Suggestion: "Kombination in Fahrzeugverwaltung aktivieren oder kompatible Kombination waehlen."));
+            }
+        }
+
+        return warnings
+            .DistinctBy(x => $"{x.Title}|{x.Message}", StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private string BuildAssignmentConflictDisplayText(TourAssignmentConflict conflict)
@@ -2212,27 +2458,6 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return $"Für {routeDate} sind folgende Ressourcen nicht verfügbar:{Environment.NewLine}{string.Join(Environment.NewLine, blocked.Distinct(StringComparer.OrdinalIgnoreCase))}";
     }
 
-    private bool ConfirmCapacityWarning(
-        string? vehicleId,
-        string? trailerId,
-        string? secondaryVehicleId,
-        string? secondaryTrailerId,
-        int totalWeightKg)
-    {
-        var assignments = BuildVehicleAssignments(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId);
-        var warning = TourCapacityWarningService.EvaluateFleet(_vehicleData, assignments, totalWeightKg);
-        if (!warning.IsOverCapacity)
-        {
-            return true;
-        }
-
-        return MessageBox.Show(
-                   warning.BuildWarningMessage(),
-                   "Kapazitätswarnung",
-                   MessageBoxButton.YesNo,
-                   MessageBoxImage.Warning) == MessageBoxResult.Yes;
-    }
-
     private static int CalculateTourWeightKg(TourRecord tour)
     {
         return (tour.Stops ?? [])
@@ -2345,6 +2570,17 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return parts.Length == 0 ? "Firmenadresse nicht gesetzt" : string.Join(", ", parts);
     }
 }
+
+internal readonly record struct TourOrderMetrics(
+    string EndTime,
+    int EndMinutes,
+    int DurationMinutes,
+    double DistanceKm);
+
+internal readonly record struct TourPlanningWarningItem(
+    string Title,
+    string Message,
+    string Suggestion);
 
 public sealed class TourOverviewItem
 {

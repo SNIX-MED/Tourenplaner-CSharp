@@ -240,6 +240,11 @@ public static class TourPdfHtmlBuilder
             extras.Add($"Gewicht: {stop.WeightText.Trim()}");
         }
 
+        if (!string.IsNullOrWhiteSpace(stop.EmployeeInfoText))
+        {
+            extras.Add($"Info: {stop.EmployeeInfoText.Trim()}");
+        }
+
         var extraHtml = extras.Count == 0
             ? string.Empty
             : $"<div class=\"stop-extra\">{Html(string.Join(" | ", extras))}</div>";

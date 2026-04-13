@@ -143,6 +143,10 @@ public partial class ToursSectionView : UserControl
             !e.Data.GetDataPresent(typeof(TourStopOverviewItem)))
         {
             ClearDropMarker(ref _activeStopsDropRow);
+            if (DataContext is ToursSectionViewModel previewVm)
+            {
+                previewVm.ClearDragReorderPreview();
+            }
             e.Effects = DragDropEffects.None;
             e.Handled = true;
             return;
@@ -152,6 +156,7 @@ public partial class ToursSectionView : UserControl
         if (source is null || source.IsCompanyStop || vm.SelectedTour is null || source.SourceTourId != vm.SelectedTour.TourId)
         {
             ClearDropMarker(ref _activeStopsDropRow);
+            vm.ClearDragReorderPreview();
             e.Effects = DragDropEffects.None;
             e.Handled = true;
             return;
@@ -163,11 +168,14 @@ public partial class ToursSectionView : UserControl
             (target.IsCompanyStop || ReferenceEquals(target, source)))
         {
             ClearDropMarker(ref _activeStopsDropRow);
+            vm.ClearDragReorderPreview();
             e.Effects = DragDropEffects.None;
             e.Handled = true;
             return;
         }
 
+        var insertAfterTarget = IsInsertAfterTarget(targetRow, e);
+        vm.UpdateDragReorderPreview(source, target, insertAfterTarget);
         SetDropMarker(ref _activeStopsDropRow, targetRow);
         e.Effects = DragDropEffects.Move;
         e.Handled = true;
@@ -176,6 +184,10 @@ public partial class ToursSectionView : UserControl
     private void SelectedTourStopsGrid_DragLeave(object sender, DragEventArgs e)
     {
         ClearDropMarker(ref _activeStopsDropRow);
+        if (DataContext is ToursSectionViewModel vm)
+        {
+            vm.ClearDragReorderPreview();
+        }
     }
 
     private async void SelectedTourStopsGrid_Drop(object sender, DragEventArgs e)
@@ -190,12 +202,15 @@ public partial class ToursSectionView : UserControl
         var source = e.Data.GetData(typeof(TourStopOverviewItem)) as TourStopOverviewItem;
         if (source is null)
         {
+            vm.ClearDragReorderPreview();
             return;
         }
 
         var targetRow = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
         var target = targetRow?.DataContext as TourStopOverviewItem;
-        var moved = await vm.MoveStopWithinSelectedTourAsync(source, target);
+        var insertAfterTarget = IsInsertAfterTarget(targetRow, e);
+        var moved = await vm.MoveStopWithinSelectedTourAsync(source, target, insertAfterTarget);
+        vm.ClearDragReorderPreview();
         if (moved)
         {
             SelectedTourStopsGrid.Items.Refresh();
@@ -340,6 +355,17 @@ public partial class ToursSectionView : UserControl
         {
             vm.SelectedTourStop = item;
         }
+    }
+
+    private static bool IsInsertAfterTarget(ListBoxItem? targetRow, DragEventArgs e)
+    {
+        if (targetRow is null)
+        {
+            return false;
+        }
+
+        var position = e.GetPosition(targetRow);
+        return position.Y > targetRow.ActualHeight / 2d;
     }
 
 }

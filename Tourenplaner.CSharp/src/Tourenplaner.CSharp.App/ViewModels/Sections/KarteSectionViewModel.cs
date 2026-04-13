@@ -843,7 +843,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             Customer = x.Customer,
             Address = x.Address,
             Latitude = x.Latitude,
-            Longitude = x.Longitude
+            Longitude = x.Longitude,
+            PlannedStayMinutes = x.PlannedStayMinutes,
+            EmployeeInfoText = x.EmployeeInfoText
         })
             .ToList();
     }
@@ -951,14 +953,20 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         MarkRouteChanged();
     }
 
-    public void EditSelectedRouteStopStayMinutes()
+    public async Task EditSelectedRouteStopStayMinutesAsync()
     {
         if (SelectedRouteStop is null || IsCompanyStop(SelectedRouteStop))
         {
             return;
         }
 
-        var dialog = new RouteStopStayMinutesDialogWindow(SelectedRouteStop.PlannedStayMinutes)
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedRouteStop.OrderId, StringComparison.OrdinalIgnoreCase));
+        var currentAvisoStatus = NormalizeAvisoStatus(order?.AvisoStatus);
+        var dialog = new RouteStopStayMinutesDialogWindow(
+            SelectedRouteStop.PlannedStayMinutes,
+            _avisoStatusOptions,
+            currentAvisoStatus,
+            SelectedRouteStop.EmployeeInfoText)
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
@@ -969,9 +977,28 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         SelectedRouteStop.PlannedStayMinutes = dialog.StayMinutes.Value;
+        SelectedRouteStop.EmployeeInfoText = dialog.EmployeeInfoText;
+
+        var selectedAvisoStatus = NormalizeAvisoStatus(dialog.SelectedAvisoStatus);
+        if (order is not null &&
+            !string.Equals(NormalizeAvisoStatus(order.AvisoStatus), selectedAvisoStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            order.AvisoStatus = selectedAvisoStatus;
+            if (SelectedOrder is not null &&
+                string.Equals(SelectedOrder.OrderId, order.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                SelectedOrder.AvisoStatusLabel = selectedAvisoStatus;
+            }
+
+            await _orderRepository.SaveAllAsync(_allOrders);
+            RebuildOrderGrid(order.Id);
+            OnPropertyChanged(nameof(RouteStops));
+            OnPropertyChanged(nameof(DetailAvisoStatus));
+            PublishOrderChange(order.Id, order.Id);
+        }
         RefreshDriveTimesFromCurrentRoute();
         MarkRouteChanged();
-        StatusText = $"Aufenthaltszeit für Auftrag {SelectedRouteStop.OrderId} gesetzt: {SelectedRouteStop.PlannedStayMinutes} min.";
+        StatusText = $"Stoppdaten für Auftrag {SelectedRouteStop.OrderId} gespeichert (Aufenthalt {SelectedRouteStop.PlannedStayMinutes} min, Aviso {selectedAvisoStatus}).";
 
     }
 
@@ -1972,6 +1999,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
         foreach (var order in _allOrders.Where(o => string.Equals(o.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase)))
         {
+            if (routeOrderIds.Contains(order.Id))
+            {
+                continue;
+            }
+
             order.AssignedTourId = string.Empty;
             order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
         }
@@ -2191,7 +2223,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                     Latitude = stop.Lat ?? double.NaN,
                     Longitude = stop.Lng ?? stop.Lon ?? double.NaN,
                     IsCompanyAnchor = false,
-                    PlannedStayMinutes = Math.Max(0, stop.ServiceMinutes)
+                    PlannedStayMinutes = Math.Max(0, stop.ServiceMinutes),
+                    EmployeeInfoText = stop.EmployeeInfoText ?? string.Empty
                 })
                 .ToList();
 
@@ -2478,7 +2511,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             stop.Longitude,
             ResolveTimeWindow(stop.OrderId),
             stop.EtaText,
-            ResolveWeightText(stop.OrderId)))
+            ResolveWeightText(stop.OrderId),
+            stop.EmployeeInfoText))
             .ToList();
 
         snapshot = new RouteExportSnapshot(
@@ -2616,7 +2650,15 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         return RouteStops
             .Where(x => !IsCompanyStop(x))
-            .Select((x, index) => new MapRouteStop(index + 1, x.OrderId, x.Customer, x.Address, x.Latitude, x.Longitude, x.PlannedStayMinutes))
+            .Select((x, index) => new MapRouteStop(
+                index + 1,
+                x.OrderId,
+                x.Customer,
+                x.Address,
+                x.Latitude,
+                x.Longitude,
+                x.PlannedStayMinutes,
+                x.EmployeeInfoText))
             .ToList();
     }
 
@@ -2645,7 +2687,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                     Latitude = stop.Latitude,
                     Longitude = stop.Longitude,
                     IsCompanyAnchor = false,
-                    PlannedStayMinutes = stop.ServiceMinutes < 0 ? 10 : stop.ServiceMinutes
+                    PlannedStayMinutes = stop.ServiceMinutes < 0 ? 10 : stop.ServiceMinutes,
+                    EmployeeInfoText = stop.EmployeeInfoText
                 });
             }
 
@@ -4672,6 +4715,7 @@ public sealed class RouteStopItem : ObservableObject
     private string _nextLegDepartureText = string.Empty;
     private string _nextLegArrivalText = string.Empty;
     private string _nextLegAccentColor = "#8EC6E8";
+    private string _employeeInfoText = string.Empty;
 
     public int Position
     {
@@ -4842,6 +4886,19 @@ public sealed class RouteStopItem : ObservableObject
         private set => SetProperty(ref _nextLegAccentColor, value);
     }
 
+    public string EmployeeInfoText
+    {
+        get => _employeeInfoText;
+        set
+        {
+            var normalized = (value ?? string.Empty).Trim();
+            if (SetProperty(ref _employeeInfoText, normalized))
+            {
+                OnPropertyChanged(nameof(DisplayEmployeeInfo));
+            }
+        }
+    }
+
     private bool IsCompanyDisplay => IsCompanyAnchor ||
                                      string.Equals(OrderId, "__company_start__", StringComparison.OrdinalIgnoreCase) ||
                                      string.Equals(OrderId, "__company_end__", StringComparison.OrdinalIgnoreCase) ||
@@ -4862,6 +4919,7 @@ public sealed class RouteStopItem : ObservableObject
     public string DisplayOrder => string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId;
     public string DisplayStay => IsCompanyDisplay ? string.Empty : $"{PlannedStayMinutes} min";
     public string DisplayEta => string.IsNullOrWhiteSpace(EtaText) ? "--:--" : EtaText;
+    public string DisplayEmployeeInfo => IsCompanyDisplay ? string.Empty : EmployeeInfoText;
 
     public void SetNextLeg(string durationText, string distanceText, string departureText, string arrivalText, string accentColorHex)
     {

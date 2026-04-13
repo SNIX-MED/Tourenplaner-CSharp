@@ -19,4 +19,5 @@ public sealed class TourStopRecord
     public bool ScheduleConflict { get; set; }
     public string ScheduleConflictText { get; set; } = string.Empty;
     public string Gewicht { get; set; } = string.Empty;
+    public string EmployeeInfoText { get; set; } = string.Empty;
 }

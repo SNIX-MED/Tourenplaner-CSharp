@@ -122,7 +122,8 @@ public sealed class MapRouteService
             Lat = x.Latitude,
             Lon = x.Longitude,
             Lng = x.Longitude,
-            ServiceMinutes = x.ServiceMinutes < 0 ? safeServiceMinutes : x.ServiceMinutes
+            ServiceMinutes = x.ServiceMinutes < 0 ? safeServiceMinutes : x.ServiceMinutes,
+            EmployeeInfoText = (x.EmployeeInfoText ?? string.Empty).Trim()
         }));
 
         tourStops.Add(new TourStopRecord

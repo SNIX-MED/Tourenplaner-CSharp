@@ -58,6 +58,7 @@ internal static class TourNormalizer
         source.PlannedDeparture = (source.PlannedDeparture ?? string.Empty).Trim();
         source.ScheduleConflictText = (source.ScheduleConflictText ?? string.Empty).Trim();
         source.Gewicht = (source.Gewicht ?? string.Empty).Trim();
+        source.EmployeeInfoText = (source.EmployeeInfoText ?? string.Empty).Trim();
 
         if (source.ServiceMinutes < 0)
         {

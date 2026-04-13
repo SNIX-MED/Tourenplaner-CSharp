@@ -7,4 +7,5 @@ public sealed record MapRouteStop(
     string Address,
     double Latitude,
     double Longitude,
-    int ServiceMinutes = 10);
+    int ServiceMinutes = 10,
+    string EmployeeInfoText = "");

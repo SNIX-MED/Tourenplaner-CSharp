@@ -815,7 +815,7 @@ public partial class KarteSectionView : UserControl
         }
     }
 
-    private void RouteStopsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    private async void RouteStopsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm)
         {
@@ -827,7 +827,7 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        vm.EditSelectedRouteStopStayMinutes();
+        await vm.EditSelectedRouteStopStayMinutesAsync();
     }
 
     private void OnRouteStopContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -844,7 +844,7 @@ public partial class KarteSectionView : UserControl
         vm.SelectRouteStopByOrderId(stopItem.OrderId);
     }
 
-    private void OnRouteStopEditStayMenuItemClick(object sender, RoutedEventArgs e)
+    private async void OnRouteStopEditStayMenuItemClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
             sender is not FrameworkElement element ||
@@ -855,7 +855,7 @@ public partial class KarteSectionView : UserControl
         }
 
         vm.SelectRouteStopByOrderId(stopItem.OrderId);
-        vm.EditSelectedRouteStopStayMinutes();
+        await vm.EditSelectedRouteStopStayMinutesAsync();
     }
 
     private void OnRouteStopRemoveMenuItemClick(object sender, RoutedEventArgs e)

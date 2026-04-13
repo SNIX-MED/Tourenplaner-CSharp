@@ -20,7 +20,8 @@ public sealed record RouteExportStopInfo(
     double Longitude,
     string TimeWindow,
     string Arrival,
-    string WeightText);
+    string WeightText,
+    string EmployeeInfoText);
 
 public sealed record RouteExportSnapshot(
     string TourName,
