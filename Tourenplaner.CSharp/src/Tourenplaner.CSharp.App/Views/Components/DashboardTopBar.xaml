@@ -499,6 +499,28 @@
                                     Command="{Binding ExportRouteCommand}" />
                         </Grid>
                     </DataTemplate>
+                    <DataTemplate DataType="{x:Type sections:KalenderSectionViewModel}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       FontWeight="SemiBold"
+                                       Text="Manuelle Einträge und Touren zentral verwalten." />
+
+                            <Button Grid.Column="1"
+                                    Width="170"
+                                    Height="40"
+                                    Content="Manuell hinzufügen"
+                                    Style="{StaticResource SuccessButtonStyle}"
+                                    Click="OnAddCalendarManualEntryClicked" />
+                        </Grid>
+                    </DataTemplate>
                     <DataTemplate DataType="{x:Type sections:ToursSectionViewModel}">
                         <Grid>
                             <Grid.ColumnDefinitions>

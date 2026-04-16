@@ -1,0 +1,100 @@
+﻿<Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.CalendarManualEntriesDayDialogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Tageseinträge"
+        Width="620"
+        Height="440"
+        MinWidth="560"
+        MinHeight="380"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Brush.WindowBackground}">
+    <Border Margin="12" Style="{StaticResource FlatCardStyle}" Padding="14">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Name="HeadlineText"
+                       FontSize="22"
+                       FontWeight="SemiBold"
+                       Text="Einträge" />
+
+            <ListBox x:Name="EntriesListBox"
+                     Grid.Row="1"
+                     Margin="0,12,0,12"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     MouseDoubleClick="OnEditClickedFromDoubleClick">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,0,0,8"
+                                Padding="8"
+                                BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Background="{DynamicResource Brush.CardSoft}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="8"
+                                        Height="8"
+                                        Margin="0,5,0,0"
+                                        CornerRadius="4"
+                                        Background="{Binding ColorHex}" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock FontWeight="SemiBold">
+                                        <Run Text="{Binding TimeDisplay}" />
+                                        <Run Text=" " />
+                                        <Run Text="{Binding Title}" />
+                                    </TextBlock>
+                                    <TextBlock Margin="0,2,0,0"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                               Text="{Binding KindLabel}" />
+                                    <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
+                                               Text="{Binding Description}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Width="130"
+                        HorizontalAlignment="Left"
+                        Content="Schliessen"
+                        Style="{StaticResource DarkButtonStyle}"
+                        IsCancel="True" />
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Width="120"
+                            Margin="0,0,8,0"
+                            Content="Neu"
+                            Style="{StaticResource SuccessButtonStyle}"
+                            Click="OnAddClicked" />
+                    <Button Width="120"
+                            Margin="0,0,8,0"
+                            Content="Bearbeiten"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="OnEditClicked" />
+                    <Button Width="120"
+                            Content="Loeschen"
+                            Style="{StaticResource DangerButtonStyle}"
+                            Click="OnDeleteClicked" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

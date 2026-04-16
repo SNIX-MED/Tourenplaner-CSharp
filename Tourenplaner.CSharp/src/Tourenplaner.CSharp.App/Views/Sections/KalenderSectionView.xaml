@@ -130,6 +130,7 @@
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="Auto" />
                                                         <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
                                                     </Grid.RowDefinitions>
 
                                                     <TextBlock Grid.Row="0"
@@ -144,10 +145,31 @@
                                                                TextTrimming="CharacterEllipsis"
                                                                TextWrapping="NoWrap"
                                                                Foreground="{Binding LoadForeground}"
+                                                               Opacity="0.95"
+                                                               FontSize="11"
+                                                               Text="{Binding TourCountText}" />
+
+                                                    <TextBlock Grid.Row="2"
+                                                               Margin="0,2,0,0"
+                                                               VerticalAlignment="Top"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               TextWrapping="NoWrap"
+                                                               Foreground="{Binding LoadForeground}"
                                                                Opacity="0.9"
                                                                FontSize="11"
                                                                Text="{Binding SummaryText}" />
                                                 </Grid>
+                                                <Border.ToolTip>
+                                                    <ToolTip MaxWidth="360">
+                                                        <StackPanel>
+                                                            <TextBlock FontWeight="SemiBold" Text="{Binding DateText}" />
+                                                            <TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding TourCountText}" />
+                                                            <TextBlock Margin="0,6,0,0"
+                                                                       TextWrapping="Wrap"
+                                                                       Text="{Binding SummaryText}" />
+                                                        </StackPanel>
+                                                    </ToolTip>
+                                                </Border.ToolTip>
                                                 <Border.Style>
                                                     <Style TargetType="Border" BasedOn="{StaticResource StartUpcomingCardStyle}">
                                                         <Style.Triggers>
@@ -197,6 +219,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Grid>
@@ -208,7 +231,7 @@
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <Button Width="170" Margin="0,0,8,0" Command="{Binding OpenSplitScreenCommand}" Style="{StaticResource SecondaryButtonStyle}">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="⧉" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="||" Margin="0,0,6,0" VerticalAlignment="Center" />
                                 <TextBlock Text="Split-Ansicht" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
@@ -221,7 +244,42 @@
                     <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding StatusText}" />
                 </Border>
 
-                <ListBox Grid.Row="2"
+                <ItemsControl Grid.Row="2" ItemsSource="{Binding SelectedDayManualEntries}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,8"
+                                    Padding="8"
+                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Background="{DynamicResource Brush.CardSoft}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="10" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="8"
+                                            Height="8"
+                                            Margin="0,5,0,0"
+                                            CornerRadius="4"
+                                            Background="{Binding ColorHex}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock FontWeight="SemiBold">
+                                            <Run Text="{Binding TimeText}" />
+                                            <Run Text=" " />
+                                            <Run Text="{Binding Title}" />
+                                        </TextBlock>
+                                        <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="{Binding Description}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <ListBox Grid.Row="3"
                          ItemsSource="{Binding SelectedDayTours}"
                          SelectedItem="{Binding SelectedDayTour, Mode=TwoWay}"
                          Background="Transparent"
@@ -393,6 +451,7 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+
 
 
 

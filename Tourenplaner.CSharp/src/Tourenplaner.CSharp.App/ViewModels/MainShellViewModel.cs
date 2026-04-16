@@ -249,6 +249,7 @@ public sealed class MainShellViewModel : ObservableObject
     public bool IsTopBarSectionControlsVisible =>
         IsMapSectionActive ||
         IsToursSectionActive ||
+        CurrentSection is KalenderSectionViewModel ||
         CurrentSection is OrdersSectionViewModel ||
         CurrentSection is NonMapOrdersSectionViewModel ||
         IsEmployeesSectionActive ||

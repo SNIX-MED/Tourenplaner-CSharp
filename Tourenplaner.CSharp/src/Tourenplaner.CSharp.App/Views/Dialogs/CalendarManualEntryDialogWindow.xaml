@@ -1,0 +1,138 @@
+﻿<Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.CalendarManualEntryDialogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Manuellen Eintrag hinzufügen"
+        Width="560"
+        Height="430"
+        MinWidth="520"
+        MinHeight="390"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        Background="{DynamicResource Brush.WindowBackground}">
+    <Border Margin="12" Style="{StaticResource FlatCardStyle}" Padding="14">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Name="DialogHeadlineText"
+                       FontSize="22"
+                       FontWeight="SemiBold"
+                       Text="Manueller Kalendereintrag" />
+
+            <ScrollViewer Grid.Row="1"
+                          Margin="0,12,0,10"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                            <TextBlock FontWeight="SemiBold" Text="Datum" />
+                            <DatePicker x:Name="EntryDatePicker" Margin="0,4,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Width="120">
+                            <TextBlock FontWeight="SemiBold" Text="Zeit (optional)" />
+                            <TextBox x:Name="EntryTimeTextBox"
+                                     Margin="0,4,0,0"
+                                     VerticalContentAlignment="Center"
+                                     ToolTip="HH:mm" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel Margin="0,10,0,0">
+                        <TextBlock FontWeight="SemiBold" Text="Titel" />
+                        <TextBox x:Name="EntryTitleTextBox"
+                                 Margin="0,4,0,0"
+                                 VerticalContentAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Margin="0,10,0,0">
+                        <TextBlock FontWeight="SemiBold" Text="Beschreibung" />
+                        <TextBox x:Name="EntryDescriptionTextBox"
+                                 Margin="0,4,0,0"
+                                 MinHeight="90"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto" />
+                    </StackPanel>
+
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock FontWeight="SemiBold" Text="Farbe" />
+                            <ComboBox x:Name="EntryColorComboBox"
+                                      Width="220"
+                                      Margin="0,4,0,0"
+                                      MaxDropDownHeight="240"
+                                      SelectionChanged="OnColorSelectionChanged">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="12"
+                                                    Height="12"
+                                                    Margin="0,0,6,0"
+                                                    CornerRadius="2"
+                                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                    BorderThickness="1"
+                                                    Background="{Binding Hex}" />
+                                            <TextBlock Text="{Binding Label}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <Border x:Name="ColorPreviewBorder"
+                                Grid.Column="1"
+                                Width="28"
+                                Height="28"
+                                Margin="10,24,0,0"
+                                CornerRadius="4"
+                                BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                BorderThickness="1" />
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Grid Grid.Row="2" Margin="0,4,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0"
+                        Margin="0,0,8,0"
+                        Content="Abbrechen"
+                        Style="{StaticResource DarkButtonStyle}"
+                        IsCancel="True" />
+                <Button x:Name="DeleteButton"
+                        Grid.Column="1"
+                        Margin="8,0,8,0"
+                        Content="Eintrag löschen"
+                        Style="{StaticResource DangerButtonStyle}"
+                        Click="OnDeleteClicked"
+                        Visibility="Collapsed" />
+                <Button x:Name="SaveButton"
+                        Grid.Column="2"
+                        Margin="8,0,0,0"
+                        Content="Eintrag hinzufügen"
+                        Style="{StaticResource SuccessButtonStyle}"
+                        IsDefault="True"
+                        Click="OnSaveClicked" />
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

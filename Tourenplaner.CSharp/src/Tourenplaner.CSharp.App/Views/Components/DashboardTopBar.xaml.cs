@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
+using Tourenplaner.CSharp.App.Views.Dialogs;
 
 namespace Tourenplaner.CSharp.App.Views.Components;
 
@@ -40,5 +41,45 @@ public partial class DashboardTopBar : UserControl
 
         vm.PinInfoCardScale = 1.0d;
         e.Handled = true;
+    }
+
+    private async void OnAddCalendarManualEntryClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not KalenderSectionViewModel vm)
+        {
+            return;
+        }
+
+        var dialog = new CalendarManualEntryDialogWindow(
+            vm.SelectedDay?.Date ?? DateTime.Today,
+            vm.ManualEntryColorOptions,
+            vm.DefaultManualEntryColor)
+        {
+            Owner = Window.GetWindow(this)
+        };
+
+        if (dialog.ShowDialog() != true || dialog.EntryDate is not DateTime date)
+        {
+            return;
+        }
+
+        var result = await vm.SaveManualEntryAsync(
+            date,
+            dialog.EntryTime,
+            dialog.EntryTitle,
+            dialog.EntryDescription,
+            dialog.EntryColor);
+        if (!result.Success)
+        {
+            var owner = Window.GetWindow(this);
+            if (owner is not null)
+            {
+                MessageBox.Show(owner, result.Message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            else
+            {
+                MessageBox.Show(result.Message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
     }
 }

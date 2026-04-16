@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
@@ -19,6 +20,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
     private readonly JsonToursRepository _repository;
     private readonly JsonOrderRepository _orderRepository;
+    private readonly JsonCalendarManualEntryRepository _manualEntryRepository;
     private readonly JsonAppSettingsRepository _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly Func<int, Task>? _openTourAsync;
@@ -28,6 +30,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private Func<Task>? _openSplitScreenAsync;
     private readonly List<TourRecord> _allTours = [];
     private readonly List<Order> _allOrders = [];
+    private readonly List<CalendarManualEntry> _manualEntries = [];
     private readonly List<CalendarDayItem> _interactiveDays = [];
     private readonly Guid _instanceId = Guid.NewGuid();
 
@@ -60,6 +63,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     {
         _repository = new JsonToursRepository(toursJsonPath);
         _orderRepository = new JsonOrderRepository(ordersJsonPath);
+        var manualEntriesPath = Path.Combine(Path.GetDirectoryName(toursJsonPath) ?? string.Empty, "kalender-manuelle-eintraege.json");
+        _manualEntryRepository = new JsonCalendarManualEntryRepository(manualEntriesPath);
         _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
         _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _openTourAsync = openTourAsync;
@@ -84,6 +89,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     public ObservableCollection<CalendarMonthItem> VisibleMonths { get; } = [];
 
     public ObservableCollection<CalendarTourItem> SelectedDayTours { get; } = [];
+    public ObservableCollection<CalendarManualEntryItem> SelectedDayManualEntries { get; } = [];
 
     public ObservableCollection<UpcomingDayCardItem> UpcomingDayCards { get; } = [];
     public ObservableCollection<StartWeekGroupItem> UpcomingWeeks { get; } = [];
@@ -99,10 +105,21 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     public ICommand DeleteSelectedTourCommand { get; }
 
     public ICommand OpenSplitScreenCommand { get; }
-
     public ICommand PreviousWeekRangeCommand { get; }
 
     public ICommand NextWeekRangeCommand { get; }
+
+    public IReadOnlyList<string> ManualEntryColorOptions { get; } =
+    [
+        "#0EA5E9",
+        "#16A34A",
+        "#F59E0B",
+        "#DC2626",
+        "#7C3AED",
+        "#475569"
+    ];
+
+    public string DefaultManualEntryColor => ManualEntryColorOptions[0];
 
     public string RangeTitleText
     {
@@ -175,7 +192,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         var settingsTask = _settingsRepository.LoadAsync();
         var toursTask = _repository.LoadAsync();
         var ordersTask = _orderRepository.GetAllAsync();
-        await Task.WhenAll(settingsTask, toursTask, ordersTask);
+        var manualEntriesTask = _manualEntryRepository.LoadAsync();
+        await Task.WhenAll(settingsTask, toursTask, ordersTask, manualEntriesTask);
 
         var settings = await settingsTask;
         _calendarLoadWarningColor = NormalizeHexColor(settings.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
@@ -189,6 +207,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         _allTours.AddRange(await toursTask);
         _allOrders.Clear();
         _allOrders.AddRange(await ordersTask);
+        _manualEntries.Clear();
+        _manualEntries.AddRange(await manualEntriesTask);
         _upcomingWeeksMinStartDate = GetStartOfWeek(DateTime.Today.AddMonths(-PreviewNavigationMonths));
         _upcomingWeeksMaxStartDate = GetStartOfWeek(DateTime.Today.AddMonths(PreviewNavigationMonths));
         _upcomingWeeksStartDate = ClampUpcomingWeekStart(_upcomingWeeksStartDate);
@@ -202,6 +222,156 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         {
             _ = OpenSelectedDayInToursAsync();
         }
+    }
+
+    public async Task<ManualEntrySaveResult> SaveManualEntryAsync(
+        DateTime date,
+        string? time,
+        string? title,
+        string? description,
+        string? colorHex)
+    {
+        var validation = ValidateManualEntryInput(time, title);
+        if (!validation.Success)
+        {
+            return ManualEntrySaveResult.Fail(validation.Message);
+        }
+
+        var entry = new CalendarManualEntry
+        {
+            Id = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+            Date = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            Time = validation.NormalizedTime,
+            Title = validation.NormalizedTitle,
+            Description = (description ?? string.Empty).Trim(),
+            ColorHex = NormalizeHexColor(colorHex, DefaultManualEntryColor)
+        };
+
+        _manualEntries.Add(entry);
+        await _manualEntryRepository.SaveAsync(_manualEntries);
+        _dataSyncService.PublishTours(_instanceId);
+
+        BuildCalendarRange(date);
+        SelectDayByDate(date);
+
+        return ManualEntrySaveResult.Ok();
+    }
+
+    public async Task<ManualEntrySaveResult> UpdateManualEntryAsync(
+        string? entryId,
+        DateTime date,
+        string? time,
+        string? title,
+        string? description,
+        string? colorHex)
+    {
+        var normalizedId = (entryId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedId))
+        {
+            return ManualEntrySaveResult.Fail("Manueller Eintrag konnte nicht gefunden werden.");
+        }
+
+        var existing = _manualEntries.FirstOrDefault(x => string.Equals(x.Id, normalizedId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            return ManualEntrySaveResult.Fail("Manueller Eintrag konnte nicht gefunden werden.");
+        }
+
+        var validation = ValidateManualEntryInput(time, title);
+        if (!validation.Success)
+        {
+            return ManualEntrySaveResult.Fail(validation.Message);
+        }
+
+        existing.Date = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        existing.Time = validation.NormalizedTime;
+        existing.Title = validation.NormalizedTitle;
+        existing.Description = (description ?? string.Empty).Trim();
+        existing.ColorHex = NormalizeHexColor(colorHex, DefaultManualEntryColor);
+
+        await _manualEntryRepository.SaveAsync(_manualEntries);
+        _dataSyncService.PublishTours(_instanceId);
+
+        BuildCalendarRange(date);
+        SelectDayByDate(date);
+
+        return ManualEntrySaveResult.Ok();
+    }
+
+    public async Task<ManualEntrySaveResult> DeleteManualEntryAsync(string? entryId)
+    {
+        var normalizedId = (entryId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedId))
+        {
+            return ManualEntrySaveResult.Fail("Manueller Eintrag konnte nicht gefunden werden.");
+        }
+
+        var removed = _manualEntries.RemoveAll(x => string.Equals(x.Id, normalizedId, StringComparison.OrdinalIgnoreCase));
+        if (removed == 0)
+        {
+            return ManualEntrySaveResult.Fail("Manueller Eintrag konnte nicht gefunden werden.");
+        }
+
+        await _manualEntryRepository.SaveAsync(_manualEntries);
+        _dataSyncService.PublishTours(_instanceId);
+
+        var focusDate = SelectedDay?.Date ?? DateTime.Today;
+        BuildCalendarRange(focusDate);
+        SelectDayByDate(focusDate);
+
+        return ManualEntrySaveResult.Ok();
+    }
+
+    public IReadOnlyList<CalendarManualEntryEditItem> GetManualEntriesForDate(DateTime date)
+    {
+        return _manualEntries
+            .Where(x => ParseManualEntryDate(x.Date)?.Date == date.Date)
+            .Select(x =>
+            {
+                var hasTime = TryNormalizeManualTime(x.Time, out var normalizedTime);
+                return new
+                {
+                    Entry = x,
+                    HasTime = hasTime,
+                    Time = hasTime ? normalizedTime : string.Empty
+                };
+            })
+            .OrderBy(x => x.HasTime ? ParseStartTimeMinutes(x.Time) : int.MaxValue)
+            .ThenBy(x => x.Entry.Title, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new CalendarManualEntryEditItem
+            {
+                Id = (x.Entry.Id ?? string.Empty).Trim(),
+                Date = ParseManualEntryDate(x.Entry.Date) ?? date.Date,
+                Time = x.Time,
+                Title = (x.Entry.Title ?? string.Empty).Trim(),
+                Description = (x.Entry.Description ?? string.Empty).Trim(),
+                ColorHex = NormalizeHexColor(x.Entry.ColorHex, DefaultManualEntryColor)
+            })
+            .ToList();
+    }
+
+    public IReadOnlyList<CalendarTourDayListItem> GetToursForDate(DateTime date)
+    {
+        return _allTours
+            .Where(t => ParseTourDate(t.Date)?.Date == date.Date)
+            .OrderBy(t => ParseStartTimeMinutes(t.StartTime))
+            .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(t =>
+            {
+                var normalizedTime = NormalizeStartTime(t.StartTime);
+                var normalizedName = string.IsNullOrWhiteSpace(t.Name)
+                    ? $"Tour {t.Id.ToString(CultureInfo.InvariantCulture)}"
+                    : t.Name.Trim();
+                return new CalendarTourDayListItem
+                {
+                    TourId = t.Id,
+                    Date = date.Date,
+                    Time = normalizedTime == "--:--" ? string.Empty : normalizedTime,
+                    Name = normalizedName,
+                    Summary = BuildTourSummary(t, includeName: false)
+                };
+            })
+            .ToList();
     }
 
     private void ShowPreviousRange()
@@ -311,14 +481,39 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             {
                 dayLoad = new CalendarDayLoad(0, 0);
             }
+
+            var agendaEntries = BuildAgendaEntriesForDate(date);
             var item = new CalendarDayItem
             {
                 IsPlaceholder = false,
                 Date = date,
                 DayLabel = day.ToString(UiCulture),
                 TourCount = dayLoad.TourCount,
+                ManualEntryCount = agendaEntries.Count(x => x.IsManual),
+                EntryCount = agendaEntries.Count,
                 AssignedPeopleCount = dayLoad.AssignedPeopleCount,
-                IsToday = date == DateTime.Today
+                IsToday = date == DateTime.Today,
+                PreviewEntries = agendaEntries
+                    .Take(3)
+                    .Select(x => new CalendarDayPreviewEntry
+                    {
+                        TimeText = x.TimeText,
+                        Title = x.Title,
+                        KindLabel = x.IsManual ? "Manuell" : "Tour",
+                        AccentColor = x.ColorHex
+                    })
+                    .ToList(),
+                TooltipEntries = agendaEntries
+                    .Select(x => new CalendarDayTooltipEntry
+                    {
+                        TimeText = x.TimeText,
+                        Title = x.Title,
+                        Description = x.Description,
+                        KindLabel = x.IsManual ? "Manuell" : "Tour",
+                        AccentColor = x.ColorHex
+                    })
+                    .ToList(),
+                MoreEntryCount = Math.Max(0, agendaEntries.Count - 3)
             };
 
             ApplyDayLoadAppearance(item, dayLoad.AssignedPeopleCount);
@@ -335,20 +530,16 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         UpcomingDayCards.Clear();
         UpcomingWeeks.Clear();
 
-        var toursByDate = _allTours
-            .Select(t => new { Tour = t, Date = ParseTourDate(t.Date) })
-            .Where(x => x.Date is not null)
-            .GroupBy(x => x.Date!.Value.Date)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.Tour).OrderBy(t => t.StartTime).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList());
-
         var previewStartDate = _upcomingWeeksStartDate.Date;
 
         StartWeekGroupItem? currentWeek = null;
         for (var i = 0; i < PreviewWeekCount * 7; i++)
         {
             var date = previewStartDate.AddDays(i).Date;
-            toursByDate.TryGetValue(date, out var toursForDay);
-            toursForDay ??= [];
+            var toursForDay = _allTours
+                .Where(t => ParseTourDate(t.Date)?.Date == date)
+                .ToList();
+            var dayEntries = BuildAgendaEntriesForDate(date);
             var assignedPeopleCount = toursForDay.Sum(GetAssignedPeopleCount);
             var weekdayShort = UiCulture.DateTimeFormat.GetAbbreviatedDayName(date.DayOfWeek).TrimEnd('.');
 
@@ -356,10 +547,10 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             {
                 Date = date,
                 DateText = $"{weekdayShort} {date:dd.MM.yyyy}",
-                TourCountText = $"{toursForDay.Count} geplante Tour(en)",
-                SummaryText = toursForDay.Count == 0
+                TourCountText = $"{dayEntries.Count} Eintrag/Einträge",
+                SummaryText = dayEntries.Count == 0
                     ? string.Empty
-                    : string.Join(Environment.NewLine, toursForDay.Select(t => BuildTourSummary(t, includeName: false))),
+                    : string.Join(Environment.NewLine, dayEntries.Select(x => x.CompactText)),
                 IsToday = date == DateTime.Today,
                 IsPast = date < DateTime.Today
             };
@@ -412,6 +603,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private void LoadSelectedDayTours()
     {
         SelectedDayTours.Clear();
+        SelectedDayManualEntries.Clear();
 
         if (SelectedDay?.Date is not DateTime selectedDate)
         {
@@ -444,16 +636,45 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             });
         }
 
-        SelectedDayTour = SelectedDayTours.FirstOrDefault();
-        SelectedDayHeadline = $"Touren am {selectedDate.ToString("dddd, dd.MM.yyyy", UiCulture)}";
+        var dayManualEntries = _manualEntries
+            .Where(x => ParseManualEntryDate(x.Date)?.Date == selectedDate)
+            .Select(x =>
+            {
+                var hasTime = TryNormalizeManualTime(x.Time, out var normalizedTime);
+                return new
+                {
+                    Entry = x,
+                    HasTime = hasTime,
+                    Time = hasTime ? normalizedTime : string.Empty
+                };
+            })
+            .OrderBy(x => x.HasTime ? ParseStartTimeMinutes(x.Time) : int.MaxValue)
+            .ThenBy(x => x.Entry.Title, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new CalendarManualEntryItem
+            {
+                EntryId = x.Entry.Id,
+                TimeText = x.HasTime ? x.Time : "--:--",
+                Title = x.Entry.Title,
+                Description = x.Entry.Description,
+                ColorHex = NormalizeHexColor(x.Entry.ColorHex, "#0EA5E9")
+            })
+            .ToList();
 
-        if (SelectedDayTours.Count == 0)
+        foreach (var manualEntry in dayManualEntries)
         {
-            StatusText = $"{selectedDate:dd.MM.yyyy}: keine Tour geplant.";
+            SelectedDayManualEntries.Add(manualEntry);
+        }
+
+        SelectedDayTour = SelectedDayTours.FirstOrDefault();
+        SelectedDayHeadline = $"Einträge am {selectedDate.ToString("dddd, dd.MM.yyyy", UiCulture)}";
+
+        if (SelectedDayTours.Count == 0 && SelectedDayManualEntries.Count == 0)
+        {
+            StatusText = $"{selectedDate:dd.MM.yyyy}: kein Eintrag.";
         }
         else
         {
-            StatusText = $"{selectedDate:dd.MM.yyyy}: {SelectedDayTours.Count} Tour(en) gefunden.";
+            StatusText = $"{selectedDate:dd.MM.yyyy}: {SelectedDayTours.Count} Tour(en), {SelectedDayManualEntries.Count} manueller Eintrag/Einträge.";
         }
     }
 
@@ -656,6 +877,87 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         }
 
         return string.IsNullOrWhiteSpace(text) ? "--:--" : text;
+    }
+
+    private static bool TryNormalizeManualTime(string? raw, out string normalized)
+    {
+        normalized = string.Empty;
+        var text = (raw ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true;
+        }
+
+        if (TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out var parsed))
+        {
+            normalized = parsed.ToString("hh\\:mm", CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static ManualEntryValidationResult ValidateManualEntryInput(string? time, string? title)
+    {
+        var normalizedTitle = (title ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedTitle))
+        {
+            return ManualEntryValidationResult.Fail("Bitte einen Titel für den manuellen Eintrag eingeben.");
+        }
+
+        if (!TryNormalizeManualTime(time, out var normalizedTime))
+        {
+            return ManualEntryValidationResult.Fail("Zeitformat ungültig. Bitte HH:mm verwenden (z. B. 08:30).");
+        }
+
+        return ManualEntryValidationResult.Ok(normalizedTitle, normalizedTime);
+    }
+
+    private List<CalendarAgendaEntry> BuildAgendaEntriesForDate(DateTime date)
+    {
+        var entries = new List<CalendarAgendaEntry>();
+        foreach (var tour in _allTours
+                     .Where(t => ParseTourDate(t.Date)?.Date == date.Date)
+                     .OrderBy(t => ParseStartTimeMinutes(t.StartTime))
+                     .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var startTime = NormalizeStartTime(tour.StartTime);
+            var title = string.IsNullOrWhiteSpace(tour.Name)
+                ? $"Tour {tour.Id.ToString(CultureInfo.InvariantCulture)}"
+                : tour.Name.Trim();
+            var stopCount = tour.Stops.Count(s => !TourStopIdentity.IsCompanyStop(s));
+            var peopleCount = GetAssignedPeopleCount(tour);
+            entries.Add(new CalendarAgendaEntry
+            {
+                IsManual = false,
+                TimeText = startTime,
+                Title = title,
+                Description = $"{stopCount} Stopps · {peopleCount} zugewiesen",
+                ColorHex = "#475569",
+                SortTimeMinutes = ParseStartTimeMinutes(startTime)
+            });
+        }
+
+        foreach (var manualEntry in _manualEntries
+                     .Where(x => ParseManualEntryDate(x.Date)?.Date == date.Date))
+        {
+            var hasTime = TryNormalizeManualTime(manualEntry.Time, out var normalizedTime);
+            entries.Add(new CalendarAgendaEntry
+            {
+                IsManual = true,
+                TimeText = hasTime ? normalizedTime : "--:--",
+                Title = string.IsNullOrWhiteSpace(manualEntry.Title) ? "(Ohne Titel)" : manualEntry.Title.Trim(),
+                Description = (manualEntry.Description ?? string.Empty).Trim(),
+                ColorHex = NormalizeHexColor(manualEntry.ColorHex, "#0EA5E9"),
+                SortTimeMinutes = hasTime ? ParseStartTimeMinutes(normalizedTime) : int.MaxValue
+            });
+        }
+
+        return entries
+            .OrderBy(x => x.SortTimeMinutes)
+            .ThenBy(x => x.IsManual)
+            .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static string BuildTourSummary(TourRecord tour, bool includeName)
@@ -895,9 +1197,15 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         var rangeStart = new DateTime(_rangeStartMonth.Year, _rangeStartMonth.Month, 1);
         var rangeEnd = rangeStart.AddMonths(2).AddDays(-1);
 
-        var inRange = _allTours.Count(t =>
+        var toursInRange = _allTours.Count(t =>
         {
             var date = ParseTourDate(t.Date);
+            return date is not null && date.Value.Date >= rangeStart && date.Value.Date <= rangeEnd;
+        });
+
+        var manualInRange = _manualEntries.Count(x =>
+        {
+            var date = ParseManualEntryDate(x.Date);
             return date is not null && date.Value.Date >= rangeStart && date.Value.Date <= rangeEnd;
         });
 
@@ -905,10 +1213,14 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             .Select(t => ParseTourDate(t.Date))
             .Where(d => d is not null && d.Value.Date >= rangeStart && d.Value.Date <= rangeEnd)
             .Select(d => d!.Value.Date)
+            .Concat(_manualEntries
+                .Select(x => ParseManualEntryDate(x.Date))
+                .Where(d => d is not null && d.Value.Date >= rangeStart && d.Value.Date <= rangeEnd)
+                .Select(d => d!.Value.Date))
             .Distinct()
             .Count();
 
-        StatusText = $"Zeitraum: {inRange} Tour(en) auf {uniqueDays} Tag(en).";
+        StatusText = $"Zeitraum: {toursInRange} Tour(en), {manualInRange} manueller Eintrag/Einträge auf {uniqueDays} Tag(en).";
     }
 
     private void RaiseCommandStates()
@@ -974,6 +1286,22 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         }
 
         return null;
+    }
+
+    private static DateTime? ParseManualEntryDate(string? raw)
+    {
+        var value = (raw ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (DateTime.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var exact))
+        {
+            return exact.Date;
+        }
+
+        return ParseTourDate(value);
     }
 
     private static int GetAssignedPeopleCount(TourRecord tour)
@@ -1047,9 +1375,19 @@ public sealed class CalendarDayItem : CalendarLoadItem
 
     public int TourCount { get; set; }
 
+    public int ManualEntryCount { get; set; }
+
+    public int EntryCount { get; set; }
+
+    public int MoreEntryCount { get; set; }
+
     public int AssignedPeopleCount { get; set; }
 
     public bool IsToday { get; set; }
+
+    public IReadOnlyList<CalendarDayPreviewEntry> PreviewEntries { get; set; } = [];
+
+    public IReadOnlyList<CalendarDayTooltipEntry> TooltipEntries { get; set; } = [];
 
     public bool IsSelected
     {
@@ -1059,7 +1397,37 @@ public sealed class CalendarDayItem : CalendarLoadItem
 
     public bool HasTours => TourCount > 0;
 
+    public bool HasEntries => EntryCount > 0;
+
+    public bool HasMoreEntries => MoreEntryCount > 0;
+
     public string TourCountBadge => TourCount.ToString(CultureInfo.InvariantCulture);
+
+    public string EntryCountBadge => EntryCount.ToString(CultureInfo.InvariantCulture);
+}
+
+public sealed class CalendarDayPreviewEntry
+{
+    public string TimeText { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string KindLabel { get; set; } = string.Empty;
+
+    public string AccentColor { get; set; } = "#475569";
+}
+
+public sealed class CalendarDayTooltipEntry
+{
+    public string TimeText { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public string KindLabel { get; set; } = string.Empty;
+
+    public string AccentColor { get; set; } = "#475569";
 }
 
 public sealed class CalendarTourItem
@@ -1081,6 +1449,47 @@ public sealed class CalendarTourItem
     public string Summary { get; set; } = string.Empty;
 
     public IReadOnlyList<CalendarTourStopCardItem> Stops { get; set; } = [];
+}
+
+public sealed class CalendarManualEntryItem
+{
+    public string EntryId { get; set; } = string.Empty;
+
+    public string TimeText { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public string ColorHex { get; set; } = "#0EA5E9";
+}
+
+public sealed class CalendarManualEntryEditItem
+{
+    public string Id { get; set; } = string.Empty;
+
+    public DateTime Date { get; set; } = DateTime.Today;
+
+    public string Time { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public string ColorHex { get; set; } = "#0EA5E9";
+}
+
+public sealed class CalendarTourDayListItem
+{
+    public int TourId { get; set; }
+
+    public DateTime Date { get; set; } = DateTime.Today;
+
+    public string Time { get; set; } = string.Empty;
+
+    public string Name { get; set; } = string.Empty;
+
+    public string Summary { get; set; } = string.Empty;
 }
 
 public sealed class CalendarTourStopCardItem
@@ -1122,3 +1531,72 @@ public sealed class UpcomingDayCardItem : CalendarLoadItem
 }
 
 public sealed record CalendarDayLoad(int TourCount, int AssignedPeopleCount);
+
+internal sealed class CalendarAgendaEntry
+{
+    public bool IsManual { get; set; }
+
+    public string TimeText { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Description { get; set; } = string.Empty;
+
+    public string ColorHex { get; set; } = "#475569";
+
+    public int SortTimeMinutes { get; set; } = int.MaxValue;
+
+    public string CompactText => $"{TimeText} {Title}".Trim();
+}
+
+public sealed class ManualEntrySaveResult
+{
+    private ManualEntrySaveResult(bool success, string message)
+    {
+        Success = success;
+        Message = message;
+    }
+
+    public bool Success { get; }
+
+    public string Message { get; }
+
+    public static ManualEntrySaveResult Ok()
+    {
+        return new ManualEntrySaveResult(true, string.Empty);
+    }
+
+    public static ManualEntrySaveResult Fail(string message)
+    {
+        return new ManualEntrySaveResult(false, (message ?? string.Empty).Trim());
+    }
+}
+
+internal sealed class ManualEntryValidationResult
+{
+    private ManualEntryValidationResult(bool success, string message, string normalizedTitle, string normalizedTime)
+    {
+        Success = success;
+        Message = message;
+        NormalizedTitle = normalizedTitle;
+        NormalizedTime = normalizedTime;
+    }
+
+    public bool Success { get; }
+
+    public string Message { get; }
+
+    public string NormalizedTitle { get; }
+
+    public string NormalizedTime { get; }
+
+    public static ManualEntryValidationResult Ok(string normalizedTitle, string normalizedTime)
+    {
+        return new ManualEntryValidationResult(true, string.Empty, normalizedTitle, normalizedTime);
+    }
+
+    public static ManualEntryValidationResult Fail(string message)
+    {
+        return new ManualEntryValidationResult(false, (message ?? string.Empty).Trim(), string.Empty, string.Empty);
+    }
+}
