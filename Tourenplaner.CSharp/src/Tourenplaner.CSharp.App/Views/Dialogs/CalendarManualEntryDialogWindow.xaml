@@ -1,6 +1,7 @@
 ﻿<Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.CalendarManualEntryDialogWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
         Title="Manuellen Eintrag hinzufügen"
         Width="560"
         Height="430"
@@ -31,19 +32,53 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Margin="0,0,10,0">
                             <TextBlock FontWeight="SemiBold" Text="Datum" />
-                            <DatePicker x:Name="EntryDatePicker" Margin="0,4,0,0" />
+                            <controls:ModernDatePickerField x:Name="EntryDatePicker"
+                                                            Margin="0,4,0,0"
+                                                            PlaceholderText="Datum auswählen" />
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1" Width="120">
+                        <StackPanel Grid.Column="1" Width="156">
                             <TextBlock FontWeight="SemiBold" Text="Zeit (optional)" />
-                            <TextBox x:Name="EntryTimeTextBox"
-                                     Margin="0,4,0,0"
-                                     VerticalContentAlignment="Center"
-                                     ToolTip="HH:mm" />
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="EntryHourComboBox"
+                                          Margin="0,0,4,0" />
+                                <TextBlock Grid.Column="1"
+                                           VerticalAlignment="Center"
+                                           Text=":" />
+                                <ComboBox x:Name="EntryMinuteComboBox"
+                                          Grid.Column="2"
+                                          Margin="4,0,0,0" />
+                            </Grid>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Width="84" Margin="10,0,0,0">
+                            <TextBlock FontWeight="SemiBold" Text="Farbe" />
+                            <ComboBox x:Name="EntryColorComboBox"
+                                      Width="72"
+                                      Margin="0,4,0,0"
+                                      HorizontalContentAlignment="Center"
+                                      MaxDropDownHeight="240">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="18"
+                                                Height="18"
+                                                HorizontalAlignment="Center"
+                                                CornerRadius="2"
+                                                BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                BorderThickness="1"
+                                                Background="{Binding Hex}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </StackPanel>
                     </Grid>
 
@@ -58,52 +93,11 @@
                         <TextBlock FontWeight="SemiBold" Text="Beschreibung" />
                         <TextBox x:Name="EntryDescriptionTextBox"
                                  Margin="0,4,0,0"
-                                 MinHeight="90"
+                                 MinHeight="68"
                                  AcceptsReturn="True"
                                  TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto" />
                     </StackPanel>
-
-                    <Grid Margin="0,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0">
-                            <TextBlock FontWeight="SemiBold" Text="Farbe" />
-                            <ComboBox x:Name="EntryColorComboBox"
-                                      Width="220"
-                                      Margin="0,4,0,0"
-                                      MaxDropDownHeight="240"
-                                      SelectionChanged="OnColorSelectionChanged">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Border Width="12"
-                                                    Height="12"
-                                                    Margin="0,0,6,0"
-                                                    CornerRadius="2"
-                                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
-                                                    BorderThickness="1"
-                                                    Background="{Binding Hex}" />
-                                            <TextBlock Text="{Binding Label}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </StackPanel>
-
-                        <Border x:Name="ColorPreviewBorder"
-                                Grid.Column="1"
-                                Width="28"
-                                Height="28"
-                                Margin="10,24,0,0"
-                                CornerRadius="4"
-                                BorderBrush="{DynamicResource Brush.BorderSoft}"
-                                BorderThickness="1" />
-                    </Grid>
                 </StackPanel>
             </ScrollViewer>
 
@@ -136,3 +130,5 @@
         </Grid>
     </Border>
 </Window>
+
+

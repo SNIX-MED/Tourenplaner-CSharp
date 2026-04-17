@@ -24,6 +24,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private readonly JsonAppSettingsRepository _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly Func<int, Task>? _openTourAsync;
+    private readonly Func<int, Task>? _editTourAsync;
     private readonly Func<int, Task>? _openTourOnMapAsync;
     private readonly Func<DateTime, Task>? _openDayInToursAsync;
     private readonly Func<string, Task>? _openOrderEditorAsync;
@@ -54,6 +55,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         string ordersJsonPath,
         string settingsJsonPath,
         Func<int, Task>? openTourAsync = null,
+        Func<int, Task>? editTourAsync = null,
         Func<int, Task>? openTourOnMapAsync = null,
         Func<DateTime, Task>? openDayInToursAsync = null,
         Func<string, Task>? openOrderEditorAsync = null,
@@ -68,6 +70,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
         _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _openTourAsync = openTourAsync;
+        _editTourAsync = editTourAsync;
         _openTourOnMapAsync = openTourOnMapAsync;
         _openDayInToursAsync = openDayInToursAsync;
         _openOrderEditorAsync = openOrderEditorAsync;
@@ -111,12 +114,14 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
     public IReadOnlyList<string> ManualEntryColorOptions { get; } =
     [
-        "#0EA5E9",
-        "#16A34A",
-        "#F59E0B",
+        "#7DD3FC",
+        "#1D4ED8",
+        "#86EFAC",
+        "#15803D",
         "#DC2626",
-        "#7C3AED",
-        "#475569"
+        "#F97316",
+        "#FACC15",
+        "#6B7280"
     ];
 
     public string DefaultManualEntryColor => ManualEntryColorOptions[0];
@@ -551,6 +556,12 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 SummaryText = dayEntries.Count == 0
                     ? string.Empty
                     : string.Join(Environment.NewLine, dayEntries.Select(x => x.CompactText)),
+                SummaryLines = dayEntries.Select(x => new UpcomingDaySummaryLine
+                {
+                    Text = x.CompactText,
+                    ShowManualDot = x.IsManual,
+                    DotColor = x.ColorHex
+                }).ToList(),
                 IsToday = date == DateTime.Today,
                 IsPast = date < DateTime.Today
             };
@@ -653,10 +664,11 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             .Select(x => new CalendarManualEntryItem
             {
                 EntryId = x.Entry.Id,
-                TimeText = x.HasTime ? x.Time : "--:--",
+                TimeText = x.HasTime ? x.Time : string.Empty,
+                HasTime = x.HasTime,
                 Title = x.Entry.Title,
                 Description = x.Entry.Description,
-                ColorHex = NormalizeHexColor(x.Entry.ColorHex, "#0EA5E9")
+                ColorHex = NormalizeHexColor(x.Entry.ColorHex, "#7DD3FC")
             })
             .ToList();
 
@@ -716,6 +728,16 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         }
 
         await _openOrderEditorAsync(normalized);
+    }
+
+    public async Task OpenSelectedTourForEditAsync()
+    {
+        if (SelectedDayTour is null || _editTourAsync is null)
+        {
+            return;
+        }
+
+        await _editTourAsync(SelectedDayTour.TourId);
     }
 
     private async Task OpenSelectedTourAsync()
@@ -948,7 +970,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 TimeText = hasTime ? normalizedTime : "--:--",
                 Title = string.IsNullOrWhiteSpace(manualEntry.Title) ? "(Ohne Titel)" : manualEntry.Title.Trim(),
                 Description = (manualEntry.Description ?? string.Empty).Trim(),
-                ColorHex = NormalizeHexColor(manualEntry.ColorHex, "#0EA5E9"),
+                ColorHex = NormalizeHexColor(manualEntry.ColorHex, "#7DD3FC"),
                 SortTimeMinutes = hasTime ? ParseStartTimeMinutes(normalizedTime) : int.MaxValue
             });
         }
@@ -1457,11 +1479,13 @@ public sealed class CalendarManualEntryItem
 
     public string TimeText { get; set; } = string.Empty;
 
+    public bool HasTime { get; set; }
+
     public string Title { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
 
-    public string ColorHex { get; set; } = "#0EA5E9";
+    public string ColorHex { get; set; } = "#7DD3FC";
 }
 
 public sealed class CalendarManualEntryEditItem
@@ -1476,7 +1500,7 @@ public sealed class CalendarManualEntryEditItem
 
     public string Description { get; set; } = string.Empty;
 
-    public string ColorHex { get; set; } = "#0EA5E9";
+    public string ColorHex { get; set; } = "#7DD3FC";
 }
 
 public sealed class CalendarTourDayListItem
@@ -1519,6 +1543,8 @@ public sealed class UpcomingDayCardItem : CalendarLoadItem
 
     public string SummaryText { get; set; } = string.Empty;
 
+    public IReadOnlyList<UpcomingDaySummaryLine> SummaryLines { get; set; } = [];
+
     public bool IsToday { get; set; }
 
     public bool IsPast { get; set; }
@@ -1528,6 +1554,15 @@ public sealed class UpcomingDayCardItem : CalendarLoadItem
         get => _isSelected;
         set => SetProperty(ref _isSelected, value);
     }
+}
+
+public sealed class UpcomingDaySummaryLine
+{
+    public string Text { get; set; } = string.Empty;
+
+    public bool ShowManualDot { get; set; }
+
+    public string DotColor { get; set; } = "#7DD3FC";
 }
 
 public sealed record CalendarDayLoad(int TourCount, int AssignedPeopleCount);

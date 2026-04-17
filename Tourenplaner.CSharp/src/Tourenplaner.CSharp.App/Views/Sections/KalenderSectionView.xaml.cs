@@ -90,6 +90,57 @@ public partial class KalenderSectionView : UserControl
         e.Handled = true;
     }
 
+    private async void OnDayTourCardMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 2)
+        {
+            return;
+        }
+
+        if (sender is not Border card || card.DataContext is not CalendarTourItem tour)
+        {
+            return;
+        }
+
+        if (DataContext is not KalenderSectionViewModel vm)
+        {
+            return;
+        }
+
+        vm.SelectedDayTour = tour;
+        await vm.OpenSelectedTourForEditAsync();
+        e.Handled = true;
+    }
+
+    private async void OnDayManualEntryCardMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 2)
+        {
+            return;
+        }
+
+        if (sender is not Border card || card.DataContext is not CalendarManualEntryItem manualItem)
+        {
+            return;
+        }
+
+        if (DataContext is not KalenderSectionViewModel vm || vm.SelectedDay?.Date is not DateTime selectedDate)
+        {
+            return;
+        }
+
+        var existing = vm.GetManualEntriesForDate(selectedDate)
+            .FirstOrDefault(x => string.Equals(x.Id, manualItem.EntryId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            ShowWarning("Der gewählte Eintrag wurde nicht gefunden.");
+            return;
+        }
+
+        await OpenManualEntryEditorAsync(vm, selectedDate, existing);
+        e.Handled = true;
+    }
+
     private async Task OpenManualEntriesForDateAsync(KalenderSectionViewModel vm, DateTime date)
     {
         try

@@ -108,15 +108,45 @@
                                                            Foreground="{Binding LoadForeground}"
                                                            Text="{Binding DateText}" />
 
-                                                <TextBlock Grid.Column="1"
-                                                           Margin="8,0,0,0"
-                                                           VerticalAlignment="Center"
-                                                           TextWrapping="Wrap"
-                                                           Foreground="{Binding LoadForeground}"
-                                                           Opacity="0.9"
-                                                           FontSize="11"
-                                                           MaxHeight="30"
-                                                           Text="{Binding SummaryText}" />
+                                                <ItemsControl Grid.Column="1"
+                                                              Margin="8,0,0,0"
+                                                              VerticalAlignment="Center"
+                                                              ItemsSource="{Binding SummaryLines}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,0,0,1">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <Ellipse Grid.Column="0"
+                                                                         Width="6"
+                                                                         Height="6"
+                                                                         Margin="0,4,5,0"
+                                                                         VerticalAlignment="Top"
+                                                                         Fill="{Binding DotColor}">
+                                                                    <Ellipse.Style>
+                                                                        <Style TargetType="Ellipse">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding ShowManualDot}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Ellipse.Style>
+                                                                </Ellipse>
+                                                                <TextBlock Grid.Column="1"
+                                                                           TextWrapping="NoWrap"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           Foreground="{Binding DataContext.LoadForeground, RelativeSource={RelativeSource AncestorType=Border}}"
+                                                                           Opacity="0.9"
+                                                                           FontSize="11"
+                                                                           Text="{Binding Text}" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
                                             </Grid>
                                             <Border.Style>
                                                 <Style TargetType="Border" BasedOn="{StaticResource StartUpcomingCardStyle}">

@@ -25,8 +25,11 @@ public partial class CalendarManualEntriesDayDialogWindow : Window
                 IsManual = true,
                 ManualEntry = manual,
                 SortMinutes = ParseMinutes(manual.Time),
-                TimeDisplay = string.IsNullOrWhiteSpace(manual.Time) ? "--:--" : manual.Time,
+                TimeDisplay = string.IsNullOrWhiteSpace(manual.Time) ? string.Empty : manual.Time,
                 Title = manual.Title,
+                Headline = string.IsNullOrWhiteSpace(manual.Time)
+                    ? manual.Title
+                    : $"{manual.Time} {manual.Title}".Trim(),
                 Description = manual.Description,
                 KindLabel = "Manueller Eintrag",
                 ColorHex = manual.ColorHex
@@ -40,8 +43,11 @@ public partial class CalendarManualEntriesDayDialogWindow : Window
                 IsManual = false,
                 TourEntry = tour,
                 SortMinutes = ParseMinutes(tour.Time),
-                TimeDisplay = string.IsNullOrWhiteSpace(tour.Time) ? "--:--" : tour.Time,
+                TimeDisplay = string.IsNullOrWhiteSpace(tour.Time) ? string.Empty : tour.Time,
                 Title = tour.Name,
+                Headline = string.IsNullOrWhiteSpace(tour.Time)
+                    ? tour.Name
+                    : $"{tour.Time} {tour.Name}".Trim(),
                 Description = tour.Summary,
                 KindLabel = "Liefertour",
                 ColorHex = "#475569"
@@ -143,6 +149,8 @@ public sealed class CalendarDayCombinedListItem
     public string TimeDisplay { get; set; } = string.Empty;
 
     public string Title { get; set; } = string.Empty;
+
+    public string Headline { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
 

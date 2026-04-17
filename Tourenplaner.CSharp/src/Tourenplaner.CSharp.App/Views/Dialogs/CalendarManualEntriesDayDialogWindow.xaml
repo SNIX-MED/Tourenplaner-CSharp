@@ -8,6 +8,24 @@
         MinHeight="380"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource Brush.WindowBackground}">
+    <Window.Resources>
+        <Style x:Key="DayEntryListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <Border Margin="12" Style="{StaticResource FlatCardStyle}" Padding="14">
         <Grid>
             <Grid.RowDefinitions>
@@ -26,31 +44,44 @@
                      Margin="0,12,0,12"
                      BorderThickness="0"
                      Background="Transparent"
+                     HorizontalContentAlignment="Stretch"
+                     ItemContainerStyle="{StaticResource DayEntryListBoxItemStyle}"
                      MouseDoubleClick="OnEditClickedFromDoubleClick">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="0,0,0,8"
-                                Padding="8"
-                                BorderBrush="{DynamicResource Brush.BorderSoft}"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Background="{DynamicResource Brush.CardSoft}">
+                        <Border HorizontalAlignment="Stretch">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Margin" Value="0,0,0,8" />
+                                    <Setter Property="Padding" Value="10,9" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+                                    <Setter Property="BorderThickness" Value="1" />
+                                    <Setter Property="CornerRadius" Value="10" />
+                                    <Setter Property="Background" Value="{DynamicResource Brush.CardSoft}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsMouseOver}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="24" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Border Width="8"
                                         Height="8"
-                                        Margin="0,5,0,0"
+                                        Margin="4,6,0,0"
                                         CornerRadius="4"
                                         Background="{Binding ColorHex}" />
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock FontWeight="SemiBold">
-                                        <Run Text="{Binding TimeDisplay}" />
-                                        <Run Text=" " />
-                                        <Run Text="{Binding Title}" />
-                                    </TextBlock>
+                                <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                    <TextBlock FontWeight="SemiBold"
+                                               Text="{Binding Headline}" />
                                     <TextBlock Margin="0,2,0,0"
                                                FontSize="11"
                                                Foreground="{DynamicResource Brush.TextMuted}"

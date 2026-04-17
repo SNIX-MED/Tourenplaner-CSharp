@@ -21,7 +21,7 @@
         </Style>
         <Style x:Key="StartUpcomingCardStyle" TargetType="Border" BasedOn="{StaticResource SharpFlatCardStyle}">
             <Setter Property="Padding" Value="6,5" />
-            <Setter Property="MinHeight" Value="50" />
+            <Setter Property="MinHeight" Value="62" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.Card}" />
@@ -130,7 +130,6 @@
                                                     <Grid.RowDefinitions>
                                                         <RowDefinition Height="Auto" />
                                                         <RowDefinition Height="Auto" />
-                                                        <RowDefinition Height="Auto" />
                                                     </Grid.RowDefinitions>
 
                                                     <TextBlock Grid.Row="0"
@@ -139,31 +138,50 @@
                                                                Foreground="{Binding LoadForeground}"
                                                                Text="{Binding DateText}" />
 
-                                                    <TextBlock Grid.Row="1"
-                                                               Margin="0,2,0,0"
-                                                               VerticalAlignment="Top"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               TextWrapping="NoWrap"
-                                                               Foreground="{Binding LoadForeground}"
-                                                               Opacity="0.95"
-                                                               FontSize="11"
-                                                               Text="{Binding TourCountText}" />
-
-                                                    <TextBlock Grid.Row="2"
-                                                               Margin="0,2,0,0"
-                                                               VerticalAlignment="Top"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               TextWrapping="NoWrap"
-                                                               Foreground="{Binding LoadForeground}"
-                                                               Opacity="0.9"
-                                                               FontSize="11"
-                                                               Text="{Binding SummaryText}" />
+                                                    <ItemsControl Grid.Row="1"
+                                                                  Margin="0,2,0,0"
+                                                                  ItemsSource="{Binding SummaryLines}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Ellipse Grid.Column="0"
+                                                                             Width="7"
+                                                                             Height="7"
+                                                                             Margin="0,4,5,0"
+                                                                             VerticalAlignment="Top"
+                                                                             Fill="{Binding DotColor}">
+                                                                        <Ellipse.Style>
+                                                                            <Style TargetType="Ellipse">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding ShowManualDot}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Ellipse.Style>
+                                                                    </Ellipse>
+                                                                    <TextBlock Grid.Column="1"
+                                                                               VerticalAlignment="Top"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               TextWrapping="NoWrap"
+                                                                               Foreground="{Binding DataContext.LoadForeground, RelativeSource={RelativeSource AncestorType=Border}}"
+                                                                               Opacity="0.9"
+                                                                               FontSize="11"
+                                                                               Text="{Binding Text}" />
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
                                                 </Grid>
                                                 <Border.ToolTip>
                                                     <ToolTip MaxWidth="360">
                                                         <StackPanel>
                                                             <TextBlock FontWeight="SemiBold" Text="{Binding DateText}" />
-                                                            <TextBlock Margin="0,3,0,0" FontWeight="SemiBold" Text="{Binding TourCountText}" />
                                                             <TextBlock Margin="0,6,0,0"
                                                                        TextWrapping="Wrap"
                                                                        Text="{Binding SummaryText}" />
@@ -218,76 +236,49 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Grid>
+                <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock FontSize="24" FontWeight="SemiBold" Text="{Binding SelectedDayHeadline}" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <Button Width="170" Margin="0,0,8,0" Command="{Binding OpenSplitScreenCommand}" Style="{StaticResource SecondaryButtonStyle}">
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <TextBlock Text="||" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                <TextBlock Text="Split-Ansicht" VerticalAlignment="Center" />
-                            </StackPanel>
+                        <Button Width="64"
+                                Height="40"
+                                Padding="0"
+                                Margin="0,0,8,0"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center"
+                                ToolTip="Öffnet die Split-Screen Ansicht für paralleles Arbeiten."
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding OpenSplitScreenCommand}">
+                            <Image Width="38"
+                                   Height="38"
+                                   Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   SnapsToDevicePixels="True"
+                                   Source="pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-split-screen.jpg" />
                         </Button>
                         <Button Width="130" Margin="0,0,8,0" Content="Tour öffnen" Command="{Binding OpenSelectedTourCommand}" />
                         <Button Width="130" Content="Tour löschen" Style="{StaticResource DangerOutlineButtonStyle}" Command="{Binding DeleteSelectedTourCommand}" />
                     </StackPanel>
                 </Grid>
 
-                <Border Grid.Row="1" Margin="0,8,0,10" Style="{StaticResource SharpSoftCardStyle}" Padding="10">
-                    <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding StatusText}" />
-                </Border>
-
-                <ItemsControl Grid.Row="2" ItemsSource="{Binding SelectedDayManualEntries}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Margin="0,0,0,8"
-                                    Padding="8"
-                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Background="{DynamicResource Brush.CardSoft}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="10" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Width="8"
-                                            Height="8"
-                                            Margin="0,5,0,0"
-                                            CornerRadius="4"
-                                            Background="{Binding ColorHex}" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock FontWeight="SemiBold">
-                                            <Run Text="{Binding TimeText}" />
-                                            <Run Text=" " />
-                                            <Run Text="{Binding Title}" />
-                                        </TextBlock>
-                                        <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
-                                                   Text="{Binding Description}"
-                                                   TextWrapping="Wrap" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <ListBox Grid.Row="3"
-                         ItemsSource="{Binding SelectedDayTours}"
-                         SelectedItem="{Binding SelectedDayTour, Mode=TwoWay}"
-                         Background="Transparent"
-                         BorderThickness="0"
-                         PreviewMouseWheel="OnPagePreviewMouseWheel"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                         ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                         ScrollViewer.CanContentScroll="False">
+                <ScrollViewer Grid.Row="1"
+                              PreviewMouseWheel="OnPagePreviewMouseWheel"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled"
+                              CanContentScroll="False">
+                    <StackPanel Orientation="Horizontal">
+                        <ListBox ItemsSource="{Binding SelectedDayTours}"
+                                 SelectedItem="{Binding SelectedDayTour, Mode=TwoWay}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="False">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" />
@@ -320,7 +311,8 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <Border Width="360"
-                                        Padding="10">
+                                        Padding="10"
+                                        MouseLeftButtonDown="OnDayTourCardMouseLeftButtonDown">
                                     <Border.Style>
                                         <Style TargetType="Border" BasedOn="{StaticResource SharpFlatCardStyle}">
                                             <Setter Property="BorderThickness" Value="1" />
@@ -445,7 +437,120 @@
                                 </Border>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
-                </ListBox>
+                        </ListBox>
+
+                        <ItemsControl Margin="0,0,0,0" ItemsSource="{Binding SelectedDayManualEntries}">
+                            <ItemsControl.Style>
+                                <Style TargetType="ItemsControl">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedDayManualEntries.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ItemsControl.Style>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="360"
+                                            Margin="0,0,12,0"
+                                            Padding="10"
+                                            MouseLeftButtonDown="OnDayManualEntryCardMouseLeftButtonDown">
+                                        <Border.Style>
+                                            <Style TargetType="Border" BasedOn="{StaticResource SharpFlatCardStyle}">
+                                                <Setter Property="BorderThickness" Value="1" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+                                            </Style>
+                                        </Border.Style>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel>
+                                                    <TextBlock FontSize="11"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                               Text="Manueller Eintrag" />
+                                                    <TextBlock FontWeight="SemiBold"
+                                                               FontSize="16"
+                                                               Foreground="{DynamicResource Brush.TextPrimary}"
+                                                               Text="{Binding Title}" />
+                                                </StackPanel>
+
+                                                <Border Grid.Column="1"
+                                                        Width="36"
+                                                        Height="36"
+                                                        Margin="8,0,6,0"
+                                                        CornerRadius="18"
+                                                        BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                        BorderThickness="1"
+                                                        Background="{DynamicResource Brush.Card}">
+                                                    <Ellipse Width="10"
+                                                             Height="10"
+                                                             HorizontalAlignment="Center"
+                                                             VerticalAlignment="Center"
+                                                             Fill="{Binding ColorHex}" />
+                                                </Border>
+
+                                                <TextBlock Grid.Column="2"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="18"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                                           Text="{Binding TimeText}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasTime}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+
+                                            <Border Grid.Row="1"
+                                                    Margin="0,8,0,0"
+                                                    Padding="10">
+                                                <Border.Style>
+                                                    <Style TargetType="Border" BasedOn="{StaticResource SharpSoftCardStyle}">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Description}" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
+                                                           TextWrapping="Wrap"
+                                                           Text="{Binding Description}" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
                 </Grid>
         </Border>
         </StackPanel>

@@ -79,6 +79,7 @@ public sealed class MainShellViewModel : ObservableObject
             ordersJsonPath,
             settingsJsonPath,
             tourId => NavigateToTourAsync(tours, tourId),
+            tourId => NavigateToTourAndEditAsync(tours, tourId),
             tourId => NavigateToMapTourAsync(map, tourId),
             date => NavigateToTourDateAsync(tours, date),
             orderId => OpenOrderEditorFromCalendarAsync(orderId),
@@ -273,6 +274,16 @@ public sealed class MainShellViewModel : ObservableObject
     {
         await toursSection.FocusTourAsync(tourId);
         SelectNavigationItemForSection(toursSection);
+    }
+
+    private async Task NavigateToTourAndEditAsync(ToursSectionViewModel toursSection, int tourId)
+    {
+        await toursSection.FocusTourAsync(tourId);
+        SelectNavigationItemForSection(toursSection);
+        if (toursSection.EditTourOnMapCommand.CanExecute(null))
+        {
+            toursSection.EditTourOnMapCommand.Execute(null);
+        }
     }
 
     private async Task NavigateToTourDateAsync(ToursSectionViewModel toursSection, DateTime date)
