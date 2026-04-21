@@ -168,6 +168,7 @@ internal static class MapHtmlDocumentBuilder
                    let markerMap = new Map();
                    let markerLayer = L.layerGroup().addTo(map);
                    let companyMarkerLayer = L.layerGroup().addTo(map);
+                   let plannedTourOverlayLayer = L.layerGroup().addTo(map);
                    let routeLayer = L.layerGroup().addTo(map);
                    let routePolyline = null;
                    let routeMarkerMap = new Map();
@@ -292,6 +293,10 @@ internal static class MapHtmlDocumentBuilder
                      routeLayer.clearLayers();
                      routePolyline = null;
                      routeMarkerMap.clear();
+                   }
+
+                   function clearPlannedTourOverlays() {
+                     plannedTourOverlayLayer.clearLayers();
                    }
 
                    function buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned, isDimmed) {
@@ -510,7 +515,42 @@ internal static class MapHtmlDocumentBuilder
                      }
                    };
 
-                   window.gawelaSetRoute = function(routeStops, geometryPoints) {
+                   window.gawelaSetPlannedTourOverlays = function(overlays) {
+                     clearPlannedTourOverlays();
+                     if (!overlays || overlays.length === 0) {
+                       return;
+                     }
+
+                     overlays.forEach(overlay => {
+                       const path = Array.isArray(overlay.path)
+                         ? overlay.path
+                             .filter(p => p && typeof p.lat === 'number' && typeof p.lon === 'number')
+                             .map(p => [p.lat, p.lon])
+                         : [];
+                       if (path.length < 2) {
+                         return;
+                       }
+
+                       const color = (overlay.color || '#2563EB');
+                       const polyline = L.polyline(path, {
+                         color: color,
+                         weight: 3,
+                         opacity: 0.82,
+                         dashArray: '6 6'
+                       }).addTo(plannedTourOverlayLayer);
+
+                       const label = (overlay.label || '').trim();
+                       if (label.length > 0) {
+                         polyline.bindTooltip(label, {
+                           sticky: true,
+                           direction: 'top',
+                           opacity: 0.92
+                         });
+                       }
+                     });
+                   };
+
+                   window.gawelaSetRoute = function(routeStops, geometryPoints, routeColor) {
                      clearRoute();
                      if (!routeStops || routeStops.length === 0) {
                        return;
@@ -530,7 +570,8 @@ internal static class MapHtmlDocumentBuilder
                      const path = (geometryPoints && geometryPoints.length > 1)
                        ? geometryPoints.map(x => [x.lat, x.lon])
                        : routeStops.map(x => [x.lat, x.lon]);
-                     routePolyline = L.polyline(path, { color: '#2563eb', weight: 4, opacity: 0.9 }).addTo(routeLayer);
+                     const effectiveRouteColor = (routeColor || '#2563EB');
+                     routePolyline = L.polyline(path, { color: effectiveRouteColor, weight: 4, opacity: 0.92 }).addTo(routeLayer);
 
                      routeStops.forEach(stop => {
                        const stopLabel = (typeof stop.label === 'string' && stop.label.length > 0)

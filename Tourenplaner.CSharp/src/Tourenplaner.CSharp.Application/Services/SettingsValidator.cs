@@ -117,6 +117,11 @@ public sealed class SettingsValidator
             errors.Add("CalendarLoadCriticalPeopleThreshold must be greater than or equal to CalendarLoadWarningPeopleThreshold.");
         }
 
+        if (settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100)
+        {
+            errors.Add("MapRouteCapacityWarningThresholdPercent must be between 0 and 100.");
+        }
+
         return new ValidationResult(errors);
     }
 

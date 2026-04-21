@@ -266,6 +266,7 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Orange ab Personen" />
                                     <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding CalendarLoadWarningPeopleThreshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -275,6 +276,8 @@
                                     <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding CalendarLoadCriticalPeopleThreshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Rot Farbcode" />
                                     <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding CalendarLoadCriticalColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Karte Rot ab Rest %" />
+                                    <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" ToolTip="Wenn Restkapazität kleiner/gleich diesem Prozentwert ist, wird die Tourlinie rot." Text="{Binding MapRouteCapacityWarningThresholdPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </Grid>
                             </StackPanel>
                         </Border>

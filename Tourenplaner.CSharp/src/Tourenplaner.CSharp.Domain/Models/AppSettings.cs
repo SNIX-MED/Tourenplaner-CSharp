@@ -14,6 +14,7 @@ public sealed class AppSettings
     public const string DefaultGpsToolUrl = "https://map.ktrac.ch/";
     public const string DefaultSpediteurToolUrl = "https://portal.haslertransport.ch/";
     public const string DefaultTourStartTime = "07:30";
+    public const int DefaultMapRouteCapacityWarningThresholdPercent = 5;
 
     public string AppearanceMode { get; set; } = "Light";
     public string AvisoEmailSubjectTemplate { get; set; } = DefaultAvisoEmailSubjectTemplate;
@@ -39,6 +40,7 @@ public sealed class AppSettings
     public bool MapPinInfoCardShowNotes { get; set; } = true;
     public bool MapPinInfoCardShowProducts { get; set; } = true;
     public bool MapPinInfoCardShowTotalWeight { get; set; } = true;
+    public int MapRouteCapacityWarningThresholdPercent { get; set; } = DefaultMapRouteCapacityWarningThresholdPercent;
     public List<string> QuickAccessItems { get; set; } = new() { "action:export_route", string.Empty, string.Empty, string.Empty };
     public bool BackupsEnabled { get; set; }
     public string BackupDir { get; set; } = string.Empty;

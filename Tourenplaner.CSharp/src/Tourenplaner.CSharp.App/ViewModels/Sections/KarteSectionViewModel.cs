@@ -58,6 +58,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private readonly List<GeoPoint> _routeGeometryPoints = new();
     private readonly List<OsrmRouteLeg> _routeLegs = new();
     private readonly List<RouteStopItem> _timedStops = new();
+    private readonly List<PlannedTourRouteOverlay> _plannedTourRouteOverlays = new();
     private VehicleDataRecord _vehicleData = new();
 
     private string _searchText = string.Empty;
@@ -116,6 +117,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _currentRouteTrailerId = string.Empty;
     private string _currentRouteSecondaryVehicleId = string.Empty;
     private string _currentRouteSecondaryTrailerId = string.Empty;
+    private int _mapRouteCapacityWarningThresholdPercent = AppSettings.DefaultMapRouteCapacityWarningThresholdPercent;
+    private bool _isAllPlannedToursVisible;
+    private int _plannedTourOverlayRevision;
+    private int _routeVisualRevision;
     private SavedTourLookupItem? _selectedSavedTour;
     private string _detailSelectedStatus = Order.DefaultOrderStatus;
     private string _detailSelectedAvisoStatus = "nicht avisiert";
@@ -169,6 +174,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         ResetOrderFiltersCommand = new DelegateCommand(ResetOrderFilters);
         ToggleAllOrderFiltersCommand = new DelegateCommand(ToggleAllOrderFilters);
         TogglePinInfoCardsCommand = new DelegateCommand(TogglePinInfoCards);
+        ToggleAllPlannedToursCommand = new AsyncCommand(ToggleAllPlannedToursAsync);
         OpenSplitScreenCommand = new AsyncCommand(OpenSplitScreenAsync, () => _openSplitScreenAsync is not null);
         SendEmailCommand = new DelegateCommand(SendEmailToSelectedOrder, () => SelectedOrder is not null);
         ShowSelectedOrderTourCommand = new AsyncCommand(ShowSelectedOrderTourAsync, CanShowSelectedOrderTour);
@@ -230,6 +236,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     public ICommand TogglePinInfoCardsCommand { get; }
 
+    public ICommand ToggleAllPlannedToursCommand { get; }
+
     public ICommand OpenSplitScreenCommand { get; }
 
     public ICommand SendEmailCommand { get; }
@@ -254,6 +262,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         ? "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-infocards-off.jpg"
         : "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-infocards-on.jpg";
     public string PinInfoCardScalePercentText => $"{Math.Round(PinInfoCardScale * 100d):0}%";
+    public string ToggleAllPlannedToursButtonText => IsAllPlannedToursVisible ? "Touren ausblenden" : "Alle Touren anzeigen";
+    public string ToggleAllPlannedToursImagePath => IsAllPlannedToursVisible
+        ? "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Touren-ausblenden.png"
+        : "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Touren-einblenden.png";
 
     public string ToggleAllFiltersButtonText => AreAllFiltersSelected() ? "Alle abwählen" : "Alle auswählen";
 
@@ -377,6 +389,31 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(IsMapFilterPanelVisible));
             }
         }
+    }
+
+    public bool IsAllPlannedToursVisible
+    {
+        get => _isAllPlannedToursVisible;
+        private set
+        {
+            if (SetProperty(ref _isAllPlannedToursVisible, value))
+            {
+                OnPropertyChanged(nameof(ToggleAllPlannedToursButtonText));
+                OnPropertyChanged(nameof(ToggleAllPlannedToursImagePath));
+            }
+        }
+    }
+
+    public int PlannedTourOverlayRevision
+    {
+        get => _plannedTourOverlayRevision;
+        private set => SetProperty(ref _plannedTourOverlayRevision, value);
+    }
+
+    public int RouteVisualRevision
+    {
+        get => _routeVisualRevision;
+        private set => SetProperty(ref _routeVisualRevision, value);
     }
 
     public double PinInfoCardScale
@@ -654,6 +691,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _mapPinInfoCardShowNotes = settings.MapPinInfoCardShowNotes;
         _mapPinInfoCardShowProducts = settings.MapPinInfoCardShowProducts;
         _mapPinInfoCardShowTotalWeight = settings.MapPinInfoCardShowTotalWeight;
+        _mapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
+            ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
+            : settings.MapRouteCapacityWarningThresholdPercent;
         var (defaultHour, defaultMinute) = ParseStartTimePartsOrDefault(settings.TourDefaultStartTime);
         _defaultRouteStartHour = defaultHour;
         _defaultRouteStartMinute = defaultMinute;
@@ -687,6 +727,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RefreshOrderFilterOptions();
         RebuildOrderGrid();
         await LoadSavedToursAsync();
+        RebuildPlannedTourRouteOverlays();
         _ = RebuildRouteGeometryAsync();
         UpdateRouteSummary();
     }
@@ -872,6 +913,32 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public IReadOnlyList<GeoPoint> GetRouteGeometrySnapshot()
     {
         return _routeGeometryPoints.ToList();
+    }
+
+    public string GetActiveRoutePolylineColor()
+    {
+        var totalWeightKg = RouteStops
+            .Where(x => !IsCompanyStop(x))
+            .Select(x => FindOrderWeightKg(x.OrderId))
+            .Sum();
+        var assignments = BuildVehicleAssignments(
+            _currentRouteVehicleId,
+            _currentRouteTrailerId,
+            _currentRouteSecondaryVehicleId,
+            _currentRouteSecondaryTrailerId);
+        return ResolveRoutePolylineColorHex(totalWeightKg, assignments);
+    }
+
+    public IReadOnlyList<PlannedTourRouteOverlay> GetPlannedTourRouteOverlaySnapshot()
+    {
+        if (!IsAllPlannedToursVisible)
+        {
+            return [];
+        }
+
+        return _plannedTourRouteOverlays
+            .Select(x => x.Clone())
+            .ToList();
     }
 
     public void SelectRouteStopByOrderId(string orderId)
@@ -2068,7 +2135,35 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             _savedTourSelectionSync = false;
         }
 
+        RebuildPlannedTourRouteOverlays();
         RaiseCommandStates();
+    }
+
+    private async Task ToggleAllPlannedToursAsync()
+    {
+        if (IsAllPlannedToursVisible)
+        {
+            IsAllPlannedToursVisible = false;
+            RebuildPlannedTourRouteOverlays();
+            StatusText = "Alle geplanten Tourlinien wurden ausgeblendet.";
+            return;
+        }
+
+        if (_savedTours.Count == 0)
+        {
+            await LoadSavedToursAsync();
+        }
+
+        IsAllPlannedToursVisible = true;
+        RebuildPlannedTourRouteOverlays();
+        if (_plannedTourRouteOverlays.Count == 0)
+        {
+            StatusText = "Keine geplanten Touren mit gültigen Koordinaten gefunden.";
+        }
+        else
+        {
+            StatusText = $"{_plannedTourRouteOverlays.Count} geplante Tourlinie(n) auf der Karte angezeigt.";
+        }
     }
 
     private async Task LoadSelectedSavedTourAsync(int previousTourId)
@@ -2746,6 +2841,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RebuildOrderGrid();
         SetRouteChanged(false);
         UpdateRouteSummary();
+        RebuildPlannedTourRouteOverlays();
     }
 
     private static string BuildDefaultRouteName(string? routeDate)
@@ -2879,6 +2975,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         UpdateRouteDistanceFromStops();
         UpdateDriveTimePlaceholderState();
         UpdateRouteSummary();
+        RebuildPlannedTourRouteOverlays();
         _ = RebuildRouteGeometryAsync();
         UpdateStatus();
         RaiseCommandStates();
@@ -2956,6 +3053,86 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         RouteLoadSummaryText = string.Join(Environment.NewLine, loadSummaryParts);
+        RouteVisualRevision++;
+    }
+
+    private void RebuildPlannedTourRouteOverlays()
+    {
+        _plannedTourRouteOverlays.Clear();
+        if (IsAllPlannedToursVisible)
+        {
+            foreach (var tour in _savedTours.Where(x => !x.IsArchived))
+            {
+                var points = (tour.Stops ?? [])
+                    .OrderBy(x => x.Order)
+                    .Where(x => !IsCompanyEndTourStop(x))
+                    .Select(TryMapStopToPoint)
+                    .Where(x => x is not null)
+                    .Select(x => x!)
+                    .ToList();
+                if (points.Count < 2)
+                {
+                    continue;
+                }
+
+                var assignments = BuildVehicleAssignments(
+                    tour.VehicleId,
+                    tour.TrailerId,
+                    tour.SecondaryVehicleId,
+                    tour.SecondaryTrailerId);
+                var totalWeightKg = _allOrders
+                    .Where(x => !x.IsArchived && string.Equals((x.AssignedTourId ?? string.Empty).Trim(), tour.Id.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase))
+                    .Select(x => FindOrderWeightKg(x.Id))
+                    .Sum();
+                var colorHex = ResolveRoutePolylineColorHex(totalWeightKg, assignments);
+                var label = BuildTourLookupLabel(tour);
+
+                _plannedTourRouteOverlays.Add(new PlannedTourRouteOverlay(
+                    tour.Id,
+                    label,
+                    colorHex,
+                    points));
+            }
+        }
+
+        PlannedTourOverlayRevision++;
+    }
+
+    private static GeoPoint? TryMapStopToPoint(TourStopRecord? stop)
+    {
+        if (stop is null)
+        {
+            return null;
+        }
+
+        var lat = stop.Lat;
+        var lon = stop.Lon ?? stop.Lng;
+        if (!lat.HasValue || !lon.HasValue || double.IsNaN(lat.Value) || double.IsNaN(lon.Value))
+        {
+            return null;
+        }
+
+        return new GeoPoint(lat.Value, lon.Value);
+    }
+
+    private static bool IsCompanyEndTourStop(TourStopRecord stop)
+    {
+        return string.Equals((stop.Id ?? string.Empty).Trim(), TourStopIdentity.CompanyEndStopId, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals((stop.Auftragsnummer ?? string.Empty).Trim(), TourStopIdentity.CompanyEndOrderNumber, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string ResolveRoutePolylineColorHex(int totalWeightKg, IReadOnlyList<(string VehicleId, string TrailerId)> assignments)
+    {
+        var warning = TourCapacityWarningService.EvaluateFleet(_vehicleData, assignments, totalWeightKg);
+        if (!warning.AllowedWeightKg.HasValue || warning.AllowedWeightKg.Value <= 0)
+        {
+            return "#2563EB";
+        }
+
+        var remainingPercent = ((warning.AllowedWeightKg.Value - totalWeightKg) / (double)warning.AllowedWeightKg.Value) * 100d;
+        return remainingPercent <= _mapRouteCapacityWarningThresholdPercent
+            ? "#DC2626"
+            : "#2563EB";
     }
 
     private bool ConfirmAssignmentConflictWarning(IEnumerable<TourRecord> tours, int targetTourId)
@@ -3213,7 +3390,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return 0;
         }
 
-        return (int)Math.Max(0, Math.Round((order.Products ?? []).Sum(x => Math.Max(0d, x.WeightKg)), MidpointRounding.AwayFromZero));
+        return (int)Math.Max(
+            0,
+            Math.Round(
+                (order.Products ?? []).Sum(OrderProductFormatter.ResolveTotalWeightKg),
+                MidpointRounding.AwayFromZero));
     }
 
     private void RaiseCommandStates()
@@ -3872,6 +4053,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RefreshOrderFilterOptions();
         RefreshRouteStopsFromOrders(args);
         RebuildOrderGrid(preferredSelectedOrderId);
+        UpdateRouteSummary();
+        RebuildPlannedTourRouteOverlays();
 
         if (string.IsNullOrWhiteSpace(preferredRouteStopOrderId))
         {
@@ -4957,6 +5140,27 @@ public sealed class RouteStopItem : ObservableObject
 public sealed record MapOrderVisualInfo(string DeliveryLabel, string StatusLabel, bool IsAssigned, string AvisoStatusLabel);
 
 public sealed record CompanyMarkerInfo(string Name, string Address, double Latitude, double Longitude);
+
+public sealed class PlannedTourRouteOverlay
+{
+    public PlannedTourRouteOverlay(int tourId, string label, string colorHex, IReadOnlyList<GeoPoint> points)
+    {
+        TourId = tourId;
+        Label = string.IsNullOrWhiteSpace(label) ? $"Tour {tourId}" : label.Trim();
+        ColorHex = string.IsNullOrWhiteSpace(colorHex) ? "#2563EB" : colorHex.Trim();
+        Points = (points ?? []).Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
+    }
+
+    public int TourId { get; }
+    public string Label { get; }
+    public string ColorHex { get; }
+    public IReadOnlyList<GeoPoint> Points { get; }
+
+    public PlannedTourRouteOverlay Clone()
+    {
+        return new PlannedTourRouteOverlay(TourId, Label, ColorHex, Points);
+    }
+}
 
 public sealed class SavedTourLookupItem
 {

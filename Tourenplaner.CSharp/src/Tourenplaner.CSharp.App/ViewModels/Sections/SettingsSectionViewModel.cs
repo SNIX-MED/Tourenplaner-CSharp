@@ -65,6 +65,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private bool _mapPinInfoCardShowNotes = true;
     private bool _mapPinInfoCardShowProducts = true;
     private bool _mapPinInfoCardShowTotalWeight = true;
+    private int _mapRouteCapacityWarningThresholdPercent = AppSettings.DefaultMapRouteCapacityWarningThresholdPercent;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
     private string _backupModeDefault = "full";
@@ -309,6 +310,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _mapPinInfoCardShowTotalWeight;
         set => SetProperty(ref _mapPinInfoCardShowTotalWeight, value);
+    }
+
+    public int MapRouteCapacityWarningThresholdPercent
+    {
+        get => _mapRouteCapacityWarningThresholdPercent;
+        set => SetProperty(ref _mapRouteCapacityWarningThresholdPercent, value);
     }
 
     public bool BackupsEnabled
@@ -746,6 +753,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             MapPinInfoCardShowNotes = MapPinInfoCardShowNotes,
             MapPinInfoCardShowProducts = MapPinInfoCardShowProducts,
             MapPinInfoCardShowTotalWeight = MapPinInfoCardShowTotalWeight,
+            MapRouteCapacityWarningThresholdPercent = Math.Clamp(MapRouteCapacityWarningThresholdPercent, 0, 100),
             BackupsEnabled = BackupsEnabled,
             BackupDir = (BackupDir ?? string.Empty).Trim(),
             BackupModeDefault = (BackupModeDefault ?? string.Empty).Trim(),
@@ -800,6 +808,9 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         MapPinInfoCardShowNotes = settings.MapPinInfoCardShowNotes;
         MapPinInfoCardShowProducts = settings.MapPinInfoCardShowProducts;
         MapPinInfoCardShowTotalWeight = settings.MapPinInfoCardShowTotalWeight;
+        MapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
+            ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
+            : settings.MapRouteCapacityWarningThresholdPercent;
         BackupsEnabled = settings.BackupsEnabled;
         BackupDir = settings.BackupDir;
         BackupModeDefault = settings.BackupModeDefault;

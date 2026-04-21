@@ -310,7 +310,7 @@
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0"
                                                            Foreground="{DynamicResource Brush.TextMuted}"
-                                                           Text="Form = Lieferart | Farbe = Auftragsstatus | Badge = Eingeplant/Avisierungsstatus | Blaue Linie = aktuelle Route" />
+                                                           Text="Form = Lieferart | Farbe = Auftragsstatus | Badge = Eingeplant/Avisierungsstatus | Linie: Blau normal, Rot bei Kapazitätsreserve &lt;= Toleranz" />
 
                                                 <Grid Grid.Row="1" Margin="0,10,0,0">
                                                     <Grid.ColumnDefinitions>

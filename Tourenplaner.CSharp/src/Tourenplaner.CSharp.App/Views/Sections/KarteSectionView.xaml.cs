@@ -187,6 +187,15 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.Route, DataRefreshDebounceMilliseconds);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.RouteVisualRevision))
+        {
+            QueueMapRefresh(MapRefreshOperation.Route, UiRefreshDebounceMilliseconds);
+        }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.IsAllPlannedToursVisible) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.PlannedTourOverlayRevision))
+        {
+            QueueMapRefresh(MapRefreshOperation.Route, DataRefreshDebounceMilliseconds);
+        }
         else if (e.PropertyName == nameof(KarteSectionViewModel.ArePinInfoCardsVisible))
         {
             QueueMapRefresh(MapRefreshOperation.PinInfoCardsVisibility, UiRefreshDebounceMilliseconds);
@@ -510,7 +519,7 @@ public partial class KarteSectionView : UserControl
         try
         {
             var ready = await MapWebView.CoreWebView2.ExecuteScriptAsync(
-                "(typeof window.gawelaSetMarkers === 'function' && typeof window.gawelaSetRoute === 'function' && typeof window.gawelaSetCompanyMarker === 'function').toString();");
+                "(typeof window.gawelaSetMarkers === 'function' && typeof window.gawelaSetRoute === 'function' && typeof window.gawelaSetPlannedTourOverlays === 'function' && typeof window.gawelaSetCompanyMarker === 'function').toString();");
             _mapScriptReady = ready.Contains("true", StringComparison.OrdinalIgnoreCase);
             if (_mapScriptReady)
             {
@@ -636,10 +645,22 @@ public partial class KarteSectionView : UserControl
         var geometry = vm.GetRouteGeometrySnapshot()
             .Select(x => new { lat = x.Latitude, lon = x.Longitude })
             .ToList();
+        var overlays = vm.GetPlannedTourRouteOverlaySnapshot()
+            .Select(x => new
+            {
+                id = x.TourId,
+                label = x.Label,
+                color = x.ColorHex,
+                path = x.Points.Select(p => new { lat = p.Latitude, lon = p.Longitude }).ToList()
+            })
+            .ToList();
 
         var routeJson = JsonSerializer.Serialize(route);
         var geometryJson = JsonSerializer.Serialize(geometry);
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson});");
+        var routeColorJson = JsonSerializer.Serialize(vm.GetActiveRoutePolylineColor());
+        var overlaysJson = JsonSerializer.Serialize(overlays);
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetPlannedTourOverlays === 'function') window.gawelaSetPlannedTourOverlays({overlaysJson});");
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson}, {routeColorJson});");
         await HighlightSelectedRouteStopAsync();
     }
 
