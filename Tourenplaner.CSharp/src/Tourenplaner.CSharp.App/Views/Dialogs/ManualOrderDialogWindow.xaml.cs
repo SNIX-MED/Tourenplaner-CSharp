@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -31,7 +31,7 @@ public partial class ManualOrderDialogWindow : Window
     {
         if (!ViewModel.TryBuildOrder(out var order, out var validationError))
         {
-            MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 this,
                 validationError,
                 "Eingabe prüfen",
@@ -621,3 +621,5 @@ public sealed class ProductLineInput : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+

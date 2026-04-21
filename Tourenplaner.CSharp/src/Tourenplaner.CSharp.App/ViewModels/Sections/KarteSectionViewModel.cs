@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.ComponentModel;
 using System.Globalization;
@@ -1382,7 +1382,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             $"Wenn du fortfährst, wird der Auftrag beim Speichern nach {targetTourLabel} umgeplant.\n\n" +
             "Trotzdem hinzufügen?";
 
-        var result = MessageBox.Show(
+        var result = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             message,
             "Auftrag bereits eingeplant",
             MessageBoxButton.YesNo,
@@ -1635,7 +1635,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
             if (tour is null)
             {
-                System.Windows.MessageBox.Show(
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                     "Die ausgewählte Tour wurde nicht gefunden. Bitte als neue Tour speichern.",
                     "Tour speichern",
                     System.Windows.MessageBoxButton.OK,
@@ -1684,7 +1684,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         if (!hasRouteStops)
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Bitte zuerst mindestens einen Auftrag zur Route hinzufügen.",
                 "Neue Tour",
                 System.Windows.MessageBoxButton.OK,
@@ -1709,7 +1709,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var selectedTourId = ResolveCurrentTourId();
         if (selectedTourId <= 0)
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Bitte zuerst eine gespeicherte Tour auswählen oder auf der Karte laden.",
                 "Tour bearbeiten",
                 System.Windows.MessageBoxButton.OK,
@@ -1726,7 +1726,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         if (tour is null)
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Die ausgewählte Tour wurde nicht gefunden.",
                 "Tour bearbeiten",
                 System.Windows.MessageBoxButton.OK,
@@ -1842,7 +1842,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var availabilityError = await BuildAvailabilityErrorAsync(routeDate, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
         if (!string.IsNullOrWhiteSpace(availabilityError))
         {
-            MessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1904,7 +1904,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
         catch (IOException ioEx)
         {
-            MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"Die Tour konnte nicht gespeichert werden, weil eine Datendatei gerade gesperrt ist.\n\nDetails: {ioEx.Message}",
                 "Speichern fehlgeschlagen",
                 MessageBoxButton.OK,
@@ -1928,7 +1928,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         {
         if (!RouteStops.Any(x => !IsCompanyStop(x)))
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Bitte zuerst mindestens einen Auftrag zur Route hinzufügen.",
                 "Tour bearbeiten",
                 System.Windows.MessageBoxButton.OK,
@@ -1939,7 +1939,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var availabilityError = await BuildAvailabilityErrorAsync(routeDate, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
         if (!string.IsNullOrWhiteSpace(availabilityError))
         {
-            MessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -1952,7 +1952,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var index = tours.FindIndex(x => x.Id == tourId);
         if (index < 0)
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Die Tour konnte nicht mehr gefunden werden.",
                 "Tour bearbeiten",
                 System.Windows.MessageBoxButton.OK,
@@ -2023,7 +2023,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
         catch (IOException ioEx)
         {
-            MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"Die Tour konnte nicht gespeichert werden, weil eine Datendatei gerade gesperrt ist.\n\nDetails: {ioEx.Message}",
                 "Speichern fehlgeschlagen",
                 MessageBoxButton.OK,
@@ -2083,7 +2083,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var hasUnsavedChanges = _hasUnsavedRouteChanges && RouteStops.Any(x => !IsCompanyStop(x));
         if (hasUnsavedChanges)
         {
-            var result = MessageBox.Show(
+            var result = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Die aktuelle Tour hat ungespeicherte Änderungen.\n\nMöchtest du die aktuelle Tour verlassen und zur gewählten Tour wechseln?",
                 "Ungespeicherte Änderungen",
                 MessageBoxButton.YesNo,
@@ -2343,7 +2343,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var points = GetExportPoints();
         if (points.Count < 2)
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Für den Export werden mindestens zwei Stopps mit Koordinaten benötigt.",
                 "Route exportieren",
                 System.Windows.MessageBoxButton.OK,
@@ -2378,7 +2378,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"Google Maps konnte nicht geöffnet werden.\n{ex.Message}",
                 "Route exportieren",
                 System.Windows.MessageBoxButton.OK,
@@ -2399,7 +2399,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         if (!TryBuildRouteExportSnapshot(out var snapshot, out var error))
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 error,
                 "Route exportieren",
                 System.Windows.MessageBoxButton.OK,
@@ -2425,7 +2425,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         if (PdfExportHandler is null)
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Der PDF-Export ist momentan nicht verfügbar.",
                 "Route exportieren",
                 System.Windows.MessageBoxButton.OK,
@@ -2445,7 +2445,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        System.Windows.MessageBox.Show(
+        Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             result.Message,
             "Route exportieren",
             System.Windows.MessageBoxButton.OK,
@@ -2456,7 +2456,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         if (!GoogleMapsRouteExportService.TryBuildUrl(snapshot.GoogleMapsPoints, out var url, out var error))
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 error,
                 "Route exportieren",
                 System.Windows.MessageBoxButton.OK,
@@ -2474,7 +2474,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"Google Maps konnte nicht geöffnet werden.\n{ex.Message}",
                 "Route exportieren",
                 System.Windows.MessageBoxButton.OK,
@@ -2831,7 +2831,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var tourLabel = string.IsNullOrWhiteSpace(target.Name)
             ? $"Tour {target.Id.ToString(CultureInfo.InvariantCulture)}"
             : target.Name.Trim();
-        var confirmDelete = MessageBox.Show(
+        var confirmDelete = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             $"Soll {tourLabel} wirklich gelöscht werden?",
             "Tour löschen",
             MessageBoxButton.YesNo,
@@ -3027,7 +3027,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             listText + Environment.NewLine + Environment.NewLine +
             "Trotzdem speichern?";
 
-        return MessageBox.Show(
+        return Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                    message,
                    "Konfliktwarnung",
                    MessageBoxButton.YesNo,
@@ -3096,7 +3096,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return true;
         }
 
-        return MessageBox.Show(
+        return Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                    warning.BuildWarningMessage(),
                    "Kapazitätswarnung",
                    MessageBoxButton.YesNo,
@@ -3343,7 +3343,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var order = FindSelectedOrderModel();
         if (order is null || string.IsNullOrWhiteSpace(order.Email))
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Für diesen Auftrag ist keine E-Mail-Adresse hinterlegt.",
                 "E-Mail senden",
                 System.Windows.MessageBoxButton.OK,
@@ -3363,7 +3363,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"Das E-Mail-Programm konnte nicht geöffnet werden.\n{ex.Message}",
                 "E-Mail senden",
                 System.Windows.MessageBoxButton.OK,
@@ -3392,7 +3392,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var assignedTourId = (order.AssignedTourId ?? string.Empty).Trim();
         if (!int.TryParse(assignedTourId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tourId) || tourId <= 0)
         {
-            System.Windows.MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Für diesen Auftrag ist keine gültige Tour zugeordnet.",
                 "Tour anzeigen",
                 System.Windows.MessageBoxButton.OK,
@@ -3471,7 +3471,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         var tourLabel = string.IsNullOrWhiteSpace(assignedTour.Name)
             ? $"Tour {assignedTour.Id}"
             : $"{assignedTour.Name.Trim()} (Tour {assignedTour.Id})";
-        var confirmation = MessageBox.Show(
+        var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             $"Der Auftrag ist in {tourLabel} eingeplant, und diese Tour ist nicht archiviert.{Environment.NewLine}{Environment.NewLine}" +
             "Auftrag trotzdem archivieren?",
             "Auftrag in aktiver Tour",
@@ -4968,6 +4968,9 @@ public sealed class SavedTourLookupItem
         return Label;
     }
 }
+
+
+
 
 
 

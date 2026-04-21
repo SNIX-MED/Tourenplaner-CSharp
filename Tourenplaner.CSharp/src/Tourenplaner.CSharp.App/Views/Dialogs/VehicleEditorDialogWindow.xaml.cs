@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
@@ -39,7 +39,7 @@ public partial class VehicleEditorDialogWindow : Window
     {
         if (!ViewModel.TryBuildResult(out var result, out var error))
         {
-            MessageBox.Show(this, error, "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, error, "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -293,3 +293,5 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         };
     }
 }
+
+

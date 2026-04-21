@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
@@ -629,7 +629,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             target.EmployeeIds);
         if (!string.IsNullOrWhiteSpace(availabilityError))
         {
-            MessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             RestoreAssignment(target, originalAssignment);
             return;
         }
@@ -1056,7 +1056,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             $"Der Auftrag/Stopp \"{orderNumber}\" ist bereits in \"{sourceName}\" eingeplant.{Environment.NewLine}{Environment.NewLine}" +
             $"Soll er wirklich nach \"{targetName}\" umgeplant werden?";
 
-        var result = MessageBox.Show(
+        var result = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             message,
             "Umplanung bestätigen",
             MessageBoxButton.YesNo,
@@ -1166,7 +1166,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         if (affectedOrders.Count > 0)
         {
             var orderActionQuestion = nextTourArchivedState ? "archiviert" : "reaktiviert";
-            var confirmation = MessageBox.Show(
+            var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"Sollen die {affectedOrders.Count} zugehörigen Aufträge ebenfalls {orderActionQuestion} werden?",
                 "Aufträge mitführen",
                 MessageBoxButton.YesNo,
@@ -1217,7 +1217,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var tourLabel = string.IsNullOrWhiteSpace(target.Name)
             ? $"Tour {target.Id.ToString(CultureInfo.InvariantCulture)}"
             : target.Name.Trim();
-        var confirmDelete = MessageBox.Show(
+        var confirmDelete = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             $"Soll {tourLabel} wirklich gelöscht werden?",
             "Tour löschen",
             MessageBoxButton.YesNo,
@@ -1324,7 +1324,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             tour.EmployeeIds);
         if (!string.IsNullOrWhiteSpace(availabilityError))
         {
-            MessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             tour.Name = originalName;
             tour.Date = originalDate;
             tour.StartTime = originalStartTime;
@@ -2227,7 +2227,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         lines.Add("Trotzdem speichern?");
-        return MessageBox.Show(
+        return Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                    string.Join(Environment.NewLine, lines),
                    "Planungswarnung",
                    MessageBoxButton.YesNo,
@@ -2659,4 +2659,6 @@ public sealed class DateFilterCalendarDayItem : ObservableObject
         set => SetProperty(ref _isSelected, value);
     }
 }
+
+
 

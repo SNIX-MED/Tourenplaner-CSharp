@@ -1,0 +1,78 @@
+<Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.AppMessageDialogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Hinweis"
+        Width="620"
+        Height="320"
+        MinWidth="520"
+        MinHeight="250"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{DynamicResource Brush.WindowBackground}">
+    <Border Margin="12" Style="{StaticResource FlatCardStyle}" Padding="18">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border x:Name="IconBadge"
+                        Width="42"
+                        Height="42"
+                        Margin="0,2,14,0"
+                        VerticalAlignment="Top"
+                        CornerRadius="21"
+                        Background="{DynamicResource Brush.AccentSoft}"
+                        BorderBrush="{DynamicResource Brush.BorderSoft}"
+                        BorderThickness="1">
+                    <TextBlock x:Name="IconGlyphText"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="24"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource Brush.TextPrimary}"
+                               Text="i" />
+                </Border>
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock x:Name="CaptionTextBlock"
+                               FontSize="22"
+                               FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <TextBlock x:Name="MessageTextBlock"
+                               Margin="0,10,0,0"
+                               FontSize="15"
+                               Foreground="{DynamicResource Brush.TextMuted}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+
+            <StackPanel x:Name="ButtonsPanel"
+                        Grid.Row="1"
+                        Margin="0,18,0,0"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button x:Name="SecondaryButton"
+                        Width="120"
+                        Margin="0,0,8,0"
+                        IsCancel="True"
+                        Content="Nein"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Visibility="Collapsed"
+                        Click="OnSecondaryClicked" />
+                <Button x:Name="PrimaryButton"
+                        Width="170"
+                        IsDefault="True"
+                        Content="OK"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Click="OnPrimaryClicked" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

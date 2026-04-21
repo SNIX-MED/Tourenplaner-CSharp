@@ -816,7 +816,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         var tourLabel = string.IsNullOrWhiteSpace(toRemove.Name)
             ? $"Tour {toRemove.Id.ToString(CultureInfo.InvariantCulture)}"
             : toRemove.Name.Trim();
-        var confirmDelete = System.Windows.MessageBox.Show(
+        var confirmDelete = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             $"Soll {tourLabel} wirklich gelöscht werden?",
             "Tour löschen",
             System.Windows.MessageBoxButton.YesNo,
@@ -1635,3 +1635,5 @@ internal sealed class ManualEntryValidationResult
         return new ManualEntryValidationResult(false, (message ?? string.Empty).Trim(), string.Empty, string.Empty);
     }
 }
+
+

@@ -254,10 +254,11 @@ public partial class KalenderSectionView : UserControl
         var owner = Window.GetWindow(this);
         if (owner is not null)
         {
-            MessageBox.Show(owner, message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(owner, message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        MessageBox.Show(message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
+        Tourenplaner.CSharp.App.Services.AppMessageBox.Show(message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 }
+

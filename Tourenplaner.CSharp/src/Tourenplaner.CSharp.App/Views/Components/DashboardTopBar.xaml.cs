@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -74,12 +74,13 @@ public partial class DashboardTopBar : UserControl
             var owner = Window.GetWindow(this);
             if (owner is not null)
             {
-                MessageBox.Show(owner, result.Message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(owner, result.Message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             else
             {
-                MessageBox.Show(result.Message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(result.Message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
     }
 }
+

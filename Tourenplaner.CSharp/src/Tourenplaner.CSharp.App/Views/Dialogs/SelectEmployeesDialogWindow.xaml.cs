@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using Tourenplaner.CSharp.App.ViewModels;
@@ -29,7 +29,7 @@ public partial class SelectEmployeesDialogWindow : Window
         var selected = ViewModel.Employees.Where(x => x.IsSelected).Select(x => x.Id).Take(2).ToList();
         if (selected.Count is < 1 or > 2)
         {
-            MessageBox.Show(this, "Bitte 1 bis 2 Mitarbeiter auswählen.", "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, "Bitte 1 bis 2 Mitarbeiter auswählen.", "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -90,3 +90,5 @@ public sealed class SelectEmployeesDialogViewModel : ObservableObject
         SummaryText = $"{Employees.Count(x => x.IsSelected)} von 2 Mitarbeitern ausgewählt.";
     }
 }
+
+

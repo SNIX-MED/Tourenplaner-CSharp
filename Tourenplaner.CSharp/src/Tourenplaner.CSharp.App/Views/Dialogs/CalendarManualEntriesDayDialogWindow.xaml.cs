@@ -83,7 +83,7 @@ public partial class CalendarManualEntriesDayDialogWindow : Window
     {
         if (SelectedManualEntry is null)
         {
-            MessageBox.Show(this, "Bitte zuerst einen manuellen Eintrag auswählen.", "Kalender", MessageBoxButton.OK, MessageBoxImage.Information);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, "Bitte zuerst einen manuellen Eintrag auswählen.", "Kalender", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -102,7 +102,7 @@ public partial class CalendarManualEntriesDayDialogWindow : Window
     {
         if (SelectedManualEntry is null)
         {
-            MessageBox.Show(this, "Bitte zuerst einen manuellen Eintrag auswählen.", "Kalender", MessageBoxButton.OK, MessageBoxImage.Information);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, "Bitte zuerst einen manuellen Eintrag auswählen.", "Kalender", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -158,3 +158,4 @@ public sealed class CalendarDayCombinedListItem
 
     public string ColorHex { get; set; } = "#475569";
 }
+

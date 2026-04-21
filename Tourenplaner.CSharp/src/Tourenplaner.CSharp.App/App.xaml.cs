@@ -68,7 +68,7 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             TryLogException("StartupFailed", ex);
-            MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"Die App konnte nicht gestartet werden.{Environment.NewLine}{Environment.NewLine}" +
                 $"Fehler: {ex.Message}{Environment.NewLine}{Environment.NewLine}" +
                 $"Details: {_logPath}",
@@ -107,15 +107,12 @@ public partial class App : System.Windows.Application
                 return;
             }
 
-            var confirm = MessageBox.Show(
-                owner,
-                $"Es wurden {pastTours.Count} vergangene Tour(en) gefunden.{Environment.NewLine}{Environment.NewLine}" +
-                "Sollen diese inklusive Aufträge archiviert werden?",
-                "Vergangene Touren archivieren",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
+            var confirmDialog = new StartupTourArchiveConfirmDialogWindow(pastTours.Count)
+            {
+                Owner = owner
+            };
 
-            if (confirm != MessageBoxResult.Yes)
+            if (confirmDialog.ShowDialog() != true)
             {
                 return;
             }
@@ -480,6 +477,7 @@ public partial class App : System.Windows.Application
         }
     }
 }
+
 
 
 

@@ -74,7 +74,7 @@ public partial class CreateTourDialogWindow : Window
     {
         if (!ViewModel.TryBuildResult(out var result, out var validationError))
         {
-            MessageBox.Show(this, validationError, "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, validationError, "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -423,5 +423,6 @@ public sealed record CreateTourDialogResult(
     string? SecondaryVehicleId,
     string? SecondaryTrailerId,
     IReadOnlyList<string> EmployeeIds);
+
 
 

@@ -121,13 +121,13 @@ public partial class CalendarManualEntryDialogWindow : Window
     {
         if (EntryDate is null)
         {
-            MessageBox.Show(this, "Bitte ein Datum auswählen.", "Kalender", MessageBoxButton.OK, MessageBoxImage.Information);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, "Bitte ein Datum auswählen.", "Kalender", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(EntryTitle))
         {
-            MessageBox.Show(this, "Bitte einen Titel eingeben.", "Kalender", MessageBoxButton.OK, MessageBoxImage.Information);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, "Bitte einen Titel eingeben.", "Kalender", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -143,7 +143,7 @@ public partial class CalendarManualEntryDialogWindow : Window
             return;
         }
 
-        var confirm = MessageBox.Show(
+        var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             this,
             "Diesen manuellen Eintrag wirklich löschen?",
             "Kalender",
@@ -215,3 +215,4 @@ public sealed class CalendarColorOptionItem
         };
     }
 }
+

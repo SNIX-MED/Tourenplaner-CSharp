@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.App.Views.Dialogs;
@@ -61,7 +61,7 @@ public partial class EmployeesSectionView : UserControl
             var warning = await vm.ApplyEditorResultAsync(dialog.Result);
             if (!string.IsNullOrWhiteSpace(warning))
             {
-                MessageBox.Show(warning, "Abwesenheit prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(warning, "Abwesenheit prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
     }
@@ -84,7 +84,7 @@ public partial class EmployeesSectionView : UserControl
             var warning = await vm.ApplyEditorResultAsync(dialog.Result);
             if (!string.IsNullOrWhiteSpace(warning))
             {
-                MessageBox.Show(warning, "Abwesenheit prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(warning, "Abwesenheit prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
     }
@@ -97,7 +97,7 @@ public partial class EmployeesSectionView : UserControl
             return;
         }
 
-        var confirm = MessageBox.Show(
+        var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             $"\"{entry.Name}\" wirklich löschen?",
             "Mitarbeiter löschen",
             MessageBoxButton.YesNo,
@@ -110,3 +110,5 @@ public partial class EmployeesSectionView : UserControl
         await vm.DeleteEntryAsync(entry);
     }
 }
+
+

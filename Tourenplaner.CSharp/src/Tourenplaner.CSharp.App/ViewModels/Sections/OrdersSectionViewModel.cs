@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -352,7 +352,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         var tourLabel = string.IsNullOrWhiteSpace(assignedTour.Name)
             ? $"Tour {assignedTour.Id}"
             : $"{assignedTour.Name.Trim()} (Tour {assignedTour.Id})";
-        var confirmation = MessageBox.Show(
+        var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             $"Der Auftrag ist in {tourLabel} eingeplant, und diese Tour ist nicht archiviert.{Environment.NewLine}{Environment.NewLine}" +
             "Auftrag trotzdem archivieren?",
             "Auftrag in aktiver Tour",
@@ -400,7 +400,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         var assignedTourIdText = (SelectedOrder.AssignedTourId ?? string.Empty).Trim();
         if (!int.TryParse(assignedTourIdText, out var tourId) || tourId <= 0)
         {
-            MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Für diesen Auftrag ist keine gültige Tour zugeordnet.",
                 "Tour anzeigen",
                 MessageBoxButton.OK,
@@ -410,7 +410,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
         if (_openTourAsync is null)
         {
-            MessageBox.Show(
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"Der Auftrag ist Tour {tourId} zugeordnet.",
                 "Tour anzeigen",
                 MessageBoxButton.OK,
@@ -1069,4 +1069,6 @@ public sealed class OrderItem : ObservableObject
         set => SetProperty(ref _isArchived, value);
     }
 }
+
+
 

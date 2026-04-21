@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.App.Views.Dialogs;
@@ -81,12 +81,12 @@ public partial class VehiclesSectionView : UserControl
                 var warning = await vm.ApplyEditorResultAsync(dialog.Result);
                 if (!string.IsNullOrWhiteSpace(warning))
                 {
-                    MessageBox.Show(warning, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Tourenplaner.CSharp.App.Services.AppMessageBox.Show(warning, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (InvalidOperationException ex)
             {
-                MessageBox.Show(ex.Message, "Fahrzeug speichern", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(ex.Message, "Fahrzeug speichern", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
     }
@@ -117,7 +117,7 @@ public partial class VehiclesSectionView : UserControl
                 }
                 catch (InvalidOperationException ex)
                 {
-                    MessageBox.Show(ex.Message, "Fahrzeugkombination speichern", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Tourenplaner.CSharp.App.Services.AppMessageBox.Show(ex.Message, "Fahrzeugkombination speichern", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
 
@@ -136,12 +136,12 @@ public partial class VehiclesSectionView : UserControl
                 var warning = await vm.ApplyEditorResultAsync(dialog.Result);
                 if (!string.IsNullOrWhiteSpace(warning))
                 {
-                    MessageBox.Show(warning, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Tourenplaner.CSharp.App.Services.AppMessageBox.Show(warning, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (InvalidOperationException ex)
             {
-                MessageBox.Show(ex.Message, "Fahrzeug speichern", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(ex.Message, "Fahrzeug speichern", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
     }
@@ -154,7 +154,7 @@ public partial class VehiclesSectionView : UserControl
             return;
         }
 
-        var confirm = MessageBox.Show(
+        var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
             $"\"{entry.Name}\" wirklich löschen?",
             entry.IsCombination ? "Fahrzeugkombination löschen" : "Fahrzeug löschen",
             MessageBoxButton.YesNo,
@@ -167,3 +167,5 @@ public partial class VehiclesSectionView : UserControl
         await vm.DeleteEntryAsync(entry);
     }
 }
+
+
