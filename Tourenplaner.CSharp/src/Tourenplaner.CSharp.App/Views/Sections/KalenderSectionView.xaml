@@ -245,22 +245,6 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock FontSize="24" FontWeight="SemiBold" Text="{Binding SelectedDayHeadline}" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <Button Width="64"
-                                Height="40"
-                                Padding="0"
-                                Margin="0,0,8,0"
-                                HorizontalContentAlignment="Center"
-                                VerticalContentAlignment="Center"
-                                ToolTip="Öffnet die Split-Screen Ansicht für paralleles Arbeiten."
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                Command="{Binding OpenSplitScreenCommand}">
-                            <Image Width="38"
-                                   Height="38"
-                                   Stretch="Uniform"
-                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                   SnapsToDevicePixels="True"
-                                   Source="pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-split-screen.jpg" />
-                        </Button>
                         <Button Width="130" Margin="0,0,8,0" Content="Tour öffnen" Command="{Binding OpenSelectedTourCommand}" />
                         <Button Width="130" Content="Tour löschen" Style="{StaticResource DangerOutlineButtonStyle}" Command="{Binding DeleteSelectedTourCommand}" />
                     </StackPanel>

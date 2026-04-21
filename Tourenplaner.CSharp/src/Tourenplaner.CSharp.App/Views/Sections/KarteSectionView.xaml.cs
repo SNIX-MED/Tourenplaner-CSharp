@@ -851,6 +851,19 @@ public partial class KarteSectionView : UserControl
         await vm.EditSelectedRouteStopStayMinutesAsync();
     }
 
+    private async void TourOverviewList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not ListBox listBox ||
+            listBox.SelectedItem is not SavedTourOverviewItem selected ||
+            selected.TourId <= 0)
+        {
+            return;
+        }
+
+        await vm.FocusTourAsync(selected.TourId);
+    }
+
     private void OnRouteStopContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||

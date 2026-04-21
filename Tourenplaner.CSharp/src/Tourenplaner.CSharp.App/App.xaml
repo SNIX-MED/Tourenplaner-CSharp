@@ -46,9 +46,6 @@
             <DataTemplate DataType="{x:Type vm:SettingsSectionViewModel}">
                 <v:SettingsSectionView />
             </DataTemplate>
-            <DataTemplate DataType="{x:Type vm:SplitScreenSectionViewModel}">
-                <v:SplitScreenSectionView />
-            </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

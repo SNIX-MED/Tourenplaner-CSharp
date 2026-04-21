@@ -31,7 +31,6 @@
     <Resource Include="Assets\Einstellungen.png" />
     <Resource Include="Assets\icon-infocards-off.jpg" />
     <Resource Include="Assets\icon-infocards-on.jpg" />
-    <Resource Include="Assets\icon-split-screen.jpg" />
     <Resource Include="Assets\Pin.png" />
     <Resource Include="Assets\Touren-ausblenden.png" />
     <Resource Include="Assets\Touren-einblenden.png" />

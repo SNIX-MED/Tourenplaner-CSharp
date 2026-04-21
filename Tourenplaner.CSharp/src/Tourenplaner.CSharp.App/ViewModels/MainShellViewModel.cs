@@ -22,8 +22,6 @@ public sealed class MainShellViewModel : ObservableObject
     ];
 
     private readonly KarteSectionViewModel _mapSection;
-    private readonly KalenderSectionViewModel _calendarSection;
-    private readonly SplitScreenSectionViewModel _splitScreenSection;
     private readonly AppDataHistoryService _historyService;
     private readonly AppDataSyncService _dataSyncService;
     private readonly string _ordersJsonPath;
@@ -33,7 +31,6 @@ public sealed class MainShellViewModel : ObservableObject
     private string _globalSearchText = string.Empty;
     private string _currentUserName = "Mike Weber";
     private readonly NavigationItemViewModel _settingsNavigationItem;
-    private object? _previousSectionBeforeSplit;
     private int _toastVersion;
     private bool _isToastVisible;
     private string _toastMessage = string.Empty;
@@ -84,10 +81,6 @@ public sealed class MainShellViewModel : ObservableObject
             date => NavigateToTourDateAsync(tours, date),
             orderId => OpenOrderEditorFromCalendarAsync(orderId),
             dataSyncService: dataSyncService);
-        _calendarSection = calendar;
-        _splitScreenSection = new SplitScreenSectionViewModel(map, calendar, LeaveSplitScreenAsync);
-        map.SetOpenSplitScreenAction(OpenSplitScreenAsync);
-        calendar.SetOpenSplitScreenAction(OpenSplitScreenAsync);
         var orders = new OrdersSectionViewModel(
             ordersJsonPath,
             dataSyncService,
@@ -221,15 +214,13 @@ public sealed class MainShellViewModel : ObservableObject
         }
     }
 
-    public bool IsSplitScreenActive => CurrentSection is SplitScreenSectionViewModel;
-
     public bool IsSidebarCollapsed => _isSidebarCollapsed;
 
-    public bool IsSidebarVisible => !IsSplitScreenActive && !IsSidebarCollapsed;
+    public bool IsSidebarVisible => !IsSidebarCollapsed;
 
     public GridLength SidebarColumnWidth => IsSidebarVisible ? new GridLength(280) : new GridLength(0);
 
-    public bool IsSidebarToggleVisible => !IsSplitScreenActive;
+    public bool IsSidebarToggleVisible => true;
 
     public string SidebarToggleGlyph => IsSidebarCollapsed ? "\uE76C" : "\uE76B";
 
@@ -304,28 +295,6 @@ public sealed class MainShellViewModel : ObservableObject
         await mapSection.RefreshAsync();
     }
 
-    private async Task OpenSplitScreenAsync()
-    {
-        var openedFromCalendar = ReferenceEquals(CurrentSection, _calendarSection);
-        var calendarTourId = _calendarSection.SelectedDayTour?.TourId;
-
-        _previousSectionBeforeSplit = CurrentSection;
-        CurrentSection = _splitScreenSection;
-        await Task.WhenAll(_mapSection.RefreshAsync(), _calendarSection.RefreshAsync());
-
-        if (openedFromCalendar && calendarTourId is int tourId && tourId > 0)
-        {
-            await _mapSection.FocusTourAsync(tourId);
-        }
-    }
-
-    private async Task LeaveSplitScreenAsync()
-    {
-        CurrentSection = _previousSectionBeforeSplit ?? _mapSection;
-        _previousSectionBeforeSplit = null;
-        await Task.CompletedTask;
-    }
-
     private void OpenSettings()
     {
         SelectedNavigationItem = _settingsNavigationItem;
@@ -333,11 +302,6 @@ public sealed class MainShellViewModel : ObservableObject
 
     private void ToggleSidebar()
     {
-        if (IsSplitScreenActive)
-        {
-            return;
-        }
-
         if (SetProperty(ref _isSidebarCollapsed, !_isSidebarCollapsed))
         {
             OnPropertyChanged(nameof(IsSidebarCollapsed));
@@ -394,7 +358,6 @@ public sealed class MainShellViewModel : ObservableObject
 
     private void OnCurrentSectionChanged()
     {
-        OnPropertyChanged(nameof(IsSplitScreenActive));
         OnPropertyChanged(nameof(IsSidebarCollapsed));
         OnPropertyChanged(nameof(IsSidebarVisible));
         OnPropertyChanged(nameof(SidebarColumnWidth));
@@ -413,7 +376,7 @@ public sealed class MainShellViewModel : ObservableObject
 
     private bool IsDraftRouteUndoContext()
     {
-        return CurrentSection is KarteSectionViewModel || CurrentSection is SplitScreenSectionViewModel;
+        return CurrentSection is KarteSectionViewModel;
     }
 
     private bool CanUndoDraftRouteStopRemoval => IsDraftRouteUndoContext() && _mapSection.CanUndoDraftRouteStopRemoval;

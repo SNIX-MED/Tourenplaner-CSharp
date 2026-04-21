@@ -505,58 +505,39 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="180" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ComboBox Grid.Column="1"
-                                      Margin="8,0,6,0"
-                                      Height="34"
-                                      MinWidth="160"
-                                      ItemsSource="{Binding SavedTours}"
-                                      SelectedItem="{Binding SelectedSavedTour, Mode=TwoWay}"
-                                      DisplayMemberPath="Label" />
-                            <Button Grid.Column="2"
-                                    Height="34"
-                                    Content="Bearbeiten"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Command="{Binding EditSelectedTourCommand}" />
-                            <Button Grid.Column="3"
-                                    Height="34"
-                                    Margin="8,0,0,0"
-                                    Width="64"
-                                    Padding="0"
-                                    HorizontalContentAlignment="Center"
-                                    VerticalContentAlignment="Center"
-                                    ToolTip="{Binding ToggleAllPlannedToursButtonText}"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Command="{Binding ToggleAllPlannedToursCommand}">
-                                <Image Width="34"
-                                       Height="34"
-                                       Stretch="Uniform"
-                                       RenderOptions.BitmapScalingMode="HighQuality"
-                                       SnapsToDevicePixels="True"
-                                       Source="{Binding ToggleAllPlannedToursImagePath}" />
-                            </Button>
-                        </Grid>
-
-                        <Border Grid.Row="1" Margin="0,10,0,10" Style="{StaticResource FlatCardStyle}" Padding="10">
+                        <Border Grid.Row="1" Margin="0,0,0,10" Style="{StaticResource FlatCardStyle}" Padding="10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="68" />
+                                    <ColumnDefinition Width="44" />
                                     <ColumnDefinition Width="14" />
-                                    <ColumnDefinition Width="68" />
+                                    <ColumnDefinition Width="44" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Startzeit" Margin="0,0,8,0" />
                                 <TextBox Grid.Column="1" Height="34" MaxLength="2" Tag="hour" PreviewTextInput="OnStartTimePreviewTextInput" DataObject.Pasting="OnStartTimePasting" LostFocus="OnStartTimeFieldLostFocus" Text="{Binding RouteStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
                                 <TextBlock Grid.Column="2" Text=":" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                 <TextBox Grid.Column="3" Height="34" MaxLength="2" Tag="minute" PreviewTextInput="OnStartTimePreviewTextInput" DataObject.Pasting="OnStartTimePasting" LostFocus="OnStartTimeFieldLostFocus" Text="{Binding RouteStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalContentAlignment="Center" />
-                                <Button Grid.Column="4" Height="34" Margin="10,0,0,0" Content="Route optimieren" Style="{StaticResource SuccessButtonStyle}" Command="{Binding OptimizeRouteCommand}" />
+                                <Button Grid.Column="5"
+                                        Height="34"
+                                        Margin="10,0,0,0"
+                                        Content="Bearbeiten"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Command="{Binding EditSelectedTourCommand}" />
+                                <Button Grid.Column="6" Height="34" Margin="10,0,0,0" Content="Route optimieren" Command="{Binding OptimizeRouteCommand}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SuccessButtonStyle}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowTourOverviewPanel}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </Grid>
                         </Border>
 
@@ -577,11 +558,89 @@
                                            FontWeight="SemiBold"
                                            Margin="2,0,0,8" />
 
-                                <ScrollViewer Grid.Row="1"
-                                              x:Name="RouteStopsScrollViewer"
-                                              VerticalScrollBarVisibility="Auto"
-                                              HorizontalScrollBarVisibility="Disabled"
-                                              PreviewMouseWheel="OnRouteStopsPreviewMouseWheel">
+                                <Border Grid.Row="1">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowTourOverviewPanel}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  PreviewMouseWheel="OnRouteStopsPreviewMouseWheel">
+                                        <ListBox x:Name="TourOverviewList"
+                                                 ItemsSource="{Binding TourOverviewItems}"
+                                                 SelectedItem="{Binding SelectedTourOverviewItem, Mode=TwoWay}"
+                                                 MouseDoubleClick="TourOverviewList_MouseDoubleClick"
+                                                 Style="{StaticResource RouteStopsListStyle}"
+                                                 ItemContainerStyle="{StaticResource RouteStopListItemStyle}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,0,0,8"
+                                                            Padding="12"
+                                                            CornerRadius="14"
+                                                            BorderThickness="1">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+                                                                <Setter Property="Background" Value="{DynamicResource Brush.CardSoft}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsMouseOver}" Value="True">
+                                                                        <Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                        <Setter Property="Background" Value="#EEF6FF" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel Grid.Column="0">
+                                                                <TextBlock FontSize="16"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                                                           Text="{Binding TourName}" />
+                                                                <TextBlock Margin="0,4,0,0"
+                                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                                           Text="{Binding StopCountText}" />
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                                       FontWeight="SemiBold"
+                                                                       Text="{Binding DateText}" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </ScrollViewer>
+                                </Border>
+
+                                <Border Grid.Row="1">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowRouteStopsPanel}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <ScrollViewer x:Name="RouteStopsScrollViewer"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  PreviewMouseWheel="OnRouteStopsPreviewMouseWheel">
                                     <ListBox x:Name="RouteStopsList"
                                              ItemsSource="{Binding RouteStops}"
                                              SelectedItem="{Binding SelectedRouteStop, Mode=TwoWay}"
@@ -913,7 +972,8 @@
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
-                                </ScrollViewer>
+                                    </ScrollViewer>
+                                </Border>
                             </Grid>
                         </Border>
 
@@ -935,7 +995,18 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Margin="0,4,0,0" Text="{Binding RouteTimingSummary}" />
+                                <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Margin="0,4,0,0" Text="{Binding RouteTimingSummary}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowTourOverviewPanel}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                         </Border>
 

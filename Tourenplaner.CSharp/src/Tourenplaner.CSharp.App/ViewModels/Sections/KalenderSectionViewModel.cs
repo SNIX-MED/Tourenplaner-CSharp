@@ -28,7 +28,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private readonly Func<int, Task>? _openTourOnMapAsync;
     private readonly Func<DateTime, Task>? _openDayInToursAsync;
     private readonly Func<string, Task>? _openOrderEditorAsync;
-    private Func<Task>? _openSplitScreenAsync;
     private readonly List<TourRecord> _allTours = [];
     private readonly List<Order> _allOrders = [];
     private readonly List<CalendarManualEntry> _manualEntries = [];
@@ -59,7 +58,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         Func<int, Task>? openTourOnMapAsync = null,
         Func<DateTime, Task>? openDayInToursAsync = null,
         Func<string, Task>? openOrderEditorAsync = null,
-        Func<Task>? openSplitScreenAsync = null,
         AppDataSyncService? dataSyncService = null)
         : base("Kalender", "Übersicht aller geplanten Touren. Ein Doppelklick öffnet den Tag in den Liefertouren.")
     {
@@ -74,7 +72,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         _openTourOnMapAsync = openTourOnMapAsync;
         _openDayInToursAsync = openDayInToursAsync;
         _openOrderEditorAsync = openOrderEditorAsync;
-        _openSplitScreenAsync = openSplitScreenAsync;
 
         PreviousRangeCommand = new DelegateCommand(ShowPreviousRange);
         NextRangeCommand = new DelegateCommand(ShowNextRange);
@@ -83,7 +80,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         RefreshCommand = new AsyncCommand(RefreshAsync);
         OpenSelectedTourCommand = new AsyncCommand(OpenSelectedTourAsync, () => SelectedDayTour is not null);
         DeleteSelectedTourCommand = new AsyncCommand(DeleteSelectedTourAsync, () => SelectedDayTour is not null);
-        OpenSplitScreenCommand = new AsyncCommand(OpenSplitScreenAsync, () => _openSplitScreenAsync is not null);
         _dataSyncService.DataChanged += OnDataChanged;
 
         _ = RefreshAsync();
@@ -106,8 +102,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     public ICommand OpenSelectedTourCommand { get; }
 
     public ICommand DeleteSelectedTourCommand { get; }
-
-    public ICommand OpenSplitScreenCommand { get; }
     public ICommand PreviousWeekRangeCommand { get; }
 
     public ICommand NextWeekRangeCommand { get; }
@@ -779,25 +773,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
         SelectDayByDate(target);
         return SelectedDay?.Date == target;
-    }
-
-    public void SetOpenSplitScreenAction(Func<Task>? openSplitScreenAsync)
-    {
-        _openSplitScreenAsync = openSplitScreenAsync;
-        if (OpenSplitScreenCommand is AsyncCommand openSplit)
-        {
-            openSplit.RaiseCanExecuteChanged();
-        }
-    }
-
-    private async Task OpenSplitScreenAsync()
-    {
-        if (_openSplitScreenAsync is null)
-        {
-            return;
-        }
-
-        await _openSplitScreenAsync();
     }
 
     private async Task DeleteSelectedTourAsync()
