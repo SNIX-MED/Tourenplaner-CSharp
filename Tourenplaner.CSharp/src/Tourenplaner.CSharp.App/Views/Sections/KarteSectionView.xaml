@@ -1737,7 +1737,51 @@
                                     <TextBlock Text="{Binding DetailDeliveryType}" />
                                 </StackPanel>
 
-                                <Grid Grid.Row="3" Margin="0,0,0,8">
+                                <StackPanel Grid.Row="3" Margin="0,0,0,8">
+                                    <Border Margin="0,0,0,8"
+                                            Padding="8,6"
+                                            CornerRadius="10"
+                                            Background="{DynamicResource Brush.AccentSurface}"
+                                            BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                            BorderThickness="1"
+                                            Visibility="{Binding HasSelectedBatchOrders, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding SelectedBatchOrderSummary}" />
+                                            <TextBlock Margin="0,3,0,0"
+                                                       Foreground="{DynamicResource Brush.TextSubtle}"
+                                                       FontSize="11"
+                                                       Text="Pins mit Strg+Klick markieren oder im Pin-Popup auswählen." />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Grid Margin="0,0,0,8"
+                                          Visibility="{Binding HasSelectedBatchOrders, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Height="34"
+                                                Content="Markierte hinzufügen"
+                                                Style="{StaticResource SuccessButtonStyle}"
+                                                Command="{Binding AddSelectedOrdersToRouteCommand}" />
+                                        <Button Grid.Column="1"
+                                                Height="34"
+                                                Margin="8,0,0,0"
+                                                Content="Markierte entfernen"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding RemoveSelectedOrdersFromTourCommand}" />
+                                        <Button Grid.Column="2"
+                                                Height="34"
+                                                Margin="8,0,0,0"
+                                                Content="Auswahl leeren"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding ClearSelectedOrdersCommand}" />
+                                    </Grid>
+
                                     <Grid>
                                         <Grid.Style>
                                             <Style TargetType="Grid">
@@ -1775,7 +1819,7 @@
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 Command="{Binding ShowSelectedOrderTourCommand}" />
                                      </Grid>
-                                </Grid>
+                                </StackPanel>
                             </Grid>
                         </Grid>
                     </Border>

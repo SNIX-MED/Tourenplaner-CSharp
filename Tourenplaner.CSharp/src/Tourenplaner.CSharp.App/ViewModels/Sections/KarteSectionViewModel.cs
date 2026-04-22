@@ -130,6 +130,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _detailSelectedStatus = Order.DefaultOrderStatus;
     private string _detailSelectedAvisoStatus = "nicht avisiert";
     private readonly List<MapOrderItem> _dimmedMapOrders = new();
+    private readonly HashSet<string> _selectedBatchOrderIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<int> _selectedDetailProductIndices = new();
     private readonly Stack<RouteStopRemovalUndoSnapshot> _draftRouteStopRemovalUndoStack = new();
     private CancellationTokenSource? _tourOverviewStartTimeAutoSaveCts;
@@ -158,7 +159,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         AddToRouteCommand = new DelegateCommand(AddSelectedOrderToRoute, () => SelectedOrder is not null);
+        AddSelectedOrdersToRouteCommand = new DelegateCommand(AddSelectedOrdersToRoute, CanAddSelectedOrdersToRoute);
         RemoveOrderFromTourCommand = new AsyncCommand(RemoveSelectedOrderFromTourAsync, CanRemoveSelectedOrderFromTour);
+        RemoveSelectedOrdersFromTourCommand = new AsyncCommand(RemoveSelectedOrdersFromTourAsync, CanRemoveSelectedOrdersFromTour);
+        ClearSelectedOrdersCommand = new DelegateCommand(ClearSelectedBatchOrders, () => SelectedBatchOrderCount > 0);
         RemoveFromRouteCommand = new DelegateCommand(RemoveSelectedRouteStop, () => SelectedRouteStop is not null && !IsCompanyStop(SelectedRouteStop));
         MoveStopUpCommand = new DelegateCommand(MoveSelectedStopUp, () => CanMoveSelectedStop(-1));
         MoveStopDownCommand = new DelegateCommand(MoveSelectedStopDown, () => CanMoveSelectedStop(1));
@@ -202,7 +206,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     public ICommand AddToRouteCommand { get; }
 
+    public ICommand AddSelectedOrdersToRouteCommand { get; }
+
     public ICommand RemoveOrderFromTourCommand { get; }
+
+    public ICommand RemoveSelectedOrdersFromTourCommand { get; }
+
+    public ICommand ClearSelectedOrdersCommand { get; }
 
     public ICommand RemoveFromRouteCommand { get; }
 
@@ -265,6 +275,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public ObservableCollection<MapOrderFilterOption> AvisoStatusFilters { get; } = new();
 
     public string FilterSummaryText => BuildFilterSummaryText();
+    public int SelectedBatchOrderCount => _selectedBatchOrderIds.Count;
+    public bool HasSelectedBatchOrders => SelectedBatchOrderCount > 0;
+    public string SelectedBatchOrderSummary => $"{SelectedBatchOrderCount} Auftrag/Aufträge markiert";
 
     public string PinInfoCardsButtonText => ArePinInfoCardsVisible ? "Infokarten ausblenden" : "Infokarten anzeigen";
     public string PinInfoCardsIconGlyph => ArePinInfoCardsVisible ? "\uE8A7" : "\uE7B3";
@@ -984,6 +997,40 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await LoadTourIntoRouteAsync(tourId);
     }
 
+    public void ToggleBatchOrderSelectionById(string? orderId)
+    {
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedOrderId))
+        {
+            return;
+        }
+
+        var mapOrder = GetMapMarkerSnapshot()
+            .FirstOrDefault(x => string.Equals(x.OrderId, normalizedOrderId, StringComparison.OrdinalIgnoreCase));
+        if (mapOrder is null)
+        {
+            return;
+        }
+
+        if (_selectedBatchOrderIds.Contains(normalizedOrderId))
+        {
+            _selectedBatchOrderIds.Remove(normalizedOrderId);
+        }
+        else
+        {
+            _selectedBatchOrderIds.Add(normalizedOrderId);
+        }
+
+        if (SelectedOrder is null ||
+            !string.Equals(SelectedOrder.OrderId, normalizedOrderId, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectOrderDetailsById(normalizedOrderId);
+        }
+
+        NotifyBatchOrderSelectionChanged();
+        RebuildOrderGrid(normalizedOrderId);
+    }
+
     public void SetHoveredTourOverviewId(int tourId)
     {
         var normalized = tourId > 0 ? tourId : 0;
@@ -1192,6 +1239,15 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             {
                 _dimmedMapOrders.Add(BuildMapOrderItem(order, isDimmed: true));
             }
+        }
+
+        var validOrderIds = _allOrders
+            .Select(x => (x.Id ?? string.Empty).Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (_selectedBatchOrderIds.RemoveWhere(x => !validOrderIds.Contains(x)) > 0)
+        {
+            NotifyBatchOrderSelectionChanged(raiseCommandStates: false);
         }
 
         if (string.IsNullOrWhiteSpace(previousSelectedId))
@@ -1447,21 +1503,37 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var existing = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, SelectedOrder.OrderId, StringComparison.OrdinalIgnoreCase));
+        if (!TryAddOrderToDraftRoute(SelectedOrder))
+        {
+            var existing = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, SelectedOrder.OrderId, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                SelectedRouteStop = existing;
+            }
+            return;
+        }
+
+        RebuildPositions();
+        RebuildOrderGrid();
+        MarkRouteChanged();
+    }
+
+    private bool TryAddOrderToDraftRoute(MapOrderItem order)
+    {
+        var existing = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, order.OrderId, StringComparison.OrdinalIgnoreCase));
         if (existing is not null)
         {
-            SelectedRouteStop = existing;
-            return;
+            return false;
         }
 
         var item = new RouteStopItem
         {
             Position = 0,
-            OrderId = SelectedOrder.OrderId,
-            Customer = SelectedOrder.Customer,
-            Address = SelectedOrder.Address,
-            Latitude = SelectedOrder.Latitude,
-            Longitude = SelectedOrder.Longitude,
+            OrderId = order.OrderId,
+            Customer = order.Customer,
+            Address = order.Address,
+            Latitude = order.Latitude,
+            Longitude = order.Longitude,
             PlannedStayMinutes = 10
         };
 
@@ -1471,10 +1543,154 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             ?.index ?? RouteStops.Count;
 
         RouteStops.Insert(endIndex, item);
+        return true;
+    }
 
-        RebuildPositions();
-        RebuildOrderGrid();
-        MarkRouteChanged();
+    private IReadOnlyList<MapOrderItem> GetSelectedBatchMapOrders()
+    {
+        if (_selectedBatchOrderIds.Count == 0)
+        {
+            return [];
+        }
+
+        return GetMapMarkerSnapshot()
+            .Where(x => _selectedBatchOrderIds.Contains(x.OrderId))
+            .GroupBy(x => x.OrderId, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.First())
+            .ToList();
+    }
+
+    private bool CanAddSelectedOrdersToRoute()
+    {
+        return GetSelectedBatchMapOrders().Count > 0;
+    }
+
+    private bool CanRemoveSelectedOrdersFromTour()
+    {
+        if (_selectedBatchOrderIds.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var orderId in _selectedBatchOrderIds)
+        {
+            var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
+            if (order is not null && IsOrderAssignedOrInDraftRoute(order))
+            {
+                return true;
+            }
+
+            if (RouteStops.Any(x => !IsCompanyStop(x) && string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void ClearSelectedBatchOrders()
+    {
+        if (_selectedBatchOrderIds.Count == 0)
+        {
+            return;
+        }
+
+        _selectedBatchOrderIds.Clear();
+        NotifyBatchOrderSelectionChanged();
+        RebuildOrderGrid(SelectedOrder?.OrderId);
+    }
+
+    private void NotifyBatchOrderSelectionChanged(bool raiseCommandStates = true)
+    {
+        OnPropertyChanged(nameof(SelectedBatchOrderCount));
+        OnPropertyChanged(nameof(HasSelectedBatchOrders));
+        OnPropertyChanged(nameof(SelectedBatchOrderSummary));
+        if (raiseCommandStates)
+        {
+            RaiseCommandStates();
+        }
+    }
+
+    private bool ConfirmBatchReassignmentIfNeeded(IReadOnlyList<MapOrderItem> orders)
+    {
+        var targetTourId = ResolveCurrentTourId();
+        var reassignedOrders = orders
+            .Where(order =>
+            {
+                var assignedTourIdText = (order.AssignedTourId ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(assignedTourIdText))
+                {
+                    return false;
+                }
+
+                if (!int.TryParse(assignedTourIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var assignedTourId) || assignedTourId <= 0)
+                {
+                    return true;
+                }
+
+                return assignedTourId != targetTourId;
+            })
+            .ToList();
+
+        if (reassignedOrders.Count == 0)
+        {
+            return true;
+        }
+
+        var targetTourLabel = targetTourId > 0
+            ? BuildTourLabelById(targetTourId.ToString(CultureInfo.InvariantCulture))
+            : "die aktuelle neue Route";
+        var message =
+            $"{reassignedOrders.Count} markierte Aufträge sind bereits anderen Touren zugeordnet.\n\n" +
+            $"Beim Speichern werden diese nach {targetTourLabel} umgeplant.\n\n" +
+            "Trotzdem alle markierten Aufträge hinzufügen?";
+
+        var result = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+            message,
+            "Aufträge bereits eingeplant",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        return result == MessageBoxResult.Yes;
+    }
+
+    private void AddSelectedOrdersToRoute()
+    {
+        var selectedOrders = GetSelectedBatchMapOrders();
+        if (selectedOrders.Count == 0)
+        {
+            return;
+        }
+
+        if (!ConfirmBatchReassignmentIfNeeded(selectedOrders))
+        {
+            return;
+        }
+
+        var added = 0;
+        var alreadyInRoute = 0;
+        foreach (var order in selectedOrders)
+        {
+            if (TryAddOrderToDraftRoute(order))
+            {
+                added++;
+            }
+            else
+            {
+                alreadyInRoute++;
+            }
+        }
+
+        if (added > 0)
+        {
+            RebuildPositions();
+            RebuildOrderGrid();
+            MarkRouteChanged();
+        }
+
+        StatusText = added > 0
+            ? $"{added} Auftrag/Aufträge zur Route hinzugefügt. Bereits vorhanden: {alreadyInRoute}."
+            : "Alle markierten Aufträge sind bereits in der aktuellen Route.";
     }
 
     private bool ConfirmOrderReassignmentIfNeeded(MapOrderItem order)
@@ -1592,6 +1808,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             RebuildPositions();
             RebuildOrderGrid(draftOrderId);
             MarkRouteChanged();
+            if (_selectedBatchOrderIds.Remove(draftOrderId))
+            {
+                NotifyBatchOrderSelectionChanged();
+            }
             SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, draftOrderId, StringComparison.OrdinalIgnoreCase))
                            ?? BuildMapOrderItem(order);
             StatusText = $"Auftrag {draftOrderId} wurde aus der aktuellen Route entfernt.";
@@ -1636,7 +1856,117 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, selectedOrderId, StringComparison.OrdinalIgnoreCase));
+        if (_selectedBatchOrderIds.Remove(selectedOrderId))
+        {
+            NotifyBatchOrderSelectionChanged();
+        }
         StatusText = $"Auftrag {selectedOrderId} wurde aus der Tour entfernt.";
+    }
+
+    private async Task RemoveSelectedOrdersFromTourAsync()
+    {
+        var selectedOrderIds = _selectedBatchOrderIds
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (selectedOrderIds.Count == 0)
+        {
+            return;
+        }
+
+        var removedFromDraftRoute = 0;
+        foreach (var orderId in selectedOrderIds)
+        {
+            var draftStop = RouteStops.FirstOrDefault(x =>
+                !IsCompanyStop(x) &&
+                string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+            if (draftStop is null)
+            {
+                continue;
+            }
+
+            RouteStops.Remove(draftStop);
+            removedFromDraftRoute++;
+        }
+
+        if (removedFromDraftRoute > 0)
+        {
+            RebuildPositions();
+            MarkRouteChanged();
+        }
+
+        var assignedOrders = _allOrders
+            .Where(x => selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase))
+            .Where(x => !string.IsNullOrWhiteSpace((x.AssignedTourId ?? string.Empty).Trim()))
+            .ToList();
+
+        var touchedTourIds = new HashSet<int>();
+        if (assignedOrders.Count > 0)
+        {
+            var tours = (await _tourRepository.LoadAsync()).ToList();
+            var selectedOrderIdSet = new HashSet<string>(selectedOrderIds, StringComparer.OrdinalIgnoreCase);
+            var toursChanged = false;
+            foreach (var tour in tours)
+            {
+                var stops = tour.Stops ?? [];
+                var filteredStops = stops
+                    .Where(x => !selectedOrderIdSet.Contains((x.Auftragsnummer ?? string.Empty).Trim()))
+                    .ToList();
+                if (filteredStops.Count == stops.Count)
+                {
+                    continue;
+                }
+
+                for (var i = 0; i < filteredStops.Count; i++)
+                {
+                    filteredStops[i].Order = i + 1;
+                }
+
+                tour.Stops = filteredStops;
+                toursChanged = true;
+                touchedTourIds.Add(tour.Id);
+            }
+
+            if (toursChanged)
+            {
+                await _tourRepository.SaveAsync(tours);
+                foreach (var touchedTourId in touchedTourIds)
+                {
+                    var tourKey = touchedTourId.ToString(CultureInfo.InvariantCulture);
+                    _dataSyncService.PublishTours(_instanceId, tourKey, tourKey);
+                }
+            }
+
+            foreach (var order in assignedOrders)
+            {
+                order.AssignedTourId = string.Empty;
+                order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
+            }
+
+            await _orderRepository.SaveAllAsync(_allOrders);
+            _dataSyncService.PublishOrders(_instanceId);
+        }
+
+        if (removedFromDraftRoute > 0 || assignedOrders.Count > 0)
+        {
+            var currentTourId = ResolveCurrentTourId();
+            await RefreshAsync();
+            if (currentTourId > 0 && touchedTourIds.Contains(currentTourId))
+            {
+                await FocusTourAsync(currentTourId);
+            }
+        }
+        else
+        {
+            RebuildOrderGrid();
+        }
+
+        if (_selectedBatchOrderIds.RemoveWhere(x => selectedOrderIds.Contains(x, StringComparer.OrdinalIgnoreCase)) > 0)
+        {
+            NotifyBatchOrderSelectionChanged();
+        }
+
+        StatusText = $"Batch-Aktion abgeschlossen: {removedFromDraftRoute} aus aktueller Route entfernt, {assignedOrders.Count} aus gespeicherten Touren entfernt.";
     }
 
     private void RemoveDraftRouteStop(string orderId)
@@ -3656,7 +3986,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private void RaiseCommandStates()
     {
         RaiseCanExecuteChangedIfSupported(AddToRouteCommand);
+        RaiseCanExecuteChangedIfSupported(AddSelectedOrdersToRouteCommand);
         RaiseCanExecuteChangedIfSupported(RemoveOrderFromTourCommand);
+        RaiseCanExecuteChangedIfSupported(RemoveSelectedOrdersFromTourCommand);
+        RaiseCanExecuteChangedIfSupported(ClearSelectedOrdersCommand);
         RaiseCanExecuteChangedIfSupported(RemoveFromRouteCommand);
         RaiseCanExecuteChangedIfSupported(MoveStopUpCommand);
         RaiseCanExecuteChangedIfSupported(MoveStopDownCommand);
@@ -5139,7 +5472,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             StatusLabel = NormalizeOrderStatus(order.OrderStatus),
             AvisoStatusLabel = NormalizeAvisoStatus(order.AvisoStatus),
             TourStatusLabel = ResolveTourStatus(order),
-            IsDimmed = isDimmed
+            IsDimmed = isDimmed,
+            IsBatchSelected = _selectedBatchOrderIds.Contains(order.Id)
         };
     }
 
@@ -5462,6 +5796,7 @@ public sealed class MapOrderItem
     public string AvisoStatusLabel { get; set; } = "nicht avisiert";
     public string TourStatusLabel { get; set; } = "Offen";
     public bool IsDimmed { get; set; }
+    public bool IsBatchSelected { get; set; }
 }
 
 public sealed class MapOrderFilterOption : ObservableObject

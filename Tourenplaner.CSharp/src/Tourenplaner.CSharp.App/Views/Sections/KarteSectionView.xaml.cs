@@ -197,6 +197,10 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.Route, DataRefreshDebounceMilliseconds);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedBatchOrderCount))
+        {
+            QueueMapRefresh(MapRefreshOperation.Markers, UiRefreshDebounceMilliseconds);
+        }
         else if (e.PropertyName == nameof(KarteSectionViewModel.PlannedTourOverlayHighlightTourId))
         {
             QueueMapRefresh(MapRefreshOperation.PlannedTourOverlayHighlight, UiRefreshDebounceMilliseconds);
@@ -607,6 +611,7 @@ public partial class KarteSectionView : UserControl
             avisoStatus = x.AvisoStatusLabel,
             isAssigned = x.IsAssigned,
             isDimmed = x.IsDimmed,
+            isBatchSelected = x.IsBatchSelected,
             color = vm.ResolveOrderStatusColor(x.StatusLabel, x.IsAssigned),
             shape = ResolveDeliveryShape(x.DeliveryLabel),
             lat = x.Latitude,
@@ -803,6 +808,13 @@ public partial class KarteSectionView : UserControl
         {
             var addId = raw["add:".Length..];
             vm.AddOrderToRouteById(addId);
+            return;
+        }
+
+        if (raw.StartsWith("batchToggle:", StringComparison.OrdinalIgnoreCase))
+        {
+            var orderId = raw["batchToggle:".Length..];
+            vm.ToggleBatchOrderSelectionById(orderId);
             return;
         }
 

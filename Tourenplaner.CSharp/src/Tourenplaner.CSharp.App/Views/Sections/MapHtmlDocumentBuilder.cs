@@ -147,6 +147,17 @@ internal static class MapHtmlDocumentBuilder
                    .leaflet-popup.gawela-pin-popup .gawela-popup-action:active {
                      transform: translateY(1px);
                    }
+                   .leaflet-popup.gawela-pin-popup .gawela-popup-action.gawela-popup-action-secondary {
+                     margin-top: 6px;
+                     border-color: #d0d7e2;
+                     background: #ffffff;
+                     color: #334155;
+                     font-weight: 600;
+                   }
+                   .leaflet-popup.gawela-pin-popup .gawela-popup-action.gawela-popup-action-secondary:hover {
+                     background: #f8fafc;
+                     border-color: #b9c4d4;
+                   }
                    @media print {
                      * {
                        -webkit-print-color-adjust: exact !important;
@@ -374,7 +385,7 @@ internal static class MapHtmlDocumentBuilder
                      });
                    }
 
-                   function buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned, isDimmed) {
+                  function buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned, isDimmed, isBatchSelected) {
                      const stroke = '#1e293b';
                      const coreSize = 22;
                      const border = 2;
@@ -402,18 +413,21 @@ internal static class MapHtmlDocumentBuilder
                        shapeHtml = `<div style="width:${coreSize}px;height:${coreSize}px;border-radius:50%;background:${color};border:${border}px solid #fff;box-shadow:0 0 0 1px ${stroke},${shadow};box-sizing:border-box;${dimmedStyle}"></div>`;
                      }
 
-                     const badgeHtml = badgeColor
-                       ? `<div style="position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:${badgeColor};border:2px solid #fff;box-shadow:0 0 0 1px rgba(30,41,59,0.55);${dimmedStyle}"></div>`
-                       : '';
+                    const badgeHtml = badgeColor
+                      ? `<div style="position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:${badgeColor};border:2px solid #fff;box-shadow:0 0 0 1px rgba(30,41,59,0.55);${dimmedStyle}"></div>`
+                      : '';
+                    const selectionRing = isBatchSelected
+                      ? `<div style="position:absolute;inset:-3px;border:2px solid #800080;border-radius:999px;box-shadow:0 0 0 1px rgba(128,0,128,0.22);pointer-events:none;"></div>`
+                      : '';
 
-                     return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${shapeHtml}${badgeHtml}</div>`;
-                   }
+                    return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${shapeHtml}${badgeHtml}${selectionRing}</div>`;
+                  }
 
                    function buildRouteStopMarkerHtml(shape, color, label, avisoStatus, isAssigned) {
                      const safeLabel = label || '?';
                      const labelTopOffset = shape === 'triangle' ? '4px' : '0';
-                     return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned, false)}<div style="position:absolute;inset:0;top:${labelTopOffset};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;line-height:1;text-shadow:0 1px 2px rgba(15,23,42,0.85);pointer-events:none;">${safeLabel}</div></div>`;
-                   }
+                    return `<div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">${buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned, false, false)}<div style="position:absolute;inset:0;top:${labelTopOffset};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;line-height:1;text-shadow:0 1px 2px rgba(15,23,42,0.85);pointer-events:none;">${safeLabel}</div></div>`;
+                  }
 
                    function escapeHtml(value) {
                      return String(value || '')
@@ -468,8 +482,10 @@ internal static class MapHtmlDocumentBuilder
                        sections.push(`<div class="gawela-popup-title">${escapeHtml(orderId || name || 'Auftrag')}</div>`);
                      }
 
-                     const orderIdForJs = orderId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    const orderIdForJs = orderId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                    const batchButtonLabel = m.isBatchSelected ? 'Aus Auswahl entfernen' : 'Zur Auswahl hinzufügen';
                     sections.push(`<button class="gawela-popup-action" onclick="window.gawelaAddToRoute('${orderIdForJs}')">Zu Tour hinzufügen</button>`);
+                    sections.push(`<button class="gawela-popup-action gawela-popup-action-secondary" onclick="window.gawelaToggleBatchSelect('${orderIdForJs}')">${batchButtonLabel}</button>`);
                     return sections.join('');
                   }
 
@@ -484,7 +500,7 @@ internal static class MapHtmlDocumentBuilder
                        const color = m.color || '#A855F7';
                        const icon = L.divIcon({
                          className: 'gawela-marker',
-                         html: buildOrderMarkerHtml(m.shape, color, m.avisoStatus, m.isAssigned, m.isDimmed),
+                         html: buildOrderMarkerHtml(m.shape, color, m.avisoStatus, m.isAssigned, m.isDimmed, !!m.isBatchSelected),
                          iconSize: [28, 28],
                          iconAnchor: [14, 14]
                        });
@@ -500,9 +516,15 @@ internal static class MapHtmlDocumentBuilder
                            maxWidth: 192
                          }
                        );
-                       marker.on('click', () => {
+                       marker.on('click', evt => {
                          if (window.chrome && window.chrome.webview) {
-                           window.chrome.webview.postMessage(m.id);
+                           const originalEvent = evt && evt.originalEvent ? evt.originalEvent : null;
+                           const isBatchToggle = !!(originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+                           if (isBatchToggle) {
+                             window.chrome.webview.postMessage(`batchToggle:${m.id}`);
+                           } else {
+                             window.chrome.webview.postMessage(m.id);
+                           }
                          }
                        });
                        marker.addTo(markerLayer);
@@ -516,6 +538,14 @@ internal static class MapHtmlDocumentBuilder
                        map.fitBounds(bounds, { padding: [24, 24] });
                        hasInitialViewport = true;
                      }
+                  };
+
+                   window.gawelaToggleBatchSelect = function(orderId) {
+                     if (!orderId || !window.chrome || !window.chrome.webview) {
+                       return;
+                     }
+
+                     window.chrome.webview.postMessage(`batchToggle:${orderId}`);
                    };
 
                    window.gawelaHighlightMarker = function(orderId) {
