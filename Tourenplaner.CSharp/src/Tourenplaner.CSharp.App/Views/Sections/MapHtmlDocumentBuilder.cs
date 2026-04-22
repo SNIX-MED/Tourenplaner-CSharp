@@ -28,6 +28,9 @@ internal static class MapHtmlDocumentBuilder
                      background: transparent;
                    }
                    .leaflet-container { background: transparent; }
+                   .leaflet-container .leaflet-interactive:focus {
+                     outline: none !important;
+                   }
                    .leaflet-top,
                    .leaflet-bottom {
                      pointer-events: none;
@@ -169,6 +172,9 @@ internal static class MapHtmlDocumentBuilder
                    let markerLayer = L.layerGroup().addTo(map);
                    let companyMarkerLayer = L.layerGroup().addTo(map);
                    let plannedTourOverlayLayer = L.layerGroup().addTo(map);
+                   let plannedTourOverlayEntries = [];
+                   let plannedTourOverlayHighlightTourId = 0;
+                   let plannedTourOverlayCursorTooltip = null;
                    let routeLayer = L.layerGroup().addTo(map);
                    let routePolyline = null;
                    let routeMarkerMap = new Map();
@@ -296,7 +302,66 @@ internal static class MapHtmlDocumentBuilder
                    }
 
                    function clearPlannedTourOverlays() {
+                     if (plannedTourOverlayCursorTooltip) {
+                       map.closeTooltip(plannedTourOverlayCursorTooltip);
+                       plannedTourOverlayCursorTooltip = null;
+                     }
                      plannedTourOverlayLayer.clearLayers();
+                     plannedTourOverlayEntries = [];
+                   }
+
+                   function showPlannedTourOverlayTooltip(label, latlng) {
+                     if (!label || !latlng) {
+                       return;
+                     }
+                     if (!plannedTourOverlayCursorTooltip) {
+                       plannedTourOverlayCursorTooltip = L.tooltip({
+                         direction: 'top',
+                         opacity: 0.92,
+                         offset: [0, -10],
+                         interactive: false,
+                         permanent: false
+                       });
+                     }
+                     plannedTourOverlayCursorTooltip
+                       .setLatLng(latlng)
+                       .setContent(label);
+                     map.openTooltip(plannedTourOverlayCursorTooltip);
+                   }
+
+                   function hidePlannedTourOverlayTooltip() {
+                     if (!plannedTourOverlayCursorTooltip) {
+                       return;
+                     }
+                     map.closeTooltip(plannedTourOverlayCursorTooltip);
+                   }
+
+                   function applyPlannedTourOverlayHighlightStyles() {
+                     const hasHighlight = Number.isFinite(plannedTourOverlayHighlightTourId) && plannedTourOverlayHighlightTourId > 0;
+                     plannedTourOverlayEntries.forEach(entry => {
+                       if (!entry || !entry.polyline) {
+                         return;
+                       }
+
+                       const isHighlighted = hasHighlight && entry.tourId === plannedTourOverlayHighlightTourId;
+                       if (hasHighlight) {
+                         entry.polyline.setStyle({
+                           weight: isHighlighted ? 3 : 2,
+                           opacity: isHighlighted ? 0.92 : 0.34,
+                           dashArray: '6 6'
+                         });
+                         if (isHighlighted) {
+                           entry.polyline.bringToFront();
+                         }
+                         return;
+                       }
+
+                       entry.polyline.setStyle({
+                         weight: 3,
+                         opacity: 0.82,
+                         dashArray: '6 6'
+                       });
+                     });
                    }
 
                    function buildOrderMarkerHtml(shape, color, avisoStatus, isAssigned, isDimmed) {
@@ -531,23 +596,55 @@ internal static class MapHtmlDocumentBuilder
                          return;
                        }
 
-                       const color = (overlay.color || '#2563EB');
-                       const polyline = L.polyline(path, {
-                         color: color,
-                         weight: 3,
-                         opacity: 0.82,
-                         dashArray: '6 6'
-                       }).addTo(plannedTourOverlayLayer);
+                      const color = (overlay.color || '#2563EB');
+                      const parsedTourId = Number(overlay.id);
+                      const tourId = Number.isFinite(parsedTourId) && parsedTourId > 0 ? Math.trunc(parsedTourId) : 0;
+                      const polyline = L.polyline(path, {
+                        color: color,
+                        weight: 3,
+                        opacity: 0.82,
+                        dashArray: '6 6',
+                        interactive: false
+                      }).addTo(plannedTourOverlayLayer);
+                      // Keep the visible line slim, but add a wider transparent hit area for easier mouse interaction.
+                      const hitPolyline = L.polyline(path, {
+                        color: '#000000',
+                        weight: 16,
+                        opacity: 0,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      }).addTo(plannedTourOverlayLayer);
+                      const label = (overlay.label || '').trim();
+                      const showTourLabelAtCursor = (evt) => {
+                        if (label.length > 0 && evt && evt.latlng) {
+                          showPlannedTourOverlayTooltip(label, evt.latlng);
+                        }
+                      };
+                      hitPolyline.on('mousemove', showTourLabelAtCursor);
+                      hitPolyline.on('mouseover', showTourLabelAtCursor);
+                      hitPolyline.on('mouseout', hidePlannedTourOverlayTooltip);
+                      if (tourId > 0) {
+                        const onSelectTour = (evt) => {
+                          showTourLabelAtCursor(evt);
+                          if (window.chrome && window.chrome.webview) {
+                            window.chrome.webview.postMessage(`plannedTourSelect:${tourId}`);
+                          }
+                        };
+                        hitPolyline.on('click', onSelectTour);
+                      }
+                      plannedTourOverlayEntries.push({
+                        tourId: tourId,
+                        polyline: polyline,
+                        hitPolyline: hitPolyline
+                      });
+                    });
+                     applyPlannedTourOverlayHighlightStyles();
+                   };
 
-                       const label = (overlay.label || '').trim();
-                       if (label.length > 0) {
-                         polyline.bindTooltip(label, {
-                           sticky: true,
-                           direction: 'top',
-                           opacity: 0.92
-                         });
-                       }
-                     });
+                   window.gawelaHighlightPlannedTourOverlay = function(tourId) {
+                     const parsed = Number(tourId);
+                     plannedTourOverlayHighlightTourId = Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
+                     applyPlannedTourOverlayHighlightStyles();
                    };
 
                    window.gawelaSetRoute = function(routeStops, geometryPoints, routeColor) {

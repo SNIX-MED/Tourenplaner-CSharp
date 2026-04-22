@@ -30,7 +30,8 @@ public partial class KarteSectionView : UserControl
         RouteSelection = 1 << 3,
         PinInfoCardsVisibility = 1 << 4,
         PinInfoCardScale = 1 << 5,
-        DetailsToggle = 1 << 6
+        DetailsToggle = 1 << 6,
+        PlannedTourOverlayHighlight = 1 << 7
     }
 
     private static readonly GridLength DefaultRoutePanelWidth = new(460d, GridUnitType.Pixel);
@@ -196,6 +197,10 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.Route, DataRefreshDebounceMilliseconds);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.PlannedTourOverlayHighlightTourId))
+        {
+            QueueMapRefresh(MapRefreshOperation.PlannedTourOverlayHighlight, UiRefreshDebounceMilliseconds);
+        }
         else if (e.PropertyName == nameof(KarteSectionViewModel.ArePinInfoCardsVisible))
         {
             QueueMapRefresh(MapRefreshOperation.PinInfoCardsVisibility, UiRefreshDebounceMilliseconds);
@@ -298,9 +303,17 @@ public partial class KarteSectionView : UserControl
         {
             await PushRouteToMapAsync();
         }
-        else if ((operation & MapRefreshOperation.RouteSelection) != 0)
+        else
         {
-            await HighlightSelectedRouteStopAsync();
+            if ((operation & MapRefreshOperation.RouteSelection) != 0)
+            {
+                await HighlightSelectedRouteStopAsync();
+            }
+
+            if ((operation & MapRefreshOperation.PlannedTourOverlayHighlight) != 0)
+            {
+                await HighlightPlannedTourOverlayAsync();
+            }
         }
     }
 
@@ -519,7 +532,7 @@ public partial class KarteSectionView : UserControl
         try
         {
             var ready = await MapWebView.CoreWebView2.ExecuteScriptAsync(
-                "(typeof window.gawelaSetMarkers === 'function' && typeof window.gawelaSetRoute === 'function' && typeof window.gawelaSetPlannedTourOverlays === 'function' && typeof window.gawelaSetCompanyMarker === 'function').toString();");
+                "(typeof window.gawelaSetMarkers === 'function' && typeof window.gawelaSetRoute === 'function' && typeof window.gawelaSetPlannedTourOverlays === 'function' && typeof window.gawelaSetCompanyMarker === 'function' && typeof window.gawelaHighlightPlannedTourOverlay === 'function').toString();");
             _mapScriptReady = ready.Contains("true", StringComparison.OrdinalIgnoreCase);
             if (_mapScriptReady)
             {
@@ -662,6 +675,7 @@ public partial class KarteSectionView : UserControl
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetPlannedTourOverlays === 'function') window.gawelaSetPlannedTourOverlays({overlaysJson});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson}, {routeColorJson});");
         await HighlightSelectedRouteStopAsync();
+        await HighlightPlannedTourOverlayAsync();
     }
 
     private async Task HighlightSelectedMarkerAsync()
@@ -685,6 +699,18 @@ public partial class KarteSectionView : UserControl
 
         var id = vm.SelectedRouteStop?.OrderId ?? string.Empty;
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaHighlightRouteStop === 'function') window.gawelaHighlightRouteStop({JsonSerializer.Serialize(id)});");
+    }
+
+    private async Task HighlightPlannedTourOverlayAsync()
+    {
+        if (!_mapReady || !_mapScriptReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        var tourIdJson = JsonSerializer.Serialize(vm.PlannedTourOverlayHighlightTourId);
+        await MapWebView.CoreWebView2.ExecuteScriptAsync(
+            $"if (typeof window.gawelaHighlightPlannedTourOverlay === 'function') window.gawelaHighlightPlannedTourOverlay({tourIdJson});");
     }
 
     private async Task ApplyPinInfoCardsVisibilityAsync()
@@ -809,6 +835,17 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
+        if (raw.StartsWith("plannedTourSelect:", StringComparison.OrdinalIgnoreCase))
+        {
+            var tourIdText = raw["plannedTourSelect:".Length..];
+            if (int.TryParse(tourIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tourId) && tourId > 0)
+            {
+                vm.SelectTourOverviewById(tourId);
+            }
+
+            return;
+        }
+
         if (string.Equals(raw, "toggleDetails", StringComparison.OrdinalIgnoreCase))
         {
             if (vm.ToggleDetailsPanelCommand.CanExecute(null))
@@ -862,6 +899,49 @@ public partial class KarteSectionView : UserControl
         }
 
         await vm.FocusTourAsync(selected.TourId);
+    }
+
+    private void TourOverviewList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not ListBox listBox)
+        {
+            return;
+        }
+
+        var listItem = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (listItem is not null)
+        {
+            return;
+        }
+
+        listBox.SelectedItem = null;
+        vm.SetHoveredTourOverviewId(0);
+    }
+
+    private void TourOverviewList_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        var listItem = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (listItem?.DataContext is SavedTourOverviewItem tour && tour.TourId > 0)
+        {
+            vm.SetHoveredTourOverviewId(tour.TourId);
+            return;
+        }
+
+        vm.SetHoveredTourOverviewId(0);
+    }
+
+    private void TourOverviewList_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if (DataContext is KarteSectionViewModel vm)
+        {
+            vm.SetHoveredTourOverviewId(0);
+        }
     }
 
     private void OnRouteStopContextMenuOpening(object sender, ContextMenuEventArgs e)

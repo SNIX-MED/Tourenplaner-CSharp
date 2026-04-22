@@ -124,11 +124,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private SavedTourLookupItem? _selectedSavedTour;
     private SavedTourOverviewItem? _selectedTourOverviewItem;
     private int _selectedTourOverviewId;
+    private int _hoveredTourOverviewId;
     private string _detailSelectedStatus = Order.DefaultOrderStatus;
     private string _detailSelectedAvisoStatus = "nicht avisiert";
     private readonly List<MapOrderItem> _dimmedMapOrders = new();
     private readonly HashSet<int> _selectedDetailProductIndices = new();
     private readonly Stack<RouteStopRemovalUndoSnapshot> _draftRouteStopRemovalUndoStack = new();
+    private CancellationTokenSource? _tourOverviewStartTimeAutoSaveCts;
     private string? _detailSelectedProductStatus;
     private bool _suppressDetailSelectedProductStatusApply;
     private readonly Guid _instanceId = Guid.NewGuid();
@@ -425,6 +427,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _plannedTourOverlayRevision, value);
     }
 
+    public int PlannedTourOverlayHighlightTourId => ShowTourOverviewPanel
+        ? (_hoveredTourOverviewId > 0 ? _hoveredTourOverviewId : _selectedTourOverviewId)
+        : 0;
+
     public int RouteVisualRevision
     {
         get => _routeVisualRevision;
@@ -499,6 +505,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             {
                 MarkRouteChanged();
                 ApplyRouteStartTimeFromInput();
+                ScheduleTourOverviewStartTimeAutoSave();
             }
         }
     }
@@ -513,6 +520,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             {
                 MarkRouteChanged();
                 ApplyRouteStartTimeFromInput();
+                ScheduleTourOverviewStartTimeAutoSave();
             }
         }
     }
@@ -951,6 +959,34 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         await LoadSavedToursAsync(tourId);
         await LoadTourIntoRouteAsync(tourId);
+    }
+
+    public void SetHoveredTourOverviewId(int tourId)
+    {
+        var normalized = tourId > 0 ? tourId : 0;
+        if (_hoveredTourOverviewId == normalized)
+        {
+            return;
+        }
+
+        _hoveredTourOverviewId = normalized;
+        OnPropertyChanged(nameof(PlannedTourOverlayHighlightTourId));
+    }
+
+    public void SelectTourOverviewById(int tourId)
+    {
+        if (tourId <= 0)
+        {
+            return;
+        }
+
+        var target = TourOverviewItems.FirstOrDefault(x => x.TourId == tourId);
+        if (target is null)
+        {
+            return;
+        }
+
+        SelectedTourOverviewItem = target;
     }
 
     public async Task FocusAndEditTourAsync(int tourId)
@@ -1729,7 +1765,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await OpenCreateTourDialogAsync();
     }
 
-    private async Task SaveSelectedTourOverviewStartTimeAsync(int tourId)
+    private async Task SaveSelectedTourOverviewStartTimeAsync(
+        int tourId,
+        bool suppressNoChangeStatus = false,
+        bool suppressSuccessStatus = false)
     {
         try
         {
@@ -1750,7 +1789,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             if (string.Equals((tour.StartTime ?? string.Empty).Trim(), updatedStartTime, StringComparison.Ordinal))
             {
                 SetRouteChanged(false);
-                StatusText = "Keine Änderungen zum Speichern.";
+                if (!suppressNoChangeStatus)
+                {
+                    StatusText = "Keine Änderungen zum Speichern.";
+                }
                 return;
             }
 
@@ -1759,7 +1801,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
             await LoadSavedToursAsync(tourId);
             SetRouteChanged(false);
-            StatusText = $"Startzeit für {BuildTourLookupLabel(tour)} gespeichert.";
+            if (!suppressSuccessStatus)
+            {
+                StatusText = $"Startzeit für {BuildTourLookupLabel(tour)} gespeichert.";
+            }
         }
         catch (IOException ioEx)
         {
@@ -2146,10 +2191,18 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await _orderRepository.SaveAllAsync(_allOrders);
         _dataSyncService.PublishOrders(_instanceId);
         await RefreshAsync();
-        await FocusTourAsync(tourId);
         SetRouteChanged(false);
         ClearDraftRouteStopRemovalUndoHistory();
-        StatusText = "Tour aktualisiert und auf Karte geladen.";
+        if (isOverviewEdit)
+        {
+            SelectTourOverviewById(tourId);
+            StatusText = "Tour aktualisiert.";
+        }
+        else
+        {
+            await FocusTourAsync(tourId);
+            StatusText = "Tour aktualisiert und auf Karte geladen.";
+        }
         }
         catch (IOException ioEx)
         {
@@ -3645,6 +3698,59 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     private string RouteStartTime => $"{NormalizeTimePart(RouteStartHour, 23)}:{NormalizeTimePart(RouteStartMinute, 59)}";
 
+    private bool IsTourOverviewStartTimeAutoSaveMode()
+    {
+        return !_suppressRouteChangeTracking &&
+               _activeTourId <= 0 &&
+               _selectedTourOverviewId > 0 &&
+               !RouteStops.Any(x => !IsCompanyStop(x));
+    }
+
+    private void ScheduleTourOverviewStartTimeAutoSave()
+    {
+        if (!IsTourOverviewStartTimeAutoSaveMode() || !_hasUnsavedRouteChanges)
+        {
+            return;
+        }
+
+        if (RouteStartHour.Length < 2 || RouteStartMinute.Length < 2)
+        {
+            return;
+        }
+
+        _tourOverviewStartTimeAutoSaveCts?.Cancel();
+        _tourOverviewStartTimeAutoSaveCts = new CancellationTokenSource();
+        var token = _tourOverviewStartTimeAutoSaveCts.Token;
+        _ = AutoSaveTourOverviewStartTimeAsync(_selectedTourOverviewId, token);
+    }
+
+    private async Task AutoSaveTourOverviewStartTimeAsync(int tourId, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(450, token);
+            if (token.IsCancellationRequested || tourId <= 0)
+            {
+                return;
+            }
+
+            if (!IsTourOverviewStartTimeAutoSaveMode() ||
+                _selectedTourOverviewId != tourId ||
+                !_hasUnsavedRouteChanges)
+            {
+                return;
+            }
+
+            await SaveSelectedTourOverviewStartTimeAsync(
+                tourId,
+                suppressNoChangeStatus: true,
+                suppressSuccessStatus: true);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
     private void ApplyRouteStartTimeFromInput()
     {
         RefreshDriveTimesFromCurrentRoute();
@@ -3875,6 +3981,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(DetailProductItems));
         OnPropertyChanged(nameof(DetailOrderStatus));
         OnPropertyChanged(nameof(DetailOrderStatusColor));
+        RefreshRouteVisualsAfterOrderMutation();
         PublishOrderChange(order.Id, order.Id);
         StatusText = $"Produkt in Auftrag {order.Id} wurde aktualisiert.";
     }
@@ -4020,6 +4127,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(DetailProductItems));
         OnPropertyChanged(nameof(DetailOrderStatus));
         OnPropertyChanged(nameof(DetailOrderStatusColor));
+        RefreshRouteVisualsAfterOrderMutation();
         PublishOrderChange(order.Id, order.Id);
         StatusText = $"{changedCount} Produkt(e) in Auftrag {order.Id} auf \"{normalizedStatus}\" gesetzt.";
     }
@@ -4288,6 +4396,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _dataSyncService.PublishOrders(_instanceId, previousOrderId, currentOrderId);
     }
 
+    private void RefreshRouteVisualsAfterOrderMutation()
+    {
+        UpdateRouteSummary();
+        RebuildPlannedTourRouteOverlays();
+    }
+
     private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
     {
         if (args.SourceId == _instanceId || args.Kinds == AppDataKind.Orders)
@@ -4426,6 +4540,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private void ApplyTourOverviewSelection(SavedTourOverviewItem? selection)
     {
         _selectedTourOverviewId = selection?.TourId ?? 0;
+        OnPropertyChanged(nameof(PlannedTourOverlayHighlightTourId));
         if (_selectedTourOverviewId <= 0)
         {
             UpdateRouteSummary();
@@ -4464,6 +4579,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     {
         OnPropertyChanged(nameof(ShowRouteStopsPanel));
         OnPropertyChanged(nameof(ShowTourOverviewPanel));
+        OnPropertyChanged(nameof(PlannedTourOverlayHighlightTourId));
     }
 
     private static string NormalizeTimePart(string? value, int max)
