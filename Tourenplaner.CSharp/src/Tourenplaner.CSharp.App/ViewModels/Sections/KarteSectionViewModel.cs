@@ -111,6 +111,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _mapPinInfoCardShowNotes = true;
     private bool _mapPinInfoCardShowProducts = true;
     private bool _mapPinInfoCardShowTotalWeight = true;
+    private bool _isRouteCalculating;
+    private int _routeGeometryInFlightCount;
     private int _routeGeometryRevision;
     private int _activeTourId;
     private string _currentRouteVehicleId = string.Empty;
@@ -160,15 +162,18 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RemoveFromRouteCommand = new DelegateCommand(RemoveSelectedRouteStop, () => SelectedRouteStop is not null && !IsCompanyStop(SelectedRouteStop));
         MoveStopUpCommand = new DelegateCommand(MoveSelectedStopUp, () => CanMoveSelectedStop(-1));
         MoveStopDownCommand = new DelegateCommand(MoveSelectedStopDown, () => CanMoveSelectedStop(1));
-        OptimizeRouteCommand = new AsyncCommand(OptimizeRouteAsync, () => RouteStops.Count(x => !IsCompanyStop(x)) > 2);
+        OptimizeRouteCommand = new AsyncCommand(OptimizeRouteAsync, CanOptimizeRoute);
         OpenCreateTourDialogCommand = new AsyncCommand(OpenCreateTourDialogAsync);
         EditSelectedTourCommand = new AsyncCommand(OpenEditSelectedTourDialogAsync, CanEditOrLeaveSelectedTour);
         ExportRouteCommand = new AsyncCommand(ExportRouteAsync, CanExportRoute);
         SaveRouteAsTourCommand = new AsyncCommand(SaveRouteAsTourAsync, () => RouteStops.Any(x => !IsCompanyStop(x)));
         SaveCurrentTourCommand = new AsyncCommand(SaveCurrentTourAsync, CanSaveCurrentTour);
         DeleteSelectedTourCommand = new AsyncCommand(DeleteSelectedTourAsync, CanEditOrLeaveSelectedTour);
+        OpenSelectedTourOverviewCommand = new AsyncCommand(OpenSelectedTourOverviewAsync, CanOpenSelectedTourOverview);
         ClearRouteCommand = new DelegateCommand(ClearRoute, () => RouteStops.Any(x => !IsCompanyStop(x)));
-        LeaveSelectedTourCommand = new DelegateCommand(LeaveSelectedTour, CanEditOrLeaveSelectedTour);
+        LeaveSelectedTourCommand = new DelegateCommand(LeaveSelectedTour, CanLeaveSelectedTour);
+        PreviousTourCommand = new DelegateCommand(SwitchToPreviousTour, CanSwitchToPreviousTour);
+        NextTourCommand = new DelegateCommand(SwitchToNextTour, CanSwitchToNextTour);
         ApplyStartTimeCommand = new DelegateCommand(ApplyRouteStartTime);
         ToggleDetailsPanelCommand = new AsyncCommand(ToggleDetailsPanelAsync);
         CloseDetailsCommand = new DelegateCommand(CloseDetails, () => SelectedOrder is not null);
@@ -221,9 +226,15 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     public ICommand DeleteSelectedTourCommand { get; }
 
+    public ICommand OpenSelectedTourOverviewCommand { get; }
+
     public ICommand ClearRouteCommand { get; }
 
     public ICommand LeaveSelectedTourCommand { get; }
+
+    public ICommand PreviousTourCommand { get; }
+
+    public ICommand NextTourCommand { get; }
 
     public ICommand ApplyStartTimeCommand { get; }
 
@@ -278,6 +289,18 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public string LegendAvisoBadgeColorBestaetigt => AvisoBadgeColorBestaetigt;
     public bool ShowRouteStopsPanel => _activeTourId > 0 || RouteStops.Any(x => !IsCompanyStop(x));
     public bool ShowTourOverviewPanel => !ShowRouteStopsPanel;
+    public bool IsRouteCalculating
+    {
+        get => _isRouteCalculating;
+        private set
+        {
+            if (SetProperty(ref _isRouteCalculating, value))
+            {
+                RaiseCommandStates();
+            }
+        }
+    }
+    public string CurrentStopViewTourName => ResolveCurrentStopViewTourName();
 
     public SavedTourLookupItem? SelectedSavedTour
     {
@@ -3076,9 +3099,24 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     private void LeaveSelectedTour()
     {
-        if (ResolveCurrentTourId() <= 0)
+        if (!ShowRouteStopsPanel)
         {
             return;
+        }
+
+        var hasUnsavedChanges = _hasUnsavedRouteChanges && RouteStops.Any(x => !IsCompanyStop(x));
+        if (hasUnsavedChanges)
+        {
+            var confirmLeave = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                "Die aktuelle Tour hat ungespeicherte Änderungen.\n\nMöchtest du die Tour wirklich verlassen und zur Routenübersicht wechseln?",
+                "Ungespeicherte Änderungen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (confirmLeave != MessageBoxResult.Yes)
+            {
+                return;
+            }
         }
 
         ClearRoute();
@@ -3628,13 +3666,17 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RaiseCanExecuteChangedIfSupported(ExportRouteCommand);
         RaiseCanExecuteChangedIfSupported(SaveRouteAsTourCommand);
         RaiseCanExecuteChangedIfSupported(SaveCurrentTourCommand);
+        RaiseCanExecuteChangedIfSupported(OpenSelectedTourOverviewCommand);
         RaiseCanExecuteChangedIfSupported(ClearRouteCommand);
         RaiseCanExecuteChangedIfSupported(LeaveSelectedTourCommand);
+        RaiseCanExecuteChangedIfSupported(PreviousTourCommand);
+        RaiseCanExecuteChangedIfSupported(NextTourCommand);
         RaiseCanExecuteChangedIfSupported(DeleteSelectedTourCommand);
         RaiseCanExecuteChangedIfSupported(CloseDetailsCommand);
         RaiseCanExecuteChangedIfSupported(SendEmailCommand);
         RaiseCanExecuteChangedIfSupported(EditOrderCommand);
         RaiseCanExecuteChangedIfSupported(ShowSelectedOrderTourCommand);
+        OnPropertyChanged(nameof(CurrentStopViewTourName));
     }
 
     private static void RaiseCanExecuteChangedIfSupported(ICommand command)
@@ -3671,8 +3713,18 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return ResolveCurrentTourId() > 0;
     }
 
+    private bool CanLeaveSelectedTour()
+    {
+        return ShowRouteStopsPanel;
+    }
+
     private bool CanSaveCurrentTour()
     {
+        if (IsRouteCalculating)
+        {
+            return false;
+        }
+
         if (!_hasUnsavedRouteChanges)
         {
             return false;
@@ -3684,6 +3736,182 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         }
 
         return _activeTourId <= 0 && _selectedTourOverviewId > 0;
+    }
+
+    private bool CanOpenSelectedTourOverview()
+    {
+        if (IsRouteCalculating)
+        {
+            return false;
+        }
+
+        if (!ShowTourOverviewPanel)
+        {
+            return false;
+        }
+
+        return (SelectedTourOverviewItem?.TourId ?? 0) > 0;
+    }
+
+    private async Task OpenSelectedTourOverviewAsync()
+    {
+        var selectedTourId = SelectedTourOverviewItem?.TourId ?? 0;
+        if (selectedTourId <= 0)
+        {
+            return;
+        }
+
+        await FocusTourAsync(selectedTourId);
+    }
+
+    private static bool HasNeighbour(IReadOnlyList<int> tourIds, int currentTourId, int offset)
+    {
+        if (tourIds.Count == 0 || currentTourId <= 0)
+        {
+            return false;
+        }
+
+        var index = FindTourIndex(tourIds, currentTourId);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var targetIndex = index + offset;
+        return targetIndex >= 0 && targetIndex < tourIds.Count;
+    }
+
+    private static int FindTourIndex(IReadOnlyList<int> tourIds, int tourId)
+    {
+        for (var i = 0; i < tourIds.Count; i++)
+        {
+            if (tourIds[i] == tourId)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private IReadOnlyList<int> GetTourIdsForStopNavigation()
+    {
+        if (TourOverviewItems.Count > 0)
+        {
+            return TourOverviewItems
+                .Select(x => x.TourId)
+                .Where(x => x > 0)
+                .Distinct()
+                .ToList();
+        }
+
+        return _savedTours
+            .OrderBy(t => ParseDateForSort(t.Date))
+            .ThenBy(t => BuildTourLookupLabel(t), StringComparer.OrdinalIgnoreCase)
+            .Select(t => t.Id)
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList();
+    }
+
+    private bool CanSwitchToPreviousTour()
+    {
+        if (IsRouteCalculating)
+        {
+            return false;
+        }
+
+        if (!ShowRouteStopsPanel)
+        {
+            return false;
+        }
+
+        var tourIds = GetTourIdsForStopNavigation();
+        return HasNeighbour(tourIds, ResolveCurrentTourId(), -1);
+    }
+
+    private bool CanSwitchToNextTour()
+    {
+        if (IsRouteCalculating)
+        {
+            return false;
+        }
+
+        if (!ShowRouteStopsPanel)
+        {
+            return false;
+        }
+
+        var tourIds = GetTourIdsForStopNavigation();
+        return HasNeighbour(tourIds, ResolveCurrentTourId(), 1);
+    }
+
+    private bool CanOptimizeRoute()
+    {
+        if (IsRouteCalculating)
+        {
+            return false;
+        }
+
+        return RouteStops.Count(x => !IsCompanyStop(x)) > 2;
+    }
+
+    private void SwitchToPreviousTour()
+    {
+        SwitchToRelativeTour(-1);
+    }
+
+    private void SwitchToNextTour()
+    {
+        SwitchToRelativeTour(1);
+    }
+
+    private void SwitchToRelativeTour(int offset)
+    {
+        var tourIds = GetTourIdsForStopNavigation();
+        var currentTourId = ResolveCurrentTourId();
+        var currentIndex = FindTourIndex(tourIds, currentTourId);
+        if (currentIndex < 0)
+        {
+            return;
+        }
+
+        var targetIndex = currentIndex + offset;
+        if (targetIndex < 0 || targetIndex >= tourIds.Count)
+        {
+            return;
+        }
+
+        var targetTourId = tourIds[targetIndex];
+        var target = SavedTours.FirstOrDefault(x => x.TourId == targetTourId);
+        if (target is null)
+        {
+            return;
+        }
+
+        SelectedSavedTour = target;
+    }
+
+    private string ResolveCurrentStopViewTourName()
+    {
+        if (!ShowRouteStopsPanel)
+        {
+            return string.Empty;
+        }
+
+        var tourId = ResolveCurrentTourId();
+        if (tourId > 0)
+        {
+            var tour = _savedTours.FirstOrDefault(x => x.Id == tourId);
+            if (tour is not null && !string.IsNullOrWhiteSpace(tour.Name))
+            {
+                return NormalizeUiText(tour.Name);
+            }
+
+            return $"Tour {tourId}";
+        }
+
+        return string.IsNullOrWhiteSpace(RouteName) ? "Aktuelle Tour" : RouteName.Trim();
     }
 
     private bool CanRemoveSelectedOrderFromTour()
@@ -4528,11 +4756,15 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             var dateText = parsedDate == DateTime.MinValue
                 ? (tour.Date ?? string.Empty).Trim()
                 : parsedDate.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+            var startTimeText = string.IsNullOrWhiteSpace(tour.StartTime)
+                ? "--:--"
+                : (tour.StartTime ?? string.Empty).Trim();
             var stopCount = (tour.Stops ?? []).Count(x => !IsCompanyTourStop(x));
             TourOverviewItems.Add(new SavedTourOverviewItem(
                 tour.Id,
                 BuildTourLookupLabel(tour),
                 dateText,
+                startTimeText,
                 stopCount));
         }
     }
@@ -4600,40 +4832,56 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     private async Task RebuildRouteGeometryAsync()
     {
+        Interlocked.Increment(ref _routeGeometryInFlightCount);
+        IsRouteCalculating = true;
         var revision = Interlocked.Increment(ref _routeGeometryRevision);
-        var validStops = RouteStops
-            .Where(x => !double.IsNaN(x.Latitude) && !double.IsNaN(x.Longitude))
-            .Where(x => x.Latitude is >= -90 and <= 90 && x.Longitude is >= -180 and <= 180)
-            .ToList();
-        var waypoints = validStops.Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
-
-        IReadOnlyList<GeoPoint> geometry = Array.Empty<GeoPoint>();
-        IReadOnlyList<OsrmRouteLeg> legs = Array.Empty<OsrmRouteLeg>();
-        if (waypoints.Count >= 2)
+        try
         {
-            var result = await _osrmRoutingService.TryBuildRouteWithLegsAsync(waypoints);
-            geometry = result.GeometryPoints;
-            legs = result.Legs;
-            if (geometry.Count < 2 || legs.Count != waypoints.Count - 1)
+            var validStops = RouteStops
+                .Where(x => !double.IsNaN(x.Latitude) && !double.IsNaN(x.Longitude))
+                .Where(x => x.Latitude is >= -90 and <= 90 && x.Longitude is >= -180 and <= 180)
+                .ToList();
+            var waypoints = validStops.Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
+
+            IReadOnlyList<GeoPoint> geometry = Array.Empty<GeoPoint>();
+            IReadOnlyList<OsrmRouteLeg> legs = Array.Empty<OsrmRouteLeg>();
+            if (waypoints.Count >= 2)
             {
-                geometry = waypoints;
-                legs = BuildEstimatedLegs(waypoints);
+                var result = await _osrmRoutingService.TryBuildRouteWithLegsAsync(waypoints);
+                geometry = result.GeometryPoints;
+                legs = result.Legs;
+                if (geometry.Count < 2 || legs.Count != waypoints.Count - 1)
+                {
+                    geometry = waypoints;
+                    legs = BuildEstimatedLegs(waypoints);
+                }
             }
-        }
 
-        if (revision != _routeGeometryRevision)
+            if (revision != _routeGeometryRevision)
+            {
+                return;
+            }
+
+            _routeGeometryPoints.Clear();
+            _routeGeometryPoints.AddRange(geometry);
+            _routeLegs.Clear();
+            _routeLegs.AddRange(legs);
+            _timedStops.Clear();
+            _timedStops.AddRange(validStops);
+            OnPropertyChanged(nameof(RouteGeometryPoints));
+            RefreshDriveTimesFromCurrentRoute();
+        }
+        finally
         {
-            return;
-        }
+            var remaining = Interlocked.Decrement(ref _routeGeometryInFlightCount);
+            if (remaining < 0)
+            {
+                Interlocked.Exchange(ref _routeGeometryInFlightCount, 0);
+                remaining = 0;
+            }
 
-        _routeGeometryPoints.Clear();
-        _routeGeometryPoints.AddRange(geometry);
-        _routeLegs.Clear();
-        _routeLegs.AddRange(legs);
-        _timedStops.Clear();
-        _timedStops.AddRange(validStops);
-        OnPropertyChanged(nameof(RouteGeometryPoints));
-        RefreshDriveTimesFromCurrentRoute();
+            IsRouteCalculating = remaining > 0;
+        }
     }
 
     private void RefreshDriveTimesFromCurrentRoute()
@@ -5534,17 +5782,19 @@ public sealed class SavedTourLookupItem
 
 public sealed class SavedTourOverviewItem
 {
-    public SavedTourOverviewItem(int tourId, string tourName, string dateText, int stopCount)
+    public SavedTourOverviewItem(int tourId, string tourName, string dateText, string startTimeText, int stopCount)
     {
         TourId = tourId;
         TourName = string.IsNullOrWhiteSpace(tourName) ? $"Tour {tourId}" : tourName.Trim();
         DateText = string.IsNullOrWhiteSpace(dateText) ? "-" : dateText.Trim();
+        StartTimeText = string.IsNullOrWhiteSpace(startTimeText) ? "--:--" : startTimeText.Trim();
         StopCount = Math.Max(0, stopCount);
     }
 
     public int TourId { get; }
     public string TourName { get; }
     public string DateText { get; }
+    public string StartTimeText { get; }
     public int StopCount { get; }
     public string StopCountText => $"{StopCount} Stopps";
 }

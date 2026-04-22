@@ -120,7 +120,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         IReadOnlyList<string>? selectedEmployeeIds = null)
     {
         HourOptions = Enumerable.Range(0, 24).Select(x => x.ToString("00", CultureInfo.InvariantCulture)).ToList();
-        MinuteOptions = Enumerable.Range(0, 60).Select(x => x.ToString("00", CultureInfo.InvariantCulture)).ToList();
+        MinuteOptions = Enumerable.Range(0, 12).Select(x => (x * 5).ToString("00", CultureInfo.InvariantCulture)).ToList();
 
         if (DateTime.TryParseExact(routeDate, "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
         {
@@ -143,7 +143,9 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         var normalizedStartHour = routeStartHour ?? string.Empty;
         var normalizedStartMinute = routeStartMinute ?? string.Empty;
         _selectedHour = HourOptions.Contains(normalizedStartHour) ? normalizedStartHour : "07";
-        _selectedMinute = MinuteOptions.Contains(normalizedStartMinute) ? normalizedStartMinute : "30";
+        _selectedMinute = MinuteOptions.Contains(normalizedStartMinute)
+            ? normalizedStartMinute
+            : NormalizeMinuteToFiveStep(normalizedStartMinute);
 
         VehicleOptions = new List<TourLookupOption> { new(string.Empty, "Bitte wählen") };
         VehicleOptions.AddRange(vehicleOptions ?? []);
@@ -232,6 +234,23 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     {
         get => _selectedMinute;
         set => SetProperty(ref _selectedMinute, value);
+    }
+
+    private static string NormalizeMinuteToFiveStep(string? rawMinute)
+    {
+        if (!int.TryParse((rawMinute ?? string.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var minute))
+        {
+            return "30";
+        }
+
+        minute = Math.Clamp(minute, 0, 59);
+        var rounded = (int)Math.Round(minute / 5d, MidpointRounding.AwayFromZero) * 5;
+        if (rounded >= 60)
+        {
+            rounded = 55;
+        }
+
+        return rounded.ToString("00", CultureInfo.InvariantCulture);
     }
 
     public TourLookupOption? SelectedVehicle

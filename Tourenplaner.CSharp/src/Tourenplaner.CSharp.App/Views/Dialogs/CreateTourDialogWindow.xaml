@@ -22,55 +22,54 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <TextBlock FontSize="34" FontWeight="Bold" Text="Neue Liefertour" />
 
-            <StackPanel Grid.Row="1" Margin="0,12,0,0">
-                <TextBlock FontWeight="SemiBold" Text="Datum (DD.MM.YYYY)" />
-                <controls:ModernDatePickerField Margin="0,4,0,0"
-                                                SelectedDateText="{Binding DateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            </StackPanel>
+            <Grid Grid.Row="1" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="130" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                    <TextBlock FontWeight="SemiBold" Text="Datum (DD.MM.YYYY)" />
+                    <controls:ModernDatePickerField Margin="0,4,0,0"
+                                                    SelectedDateText="{Binding DateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                    <TextBlock FontWeight="SemiBold" Text="Abfahrt Std" />
+                    <ComboBox Margin="0,4,0,0" ItemsSource="{Binding HourOptions}" SelectedItem="{Binding SelectedHour}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Margin="6,0,0,0">
+                    <TextBlock FontWeight="SemiBold" Text="Abfahrt Min" />
+                    <ComboBox Margin="0,4,0,0" ItemsSource="{Binding MinuteOptions}" SelectedItem="{Binding SelectedMinute}" />
+                </StackPanel>
+            </Grid>
 
             <StackPanel Grid.Row="2" Margin="0,10,0,0">
                 <TextBlock FontWeight="SemiBold" Text="Name (optional)" />
                 <TextBox Margin="0,4,0,0" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
             </StackPanel>
 
-            <Grid Grid.Row="3" Margin="0,10,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                    <TextBlock FontWeight="SemiBold" Text="Abfahrt Stunde" />
-                    <ComboBox Margin="0,4,0,0" ItemsSource="{Binding HourOptions}" SelectedItem="{Binding SelectedHour}" />
-                </StackPanel>
-                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                    <TextBlock FontWeight="SemiBold" Text="Abfahrt Minute" />
-                    <ComboBox Margin="0,4,0,0" ItemsSource="{Binding MinuteOptions}" SelectedItem="{Binding SelectedMinute}" />
-                </StackPanel>
-            </Grid>
-
-            <StackPanel Grid.Row="4" Margin="0,12,0,0">
+            <StackPanel Grid.Row="3" Margin="0,12,0,0">
                 <TextBlock FontWeight="SemiBold" Text="Fahrzeug *" />
                 <ComboBox Margin="0,4,0,0" ItemsSource="{Binding VehicleOptions}" SelectedItem="{Binding SelectedVehicle}" DisplayMemberPath="Label" />
             </StackPanel>
 
-            <StackPanel Grid.Row="5" Margin="0,10,0,0">
+            <StackPanel Grid.Row="4" Margin="0,10,0,0">
                 <TextBlock FontWeight="SemiBold" Text="Anhänger" />
                 <ComboBox Margin="0,4,0,0" ItemsSource="{Binding TrailerOptions}" SelectedItem="{Binding SelectedTrailer}" DisplayMemberPath="Label" />
             </StackPanel>
 
-            <StackPanel Grid.Row="6" Margin="0,10,0,0">
+            <StackPanel Grid.Row="5" Margin="0,10,0,0">
                 <CheckBox Content="Mehrere Fahrzeuge verwenden"
                           IsChecked="{Binding UseSecondaryVehicle, Mode=TwoWay}" />
             </StackPanel>
 
-            <Border Grid.Row="7"
+            <Border Grid.Row="6"
                     Margin="0,8,0,0"
                     Style="{StaticResource SoftCardStyle}"
                     Padding="10"
@@ -89,16 +88,16 @@
                 </StackPanel>
             </Border>
 
-            <StackPanel Grid.Row="8" Margin="0,12,0,0">
+            <StackPanel Grid.Row="7" Margin="0,12,0,0">
                 <TextBlock FontWeight="SemiBold" Text="{Binding SelectedEmployeesSummary}" />
                 <Button Margin="0,8,0,0" Height="34" Content="Mitarbeiter wählen" Style="{StaticResource SecondaryButtonStyle}" Click="OnSelectEmployeesClicked" />
             </StackPanel>
 
-            <Border Grid.Row="9" Margin="0,12,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">
+            <Border Grid.Row="8" Margin="0,12,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">
                 <TextBlock Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" Text="Es müssen 1 bis 2 Mitarbeiter ausgewählt werden. Bei mehreren Fahrzeugen sind mindestens 2 Mitarbeiter erforderlich." />
             </Border>
 
-            <Grid Grid.Row="10" Margin="0,16,0,0">
+            <Grid Grid.Row="9" Margin="0,16,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />

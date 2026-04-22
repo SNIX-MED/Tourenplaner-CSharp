@@ -130,12 +130,22 @@ internal static class MapHtmlDocumentBuilder
                    .leaflet-popup.gawela-pin-popup .gawela-popup-action {
                      height: var(--gawela-popup-button-height, 24px);
                      padding: 0 var(--gawela-popup-button-pad-x, 8px);
-                     border-radius: 6px;
-                     border: 1px solid #9ca3af;
-                     background: #f8fafc;
-                     color: #111827;
+                     border-radius: 9px;
+                     border: 1px solid #800080;
+                     background: #800080;
+                     color: #ffffff;
                      cursor: pointer;
                      font-size: var(--gawela-popup-button-font-size, 11px);
+                     font-weight: 700;
+                     letter-spacing: 0.1px;
+                     transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+                   }
+                   .leaflet-popup.gawela-pin-popup .gawela-popup-action:hover {
+                     background: #660066;
+                     border-color: #660066;
+                   }
+                   .leaflet-popup.gawela-pin-popup .gawela-popup-action:active {
+                     transform: translateY(1px);
                    }
                    @media print {
                      * {
@@ -459,9 +469,9 @@ internal static class MapHtmlDocumentBuilder
                      }
 
                      const orderIdForJs = orderId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                     sections.push(`<button class="gawela-popup-action" onclick="window.gawelaAddToRoute('${orderIdForJs}')">Add to route</button>`);
-                     return sections.join('');
-                   }
+                    sections.push(`<button class="gawela-popup-action" onclick="window.gawelaAddToRoute('${orderIdForJs}')">Zu Tour hinzufügen</button>`);
+                    return sections.join('');
+                  }
 
                    window.gawelaSetMarkers = function(markers) {
                      clearMarkers();
