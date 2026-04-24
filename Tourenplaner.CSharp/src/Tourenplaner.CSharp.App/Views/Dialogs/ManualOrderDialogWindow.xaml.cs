@@ -127,11 +127,13 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _orderDateText = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     private string _orderAddressName = string.Empty;
     private string _orderAddressContactPerson = string.Empty;
+    private string _orderAddressAdditional = string.Empty;
     private string _orderAddressStreet = string.Empty;
     private string _orderAddressPostalCode = string.Empty;
     private string _orderAddressCity = string.Empty;
     private string _deliveryName = string.Empty;
     private string _deliveryContactPerson = string.Empty;
+    private string _deliveryAdditional = string.Empty;
     private string _deliveryStreet = string.Empty;
     private string _deliveryPostalCode = string.Empty;
     private string _deliveryCity = string.Empty;
@@ -223,6 +225,12 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         set => SetProperty(ref _orderAddressPostalCode, value);
     }
 
+    public string OrderAddressAdditional
+    {
+        get => _orderAddressAdditional;
+        set => SetProperty(ref _orderAddressAdditional, value);
+    }
+
     public string OrderAddressCity
     {
         get => _orderAddressCity;
@@ -245,6 +253,12 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     {
         get => _deliveryStreet;
         set => SetProperty(ref _deliveryStreet, value);
+    }
+
+    public string DeliveryAdditional
+    {
+        get => _deliveryAdditional;
+        set => SetProperty(ref _deliveryAdditional, value);
     }
 
     public string DeliveryPostalCode
@@ -352,6 +366,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             {
                 Name = (OrderAddressName ?? string.Empty).Trim(),
                 ContactPerson = (OrderAddressContactPerson ?? string.Empty).Trim(),
+                Additional = (OrderAddressAdditional ?? string.Empty).Trim(),
                 Street = (OrderAddressStreet ?? string.Empty).Trim(),
                 PostalCode = (OrderAddressPostalCode ?? string.Empty).Trim(),
                 City = (OrderAddressCity ?? string.Empty).Trim()
@@ -360,6 +375,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             {
                 Name = deliveryName,
                 ContactPerson = (DeliveryContactPerson ?? string.Empty).Trim(),
+                Additional = (DeliveryAdditional ?? string.Empty).Trim(),
                 Street = deliveryStreet,
                 PostalCode = deliveryPostalCode,
                 City = deliveryCity
@@ -383,6 +399,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     {
         ProductLines.Add(line);
         SelectedProductLine = line;
+        RefreshSelectedStatusFromProducts();
     }
 
     public void UpdateSelectedProductLine(ProductLineInput line)
@@ -400,6 +417,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
         ProductLines[index] = line;
         SelectedProductLine = line;
+        RefreshSelectedStatusFromProducts();
     }
 
     public void RemoveSelectedProductLine()
@@ -412,12 +430,14 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         var index = ProductLines.IndexOf(SelectedProductLine);
         ProductLines.Remove(SelectedProductLine);
         SelectedProductLine = ProductLines.ElementAtOrDefault(Math.Max(0, index - 1)) ?? ProductLines.FirstOrDefault();
+        RefreshSelectedStatusFromProducts();
     }
 
     public void CopyOrderAddressToDeliveryAddress()
     {
         DeliveryName = (OrderAddressName ?? string.Empty).Trim();
         DeliveryContactPerson = (OrderAddressContactPerson ?? string.Empty).Trim();
+        DeliveryAdditional = (OrderAddressAdditional ?? string.Empty).Trim();
         DeliveryStreet = (OrderAddressStreet ?? string.Empty).Trim();
         DeliveryPostalCode = (OrderAddressPostalCode ?? string.Empty).Trim();
         DeliveryCity = (OrderAddressCity ?? string.Empty).Trim();
@@ -436,11 +456,13 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         OrderDateText = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         OrderAddressName = existingOrder.OrderAddress?.Name ?? string.Empty;
         OrderAddressContactPerson = existingOrder.OrderAddress?.ContactPerson ?? string.Empty;
+        OrderAddressAdditional = existingOrder.OrderAddress?.Additional ?? string.Empty;
         OrderAddressStreet = existingOrder.OrderAddress?.Street ?? string.Empty;
         OrderAddressPostalCode = existingOrder.OrderAddress?.PostalCode ?? string.Empty;
         OrderAddressCity = existingOrder.OrderAddress?.City ?? string.Empty;
         DeliveryName = existingOrder.DeliveryAddress?.Name ?? existingOrder.CustomerName ?? string.Empty;
         DeliveryContactPerson = existingOrder.DeliveryAddress?.ContactPerson ?? string.Empty;
+        DeliveryAdditional = existingOrder.DeliveryAddress?.Additional ?? string.Empty;
         DeliveryStreet = existingOrder.DeliveryAddress?.Street ?? string.Empty;
         DeliveryPostalCode = existingOrder.DeliveryAddress?.PostalCode ?? string.Empty;
         DeliveryCity = existingOrder.DeliveryAddress?.City ?? string.Empty;
@@ -450,10 +472,6 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         SelectedDeliveryType = _deliveryTypes.Any(x => string.Equals(x, normalizedDeliveryType, StringComparison.OrdinalIgnoreCase))
             ? _deliveryTypes.First(x => string.Equals(x, normalizedDeliveryType, StringComparison.OrdinalIgnoreCase))
             : _deliveryTypes[0];
-        SelectedStatus = string.IsNullOrWhiteSpace(existingOrder.OrderStatus) ||
-                         string.Equals(existingOrder.OrderStatus, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase)
-            ? Statuses[0]
-            : Order.NormalizeOrderStatus(existingOrder.OrderStatus);
         Notes = existingOrder.Notes ?? string.Empty;
         IsArchived = existingOrder.IsArchived;
 
@@ -463,7 +481,17 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             ProductLines.Add(ProductLineInput.FromOrderProductInfo(product));
         }
 
+        RefreshSelectedStatusFromProducts();
         SelectedProductLine = ProductLines.FirstOrDefault();
+    }
+
+    private void RefreshSelectedStatusFromProducts()
+    {
+        var products = ProductLines
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .Select(x => x.ToOrderProductInfo());
+
+        SelectedStatus = Order.ResolveOrderStatusFromProducts(products);
     }
 
     private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

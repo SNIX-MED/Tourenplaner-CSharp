@@ -113,6 +113,7 @@ public sealed class OrderAddressInfo
 {
     public string Name { get; set; } = string.Empty;
     public string ContactPerson { get; set; } = string.Empty;
+    public string Additional { get; set; } = string.Empty;
     public string Street { get; set; } = string.Empty;
     public string PostalCode { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
@@ -122,6 +123,7 @@ public sealed class DeliveryAddressInfo
 {
     public string Name { get; set; } = string.Empty;
     public string ContactPerson { get; set; } = string.Empty;
+    public string Additional { get; set; } = string.Empty;
     public string Street { get; set; } = string.Empty;
     public string PostalCode { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;

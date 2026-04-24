@@ -478,15 +478,26 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
+        var orderId = SelectedOrder.Id;
+        var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+            $"Soll der Auftrag {orderId} wirklich gelöscht werden?",
+            "Auftrag löschen",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
         var index = _allOrders.FindIndex(x =>
             x.Type == OrderType.NonMap &&
-            string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
+            string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
         if (index < 0)
         {
             return;
         }
 
-        var removedOrderId = SelectedOrder.Id;
+        var removedOrderId = orderId;
         _lastDeletedOrder = CloneOrder(_allOrders[index]);
         _lastDeletedIndex = index;
         _allOrders.RemoveAt(index);
