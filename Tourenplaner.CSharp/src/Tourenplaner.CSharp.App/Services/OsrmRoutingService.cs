@@ -189,10 +189,13 @@ public sealed record OsrmRouteLeg(int DurationMinutes, double DistanceKm);
 
 public sealed record OsrmRouteResult(
     IReadOnlyList<GeoPoint> GeometryPoints,
-    IReadOnlyList<OsrmRouteLeg> Legs)
+    IReadOnlyList<OsrmRouteLeg> Legs,
+    IReadOnlyList<OsrmRouteTrafficSegment>? TrafficSegments = null)
 {
-    public static OsrmRouteResult Empty { get; } = new(Array.Empty<GeoPoint>(), Array.Empty<OsrmRouteLeg>());
+    public static OsrmRouteResult Empty { get; } = new(Array.Empty<GeoPoint>(), Array.Empty<OsrmRouteLeg>(), Array.Empty<OsrmRouteTrafficSegment>());
 }
+
+public sealed record OsrmRouteTrafficSegment(int StartIndex, int EndIndex, string TrafficLevel);
 
 internal sealed record OsrmSegmentResult(
     IReadOnlyList<GeoPoint> Points,

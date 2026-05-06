@@ -279,6 +279,34 @@
                                     <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Karte Rot ab Rest %" />
                                     <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" ToolTip="Wenn Restkapazität kleiner/gleich diesem Prozentwert ist, wird die Tourlinie rot." Text="{Binding MapRouteCapacityWarningThresholdPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </Grid>
+                                <TextBlock Margin="0,16,0,0" FontSize="26" FontWeight="SemiBold" Text="TomTom Karte &amp; Traffic" />
+                                <TextBlock Margin="0,2,0,10" Foreground="{DynamicResource Brush.TextMuted}" Text="API-Key, Kartenstil und Abfrage-Intervalle fuer verkehrsbasierte Routenberechnung." />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="220" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="TomTom API Key" />
+                                    <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding TomTomApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Kartenstil" />
+                                    <ComboBox Grid.Row="1" Grid.Column="1" Style="{StaticResource SettingsComboBoxStyle}" Height="34" ItemsSource="{Binding TomTomMapStyles}" SelectedItem="{Binding TomTomMapStyle, Mode=TwoWay}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Traffic Overlay" />
+                                    <CheckBox Grid.Row="2" Grid.Column="1" Margin="0,6,0,6" Content="Traffic-Flow auf Karte einblenden" IsChecked="{Binding TomTomShowTrafficFlow, Mode=TwoWay}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Traffic Refresh (s)" />
+                                    <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" ToolTip="Min. 15 Sekunden fuer reduzierte API-Abfragen." Text="{Binding TomTomTrafficRefreshSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Route Debounce (ms)" />
+                                    <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" ToolTip="Routenberechnung nur nach kurzer Ruhephase." Text="{Binding TomTomRouteRecalcDebounceMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Tile Cache" />
+                                    <CheckBox Grid.Row="5" Grid.Column="1" Margin="0,6,0,6" Content="WebView Cache fuer Kartentiles nutzen (lizenzabhaengig)" IsChecked="{Binding TomTomEnableTileCache, Mode=TwoWay}" />
+                                </Grid>
                             </StackPanel>
                         </Border>
                     </Expander>

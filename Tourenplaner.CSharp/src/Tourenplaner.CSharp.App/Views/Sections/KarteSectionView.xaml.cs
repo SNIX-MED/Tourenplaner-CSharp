@@ -219,6 +219,30 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.DetailsToggle, UiRefreshDebounceMilliseconds);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.TomTomApiKey) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.TomTomMapStyle) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.TomTomShowTrafficFlow) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.TomTomEnableTileCache))
+        {
+            _ = ReloadMapDocumentAsync();
+        }
+    }
+
+    private async Task ReloadMapDocumentAsync()
+    {
+        if (!_mapReady || MapWebView.CoreWebView2 is null || DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        _mapScriptReady = false;
+        var html = MapHtmlDocumentBuilder.Build(
+            vm.TomTomApiKey,
+            vm.TomTomMapStyle,
+            vm.TomTomShowTrafficFlow,
+            vm.TomTomEnableTileCache);
+        MapWebView.NavigateToString(html);
+        await Task.CompletedTask;
     }
 
     private void QueueMapRefresh(MapRefreshOperation operation, int debounceMilliseconds = 0)
@@ -507,7 +531,13 @@ public partial class KarteSectionView : UserControl
             MapWebView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
             MapWebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
             MapWebView.CoreWebView2.ContextMenuRequested += OnMapContextMenuRequested;
-            MapWebView.NavigateToString(MapHtmlDocumentBuilder.Build());
+            var vm = DataContext as KarteSectionViewModel;
+            var html = MapHtmlDocumentBuilder.Build(
+                vm?.TomTomApiKey,
+                vm?.TomTomMapStyle,
+                vm?.TomTomShowTrafficFlow ?? true,
+                vm?.TomTomEnableTileCache ?? true);
+            MapWebView.NavigateToString(html);
             _mapReady = true;
             MapWebView.Visibility = Visibility.Visible;
             MapFallbackNotice.Visibility = Visibility.Collapsed;
@@ -530,26 +560,47 @@ public partial class KarteSectionView : UserControl
         if (!e.IsSuccess || MapWebView.CoreWebView2 is null)
         {
             _mapScriptReady = false;
+            MapFallbackNotice.Text = "Karte nicht verfügbar. Navigation zur Kartenansicht fehlgeschlagen.";
+            MapFallbackNotice.Visibility = Visibility.Visible;
             return;
         }
 
         try
         {
-            var ready = await MapWebView.CoreWebView2.ExecuteScriptAsync(
-                "(typeof window.gawelaSetMarkers === 'function' && typeof window.gawelaSetRoute === 'function' && typeof window.gawelaSetPlannedTourOverlays === 'function' && typeof window.gawelaSetCompanyMarker === 'function' && typeof window.gawelaHighlightPlannedTourOverlay === 'function').toString();");
-            _mapScriptReady = ready.Contains("true", StringComparison.OrdinalIgnoreCase);
+            _mapScriptReady = false;
+            for (var i = 0; i < 30; i++)
+            {
+                var ready = await MapWebView.CoreWebView2.ExecuteScriptAsync(
+                    "(document.readyState === 'complete' && typeof window.gawelaSetMarkers === 'function' && typeof window.gawelaSetRoute === 'function' && typeof window.gawelaSetPlannedTourOverlays === 'function' && typeof window.gawelaSetCompanyMarker === 'function' && typeof window.gawelaHighlightPlannedTourOverlay === 'function') ? 'true' : 'false';");
+                _mapScriptReady = ready.Contains("true", StringComparison.OrdinalIgnoreCase);
+                if (_mapScriptReady)
+                {
+                    break;
+                }
+
+                await Task.Delay(100);
+            }
+
             if (_mapScriptReady)
             {
+                MapFallbackNotice.Visibility = Visibility.Collapsed;
                 QueueMapRefresh(
                     MapRefreshOperation.Markers |
                     MapRefreshOperation.Route |
                     MapRefreshOperation.PinInfoCardScale |
                     MapRefreshOperation.DetailsToggle);
             }
+            else
+            {
+                MapFallbackNotice.Text = "Karte nicht verfügbar: Map-Skript wurde nicht initialisiert.";
+                MapFallbackNotice.Visibility = Visibility.Visible;
+            }
         }
         catch
         {
             _mapScriptReady = false;
+            MapFallbackNotice.Text = "Karte nicht verfügbar: Fehler beim Laden der Kartenlogik.";
+            MapFallbackNotice.Visibility = Visibility.Visible;
         }
     }
 
@@ -663,6 +714,14 @@ public partial class KarteSectionView : UserControl
         var geometry = vm.GetRouteGeometrySnapshot()
             .Select(x => new { lat = x.Latitude, lon = x.Longitude })
             .ToList();
+        var trafficSegments = vm.GetRouteTrafficSegmentSnapshot()
+            .Select(x => new
+            {
+                startIndex = x.StartIndex,
+                endIndex = x.EndIndex,
+                trafficLevel = x.TrafficLevel
+            })
+            .ToList();
         var overlays = vm.GetPlannedTourRouteOverlaySnapshot()
             .Select(x => new
             {
@@ -675,10 +734,13 @@ public partial class KarteSectionView : UserControl
 
         var routeJson = JsonSerializer.Serialize(route);
         var geometryJson = JsonSerializer.Serialize(geometry);
+        var trafficSegmentsJson = JsonSerializer.Serialize(trafficSegments);
         var routeColorJson = JsonSerializer.Serialize(vm.GetActiveRoutePolylineColor());
         var overlaysJson = JsonSerializer.Serialize(overlays);
+        var routeInfoJson = JsonSerializer.Serialize(vm.RoutingProviderStatusText);
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetPlannedTourOverlays === 'function') window.gawelaSetPlannedTourOverlays({overlaysJson});");
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson}, {routeColorJson});");
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson}, {routeColorJson}, {trafficSegmentsJson});");
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRouteInfo === 'function') window.gawelaSetRouteInfo({routeInfoJson});");
         await HighlightSelectedRouteStopAsync();
         await HighlightPlannedTourOverlayAsync();
     }
@@ -808,6 +870,22 @@ public partial class KarteSectionView : UserControl
         {
             var addId = raw["add:".Length..];
             vm.AddOrderToRouteById(addId);
+            return;
+        }
+
+        if (raw.StartsWith("mapdiag:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (raw.StartsWith("mapdiag:error:", StringComparison.OrdinalIgnoreCase))
+            {
+                var reason = raw["mapdiag:error:".Length..];
+                MapFallbackNotice.Text = $"Karte nicht verfügbar: {reason}";
+                MapFallbackNotice.Visibility = Visibility.Visible;
+            }
+            else if (raw.StartsWith("mapdiag:ok:", StringComparison.OrdinalIgnoreCase))
+            {
+                MapFallbackNotice.Visibility = Visibility.Collapsed;
+            }
+
             return;
         }
 

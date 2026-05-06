@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Windows;
 using System.Windows.Input;
@@ -50,13 +51,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private readonly AppDataSyncService _dataSyncService;
     private readonly RouteOptimizationService _optimizationService;
     private readonly MapRouteService _mapRouteService;
-    private readonly OsrmRoutingService _osrmRoutingService;
+    private TomTomRoutingService _tomTomRoutingService;
     private readonly TourConflictService _conflictService;
     private readonly Dictionary<string, string> _employeeLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Order> _allOrders = new();
     private readonly List<TourRecord> _savedTours = new();
     private readonly List<GeoPoint> _routeGeometryPoints = new();
     private readonly List<OsrmRouteLeg> _routeLegs = new();
+    private readonly List<OsrmRouteTrafficSegment> _routeTrafficSegments = new();
     private readonly List<RouteStopItem> _timedStops = new();
     private readonly List<PlannedTourRouteOverlay> _plannedTourRouteOverlays = new();
     private VehicleDataRecord _vehicleData = new();
@@ -75,6 +77,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private double _routeDistanceKm;
     private string _statusText = "Loading map orders...";
     private string _routeTimingSummary = "Noch keine Stopps geplant.";
+    private string _routingProviderStatusText = "Routing: Noch nicht berechnet";
     private string _driveTimesText = "Noch keine Stopps geplant.";
     private string _routeOperationalSummaryText = "Noch keine Stopps geplant.";
     private string _routeTotalWeightText = "Totalgewicht: 0 kg";
@@ -88,6 +91,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _statusColorInStock = AppSettings.DefaultStatusColorInStock;
     private string _statusColorPlanned = AppSettings.DefaultStatusColorPlanned;
     private bool _mapSearchDimNonMatchingPins;
+    private string _tomTomApiKey = string.Empty;
+    private string _tomTomMapStyle = AppSettings.DefaultTomTomMapStyle;
+    private bool _tomTomShowTrafficFlow = true;
+    private int _tomTomTrafficRefreshSeconds = AppSettings.DefaultTomTomTrafficRefreshSeconds;
+    private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
+    private bool _tomTomEnableTileCache = true;
+    private string _geocodeCachePath = string.Empty;
     private GeoPoint? _companyLocation;
     private bool _isDetailsOpen;
     private bool _isDetailsPanelExpanded = true;
@@ -123,6 +133,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _isAllPlannedToursVisible;
     private int _plannedTourOverlayRevision;
     private int _routeVisualRevision;
+    private DateTime _lastRouteProviderCallUtc = DateTime.MinValue;
+    private string _lastRouteSignature = string.Empty;
+    private CancellationTokenSource? _routeRebuildDebounceCts;
+    private readonly string _routeComputationCachePath;
     private SavedTourLookupItem? _selectedSavedTour;
     private SavedTourOverviewItem? _selectedTourOverviewItem;
     private int _selectedTourOverviewId;
@@ -154,8 +168,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _dataSyncService = dataSyncService;
         _optimizationService = new RouteOptimizationService();
         _mapRouteService = new MapRouteService();
-        _osrmRoutingService = new OsrmRoutingService();
+        _tomTomRoutingService = new TomTomRoutingService(null);
         _conflictService = new TourConflictService();
+        _geocodeCachePath = Path.Combine(dataRoot, "geocode-cache.json");
+        _routeComputationCachePath = Path.Combine(dataRoot, "route-computation-cache.json");
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         AddToRouteCommand = new DelegateCommand(AddSelectedOrderToRoute, () => SelectedOrder is not null);
@@ -579,6 +595,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _routeTimingSummary, value);
     }
 
+    public string RoutingProviderStatusText
+    {
+        get => _routingProviderStatusText;
+        private set => SetProperty(ref _routingProviderStatusText, value);
+    }
+
     public string DriveTimesText
     {
         get => _driveTimesText;
@@ -753,6 +775,21 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _mapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
             : settings.MapRouteCapacityWarningThresholdPercent;
+        _tomTomApiKey = (settings.TomTomApiKey ?? string.Empty).Trim();
+        _tomTomMapStyle = NormalizeTomTomMapStyle(settings.TomTomMapStyle);
+        _tomTomShowTrafficFlow = settings.TomTomShowTrafficFlow;
+        _tomTomTrafficRefreshSeconds = settings.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : settings.TomTomTrafficRefreshSeconds;
+        _tomTomRouteRecalcDebounceMs = settings.TomTomRouteRecalcDebounceMs is < 100 or > 10000
+            ? AppSettings.DefaultTomTomRouteRecalcDebounceMs
+            : settings.TomTomRouteRecalcDebounceMs;
+        _tomTomEnableTileCache = settings.TomTomEnableTileCache;
+        _tomTomRoutingService = new TomTomRoutingService(_tomTomApiKey);
+        OnPropertyChanged(nameof(TomTomApiKey));
+        OnPropertyChanged(nameof(TomTomMapStyle));
+        OnPropertyChanged(nameof(TomTomShowTrafficFlow));
+        OnPropertyChanged(nameof(TomTomTrafficRefreshSeconds));
+        OnPropertyChanged(nameof(TomTomRouteRecalcDebounceMs));
+        OnPropertyChanged(nameof(TomTomEnableTileCache));
         var (defaultHour, defaultMinute) = ParseStartTimePartsOrDefault(settings.TourDefaultStartTime);
         _defaultRouteStartHour = defaultHour;
         _defaultRouteStartMinute = defaultMinute;
@@ -762,7 +799,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             settings.CompanyStreet,
             settings.CompanyPostalCode,
             settings.CompanyCity,
-            _companyAddress);
+            _companyAddress,
+            _tomTomApiKey,
+            _geocodeCachePath);
         _employeeLabelsById.Clear();
         foreach (var employee in await employeesTask)
         {
@@ -787,7 +826,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RebuildOrderGrid();
         await LoadSavedToursAsync();
         RebuildPlannedTourRouteOverlays();
-        _ = RebuildRouteGeometryAsync();
+        RequestRouteGeometryRebuild();
         UpdateRouteSummary();
     }
 
@@ -848,6 +887,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _companyLocation is null
             ? null
             : new CompanyMarkerInfo(_companyName, _companyAddress, _companyLocation.Latitude, _companyLocation.Longitude);
+
+    public string TomTomApiKey => _tomTomApiKey;
+    public string TomTomMapStyle => _tomTomMapStyle;
+    public bool TomTomShowTrafficFlow => _tomTomShowTrafficFlow;
+    public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
+    public int TomTomRouteRecalcDebounceMs => _tomTomRouteRecalcDebounceMs;
+    public bool TomTomEnableTileCache => _tomTomEnableTileCache;
 
     private static string FormatOrderAddress(Order? order)
     {
@@ -953,6 +999,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public IReadOnlyList<GeoPoint> GetRouteGeometrySnapshot()
     {
         return _routeGeometryPoints.ToList();
+    }
+
+    public IReadOnlyList<OsrmRouteTrafficSegment> GetRouteTrafficSegmentSnapshot()
+    {
+        return _routeTrafficSegments.ToList();
     }
 
     public string GetActiveRoutePolylineColor()
@@ -3522,7 +3573,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         UpdateDriveTimePlaceholderState();
         UpdateRouteSummary();
         RebuildPlannedTourRouteOverlays();
-        _ = RebuildRouteGeometryAsync();
+        RequestRouteGeometryRebuild();
         UpdateStatus();
         RaiseCommandStates();
         NotifyRoutePanelVisibilityChanged();
@@ -4461,7 +4512,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated) ?? selected.Location;
+        updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated, _tomTomApiKey, _geocodeCachePath) ?? selected.Location;
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
         _allOrders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
@@ -4938,7 +4989,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             stop.Longitude = order.Location?.Longitude ?? stop.Longitude;
         }
 
-        _ = RebuildRouteGeometryAsync();
+        RequestRouteGeometryRebuild();
     }
 
     private static string? ResolvePreferredOrderId(OrderChangedEventArgs args, string? currentOrderId)
@@ -5163,7 +5214,38 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return new string((value ?? string.Empty).Where(char.IsDigit).Take(2).ToArray());
     }
 
-    private async Task RebuildRouteGeometryAsync()
+    private static string NormalizeTomTomMapStyle(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized is "main" or "night"
+            ? normalized
+            : AppSettings.DefaultTomTomMapStyle;
+    }
+
+    private async void RequestRouteGeometryRebuild()
+    {
+        _routeRebuildDebounceCts?.Cancel();
+        _routeRebuildDebounceCts?.Dispose();
+        _routeRebuildDebounceCts = new CancellationTokenSource();
+        var token = _routeRebuildDebounceCts.Token;
+        var debounceMs = Math.Clamp(_tomTomRouteRecalcDebounceMs, 100, 10000);
+        try
+        {
+            await Task.Delay(debounceMs, token);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            // Intentionally stay on UI context because we touch bindable state.
+            await RebuildRouteGeometryAsync(token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RebuildRouteGeometryAsync(CancellationToken cancellationToken = default)
     {
         Interlocked.Increment(ref _routeGeometryInFlightCount);
         IsRouteCalculating = true;
@@ -5175,19 +5257,89 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                 .Where(x => x.Latitude is >= -90 and <= 90 && x.Longitude is >= -180 and <= 180)
                 .ToList();
             var waypoints = validStops.Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
+            var plannedDeparture = BuildPlannedDepartureDateTime();
+            var routeSignature = BuildRouteSignature(waypoints, plannedDeparture);
+            var departAtText = plannedDeparture.HasValue
+                ? plannedDeparture.Value.ToString("HH:mm", CultureInfo.InvariantCulture)
+                : "n/a";
 
             IReadOnlyList<GeoPoint> geometry = Array.Empty<GeoPoint>();
             IReadOnlyList<OsrmRouteLeg> legs = Array.Empty<OsrmRouteLeg>();
+            IReadOnlyList<OsrmRouteTrafficSegment> trafficSegments = Array.Empty<OsrmRouteTrafficSegment>();
+            var routingSource = "Fallback (Schaetzung)";
             if (waypoints.Count >= 2)
             {
-                var result = await _osrmRoutingService.TryBuildRouteWithLegsAsync(waypoints);
-                geometry = result.GeometryPoints;
-                legs = result.Legs;
+                if (!_tomTomRoutingService.IsConfigured)
+                {
+                    geometry = waypoints;
+                    legs = BuildEstimatedLegs(waypoints);
+                    trafficSegments = Array.Empty<OsrmRouteTrafficSegment>();
+                    routingSource = "TomTom-Key fehlt (Schaetzung)";
+                }
+                else
+                {
+                var loadedFromPersistentCache = TryLoadRouteComputationCache(routeSignature, plannedDeparture, out var cachedGeometry, out var cachedLegs, out var cachedTrafficSegments, out var cachedSource);
+                if (loadedFromPersistentCache)
+                {
+                    geometry = cachedGeometry;
+                    legs = cachedLegs;
+                    trafficSegments = cachedTrafficSegments;
+                    routingSource = $"Cache ({cachedSource})";
+                    _lastRouteSignature = routeSignature;
+                    _lastRouteProviderCallUtc = DateTime.UtcNow;
+                }
+                else
+                {
+                    var needsRemoteRefresh = !string.Equals(routeSignature, _lastRouteSignature, StringComparison.Ordinal) ||
+                                             DateTime.UtcNow - _lastRouteProviderCallUtc >= TimeSpan.FromSeconds(Math.Max(15, _tomTomTrafficRefreshSeconds));
+
+                    if (needsRemoteRefresh)
+                    {
+                        var tomTomResult = await _tomTomRoutingService.TryBuildRouteWithLegsAsync(waypoints, plannedDeparture, cancellationToken);
+                        if (tomTomResult.GeometryPoints.Count >= 2 && tomTomResult.Legs.Count == waypoints.Count - 1)
+                        {
+                            geometry = tomTomResult.GeometryPoints;
+                            legs = tomTomResult.Legs;
+                            trafficSegments = tomTomResult.TrafficSegments ?? Array.Empty<OsrmRouteTrafficSegment>();
+                            routingSource = "TomTom";
+                        }
+                        else
+                        {
+                            geometry = waypoints;
+                            legs = BuildEstimatedLegs(waypoints);
+                            trafficSegments = Array.Empty<OsrmRouteTrafficSegment>();
+                            routingSource = "TomTom keine Route (Schaetzung)";
+                        }
+
+                        _lastRouteProviderCallUtc = DateTime.UtcNow;
+                        _lastRouteSignature = routeSignature;
+                    }
+                    else
+                    {
+                        geometry = _routeGeometryPoints.Count >= 2 ? _routeGeometryPoints.ToList() : waypoints;
+                        legs = _routeLegs.Count == waypoints.Count - 1 ? _routeLegs.ToList() : BuildEstimatedLegs(waypoints);
+                        trafficSegments = _routeTrafficSegments.Count > 0 ? _routeTrafficSegments.ToList() : Array.Empty<OsrmRouteTrafficSegment>();
+                        routingSource = "Cache";
+                    }
+                }
+                }
+
                 if (geometry.Count < 2 || legs.Count != waypoints.Count - 1)
                 {
                     geometry = waypoints;
                     legs = BuildEstimatedLegs(waypoints);
+                    trafficSegments = Array.Empty<OsrmRouteTrafficSegment>();
+                    routingSource = "Fallback (Schaetzung)";
                 }
+
+                if (geometry.Count >= 2 && legs.Count == waypoints.Count - 1 && !routingSource.StartsWith("Cache", StringComparison.OrdinalIgnoreCase))
+                {
+                    SaveRouteComputationCache(routeSignature, geometry, legs, trafficSegments, routingSource);
+                }
+            }
+            else
+            {
+                routingSource = "Noch nicht berechnet";
             }
 
             if (revision != _routeGeometryRevision)
@@ -5199,8 +5351,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             _routeGeometryPoints.AddRange(geometry);
             _routeLegs.Clear();
             _routeLegs.AddRange(legs);
+            _routeTrafficSegments.Clear();
+            _routeTrafficSegments.AddRange(trafficSegments);
             _timedStops.Clear();
             _timedStops.AddRange(validStops);
+            RoutingProviderStatusText = $"Routing: {routingSource} | Abfahrt berücksichtigt: {departAtText} | Traffic-Segmente: {_routeTrafficSegments.Count}";
             OnPropertyChanged(nameof(RouteGeometryPoints));
             RefreshDriveTimesFromCurrentRoute();
         }
@@ -5214,6 +5369,155 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             }
 
             IsRouteCalculating = remaining > 0;
+        }
+    }
+
+    private static string BuildRouteSignature(IReadOnlyList<GeoPoint> waypoints, DateTimeOffset? plannedDeparture)
+    {
+        var path = string.Join("|", waypoints.Select(x => $"{x.Latitude:F6},{x.Longitude:F6}"));
+        var departAt = plannedDeparture?.ToString("yyyy-MM-ddTHH:mm:ssK", CultureInfo.InvariantCulture) ?? "none";
+        return $"{path}#departAt={departAt}#trafficV2";
+    }
+
+    private bool TryLoadRouteComputationCache(
+        string routeSignature,
+        DateTimeOffset? plannedDeparture,
+        out IReadOnlyList<GeoPoint> geometry,
+        out IReadOnlyList<OsrmRouteLeg> legs,
+        out IReadOnlyList<OsrmRouteTrafficSegment> trafficSegments,
+        out string source)
+    {
+        geometry = Array.Empty<GeoPoint>();
+        legs = Array.Empty<OsrmRouteLeg>();
+        trafficSegments = Array.Empty<OsrmRouteTrafficSegment>();
+        source = "n/a";
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_routeComputationCachePath) || !File.Exists(_routeComputationCachePath))
+            {
+                return false;
+            }
+
+            var json = File.ReadAllText(_routeComputationCachePath);
+            var cache = JsonSerializer.Deserialize<RouteComputationCacheEntry>(json);
+            if (cache is null || !string.Equals(cache.Signature, routeSignature, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!IsRouteCacheEntryFresh(cache, plannedDeparture))
+            {
+                return false;
+            }
+
+            if (cache.GeometryPoints is null || cache.Legs is null || cache.GeometryPoints.Count < 2 || cache.Legs.Count < 1)
+            {
+                return false;
+            }
+
+            geometry = cache.GeometryPoints
+                .Select(x => new GeoPoint(x.Latitude, x.Longitude))
+                .ToList();
+            legs = cache.Legs
+                .Select(x => new OsrmRouteLeg(Math.Max(0, x.DurationMinutes), Math.Max(0d, x.DistanceKm)))
+                .ToList();
+            trafficSegments = (cache.TrafficSegments ?? new List<RouteTrafficSegmentCacheItem>())
+                .Select(x => new OsrmRouteTrafficSegment(
+                    Math.Max(0, x.StartIndex),
+                    Math.Max(0, x.EndIndex),
+                    string.IsNullOrWhiteSpace(x.TrafficLevel) ? "unknown" : x.TrafficLevel.Trim()))
+                .Where(x => x.EndIndex > x.StartIndex)
+                .ToList();
+            source = string.IsNullOrWhiteSpace(cache.Source) ? "unbekannt" : cache.Source.Trim();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool IsRouteCacheEntryFresh(RouteComputationCacheEntry cache, DateTimeOffset? plannedDeparture)
+    {
+        var source = (cache.Source ?? string.Empty).Trim();
+        if (!source.Contains("TomTom", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!DateTime.TryParse(cache.SavedUtc, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var savedUtcDateTime))
+        {
+            return false;
+        }
+
+        var savedUtc = new DateTimeOffset(savedUtcDateTime.ToUniversalTime(), TimeSpan.Zero);
+        var nowUtc = DateTimeOffset.UtcNow;
+        var age = nowUtc - savedUtc;
+
+        // Keep long cache for historical/far-future planning, but force fresh traffic for near-now routes.
+        if (!plannedDeparture.HasValue)
+        {
+            return age <= TimeSpan.FromMinutes(10);
+        }
+
+        var deltaToDeparture = (plannedDeparture.Value.ToUniversalTime() - nowUtc).Duration();
+        if (deltaToDeparture <= TimeSpan.FromHours(24))
+        {
+            return age <= TimeSpan.FromMinutes(10);
+        }
+
+        return age <= TimeSpan.FromDays(7);
+    }
+
+    private void SaveRouteComputationCache(
+        string routeSignature,
+        IReadOnlyList<GeoPoint> geometry,
+        IReadOnlyList<OsrmRouteLeg> legs,
+        IReadOnlyList<OsrmRouteTrafficSegment> trafficSegments,
+        string source)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_routeComputationCachePath))
+            {
+                return;
+            }
+
+            var dir = Path.GetDirectoryName(_routeComputationCachePath);
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            var payload = new RouteComputationCacheEntry
+            {
+                Signature = routeSignature,
+                Source = source,
+                SavedUtc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+                GeometryPoints = geometry.Select(x => new RouteGeometryPointCacheItem
+                {
+                    Latitude = x.Latitude,
+                    Longitude = x.Longitude
+                }).ToList(),
+                Legs = legs.Select(x => new RouteLegCacheItem
+                {
+                    DurationMinutes = x.DurationMinutes,
+                    DistanceKm = x.DistanceKm
+                }).ToList(),
+                TrafficSegments = trafficSegments.Select(x => new RouteTrafficSegmentCacheItem
+                {
+                    StartIndex = x.StartIndex,
+                    EndIndex = x.EndIndex,
+                    TrafficLevel = x.TrafficLevel
+                }).ToList()
+            };
+
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = false });
+            File.WriteAllText(_routeComputationCachePath, json);
+        }
+        catch
+        {
         }
     }
 
@@ -5286,6 +5590,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         RouteTimingSummary = "Noch keine Stopps geplant.";
         DriveTimesText = "Noch keine Stopps geplant.";
         RouteOperationalSummaryText = "Noch keine Stopps geplant.";
+        RoutingProviderStatusText = "Routing: Noch nicht berechnet";
     }
 
     private static string FormatDuration(int totalMinutes)
@@ -5298,13 +5603,26 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
     private DateTime BuildStartDateTime()
     {
+        var routeDate = ParseRouteDateOrToday();
         var hour = 8;
         var minute = 0;
         _ = int.TryParse(RouteStartHour, NumberStyles.Integer, CultureInfo.InvariantCulture, out hour);
         _ = int.TryParse(RouteStartMinute, NumberStyles.Integer, CultureInfo.InvariantCulture, out minute);
         hour = Math.Clamp(hour, 0, 23);
         minute = Math.Clamp(minute, 0, 59);
-        return DateTime.Today.AddHours(hour).AddMinutes(minute);
+        return new DateTime(routeDate.Year, routeDate.Month, routeDate.Day, hour, minute, 0, DateTimeKind.Local);
+    }
+
+    private DateTimeOffset? BuildPlannedDepartureDateTime()
+    {
+        var start = BuildStartDateTime();
+        return new DateTimeOffset(start);
+    }
+
+    private DateTime ParseRouteDateOrToday()
+    {
+        var parsed = ParseDateForSort(RouteDate);
+        return parsed == DateTime.MinValue ? DateTime.Today : parsed.Date;
     }
 
     private static IReadOnlyList<OsrmRouteLeg> BuildEstimatedLegs(IReadOnlyList<GeoPoint> waypoints)
@@ -5340,7 +5658,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         if (matrixStops.All(HasValidCoordinate))
         {
             var points = matrixStops.Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
-            matrix = await _osrmRoutingService.TryBuildDurationMatrixMinutesAsync(points);
+            var plannedDeparture = BuildPlannedDepartureDateTime();
+            matrix = await _tomTomRoutingService.TryBuildDurationMatrixMinutesAsync(points, plannedDeparture);
         }
 
         var indexByStop = new Dictionary<RouteStopItem, int>();
@@ -5430,7 +5749,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 
         foreach (var order in candidates)
         {
-            var location = await AddressGeocodingService.TryGeocodeOrderAsync(order);
+            var location = await AddressGeocodingService.TryGeocodeOrderAsync(order, _tomTomApiKey, _geocodeCachePath);
             if (location is null)
             {
                 continue;
@@ -6132,6 +6451,35 @@ public sealed class SavedTourOverviewItem
     public string StartTimeText { get; }
     public int StopCount { get; }
     public string StopCountText => $"{StopCount} Stopps";
+}
+
+internal sealed class RouteComputationCacheEntry
+{
+    public string Signature { get; set; } = string.Empty;
+    public string Source { get; set; } = string.Empty;
+    public string SavedUtc { get; set; } = string.Empty;
+    public List<RouteGeometryPointCacheItem> GeometryPoints { get; set; } = new();
+    public List<RouteLegCacheItem> Legs { get; set; } = new();
+    public List<RouteTrafficSegmentCacheItem> TrafficSegments { get; set; } = new();
+}
+
+internal sealed class RouteGeometryPointCacheItem
+{
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+}
+
+internal sealed class RouteLegCacheItem
+{
+    public int DurationMinutes { get; set; }
+    public double DistanceKm { get; set; }
+}
+
+internal sealed class RouteTrafficSegmentCacheItem
+{
+    public int StartIndex { get; set; }
+    public int EndIndex { get; set; }
+    public string TrafficLevel { get; set; } = string.Empty;
 }
 
 

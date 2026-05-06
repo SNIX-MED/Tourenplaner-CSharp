@@ -122,6 +122,16 @@ public sealed class SettingsValidator
             errors.Add("MapRouteCapacityWarningThresholdPercent must be between 0 and 100.");
         }
 
+        if (settings.TomTomTrafficRefreshSeconds < 15)
+        {
+            errors.Add("TomTomTrafficRefreshSeconds must be at least 15.");
+        }
+
+        if (settings.TomTomRouteRecalcDebounceMs is < 100 or > 10000)
+        {
+            errors.Add("TomTomRouteRecalcDebounceMs must be between 100 and 10000.");
+        }
+
         return new ValidationResult(errors);
     }
 

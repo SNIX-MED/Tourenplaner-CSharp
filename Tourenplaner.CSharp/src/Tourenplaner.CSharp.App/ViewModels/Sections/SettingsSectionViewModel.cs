@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Diagnostics;
 using System.Reflection;
 using System.Globalization;
+using System.ComponentModel;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Services;
@@ -17,6 +18,11 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class SettingsSectionViewModel : SectionViewModelBase
 {
+    private static readonly HashSet<string> SupportedTomTomMapStyles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "main",
+        "night"
+    };
     private readonly Guid _instanceId = Guid.NewGuid();
     private readonly JsonAppSettingsRepository _repository;
     private readonly SettingsValidator _validator;
@@ -66,6 +72,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private bool _mapPinInfoCardShowProducts = true;
     private bool _mapPinInfoCardShowTotalWeight = true;
     private int _mapRouteCapacityWarningThresholdPercent = AppSettings.DefaultMapRouteCapacityWarningThresholdPercent;
+    private string _tomTomApiKey = "IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH";
+    private string _tomTomMapStyle = AppSettings.DefaultTomTomMapStyle;
+    private bool _tomTomShowTrafficFlow = true;
+    private int _tomTomTrafficRefreshSeconds = AppSettings.DefaultTomTomTrafficRefreshSeconds;
+    private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
+    private bool _tomTomEnableTileCache = true;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
     private string _backupModeDefault = "full";
@@ -90,6 +102,9 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _latestReleaseAsset = "n/a";
     private GitHubReleaseInfo? _latestRelease;
     private string _validationSummary = string.Empty;
+    private bool _suppressAutoSave;
+    private CancellationTokenSource? _autoSaveCts;
+    private bool _autoSaveInProgress;
 
     public SettingsSectionViewModel(
         string settingsJsonPath,
@@ -114,6 +129,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             "incremental"
         ];
 
+        TomTomMapStyles =
+        [
+            "main",
+            "night"
+        ];
+
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SaveCommand = new AsyncCommand(SaveAsync);
         ValidateCommand = new DelegateCommand(ValidateCurrentSettings);
@@ -133,10 +154,13 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             ImportOrdersAsync,
             canExecute: () => SqlImportEnabled && !IsTestingConnection && !IsImportingOrders);
 
+        PropertyChanged += OnSelfPropertyChanged;
+
         _ = RefreshAsync();
     }
 
     public ObservableCollection<string> BackupModes { get; }
+    public ObservableCollection<string> TomTomMapStyles { get; }
 
     public ICommand RefreshCommand { get; }
 
@@ -316,6 +340,42 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _mapRouteCapacityWarningThresholdPercent;
         set => SetProperty(ref _mapRouteCapacityWarningThresholdPercent, value);
+    }
+
+    public string TomTomApiKey
+    {
+        get => _tomTomApiKey;
+        set => SetProperty(ref _tomTomApiKey, value);
+    }
+
+    public string TomTomMapStyle
+    {
+        get => _tomTomMapStyle;
+        set => SetProperty(ref _tomTomMapStyle, value);
+    }
+
+    public bool TomTomShowTrafficFlow
+    {
+        get => _tomTomShowTrafficFlow;
+        set => SetProperty(ref _tomTomShowTrafficFlow, value);
+    }
+
+    public int TomTomTrafficRefreshSeconds
+    {
+        get => _tomTomTrafficRefreshSeconds;
+        set => SetProperty(ref _tomTomTrafficRefreshSeconds, value);
+    }
+
+    public int TomTomRouteRecalcDebounceMs
+    {
+        get => _tomTomRouteRecalcDebounceMs;
+        set => SetProperty(ref _tomTomRouteRecalcDebounceMs, value);
+    }
+
+    public bool TomTomEnableTileCache
+    {
+        get => _tomTomEnableTileCache;
+        set => SetProperty(ref _tomTomEnableTileCache, value);
     }
 
     public bool BackupsEnabled
@@ -506,26 +566,41 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     public async Task RefreshAsync()
     {
-        var entryAssembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-        ApplicationVersion = entryAssembly.GetName().Version?.ToString() ?? "0.0.0";
-        RuntimeVersion = Environment.Version.ToString();
+        _suppressAutoSave = true;
+        try
+        {
+            var entryAssembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
+            ApplicationVersion = entryAssembly.GetName().Version?.ToString() ?? "0.0.0";
+            RuntimeVersion = Environment.Version.ToString();
 
-        var settings = await _repository.LoadAsync();
-        ApplyModel(settings);
-        UpdateBackupStatus(settings.BackupDir);
-        ResetUpdateState();
-        ValidationSummary = string.Empty;
-        StatusText = "Settings loaded.";
+            var settings = await _repository.LoadAsync();
+            ApplyModel(settings);
+            UpdateBackupStatus(settings.BackupDir);
+            ResetUpdateState();
+            ValidationSummary = string.Empty;
+            StatusText = "Settings loaded.";
+        }
+        finally
+        {
+            _suppressAutoSave = false;
+        }
     }
 
     public async Task SaveAsync()
+    {
+        await SaveCoreAsync(showToast: true);
+    }
+
+    private async Task SaveCoreAsync(bool showToast)
     {
         var model = BuildModel();
         var validation = _validator.Validate(model);
         if (!validation.IsValid)
         {
             ValidationSummary = string.Join(Environment.NewLine, validation.Errors);
-            StatusText = "Validation failed. Settings were not saved.";
+            StatusText = showToast
+                ? "Validation failed. Settings were not saved."
+                : "Auto-save paused: validation failed.";
             return;
         }
 
@@ -533,8 +608,106 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         ValidationSummary = string.Empty;
         UpdateBackupStatus(model.BackupDir);
         _dataSyncService?.PublishSettings(_instanceId);
-        StatusText = "Settings saved.";
-        ToastNotificationService.ShowInfo("Einstellungen gespeichert.");
+        StatusText = showToast ? "Settings saved." : "Settings auto-saved.";
+        if (showToast)
+        {
+            ToastNotificationService.ShowInfo("Einstellungen gespeichert.");
+        }
+    }
+
+    private void OnSelfPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressAutoSave || _autoSaveInProgress)
+        {
+            return;
+        }
+
+        if (!ShouldAutoSaveProperty(e.PropertyName))
+        {
+            return;
+        }
+
+        ScheduleAutoSave();
+    }
+
+    private async void ScheduleAutoSave()
+    {
+        _autoSaveCts?.Cancel();
+        _autoSaveCts?.Dispose();
+        _autoSaveCts = new CancellationTokenSource();
+        var token = _autoSaveCts.Token;
+        try
+        {
+            await Task.Delay(700, token);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _autoSaveInProgress = true;
+            await SaveCoreAsync(showToast: false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _autoSaveInProgress = false;
+        }
+    }
+
+    private static bool ShouldAutoSaveProperty(string? propertyName)
+    {
+        return propertyName is
+            nameof(AvisoEmailSubjectTemplate) or
+            nameof(CompanyName) or
+            nameof(CompanyStreet) or
+            nameof(CompanyPostalCode) or
+            nameof(CompanyCity) or
+            nameof(StatusColorNotSpecified) or
+            nameof(StatusColorOrdered) or
+            nameof(StatusColorOnTheWay) or
+            nameof(StatusColorInStock) or
+            nameof(StatusColorPlanned) or
+            nameof(CalendarLoadWarningColor) or
+            nameof(CalendarLoadCriticalColor) or
+            nameof(CalendarLoadWarningPeopleThreshold) or
+            nameof(CalendarLoadCriticalPeopleThreshold) or
+            nameof(MapDetailsPanelExpanded) or
+            nameof(MapSearchDimNonMatchingPins) or
+            nameof(MapPinInfoCardShowName) or
+            nameof(MapPinInfoCardShowOrderNumber) or
+            nameof(MapPinInfoCardShowStreet) or
+            nameof(MapPinInfoCardShowPostalCodeCity) or
+            nameof(MapPinInfoCardShowNotes) or
+            nameof(MapPinInfoCardShowProducts) or
+            nameof(MapPinInfoCardShowTotalWeight) or
+            nameof(MapRouteCapacityWarningThresholdPercent) or
+            nameof(TomTomApiKey) or
+            nameof(TomTomMapStyle) or
+            nameof(TomTomShowTrafficFlow) or
+            nameof(TomTomTrafficRefreshSeconds) or
+            nameof(TomTomRouteRecalcDebounceMs) or
+            nameof(TomTomEnableTileCache) or
+            nameof(BackupsEnabled) or
+            nameof(BackupDir) or
+            nameof(BackupModeDefault) or
+            nameof(BackupRetentionDays) or
+            nameof(AutoBackupEnabled) or
+            nameof(AutoBackupIntervalDays) or
+            nameof(UpdateFeedUrl) or
+            nameof(ShowGpsTool) or
+            nameof(GpsToolUrl) or
+            nameof(ShowSpediteurTool) or
+            nameof(SpediteurToolUrl) or
+            nameof(TourDefaultStartTime) or
+            nameof(SqlDatabasePath) or
+            nameof(SqlServer) or
+            nameof(SqlDatabase) or
+            nameof(SqlUseWindowsAuth) or
+            nameof(SqlUserId) or
+            nameof(SqlPassword) or
+            nameof(SqlImportEnabled);
     }
 
     public async Task CreateBackupAsync()
@@ -754,6 +927,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             MapPinInfoCardShowProducts = MapPinInfoCardShowProducts,
             MapPinInfoCardShowTotalWeight = MapPinInfoCardShowTotalWeight,
             MapRouteCapacityWarningThresholdPercent = Math.Clamp(MapRouteCapacityWarningThresholdPercent, 0, 100),
+            TomTomApiKey = (TomTomApiKey ?? string.Empty).Trim(),
+            TomTomMapStyle = NormalizeTomTomMapStyle(TomTomMapStyle),
+            TomTomShowTrafficFlow = TomTomShowTrafficFlow,
+            TomTomTrafficRefreshSeconds = Math.Max(15, TomTomTrafficRefreshSeconds),
+            TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000),
+            TomTomEnableTileCache = TomTomEnableTileCache,
             BackupsEnabled = BackupsEnabled,
             BackupDir = (BackupDir ?? string.Empty).Trim(),
             BackupModeDefault = (BackupModeDefault ?? string.Empty).Trim(),
@@ -811,6 +990,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         MapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
             : settings.MapRouteCapacityWarningThresholdPercent;
+        TomTomApiKey = settings.TomTomApiKey ?? string.Empty;
+        TomTomMapStyle = NormalizeTomTomMapStyle(settings.TomTomMapStyle);
+        TomTomShowTrafficFlow = settings.TomTomShowTrafficFlow;
+        TomTomTrafficRefreshSeconds = settings.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : settings.TomTomTrafficRefreshSeconds;
+        TomTomRouteRecalcDebounceMs = settings.TomTomRouteRecalcDebounceMs is < 100 or > 10000 ? AppSettings.DefaultTomTomRouteRecalcDebounceMs : settings.TomTomRouteRecalcDebounceMs;
+        TomTomEnableTileCache = settings.TomTomEnableTileCache;
         BackupsEnabled = settings.BackupsEnabled;
         BackupDir = settings.BackupDir;
         BackupModeDefault = settings.BackupModeDefault;
@@ -860,6 +1045,19 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         }
 
         return AppSettings.DefaultTourStartTime;
+    }
+
+    private static string NormalizeTomTomMapStyle(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return AppSettings.DefaultTomTomMapStyle;
+        }
+
+        return SupportedTomTomMapStyles.Contains(normalized)
+            ? normalized.ToLowerInvariant()
+            : AppSettings.DefaultTomTomMapStyle;
     }
 
     private void UpdateBackupStatus(string? backupDir)
@@ -1024,7 +1222,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
                 continue;
             }
 
-            var location = await AddressGeocodingService.TryGeocodeOrderAsync(order);
+            var location = await AddressGeocodingService.TryGeocodeOrderAsync(
+                order,
+                TomTomApiKey,
+                Path.Combine(_dataRoot, "geocode-cache.json"));
             if (location is null)
             {
                 continue;

@@ -15,6 +15,9 @@ public sealed class AppSettings
     public const string DefaultSpediteurToolUrl = "https://portal.haslertransport.ch/";
     public const string DefaultTourStartTime = "07:30";
     public const int DefaultMapRouteCapacityWarningThresholdPercent = 5;
+    public const string DefaultTomTomMapStyle = "main";
+    public const int DefaultTomTomTrafficRefreshSeconds = 60;
+    public const int DefaultTomTomRouteRecalcDebounceMs = 900;
 
     public string AppearanceMode { get; set; } = "Light";
     public string AvisoEmailSubjectTemplate { get; set; } = DefaultAvisoEmailSubjectTemplate;
@@ -55,6 +58,12 @@ public sealed class AppSettings
     public bool ShowSpediteurTool { get; set; } = true;
     public string SpediteurToolUrl { get; set; } = DefaultSpediteurToolUrl;
     public string TourDefaultStartTime { get; set; } = DefaultTourStartTime;
+    public string TomTomApiKey { get; set; } = "IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH";
+    public string TomTomMapStyle { get; set; } = DefaultTomTomMapStyle;
+    public bool TomTomShowTrafficFlow { get; set; } = true;
+    public int TomTomTrafficRefreshSeconds { get; set; } = DefaultTomTomTrafficRefreshSeconds;
+    public int TomTomRouteRecalcDebounceMs { get; set; } = DefaultTomTomRouteRecalcDebounceMs;
+    public bool TomTomEnableTileCache { get; set; } = true;
     
     // SQL Server Import Settings
     public SqlConnectionSettings SqlImportSettings { get; set; } = new();

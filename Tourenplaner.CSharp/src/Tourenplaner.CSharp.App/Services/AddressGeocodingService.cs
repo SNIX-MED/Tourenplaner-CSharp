@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Net.Http;
 using System.Text.Json;
+using System.Collections.Concurrent;
+using System.IO;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Services;
@@ -9,21 +11,26 @@ public static class AddressGeocodingService
 {
     private const double SwitzerlandCenterLat = 46.798562;
     private const double SwitzerlandCenterLon = 8.231974;
-    private static readonly TimeSpan MinRequestInterval = TimeSpan.FromMilliseconds(1100);
     private static readonly HttpClient Client = CreateClient();
-    private static readonly SemaphoreSlim RequestGate = new(1, 1);
-    private static DateTime _lastRequestUtc = DateTime.MinValue;
+    private static readonly SemaphoreSlim CacheGate = new(1, 1);
+    private static readonly ConcurrentDictionary<string, GeoPoint> InMemoryCache = new(StringComparer.OrdinalIgnoreCase);
 
-    public static async Task<GeoPoint?> TryGeocodeOrderAsync(Order order)
+    public static async Task<GeoPoint?> TryGeocodeOrderAsync(Order order, string? tomTomApiKey = null, string? cacheFilePath = null)
     {
         var street = (order.DeliveryAddress?.Street ?? string.Empty).Trim();
         var postalCode = (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim();
         var city = (order.DeliveryAddress?.City ?? string.Empty).Trim();
         var fallback = (order.Address ?? string.Empty).Trim();
-        return await TryGeocodeAddressAsync(street, postalCode, city, fallback);
+        return await TryGeocodeAddressAsync(street, postalCode, city, fallback, tomTomApiKey, cacheFilePath);
     }
 
-    public static async Task<GeoPoint?> TryGeocodeAddressAsync(string? street, string? postalCode, string? city, string? fallbackAddress = null)
+    public static async Task<GeoPoint?> TryGeocodeAddressAsync(
+        string? street,
+        string? postalCode,
+        string? city,
+        string? fallbackAddress = null,
+        string? tomTomApiKey = null,
+        string? cacheFilePath = null)
     {
         var queries = BuildQueries(
             (street ?? string.Empty).Trim(),
@@ -33,9 +40,24 @@ public static class AddressGeocodingService
 
         foreach (var query in queries)
         {
-            var result = await TryGeocodeQueryAsync(query);
+            var key = NormalizeWhitespace(query).ToLowerInvariant();
+            if (TryGetCachedLocation(key, out var cached) && cached is not null)
+            {
+                return cached;
+            }
+
+            var persistedCache = await TryLoadCacheFromFileAsync(cacheFilePath);
+            if (persistedCache.TryGetValue(key, out var persisted))
+            {
+                InMemoryCache[key] = persisted;
+                return persisted;
+            }
+
+            var result = await TryGeocodeQueryAsync(query, tomTomApiKey);
             if (result is not null)
             {
+                InMemoryCache[key] = result;
+                await TrySaveCacheEntryAsync(cacheFilePath, key, result);
                 return result;
             }
         }
@@ -109,87 +131,58 @@ public static class AddressGeocodingService
         return result;
     }
 
-    private static async Task<GeoPoint?> TryGeocodeQueryAsync(string query)
+    private static async Task<GeoPoint?> TryGeocodeQueryAsync(string query, string? tomTomApiKey)
     {
-        var uri = $"https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q={Uri.EscapeDataString(query)}";
-        for (var attempt = 0; attempt < 2; attempt++)
+        var key = (tomTomApiKey ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(key))
         {
-            try
-            {
-                using var response = await SendThrottledAsync(uri);
-                if (!response.IsSuccessStatusCode)
-                {
-                    if ((int)response.StatusCode == 429 && attempt == 0)
-                    {
-                        await Task.Delay(2000);
-                        continue;
-                    }
-
-                    return null;
-                }
-
-                await using var stream = await response.Content.ReadAsStreamAsync();
-                var payload = await JsonSerializer.DeserializeAsync<List<NominatimSearchItem>>(stream);
-                var first = payload?.FirstOrDefault();
-                if (first is null)
-                {
-                    return null;
-                }
-
-                if (!string.IsNullOrWhiteSpace(first.addresstype) &&
-                    string.Equals(first.addresstype, "country", StringComparison.OrdinalIgnoreCase))
-                {
-                    return null;
-                }
-
-                if (first.place_rank is <= 8 and > 0)
-                {
-                    return null;
-                }
-
-                if (!double.TryParse(first.lat, NumberStyles.Float, CultureInfo.InvariantCulture, out var lat))
-                {
-                    return null;
-                }
-
-                if (!double.TryParse(first.lon, NumberStyles.Float, CultureInfo.InvariantCulture, out var lon))
-                {
-                    return null;
-                }
-
-                return new GeoPoint(lat, lon);
-            }
-            catch
-            {
-                if (attempt == 0)
-                {
-                    await Task.Delay(700);
-                    continue;
-                }
-            }
+            return null;
         }
 
-        return null;
+        return await TryGeocodeWithTomTomAsync(query, key);
     }
 
-    private static async Task<HttpResponseMessage> SendThrottledAsync(string uri)
+    private static async Task<GeoPoint?> TryGeocodeWithTomTomAsync(string query, string apiKey)
     {
-        await RequestGate.WaitAsync();
+        var uri = $"https://api.tomtom.com/search/2/geocode/{Uri.EscapeDataString(query)}.json?key={Uri.EscapeDataString(apiKey)}&limit=1&countrySet=CH";
         try
         {
-            var now = DateTime.UtcNow;
-            var wait = MinRequestInterval - (now - _lastRequestUtc);
-            if (wait > TimeSpan.Zero)
+            using var response = await Client.GetAsync(uri);
+            if (!response.IsSuccessStatusCode)
             {
-                await Task.Delay(wait);
+                return null;
             }
 
-            _lastRequestUtc = DateTime.UtcNow;
-            return await Client.GetAsync(uri);
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var document = await JsonDocument.ParseAsync(stream);
+            if (!document.RootElement.TryGetProperty("results", out var results) ||
+                results.ValueKind != JsonValueKind.Array ||
+                results.GetArrayLength() == 0)
+            {
+                return null;
+            }
+
+            var position = results[0].TryGetProperty("position", out var pos) ? pos : default;
+            if (position.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (!position.TryGetProperty("lat", out var latElement) || latElement.ValueKind != JsonValueKind.Number)
+            {
+                return null;
+            }
+
+            if (!position.TryGetProperty("lon", out var lonElement) || lonElement.ValueKind != JsonValueKind.Number)
+            {
+                return null;
+            }
+
+            return new GeoPoint(latElement.GetDouble(), lonElement.GetDouble());
         }
-        finally
+        catch
         {
-            RequestGate.Release();
+            return null;
         }
     }
 
@@ -220,12 +213,88 @@ public static class AddressGeocodingService
         return string.Join(' ', value.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Trim(' ', ',');
     }
 
-    private sealed class NominatimSearchItem
+    private static bool TryGetCachedLocation(string key, out GeoPoint? value)
     {
-        public string lat { get; set; } = string.Empty;
-        public string lon { get; set; } = string.Empty;
-        public string addresstype { get; set; } = string.Empty;
-        public int place_rank { get; set; }
+        return InMemoryCache.TryGetValue(key, out value);
+    }
+
+    private static async Task<Dictionary<string, GeoPoint>> TryLoadCacheFromFileAsync(string? cacheFilePath)
+    {
+        var path = (cacheFilePath ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return new Dictionary<string, GeoPoint>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        await CacheGate.WaitAsync();
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return new Dictionary<string, GeoPoint>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            await using var stream = File.OpenRead(path);
+            var payload = await JsonSerializer.DeserializeAsync<Dictionary<string, CacheEntry>>(stream)
+                          ?? new Dictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
+            return payload
+                .Where(x => x.Value is not null)
+                .ToDictionary(
+                    x => x.Key,
+                    x => new GeoPoint(x.Value!.Latitude, x.Value.Longitude),
+                    StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return new Dictionary<string, GeoPoint>(StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            CacheGate.Release();
+        }
+    }
+
+    private static async Task TrySaveCacheEntryAsync(string? cacheFilePath, string key, GeoPoint point)
+    {
+        var path = (cacheFilePath ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        await CacheGate.WaitAsync();
+        try
+        {
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            Dictionary<string, CacheEntry> payload;
+            if (File.Exists(path))
+            {
+                await using var readStream = File.OpenRead(path);
+                payload = await JsonSerializer.DeserializeAsync<Dictionary<string, CacheEntry>>(readStream)
+                          ?? new Dictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                payload = new Dictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            payload[key] = new CacheEntry(point.Latitude, point.Longitude);
+
+            await using var writeStream = File.Create(path);
+            await JsonSerializer.SerializeAsync(writeStream, payload, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+        }
+        finally
+        {
+            CacheGate.Release();
+        }
     }
 
     public static bool IsLikelyCountryCentroid(GeoPoint? point)
@@ -237,5 +306,21 @@ public static class AddressGeocodingService
 
         return Math.Abs(point.Latitude - SwitzerlandCenterLat) < 0.02 &&
                Math.Abs(point.Longitude - SwitzerlandCenterLon) < 0.02;
+    }
+
+    private sealed class CacheEntry
+    {
+        public CacheEntry()
+        {
+        }
+
+        public CacheEntry(double latitude, double longitude)
+        {
+            Latitude = latitude;
+            Longitude = longitude;
+        }
+
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
     }
 }
