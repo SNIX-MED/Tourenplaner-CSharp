@@ -70,6 +70,7 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
     private string _name;
     private string _shortCode;
     private string _phone;
+    private bool _hasProgramProfile;
     private bool _registerAbsence;
     private string _absenceStartDate;
     private string _absenceEndDate;
@@ -80,6 +81,7 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
         _name = seed.Name ?? string.Empty;
         _shortCode = seed.ShortCode ?? string.Empty;
         _phone = seed.Phone ?? string.Empty;
+        _hasProgramProfile = seed.HasProgramProfile;
         _registerAbsence = seed.RegisterAbsence;
         _absenceStartDate = seed.AbsenceStartDate ?? string.Empty;
         _absenceEndDate = seed.AbsenceEndDate ?? string.Empty;
@@ -107,6 +109,12 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
     {
         get => _registerAbsence;
         set => SetProperty(ref _registerAbsence, value);
+    }
+
+    public bool HasProgramProfile
+    {
+        get => _hasProgramProfile;
+        set => SetProperty(ref _hasProgramProfile, value);
     }
 
     public string AbsenceStartDate
@@ -147,6 +155,7 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
             Name: Name.Trim(),
             ShortCode: (ShortCode ?? string.Empty).Trim(),
             Phone: (Phone ?? string.Empty).Trim(),
+            HasProgramProfile: HasProgramProfile,
             RegisterAbsence: RegisterAbsence,
             AbsenceStartDate: (AbsenceStartDate ?? string.Empty).Trim(),
             AbsenceEndDate: (AbsenceEndDate ?? string.Empty).Trim());

@@ -105,6 +105,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private bool _suppressAutoSave;
     private CancellationTokenSource? _autoSaveCts;
     private bool _autoSaveInProgress;
+    private string _currentUserName = string.Empty;
+    private Dictionary<string, MapOverlayUserPreference> _mapOverlayPreferencesByUser = new(StringComparer.OrdinalIgnoreCase);
 
     public SettingsSectionViewModel(
         string settingsJsonPath,
@@ -933,6 +935,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             TomTomTrafficRefreshSeconds = Math.Max(15, TomTomTrafficRefreshSeconds),
             TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000),
             TomTomEnableTileCache = TomTomEnableTileCache,
+            CurrentUserName = (_currentUserName ?? string.Empty).Trim(),
+            MapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
+                _mapOverlayPreferencesByUser ?? new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase),
             BackupsEnabled = BackupsEnabled,
             BackupDir = (BackupDir ?? string.Empty).Trim(),
             BackupModeDefault = (BackupModeDefault ?? string.Empty).Trim(),
@@ -996,6 +1002,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         TomTomTrafficRefreshSeconds = settings.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : settings.TomTomTrafficRefreshSeconds;
         TomTomRouteRecalcDebounceMs = settings.TomTomRouteRecalcDebounceMs is < 100 or > 10000 ? AppSettings.DefaultTomTomRouteRecalcDebounceMs : settings.TomTomRouteRecalcDebounceMs;
         TomTomEnableTileCache = settings.TomTomEnableTileCache;
+        _currentUserName = (settings.CurrentUserName ?? string.Empty).Trim();
+        _mapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
+            settings.MapOverlayPreferencesByUser ?? new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase),
+            StringComparer.OrdinalIgnoreCase);
         BackupsEnabled = settings.BackupsEnabled;
         BackupDir = settings.BackupDir;
         BackupModeDefault = settings.BackupModeDefault;

@@ -94,6 +94,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _tomTomApiKey = string.Empty;
     private string _tomTomMapStyle = AppSettings.DefaultTomTomMapStyle;
     private bool _tomTomShowTrafficFlow = true;
+    private bool _tomTomShowTrafficIncidents;
+    private bool _tomTomShowRoadLabels = true;
+    private bool _tomTomShowPoi = true;
+    private string _tomTomMapOverlayStyle = AppSettings.DefaultMapOverlayStyle;
     private int _tomTomTrafficRefreshSeconds = AppSettings.DefaultTomTomTrafficRefreshSeconds;
     private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
     private bool _tomTomEnableTileCache = true;
@@ -783,10 +787,31 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             ? AppSettings.DefaultTomTomRouteRecalcDebounceMs
             : settings.TomTomRouteRecalcDebounceMs;
         _tomTomEnableTileCache = settings.TomTomEnableTileCache;
+        var currentUserName = ResolveCurrentSettingsUserName(settings);
+        settings.MapOverlayPreferencesByUser ??= new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase);
+        if (settings.MapOverlayPreferencesByUser.TryGetValue(currentUserName, out var userPreference) && userPreference is not null)
+        {
+            _tomTomMapOverlayStyle = NormalizeMapOverlayStyle(userPreference.Style);
+            _tomTomShowTrafficFlow = userPreference.ShowTrafficFlow;
+            _tomTomShowTrafficIncidents = userPreference.ShowTrafficIncidents;
+            _tomTomShowRoadLabels = userPreference.ShowRoadLabels;
+            _tomTomShowPoi = userPreference.ShowPoi;
+        }
+        else
+        {
+            _tomTomMapOverlayStyle = _tomTomShowTrafficFlow ? "standard" : AppSettings.DefaultMapOverlayStyle;
+            _tomTomShowTrafficIncidents = false;
+            _tomTomShowRoadLabels = true;
+            _tomTomShowPoi = true;
+        }
         _tomTomRoutingService = new TomTomRoutingService(_tomTomApiKey);
         OnPropertyChanged(nameof(TomTomApiKey));
         OnPropertyChanged(nameof(TomTomMapStyle));
         OnPropertyChanged(nameof(TomTomShowTrafficFlow));
+        OnPropertyChanged(nameof(TomTomShowTrafficIncidents));
+        OnPropertyChanged(nameof(TomTomShowRoadLabels));
+        OnPropertyChanged(nameof(TomTomShowPoi));
+        OnPropertyChanged(nameof(TomTomMapOverlayStyle));
         OnPropertyChanged(nameof(TomTomTrafficRefreshSeconds));
         OnPropertyChanged(nameof(TomTomRouteRecalcDebounceMs));
         OnPropertyChanged(nameof(TomTomEnableTileCache));
@@ -888,10 +913,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             ? null
             : new CompanyMarkerInfo(_companyName, _companyAddress, _companyLocation.Latitude, _companyLocation.Longitude);
 
-    public string TomTomApiKey => _tomTomApiKey;
-    public string TomTomMapStyle => _tomTomMapStyle;
-    public bool TomTomShowTrafficFlow => _tomTomShowTrafficFlow;
-    public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
+public string TomTomApiKey => _tomTomApiKey;
+public string TomTomMapStyle => _tomTomMapStyle;
+public bool TomTomShowTrafficFlow => _tomTomShowTrafficFlow;
+public bool TomTomShowTrafficIncidents => _tomTomShowTrafficIncidents;
+public bool TomTomShowRoadLabels => _tomTomShowRoadLabels;
+public bool TomTomShowPoi => _tomTomShowPoi;
+public string TomTomMapOverlayStyle => _tomTomMapOverlayStyle;
+public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs => _tomTomRouteRecalcDebounceMs;
     public bool TomTomEnableTileCache => _tomTomEnableTileCache;
 
@@ -5220,6 +5249,90 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         return normalized is "main" or "night"
             ? normalized
             : AppSettings.DefaultTomTomMapStyle;
+    }
+
+    public async Task UpdateMapOverlayOptionsAsync(string style, bool showTrafficFlow, bool showTrafficIncidents, bool showRoadLabels, bool showPoi)
+    {
+        var normalizedStyle = NormalizeMapOverlayStyle(style);
+        var changed = false;
+
+        if (!string.Equals(_tomTomMapOverlayStyle, normalizedStyle, StringComparison.OrdinalIgnoreCase))
+        {
+            _tomTomMapOverlayStyle = normalizedStyle;
+            OnPropertyChanged(nameof(TomTomMapOverlayStyle));
+            changed = true;
+        }
+
+        if (_tomTomShowTrafficFlow != showTrafficFlow)
+        {
+            _tomTomShowTrafficFlow = showTrafficFlow;
+            OnPropertyChanged(nameof(TomTomShowTrafficFlow));
+            changed = true;
+        }
+
+        if (_tomTomShowTrafficIncidents != showTrafficIncidents)
+        {
+            _tomTomShowTrafficIncidents = showTrafficIncidents;
+            OnPropertyChanged(nameof(TomTomShowTrafficIncidents));
+            changed = true;
+        }
+
+        if (_tomTomShowRoadLabels != showRoadLabels)
+        {
+            _tomTomShowRoadLabels = showRoadLabels;
+            OnPropertyChanged(nameof(TomTomShowRoadLabels));
+            changed = true;
+        }
+
+        if (_tomTomShowPoi != showPoi)
+        {
+            _tomTomShowPoi = showPoi;
+            OnPropertyChanged(nameof(TomTomShowPoi));
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        var settings = await _settingsRepository.LoadAsync();
+        settings.CurrentUserName = ResolveCurrentSettingsUserName(settings);
+        settings.MapOverlayPreferencesByUser ??= new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase);
+        settings.MapOverlayPreferencesByUser[settings.CurrentUserName] = new MapOverlayUserPreference
+        {
+            Style = normalizedStyle,
+            ShowTrafficFlow = showTrafficFlow,
+            ShowTrafficIncidents = showTrafficIncidents,
+            ShowRoadLabels = showRoadLabels,
+            ShowPoi = showPoi
+        };
+        await _settingsRepository.SaveAsync(settings);
+    }
+
+    private static string ResolveCurrentSettingsUserName(AppSettings settings)
+    {
+        var configured = (settings.CurrentUserName ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured;
+        }
+
+        var environmentUser = (Environment.UserName ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(environmentUser) ? "default" : environmentUser;
+    }
+
+    private static string NormalizeMapOverlayStyle(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "standard" => "standard",
+            "light" => "light",
+            "dark" => "dark",
+            "satellite" => "satellite",
+            _ => AppSettings.DefaultMapOverlayStyle
+        };
     }
 
     private async void RequestRouteGeometryRebuild()

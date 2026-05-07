@@ -18,6 +18,7 @@ public sealed class AppSettings
     public const string DefaultTomTomMapStyle = "main";
     public const int DefaultTomTomTrafficRefreshSeconds = 60;
     public const int DefaultTomTomRouteRecalcDebounceMs = 900;
+    public const string DefaultMapOverlayStyle = "standard";
 
     public string AppearanceMode { get; set; } = "Light";
     public string AvisoEmailSubjectTemplate { get; set; } = DefaultAvisoEmailSubjectTemplate;
@@ -64,9 +65,20 @@ public sealed class AppSettings
     public int TomTomTrafficRefreshSeconds { get; set; } = DefaultTomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs { get; set; } = DefaultTomTomRouteRecalcDebounceMs;
     public bool TomTomEnableTileCache { get; set; } = true;
+    public string CurrentUserName { get; set; } = string.Empty;
+    public Dictionary<string, MapOverlayUserPreference> MapOverlayPreferencesByUser { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     
     // SQL Server Import Settings
     public SqlConnectionSettings SqlImportSettings { get; set; } = new();
     public DateTime? LastSqlImportDate { get; set; }
     public bool SqlImportEnabled { get; set; } = false;
+}
+
+public sealed class MapOverlayUserPreference
+{
+    public string Style { get; set; } = AppSettings.DefaultMapOverlayStyle;
+    public bool ShowTrafficFlow { get; set; } = true;
+    public bool ShowTrafficIncidents { get; set; }
+    public bool ShowRoadLabels { get; set; } = true;
+    public bool ShowPoi { get; set; } = true;
 }

@@ -4,6 +4,7 @@ using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
+using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 using System.Threading;
 using System.Windows;
 using System.Collections.ObjectModel;
@@ -25,11 +26,15 @@ public sealed class MainShellViewModel : ObservableObject
     private readonly AppDataHistoryService _historyService;
     private readonly AppDataSyncService _dataSyncService;
     private readonly string _ordersJsonPath;
+    private readonly JsonAppSettingsRepository _appSettingsRepository;
+    private readonly JsonEmployeesRepository _employeesRepository;
     private readonly Guid _instanceId = Guid.NewGuid();
     private NavigationItemViewModel? _selectedNavigationItem;
     private object? _currentSection;
     private string _globalSearchText = string.Empty;
-    private string _currentUserName = "Mike Weber";
+    private string _currentUserName = Environment.UserName;
+    private string _selectedUserName = Environment.UserName;
+    private bool _suppressUserSelectionChange;
     private readonly NavigationItemViewModel _settingsNavigationItem;
     private int _toastVersion;
     private bool _isToastVisible;
@@ -55,6 +60,8 @@ public sealed class MainShellViewModel : ObservableObject
         _historyService = historyService;
         _dataSyncService = dataSyncService;
         _ordersJsonPath = ordersJsonPath;
+        _appSettingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
+        _employeesRepository = new JsonEmployeesRepository(employeesJsonPath);
         var map = new KarteSectionViewModel(ordersJsonPath, toursJsonPath, settingsJsonPath, dataSyncService);
         _mapSection = map;
         var start = new StartSectionViewModel(
@@ -126,6 +133,7 @@ public sealed class MainShellViewModel : ObservableObject
         _gpsNavigationItem = NavigationItems.First(item => item.DisplayName == "GPS");
         _spediteurNavigationItem = NavigationItems.First(item => item.DisplayName == "Spediteur");
         SidebarNavigationItems = [];
+        AvailableUserNames = [];
         ApplyToolSettingsFromSettingsSection();
         RebuildSidebarNavigation();
         _settingsSection.PropertyChanged += OnSettingsSectionPropertyChanged;
@@ -136,15 +144,18 @@ public sealed class MainShellViewModel : ObservableObject
         RedoCommand = new AsyncCommand(RedoAsync, () => _historyService.CanRedo);
         _historyService.StateChanged += OnHistoryStateChanged;
         _mapSection.PropertyChanged += OnMapSectionPropertyChanged;
+        _dataSyncService.DataChanged += OnDataChanged;
         ToastNotificationService.NotificationRequested += OnToastNotificationRequested;
         SelectedNavigationItem = NavigationItems[0];
 
         _ = start.RefreshAsync();
+        _ = InitializeUserSelectionAsync();
     }
 
     public IReadOnlyList<NavigationItemViewModel> NavigationItems { get; }
 
     public ObservableCollection<NavigationItemViewModel> SidebarNavigationItems { get; }
+    public ObservableCollection<string> AvailableUserNames { get; }
 
     public DelegateCommand OpenSettingsCommand { get; }
 
@@ -178,6 +189,26 @@ public sealed class MainShellViewModel : ObservableObject
     {
         get => _currentUserName;
         private set => SetProperty(ref _currentUserName, value);
+    }
+
+    public string SelectedUserName
+    {
+        get => _selectedUserName;
+        set
+        {
+            var normalized = (value ?? string.Empty).Trim();
+            if (!SetProperty(ref _selectedUserName, normalized))
+            {
+                return;
+            }
+
+            if (_suppressUserSelectionChange || string.IsNullOrWhiteSpace(normalized))
+            {
+                return;
+            }
+
+            _ = SwitchCurrentUserAsync(normalized);
+        }
     }
 
     public NavigationItemViewModel? SelectedNavigationItem
@@ -550,5 +581,171 @@ public sealed class MainShellViewModel : ObservableObject
         {
             IsToastVisible = false;
         }
+    }
+
+    private async Task InitializeUserSelectionAsync()
+    {
+        try
+        {
+            var settingsTask = _appSettingsRepository.LoadAsync();
+            var employeesTask = _employeesRepository.LoadAsync();
+            await Task.WhenAll(settingsTask, employeesTask);
+
+            var settings = await settingsTask;
+            var names = (await employeesTask)
+                .Where(x => x is not null && x.HasProgramProfile && !string.IsNullOrWhiteSpace(x.DisplayName))
+                .Select(x => x.DisplayName.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            var preferred = (settings.CurrentUserName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(preferred))
+            {
+                preferred = (Environment.UserName ?? string.Empty).Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(preferred))
+            {
+                preferred = "default";
+            }
+
+            preferred = ResolvePreferredUserName(preferred, names);
+
+            _suppressUserSelectionChange = true;
+            AvailableUserNames.Clear();
+            foreach (var name in names)
+            {
+                AvailableUserNames.Add(name);
+            }
+
+            SelectedUserName = preferred;
+            _suppressUserSelectionChange = false;
+            CurrentUserName = preferred;
+
+            if (!string.Equals(settings.CurrentUserName, preferred, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.CurrentUserName = preferred;
+                await _appSettingsRepository.SaveAsync(settings);
+            }
+        }
+        catch
+        {
+            _suppressUserSelectionChange = true;
+            AvailableUserNames.Clear();
+            AvailableUserNames.Add(CurrentUserName);
+            SelectedUserName = CurrentUserName;
+            _suppressUserSelectionChange = false;
+        }
+    }
+
+    private async Task SwitchCurrentUserAsync(string userName)
+    {
+        var normalized = (userName ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized) ||
+            string.Equals(CurrentUserName, normalized, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var settings = await _appSettingsRepository.LoadAsync();
+        settings.CurrentUserName = normalized;
+        await _appSettingsRepository.SaveAsync(settings);
+
+        CurrentUserName = normalized;
+        if (!AvailableUserNames.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            if (AvailableUserNames.Count == 0)
+            {
+                AvailableUserNames.Add(normalized);
+            }
+            else
+            {
+                return;
+            }
+        }
+
+        await _mapSection.RefreshAsync();
+        await _settingsSection.RefreshAsync();
+        ToastNotificationService.ShowInfo($"Aktiver Benutzer: {normalized}");
+    }
+
+    private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
+    {
+        if (!args.Kinds.HasFlag(AppDataKind.Employees))
+        {
+            return;
+        }
+
+        _ = ReloadAvailableUsersAsync();
+    }
+
+    private async Task ReloadAvailableUsersAsync()
+    {
+        try
+        {
+            var employees = await _employeesRepository.LoadAsync();
+            var names = employees
+                .Where(x => x is not null && x.HasProgramProfile && !string.IsNullOrWhiteSpace(x.DisplayName))
+                .Select(x => x.DisplayName.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            var resolvedCurrent = ResolvePreferredUserName(CurrentUserName, names);
+            if (!string.Equals(resolvedCurrent, CurrentUserName, StringComparison.OrdinalIgnoreCase))
+            {
+                CurrentUserName = resolvedCurrent;
+                _suppressUserSelectionChange = true;
+                SelectedUserName = resolvedCurrent;
+                _suppressUserSelectionChange = false;
+            }
+
+            _suppressUserSelectionChange = true;
+            AvailableUserNames.Clear();
+            foreach (var name in names)
+            {
+                AvailableUserNames.Add(name);
+            }
+            _suppressUserSelectionChange = false;
+        }
+        catch
+        {
+        }
+    }
+
+    private static string ResolvePreferredUserName(string preferred, IReadOnlyList<string> employeeNames)
+    {
+        if (employeeNames.Count == 0)
+        {
+            return string.IsNullOrWhiteSpace(preferred) ? "default" : preferred;
+        }
+
+        var normalizedPreferred = (preferred ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedPreferred))
+        {
+            return employeeNames[0];
+        }
+
+        var exact = employeeNames.FirstOrDefault(x => string.Equals(x, normalizedPreferred, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        var firstNameMatches = employeeNames
+            .Where(x =>
+            {
+                var firstToken = x.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
+                return string.Equals(firstToken, normalizedPreferred, StringComparison.OrdinalIgnoreCase);
+            })
+            .ToList();
+
+        if (firstNameMatches.Count == 1)
+        {
+            return firstNameMatches[0];
+        }
+
+        return employeeNames[0];
     }
 }

@@ -54,6 +54,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             Name: string.Empty,
             ShortCode: string.Empty,
             Phone: string.Empty,
+            HasProgramProfile: true,
             RegisterAbsence: false,
             AbsenceStartDate: string.Empty,
             AbsenceEndDate: string.Empty);
@@ -68,6 +69,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             Name: entry.Name,
             ShortCode: entry.ShortCode,
             Phone: entry.Phone,
+            HasProgramProfile: source?.HasProgramProfile ?? true,
             RegisterAbsence: editablePeriod is not null,
             AbsenceStartDate: editablePeriod?.StartDate.ToString("dd.MM.yyyy") ?? string.Empty,
             AbsenceEndDate: editablePeriod?.EndDate.ToString("dd.MM.yyyy") ?? string.Empty);
@@ -104,6 +106,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             DisplayName = result.Name.Trim(),
             ShortCode = result.ShortCode.Trim(),
             Phone = result.Phone.Trim(),
+            HasProgramProfile = result.HasProgramProfile,
             Role = result.ShortCode.Trim(),
             Active = existing?.Active ?? true,
             UnavailabilityPeriods = periods
@@ -293,6 +296,7 @@ public sealed record EmployeeEditorSeed(
     string Name,
     string ShortCode,
     string Phone,
+    bool HasProgramProfile,
     bool RegisterAbsence,
     string AbsenceStartDate,
     string AbsenceEndDate);
@@ -302,6 +306,7 @@ public sealed record EmployeeEditorResult(
     string Name,
     string ShortCode,
     string Phone,
+    bool HasProgramProfile,
     bool RegisterAbsence,
     string AbsenceStartDate,
     string AbsenceEndDate);

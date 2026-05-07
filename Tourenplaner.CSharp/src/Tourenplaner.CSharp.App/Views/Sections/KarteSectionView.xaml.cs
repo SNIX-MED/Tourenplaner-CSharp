@@ -15,6 +15,7 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
+using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Views.Sections;
 
@@ -221,7 +222,6 @@ public partial class KarteSectionView : UserControl
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.TomTomApiKey) ||
                  e.PropertyName == nameof(KarteSectionViewModel.TomTomMapStyle) ||
-                 e.PropertyName == nameof(KarteSectionViewModel.TomTomShowTrafficFlow) ||
                  e.PropertyName == nameof(KarteSectionViewModel.TomTomEnableTileCache))
         {
             _ = ReloadMapDocumentAsync();
@@ -240,7 +240,11 @@ public partial class KarteSectionView : UserControl
             vm.TomTomApiKey,
             vm.TomTomMapStyle,
             vm.TomTomShowTrafficFlow,
-            vm.TomTomEnableTileCache);
+            vm.TomTomEnableTileCache,
+            vm.TomTomMapOverlayStyle,
+            vm.TomTomShowTrafficIncidents,
+            vm.TomTomShowRoadLabels,
+            vm.TomTomShowPoi);
         MapWebView.NavigateToString(html);
         await Task.CompletedTask;
     }
@@ -536,7 +540,11 @@ public partial class KarteSectionView : UserControl
                 vm?.TomTomApiKey,
                 vm?.TomTomMapStyle,
                 vm?.TomTomShowTrafficFlow ?? true,
-                vm?.TomTomEnableTileCache ?? true);
+                vm?.TomTomEnableTileCache ?? true,
+                vm?.TomTomMapOverlayStyle ?? AppSettings.DefaultMapOverlayStyle,
+                vm?.TomTomShowTrafficIncidents ?? false,
+                vm?.TomTomShowRoadLabels ?? true,
+                vm?.TomTomShowPoi ?? true);
             MapWebView.NavigateToString(html);
             _mapReady = true;
             MapWebView.Visibility = Visibility.Visible;
@@ -893,6 +901,25 @@ public partial class KarteSectionView : UserControl
         {
             var orderId = raw["batchToggle:".Length..];
             vm.ToggleBatchOrderSelectionById(orderId);
+            return;
+        }
+
+        if (raw.StartsWith("mapopts:", StringComparison.OrdinalIgnoreCase))
+        {
+            var payload = raw["mapopts:".Length..];
+            var parts = payload.Split('|');
+            if (parts.Length >= 4)
+            {
+                var style = (parts[0] ?? string.Empty).Trim();
+                var showTrafficFlow = string.Equals(parts[1], "1", StringComparison.Ordinal);
+                var showTrafficIncidents = string.Equals(parts[2], "1", StringComparison.Ordinal);
+                var showRoadLabels = parts.Length >= 5
+                    ? string.Equals(parts[3], "1", StringComparison.Ordinal)
+                    : true;
+                var showPoi = string.Equals(parts.Length >= 5 ? parts[4] : parts[3], "1", StringComparison.Ordinal);
+                _ = vm.UpdateMapOverlayOptionsAsync(style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi);
+            }
+
             return;
         }
 

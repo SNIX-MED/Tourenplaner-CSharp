@@ -1270,11 +1270,16 @@
                     </Border.Style>
                     <Border BorderBrush="{DynamicResource Brush.BorderSoft}"
                             BorderThickness="1"
-                            CornerRadius="14"
+                            CornerRadius="0"
                             Background="{DynamicResource Brush.Card}"
-                            ClipToBounds="True">
+                            ClipToBounds="False"
+                            SnapsToDevicePixels="True"
+                            UseLayoutRounding="True">
                         <Grid>
-                            <wv2:WebView2 x:Name="MapWebView" Margin="0" />
+                            <wv2:WebView2 x:Name="MapWebView"
+                                          Margin="0"
+                                          UseLayoutRounding="True"
+                                          SnapsToDevicePixels="True" />
                             <TextBlock x:Name="MapFallbackNotice"
                                        Margin="16"
                                        VerticalAlignment="Top"

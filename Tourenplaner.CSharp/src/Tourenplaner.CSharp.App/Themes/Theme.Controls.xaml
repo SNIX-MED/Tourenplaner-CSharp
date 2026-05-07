@@ -874,16 +874,9 @@
     </Style>
 
     <Style x:Key="SectionFadeInContentStyle" TargetType="ContentControl">
-        <Setter Property="Opacity" Value="0" />
-        <Style.Triggers>
-            <EventTrigger RoutedEvent="Loaded">
-                <BeginStoryboard>
-                    <Storyboard>
-                        <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.18" />
-                    </Storyboard>
-                </BeginStoryboard>
-            </EventTrigger>
-        </Style.Triggers>
+        <Setter Property="Opacity" Value="1" />
+        <Setter Property="UseLayoutRounding" Value="True" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
 
     <Style x:Key="KpiCardStyle" TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
