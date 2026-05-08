@@ -68,6 +68,8 @@
 
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Kennzeichen" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding LicensePlate, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Gesamtgewicht (kg)" />
+                <TextBox Margin="0,6,0,0" Height="38" Text="{Binding GrossWeightKgText, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Nutzlast (kg)" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding MaxPayloadKgText, UpdateSourceTrigger=PropertyChanged}" />
@@ -79,6 +81,18 @@
 
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Volumen (m3)" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding VolumeM3Text, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Aussenmasse (L x B x H in cm)" />
+                <Grid Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Margin="0,0,6,0" Height="38" Text="{Binding ExternalLengthCmText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="1" Margin="6,0,6,0" Height="38" Text="{Binding ExternalWidthCmText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="2" Margin="6,0,0,0" Height="38" Text="{Binding ExternalHeightCmText, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
 
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Ladefläche (L x B x H in cm)" />
                 <Grid Margin="0,6,0,0">

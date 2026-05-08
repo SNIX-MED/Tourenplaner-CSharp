@@ -97,9 +97,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _tomTomShowTrafficIncidents;
     private bool _tomTomShowRoadLabels = true;
     private bool _tomTomShowPoi = true;
+    private bool _tomTomUseVehicleDimensions;
+    private bool _tomTomUseVehicleWeightRestrictions;
     private string _tomTomMapOverlayStyle = AppSettings.DefaultMapOverlayStyle;
     private int _tomTomTrafficRefreshSeconds = AppSettings.DefaultTomTomTrafficRefreshSeconds;
     private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
+    private string _tomTomRoutingMode = AppSettings.DefaultTomTomRoutingMode;
+    private double _tomTomVehicleHeightMeters = AppSettings.DefaultTomTomVehicleHeightMeters;
     private bool _tomTomEnableTileCache = true;
     private string _geocodeCachePath = string.Empty;
     private GeoPoint? _companyLocation;
@@ -172,7 +176,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _dataSyncService = dataSyncService;
         _optimizationService = new RouteOptimizationService();
         _mapRouteService = new MapRouteService();
-        _tomTomRoutingService = new TomTomRoutingService(null);
+        _tomTomRoutingService = CreateTomTomRoutingService(null, AppSettings.DefaultTomTomRoutingMode, AppSettings.DefaultTomTomVehicleHeightMeters);
         _conflictService = new TourConflictService();
         _geocodeCachePath = Path.Combine(dataRoot, "geocode-cache.json");
         _routeComputationCachePath = Path.Combine(dataRoot, "route-computation-cache.json");
@@ -786,6 +790,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _tomTomRouteRecalcDebounceMs = settings.TomTomRouteRecalcDebounceMs is < 100 or > 10000
             ? AppSettings.DefaultTomTomRouteRecalcDebounceMs
             : settings.TomTomRouteRecalcDebounceMs;
+        _tomTomRoutingMode = NormalizeTomTomRoutingMode(settings.TomTomRoutingMode);
+        _tomTomVehicleHeightMeters = settings.TomTomVehicleHeightMeters is < 0d or > 20d
+            ? AppSettings.DefaultTomTomVehicleHeightMeters
+            : settings.TomTomVehicleHeightMeters;
         _tomTomEnableTileCache = settings.TomTomEnableTileCache;
         var currentUserName = ResolveCurrentSettingsUserName(settings);
         settings.MapOverlayPreferencesByUser ??= new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase);
@@ -796,6 +804,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             _tomTomShowTrafficIncidents = userPreference.ShowTrafficIncidents;
             _tomTomShowRoadLabels = userPreference.ShowRoadLabels;
             _tomTomShowPoi = userPreference.ShowPoi;
+            _tomTomUseVehicleDimensions = userPreference.UseVehicleDimensions;
+            _tomTomUseVehicleWeightRestrictions = userPreference.UseVehicleWeightRestrictions;
         }
         else
         {
@@ -803,17 +813,23 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             _tomTomShowTrafficIncidents = false;
             _tomTomShowRoadLabels = true;
             _tomTomShowPoi = true;
+            _tomTomUseVehicleDimensions = false;
+            _tomTomUseVehicleWeightRestrictions = false;
         }
-        _tomTomRoutingService = new TomTomRoutingService(_tomTomApiKey);
+        _tomTomRoutingService = CreateTomTomRoutingService(_tomTomApiKey, _tomTomRoutingMode, _tomTomVehicleHeightMeters);
         OnPropertyChanged(nameof(TomTomApiKey));
         OnPropertyChanged(nameof(TomTomMapStyle));
         OnPropertyChanged(nameof(TomTomShowTrafficFlow));
         OnPropertyChanged(nameof(TomTomShowTrafficIncidents));
         OnPropertyChanged(nameof(TomTomShowRoadLabels));
         OnPropertyChanged(nameof(TomTomShowPoi));
+        OnPropertyChanged(nameof(TomTomUseVehicleDimensions));
+        OnPropertyChanged(nameof(TomTomUseVehicleWeightRestrictions));
         OnPropertyChanged(nameof(TomTomMapOverlayStyle));
         OnPropertyChanged(nameof(TomTomTrafficRefreshSeconds));
         OnPropertyChanged(nameof(TomTomRouteRecalcDebounceMs));
+        OnPropertyChanged(nameof(TomTomRoutingMode));
+        OnPropertyChanged(nameof(TomTomVehicleHeightMeters));
         OnPropertyChanged(nameof(TomTomEnableTileCache));
         var (defaultHour, defaultMinute) = ParseStartTimePartsOrDefault(settings.TourDefaultStartTime);
         _defaultRouteStartHour = defaultHour;
@@ -919,9 +935,13 @@ public bool TomTomShowTrafficFlow => _tomTomShowTrafficFlow;
 public bool TomTomShowTrafficIncidents => _tomTomShowTrafficIncidents;
 public bool TomTomShowRoadLabels => _tomTomShowRoadLabels;
 public bool TomTomShowPoi => _tomTomShowPoi;
+public bool TomTomUseVehicleDimensions => _tomTomUseVehicleDimensions;
+public bool TomTomUseVehicleWeightRestrictions => _tomTomUseVehicleWeightRestrictions;
 public string TomTomMapOverlayStyle => _tomTomMapOverlayStyle;
 public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs => _tomTomRouteRecalcDebounceMs;
+    public string TomTomRoutingMode => _tomTomRoutingMode;
+    public double TomTomVehicleHeightMeters => _tomTomVehicleHeightMeters;
     public bool TomTomEnableTileCache => _tomTomEnableTileCache;
 
     private static string FormatOrderAddress(Order? order)
@@ -5251,8 +5271,81 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             : AppSettings.DefaultTomTomMapStyle;
     }
 
-    public async Task UpdateMapOverlayOptionsAsync(string style, bool showTrafficFlow, bool showTrafficIncidents, bool showRoadLabels, bool showPoi)
+    private static string NormalizeTomTomRoutingMode(string? value)
     {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized is "car" or "heightaware"
+            ? normalized
+            : AppSettings.DefaultTomTomRoutingMode;
+    }
+
+    private static TomTomRoutingService CreateTomTomRoutingService(string? apiKey, string? mode, double vehicleHeightMeters)
+    {
+        var normalizedMode = NormalizeTomTomRoutingMode(mode);
+        var profile = normalizedMode == "heightaware"
+            ? new TomTomRoutingProfile(global::Tourenplaner.CSharp.App.Services.TomTomRoutingMode.HeightAware, Math.Clamp(vehicleHeightMeters, 0d, 20d))
+            : TomTomRoutingProfile.Default;
+        return new TomTomRoutingService(apiKey, profile);
+    }
+
+    private bool HasAssignedPrimaryVehicle()
+    {
+        return !string.IsNullOrWhiteSpace(_currentRouteVehicleId) &&
+               _vehicleData.Vehicles.Any(x => string.Equals(x.Id, _currentRouteVehicleId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private Vehicle? ResolvePrimaryAssignedVehicle()
+    {
+        if (string.IsNullOrWhiteSpace(_currentRouteVehicleId))
+        {
+            return null;
+        }
+
+        return _vehicleData.Vehicles.FirstOrDefault(x => string.Equals(x.Id, _currentRouteVehicleId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private TomTomRoutingService GetTomTomRoutingServiceForCurrentRoute()
+    {
+        if (_tomTomUseVehicleDimensions || _tomTomUseVehicleWeightRestrictions)
+        {
+            var vehicle = ResolvePrimaryAssignedVehicle();
+            var dimensions = vehicle?.ExternalDimensions;
+            if (dimensions is not null || (_tomTomUseVehicleWeightRestrictions && (vehicle?.GrossWeightKg ?? 0) > 0))
+            {
+                var lengthMeters = _tomTomUseVehicleDimensions ? Math.Clamp((dimensions?.LengthCm ?? 0) / 100d, 0d, 50d) : 0d;
+                var widthMeters = _tomTomUseVehicleDimensions ? Math.Clamp((dimensions?.WidthCm ?? 0) / 100d, 0d, 10d) : 0d;
+                var heightMeters = _tomTomUseVehicleDimensions ? Math.Clamp((dimensions?.HeightCm ?? 0) / 100d, 0d, 10d) : 0d;
+                var weightKg = _tomTomUseVehicleWeightRestrictions ? Math.Clamp(vehicle?.GrossWeightKg ?? 0, 0, 100000) : 0;
+                var hasDimension = lengthMeters > 0d || widthMeters > 0d || heightMeters > 0d || weightKg > 0;
+                if (hasDimension)
+                {
+                    var profile = new TomTomRoutingProfile(
+                        global::Tourenplaner.CSharp.App.Services.TomTomRoutingMode.HeightAware,
+                        heightMeters,
+                        lengthMeters,
+                        widthMeters,
+                        weightKg);
+                    return new TomTomRoutingService(_tomTomApiKey, profile);
+                }
+            }
+        }
+
+        return CreateTomTomRoutingService(_tomTomApiKey, _tomTomRoutingMode, _tomTomVehicleHeightMeters);
+    }
+
+    public async Task UpdateMapOverlayOptionsAsync(string style, bool showTrafficFlow, bool showTrafficIncidents, bool showRoadLabels, bool showPoi, bool useVehicleDimensions, bool useVehicleWeightRestrictions)
+    {
+        if ((useVehicleDimensions || useVehicleWeightRestrictions) && !HasAssignedPrimaryVehicle())
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                "Bitte ordnen Sie der Tour zuerst ein Fahrzeug zu, damit Fahrzeugmasse berücksichtigt werden können.",
+                "Fahrzeug zuordnen",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            useVehicleDimensions = false;
+            useVehicleWeightRestrictions = false;
+        }
+
         var normalizedStyle = NormalizeMapOverlayStyle(style);
         var changed = false;
 
@@ -5291,6 +5384,20 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             changed = true;
         }
 
+        if (_tomTomUseVehicleDimensions != useVehicleDimensions)
+        {
+            _tomTomUseVehicleDimensions = useVehicleDimensions;
+            OnPropertyChanged(nameof(TomTomUseVehicleDimensions));
+            changed = true;
+        }
+
+        if (_tomTomUseVehicleWeightRestrictions != useVehicleWeightRestrictions)
+        {
+            _tomTomUseVehicleWeightRestrictions = useVehicleWeightRestrictions;
+            OnPropertyChanged(nameof(TomTomUseVehicleWeightRestrictions));
+            changed = true;
+        }
+
         if (!changed)
         {
             return;
@@ -5305,9 +5412,12 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             ShowTrafficFlow = showTrafficFlow,
             ShowTrafficIncidents = showTrafficIncidents,
             ShowRoadLabels = showRoadLabels,
-            ShowPoi = showPoi
+            ShowPoi = showPoi,
+            UseVehicleDimensions = useVehicleDimensions,
+            UseVehicleWeightRestrictions = useVehicleWeightRestrictions
         };
         await _settingsRepository.SaveAsync(settings);
+        RequestRouteGeometryRebuild();
     }
 
     private static string ResolveCurrentSettingsUserName(AppSettings settings)
@@ -5382,7 +5492,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             var routingSource = "Fallback (Schaetzung)";
             if (waypoints.Count >= 2)
             {
-                if (!_tomTomRoutingService.IsConfigured)
+                var activeRoutingService = GetTomTomRoutingServiceForCurrentRoute();
+                if (!activeRoutingService.IsConfigured)
                 {
                     geometry = waypoints;
                     legs = BuildEstimatedLegs(waypoints);
@@ -5408,7 +5519,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
                     if (needsRemoteRefresh)
                     {
-                        var tomTomResult = await _tomTomRoutingService.TryBuildRouteWithLegsAsync(waypoints, plannedDeparture, cancellationToken);
+                        var tomTomResult = await activeRoutingService.TryBuildRouteWithLegsAsync(waypoints, plannedDeparture, cancellationToken);
                         if (tomTomResult.GeometryPoints.Count >= 2 && tomTomResult.Legs.Count == waypoints.Count - 1)
                         {
                             geometry = tomTomResult.GeometryPoints;
@@ -5468,7 +5579,13 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             _routeTrafficSegments.AddRange(trafficSegments);
             _timedStops.Clear();
             _timedStops.AddRange(validStops);
-            RoutingProviderStatusText = $"Routing: {routingSource} | Abfahrt berücksichtigt: {departAtText} | Traffic-Segmente: {_routeTrafficSegments.Count}";
+            var routeVehicle = ResolvePrimaryAssignedVehicle();
+            var routingModeText = (_tomTomUseVehicleDimensions || _tomTomUseVehicleWeightRestrictions)
+                ? $"Fahrzeugrestriktionen (Masse: {(_tomTomUseVehicleDimensions ? "an" : "aus")}, Gewicht: {(_tomTomUseVehicleWeightRestrictions ? "an" : "aus")})"
+                : string.Equals(_tomTomRoutingMode, "heightAware", StringComparison.OrdinalIgnoreCase)
+                    ? $"heightAware ({_tomTomVehicleHeightMeters:0.##} m)"
+                    : "car";
+            RoutingProviderStatusText = $"Routing: {routingSource} | Modus: {routingModeText} | Abfahrt berücksichtigt: {departAtText} | Traffic-Segmente: {_routeTrafficSegments.Count}";
             OnPropertyChanged(nameof(RouteGeometryPoints));
             RefreshDriveTimesFromCurrentRoute();
         }
@@ -5772,7 +5889,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         {
             var points = matrixStops.Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
             var plannedDeparture = BuildPlannedDepartureDateTime();
-            matrix = await _tomTomRoutingService.TryBuildDurationMatrixMinutesAsync(points, plannedDeparture);
+            var activeRoutingService = GetTomTomRoutingServiceForCurrentRoute();
+            matrix = await activeRoutingService.TryBuildDurationMatrixMinutesAsync(points, plannedDeparture);
         }
 
         var indexByStop = new Dictionary<RouteStopItem, int>();

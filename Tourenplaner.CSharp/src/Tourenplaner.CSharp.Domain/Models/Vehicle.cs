@@ -8,9 +8,11 @@ public sealed class Vehicle
     public string LicensePlate { get; set; } = string.Empty;
     public int MaxPayloadKg { get; set; }
     public int MaxTrailerLoadKg { get; set; }
+    public int GrossWeightKg { get; set; }
     public bool Active { get; set; } = true;
     public string Notes { get; set; } = string.Empty;
     public int VolumeM3 { get; set; }
+    public VehicleDimensions? ExternalDimensions { get; set; }
     public VehicleDimensions? LoadingArea { get; set; }
     public string CreatedAt { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;

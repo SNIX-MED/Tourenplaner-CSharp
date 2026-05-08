@@ -23,6 +23,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         "main",
         "night"
     };
+    private static readonly HashSet<string> SupportedTomTomRoutingModes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "car",
+        "heightAware"
+    };
     private readonly Guid _instanceId = Guid.NewGuid();
     private readonly JsonAppSettingsRepository _repository;
     private readonly SettingsValidator _validator;
@@ -77,6 +82,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private bool _tomTomShowTrafficFlow = true;
     private int _tomTomTrafficRefreshSeconds = AppSettings.DefaultTomTomTrafficRefreshSeconds;
     private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
+    private string _tomTomRoutingMode = AppSettings.DefaultTomTomRoutingMode;
+    private double _tomTomVehicleHeightMeters = AppSettings.DefaultTomTomVehicleHeightMeters;
     private bool _tomTomEnableTileCache = true;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
@@ -136,6 +143,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             "main",
             "night"
         ];
+        TomTomRoutingModes =
+        [
+            "car",
+            "heightAware"
+        ];
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SaveCommand = new AsyncCommand(SaveAsync);
@@ -163,6 +175,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     public ObservableCollection<string> BackupModes { get; }
     public ObservableCollection<string> TomTomMapStyles { get; }
+    public ObservableCollection<string> TomTomRoutingModes { get; }
 
     public ICommand RefreshCommand { get; }
 
@@ -372,6 +385,18 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _tomTomRouteRecalcDebounceMs;
         set => SetProperty(ref _tomTomRouteRecalcDebounceMs, value);
+    }
+
+    public string TomTomRoutingMode
+    {
+        get => _tomTomRoutingMode;
+        set => SetProperty(ref _tomTomRoutingMode, NormalizeTomTomRoutingMode(value));
+    }
+
+    public double TomTomVehicleHeightMeters
+    {
+        get => _tomTomVehicleHeightMeters;
+        set => SetProperty(ref _tomTomVehicleHeightMeters, Math.Clamp(value, 0d, 20d));
     }
 
     public bool TomTomEnableTileCache
@@ -690,6 +715,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(TomTomShowTrafficFlow) or
             nameof(TomTomTrafficRefreshSeconds) or
             nameof(TomTomRouteRecalcDebounceMs) or
+            nameof(TomTomRoutingMode) or
+            nameof(TomTomVehicleHeightMeters) or
             nameof(TomTomEnableTileCache) or
             nameof(BackupsEnabled) or
             nameof(BackupDir) or
@@ -934,6 +961,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             TomTomShowTrafficFlow = TomTomShowTrafficFlow,
             TomTomTrafficRefreshSeconds = Math.Max(15, TomTomTrafficRefreshSeconds),
             TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000),
+            TomTomRoutingMode = NormalizeTomTomRoutingMode(TomTomRoutingMode),
+            TomTomVehicleHeightMeters = Math.Clamp(TomTomVehicleHeightMeters, 0d, 20d),
             TomTomEnableTileCache = TomTomEnableTileCache,
             CurrentUserName = (_currentUserName ?? string.Empty).Trim(),
             MapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
@@ -1001,6 +1030,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         TomTomShowTrafficFlow = settings.TomTomShowTrafficFlow;
         TomTomTrafficRefreshSeconds = settings.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : settings.TomTomTrafficRefreshSeconds;
         TomTomRouteRecalcDebounceMs = settings.TomTomRouteRecalcDebounceMs is < 100 or > 10000 ? AppSettings.DefaultTomTomRouteRecalcDebounceMs : settings.TomTomRouteRecalcDebounceMs;
+        TomTomRoutingMode = NormalizeTomTomRoutingMode(settings.TomTomRoutingMode);
+        TomTomVehicleHeightMeters = settings.TomTomVehicleHeightMeters is < 0d or > 20d ? AppSettings.DefaultTomTomVehicleHeightMeters : settings.TomTomVehicleHeightMeters;
         TomTomEnableTileCache = settings.TomTomEnableTileCache;
         _currentUserName = (settings.CurrentUserName ?? string.Empty).Trim();
         _mapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
@@ -1068,6 +1099,19 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         return SupportedTomTomMapStyles.Contains(normalized)
             ? normalized.ToLowerInvariant()
             : AppSettings.DefaultTomTomMapStyle;
+    }
+
+    private static string NormalizeTomTomRoutingMode(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return AppSettings.DefaultTomTomRoutingMode;
+        }
+
+        return SupportedTomTomRoutingModes.Contains(normalized)
+            ? normalized
+            : AppSettings.DefaultTomTomRoutingMode;
     }
 
     private void UpdateBackupStatus(string? backupDir)

@@ -132,6 +132,17 @@ public sealed class SettingsValidator
             errors.Add("TomTomRouteRecalcDebounceMs must be between 100 and 10000.");
         }
 
+        var tomTomRoutingMode = (settings.TomTomRoutingMode ?? string.Empty).Trim().ToLowerInvariant();
+        if (tomTomRoutingMode is not ("car" or "heightaware"))
+        {
+            errors.Add("TomTomRoutingMode must be either 'car' or 'heightAware'.");
+        }
+
+        if (settings.TomTomVehicleHeightMeters is < 0d or > 20d)
+        {
+            errors.Add("TomTomVehicleHeightMeters must be between 0 and 20.");
+        }
+
         return new ValidationResult(errors);
     }
 

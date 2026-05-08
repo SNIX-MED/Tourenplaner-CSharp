@@ -10,8 +10,12 @@ internal static class MapHtmlDocumentBuilder
         string? mapOverlayStyle,
         bool mapOverlayShowTrafficIncidents,
         bool mapOverlayShowRoadLabels,
-        bool mapOverlayShowPoi)
+        bool mapOverlayShowPoi,
+        bool mapOverlayUseVehicleDimensions,
+        bool mapOverlayUseVehicleWeightRestrictions)
     {
+        var mapOptionsButtonContent = BuildMapOptionsButtonContent();
+
         var template = """
                <!doctype html>
                <html>
@@ -39,7 +43,8 @@ internal static class MapHtmlDocumentBuilder
                    .gawela-pin-selected { outline: 2px solid #111827; outline-offset: 2px; }
                    .gawela-company-marker { width: 22px; height: 22px; border-radius: 50%; background: #0f766e; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; }
                    .gawela-company-marker svg { width: 12px; height: 12px; fill: #ffffff; display: block; }
-                   .map-options-toggle { position: absolute; right: 12px; top: 12px; z-index: 1100; border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; padding: 8px 10px; font-size: 12px; color: #0f172a; cursor: pointer; font-weight: 600; box-shadow: 0 4px 14px rgba(15,23,42,.18); }
+                   .map-options-toggle { position: absolute; right: 12px; top: 12px; z-index: 1100; border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; padding: 8px 10px; font-size: 12px; color: #0f172a; cursor: pointer; font-weight: 600; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 36px; }
+                   .map-options-toggle img { display: block; width: 20px; height: 20px; object-fit: contain; }
                    .map-options-overlay { position: absolute; right: 0; top: 0; height: 100%; width: min(340px, 84vw); z-index: 1200; background: rgba(255,255,255,.98); border-left: 1px solid #dbe3ee; transform: translateX(100%); transition: transform .22s ease; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: flex; flex-direction: column; }
                    .map-options-overlay.open { transform: translateX(0); }
                    .map-options-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 10px; border-bottom: 1px solid #e2e8f0; }
@@ -54,12 +59,15 @@ internal static class MapHtmlDocumentBuilder
                    .style-label { font-size: 16px; font-weight: 500; color: #0f172a; display: block; }
                    .switch-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 14px; color: #1e293b; }
                    .switch-row input { width: 20px; height: 20px; }
+                   .tour-hover-tooltip { position: absolute; z-index: 1400; pointer-events: none; transform: translate(-50%, calc(-100% - 10px)); background: rgba(15,23,42,.94); color: #f8fafc; border: 1px solid rgba(148,163,184,.45); border-radius: 8px; padding: 4px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; box-shadow: 0 6px 16px rgba(2,6,23,.32); opacity: 0; transition: opacity .08s linear; }
+                   .tour-hover-tooltip.visible { opacity: 1; }
                  </style>
                </head>
                <body>
                  <div id="map"></div>
                  <div id="status" class="status">Karte wird initialisiert...</div>
-                 <button id="mapOptionsToggle" class="map-options-toggle" type="button">Map options</button>
+                 <div id="tourHoverTooltip" class="tour-hover-tooltip" aria-hidden="true"></div>
+                 <button id="mapOptionsToggle" class="map-options-toggle" type="button" aria-label="Map options">__MAP_OPTIONS_BUTTON_CONTENT__</button>
                  <aside id="mapOptionsOverlay" class="map-options-overlay" aria-hidden="true">
                    <div class="map-options-header">
                      <h3 class="map-options-title">Map options</h3>
@@ -85,6 +93,11 @@ internal static class MapHtmlDocumentBuilder
                        <label class="switch-row"><input type="checkbox" id="toggleRoadLabels" checked /> Strassen / Ortsnamen</label>
                        <label class="switch-row"><input type="checkbox" id="togglePoi" checked /> POIs</label>
                      </div>
+                     <div class="map-option-section">
+                       <h4>Routing</h4>
+                       <label class="switch-row"><input type="checkbox" id="toggleVehicleDimensions" /> Fahrzeugmasse beruecksichtigen</label>
+                       <label class="switch-row"><input type="checkbox" id="toggleVehicleWeightRestrictions" /> Gewichtsrestriktionen beruecksichtigen</label>
+                     </div>
                    </div>
                  </aside>
                  <script>
@@ -95,7 +108,11 @@ internal static class MapHtmlDocumentBuilder
                    const showTrafficIncidents = __TT_TRAFFIC_INCIDENTS__;
                    const showRoadLabels = __TT_ROAD_LABELS__;
                    const showPoi = __TT_POI__;
+                   const useVehicleDimensions = __TT_USE_VEHICLE_DIMENSIONS__;
+                   const useVehicleWeightRestrictions = __TT_USE_VEHICLE_WEIGHT_RESTRICTIONS__;
                    const useTileCache = __TT_TILE_CACHE__;
+                   window.gawelaMapReady = false;
+                   const tourHoverTooltipEl = document.getElementById('tourHoverTooltip');
 
                    const statusEl = document.getElementById('status');
                    const setStatus = (t) => { if (statusEl) statusEl.textContent = t; };
@@ -182,7 +199,9 @@ internal static class MapHtmlDocumentBuilder
                            trafficFlow: !!showTraffic,
                            trafficIncidents: !!showTrafficIncidents,
                            showRoadLabels: !!showRoadLabels,
-                           showPoi: !!showPoi
+                           showPoi: !!showPoi,
+                           useVehicleDimensions: !!useVehicleDimensions,
+                           useVehicleWeightRestrictions: !!useVehicleWeightRestrictions
                          };
                          const cacheSuffix = useTileCache ? '' : `&nocache=${Date.now()}`;
 
@@ -535,8 +554,178 @@ internal static class MapHtmlDocumentBuilder
                                  map.moveLayer(id);
                                }
                              });
+
+                             if (map.getLayer(plannedTourOverlaysBaseLayerId)) {
+                               map.moveLayer(plannedTourOverlaysBaseLayerId);
+                             }
+                             if (map.getLayer(plannedTourOverlaysHoverLayerId)) {
+                               map.moveLayer(plannedTourOverlaysHoverLayerId);
+                             }
+                             if (map.getLayer(plannedTourOverlaysSelectedLayerId)) {
+                               map.moveLayer(plannedTourOverlaysSelectedLayerId);
+                             }
                            } catch (_) {
                              // ignore ordering errors if style is in transition
+                           }
+                         };
+
+                         const plannedTourOverlaysSourceId = 'gawela-planned-tour-overlays-source';
+                         const plannedTourOverlaysHitLayerId = 'gawela-planned-tour-overlays-hit-layer';
+                         const plannedTourOverlaysBaseLayerId = 'gawela-planned-tour-overlays-base-layer';
+                         const plannedTourOverlaysHoverLayerId = 'gawela-planned-tour-overlays-hover-layer';
+                         const plannedTourOverlaysSelectedLayerId = 'gawela-planned-tour-overlays-selected-layer';
+                         let plannedTourOverlaySelectedId = 0;
+                         let plannedTourOverlayHoveredId = 0;
+                         let plannedOverlayClickBound = false;
+
+                         const setTourHoverTooltip = (label, point) => {
+                           if (!tourHoverTooltipEl) return;
+                           const text = (label || '').toString().trim();
+                           if (!text || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+                             tourHoverTooltipEl.classList.remove('visible');
+                             tourHoverTooltipEl.setAttribute('aria-hidden', 'true');
+                             return;
+                           }
+
+                           tourHoverTooltipEl.textContent = text;
+                           tourHoverTooltipEl.style.left = `${point.x}px`;
+                           tourHoverTooltipEl.style.top = `${point.y}px`;
+                           tourHoverTooltipEl.classList.add('visible');
+                           tourHoverTooltipEl.setAttribute('aria-hidden', 'false');
+                         };
+
+                         const ensurePlannedTourOverlayLayers = () => {
+                           if (!map.getSource(plannedTourOverlaysSourceId)) {
+                             map.addSource(plannedTourOverlaysSourceId, {
+                               type: 'geojson',
+                               data: { type: 'FeatureCollection', features: [] }
+                             });
+                           }
+
+                           if (!map.getLayer(plannedTourOverlaysHitLayerId)) {
+                             map.addLayer({
+                               id: plannedTourOverlaysHitLayerId,
+                               type: 'line',
+                               source: plannedTourOverlaysSourceId,
+                               layout: {
+                                 'line-cap': 'round',
+                                 'line-join': 'round'
+                               },
+                               paint: {
+                                 'line-color': '#000000',
+                                 'line-width': 18,
+                                 'line-opacity': 0.01
+                               }
+                             });
+                           }
+
+                           if (!map.getLayer(plannedTourOverlaysBaseLayerId)) {
+                             map.addLayer({
+                               id: plannedTourOverlaysBaseLayerId,
+                               type: 'line',
+                               source: plannedTourOverlaysSourceId,
+                               layout: {
+                                 'line-cap': 'round',
+                                 'line-join': 'round'
+                               },
+                               paint: {
+                                 'line-color': ['coalesce', ['get', 'color'], '#64748b'],
+                                 'line-width': 5,
+                                 'line-opacity': 0.78,
+                                 'line-dasharray': [2, 2]
+                               }
+                             });
+                           }
+
+                           if (!map.getLayer(plannedTourOverlaysHoverLayerId)) {
+                             map.addLayer({
+                               id: plannedTourOverlaysHoverLayerId,
+                               type: 'line',
+                               source: plannedTourOverlaysSourceId,
+                               filter: ['==', ['get', 'id'], -1],
+                               layout: {
+                                 'line-cap': 'round',
+                                 'line-join': 'round'
+                               },
+                               paint: {
+                                 'line-color': ['coalesce', ['get', 'color'], '#2563eb'],
+                                 'line-width': 5,
+                                 'line-opacity': 0.95,
+                                 'line-dasharray': [2, 2]
+                               }
+                             });
+                           }
+
+                           if (!map.getLayer(plannedTourOverlaysSelectedLayerId)) {
+                             map.addLayer({
+                               id: plannedTourOverlaysSelectedLayerId,
+                               type: 'line',
+                               source: plannedTourOverlaysSourceId,
+                               filter: ['==', ['get', 'id'], -1],
+                               layout: {
+                                 'line-cap': 'round',
+                                 'line-join': 'round'
+                               },
+                               paint: {
+                                 'line-color': ['coalesce', ['get', 'color'], '#0f172a'],
+                                 'line-width': 5,
+                                 'line-opacity': 1.0
+                               }
+                             });
+                           }
+
+                           if (!plannedOverlayClickBound) {
+                             map.on('mousemove', plannedTourOverlaysHitLayerId, (evt) => {
+                               const feature = evt && evt.features && evt.features[0];
+                               const idRaw = feature && feature.properties ? feature.properties.id : null;
+                               const labelRaw = feature && feature.properties ? feature.properties.label : null;
+                               const id = Number(idRaw);
+                               plannedTourOverlayHoveredId = Number.isFinite(id) && id > 0 ? id : 0;
+                               applyPlannedTourOverlayHighlight();
+                               setTourHoverTooltip(labelRaw, evt && evt.point ? evt.point : null);
+                             });
+                             map.on('mouseleave', plannedTourOverlaysHitLayerId, () => {
+                               plannedTourOverlayHoveredId = 0;
+                               applyPlannedTourOverlayHighlight();
+                               setTourHoverTooltip('', null);
+                               map.getCanvas().style.cursor = '';
+                             });
+
+                             map.on('click', plannedTourOverlaysHitLayerId, (evt) => {
+                               const feature = evt && evt.features && evt.features[0];
+                               const idRaw = feature && feature.properties ? feature.properties.id : null;
+                               const id = Number(idRaw);
+                               if (window.chrome && window.chrome.webview && Number.isFinite(id) && id > 0) {
+                                 window.chrome.webview.postMessage(`plannedTourSelect:${id}`);
+                               }
+                             });
+                             map.on('mouseenter', plannedTourOverlaysHitLayerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+                             plannedOverlayClickBound = true;
+                           }
+                         };
+
+                         const applyPlannedTourOverlayHighlight = () => {
+                           if (!map.getLayer(plannedTourOverlaysBaseLayerId) ||
+                               !map.getLayer(plannedTourOverlaysHoverLayerId) ||
+                               !map.getLayer(plannedTourOverlaysSelectedLayerId)) {
+                             return;
+                           }
+
+                           const hoveredId = Number(plannedTourOverlayHoveredId);
+                           const activeId = Number(plannedTourOverlaySelectedId);
+                           const hasHover = Number.isFinite(hoveredId) && hoveredId > 0;
+
+                           map.setPaintProperty(plannedTourOverlaysBaseLayerId, 'line-opacity', hasHover ? 0.22 : 0.78);
+                           if (hasHover) {
+                             map.setFilter(plannedTourOverlaysHoverLayerId, ['==', ['get', 'id'], hoveredId]);
+                           } else {
+                             map.setFilter(plannedTourOverlaysHoverLayerId, ['==', ['get', 'id'], -1]);
+                           }
+
+                           if (Number.isFinite(activeId) && activeId > 0) {
+                             map.setFilter(plannedTourOverlaysSelectedLayerId, ['==', ['get', 'id'], activeId]);
+                           } else {
+                             map.setFilter(plannedTourOverlaysSelectedLayerId, ['==', ['get', 'id'], -1]);
                            }
                          };
 
@@ -588,8 +777,10 @@ internal static class MapHtmlDocumentBuilder
                            const trafficIncidentsToggle = document.getElementById('toggleTrafficIncidents');
                            const roadLabelsToggle = document.getElementById('toggleRoadLabels');
                            const poiToggle = document.getElementById('togglePoi');
+                           const vehicleDimensionsToggle = document.getElementById('toggleVehicleDimensions');
+                           const vehicleWeightRestrictionsToggle = document.getElementById('toggleVehicleWeightRestrictions');
 
-                           if (!overlay || !toggleBtn || !closeBtn || !trafficFlowToggle || !trafficIncidentsToggle || !roadLabelsToggle || !poiToggle) {
+                           if (!overlay || !toggleBtn || !closeBtn || !trafficFlowToggle || !trafficIncidentsToggle || !roadLabelsToggle || !poiToggle || !vehicleDimensionsToggle || !vehicleWeightRestrictionsToggle) {
                              return;
                            }
 
@@ -602,7 +793,9 @@ internal static class MapHtmlDocumentBuilder
                              const trafficIncidentsToken = mapState.trafficIncidents ? '1' : '0';
                              const showRoadLabelsToken = mapState.showRoadLabels ? '1' : '0';
                              const showPoiToken = mapState.showPoi ? '1' : '0';
-                             window.chrome.webview.postMessage(`mapopts:${mapState.style}|${trafficFlowToken}|${trafficIncidentsToken}|${showRoadLabelsToken}|${showPoiToken}`);
+                             const useVehicleDimensionsToken = mapState.useVehicleDimensions ? '1' : '0';
+                             const useVehicleWeightRestrictionsToken = mapState.useVehicleWeightRestrictions ? '1' : '0';
+                             window.chrome.webview.postMessage(`mapopts:${mapState.style}|${trafficFlowToken}|${trafficIncidentsToken}|${showRoadLabelsToken}|${showPoiToken}|${useVehicleDimensionsToken}|${useVehicleWeightRestrictionsToken}`);
                            };
 
                            const openOverlay = () => {
@@ -622,6 +815,8 @@ internal static class MapHtmlDocumentBuilder
                            trafficIncidentsToggle.checked = mapState.trafficIncidents;
                            roadLabelsToggle.checked = mapState.showRoadLabels;
                            poiToggle.checked = mapState.showPoi;
+                           vehicleDimensionsToggle.checked = mapState.useVehicleDimensions;
+                           vehicleWeightRestrictionsToggle.checked = mapState.useVehicleWeightRestrictions;
 
                            trafficFlowToggle.addEventListener('change', () => {
                              mapState.trafficFlow = !!trafficFlowToggle.checked;
@@ -646,6 +841,16 @@ internal static class MapHtmlDocumentBuilder
                              mapState.showPoi = !!poiToggle.checked;
                              applyPoiVisibility();
                              applyTrafficLayers();
+                             postMapOptions();
+                           });
+
+                           vehicleDimensionsToggle.addEventListener('change', () => {
+                             mapState.useVehicleDimensions = !!vehicleDimensionsToggle.checked;
+                             postMapOptions();
+                           });
+
+                           vehicleWeightRestrictionsToggle.addEventListener('change', () => {
+                             mapState.useVehicleWeightRestrictions = !!vehicleWeightRestrictionsToggle.checked;
                              postMapOptions();
                            });
 
@@ -736,6 +941,14 @@ internal static class MapHtmlDocumentBuilder
                            companyMarkers.push(marker);
                          };
 
+                         const toMapCoordinate = (p) => {
+                           if (!p) return null;
+                           const lat = Number(p.lat);
+                           const lon = Number(p.lon);
+                           if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+                           return [lon, lat];
+                         };
+
                          window.gawelaSetRoute = function(routeStops, geometryPoints, routeColor, trafficSegments) {
                            window.__gawelaLastRoutePayload = {
                              routeStops: Array.isArray(routeStops) ? routeStops : [],
@@ -751,17 +964,9 @@ internal static class MapHtmlDocumentBuilder
                              return;
                            }
 
-                           const toPoint = (p) => {
-                             if (!p) return null;
-                             const lat = Number(p.lat);
-                             const lon = Number(p.lon);
-                             if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-                             return [lon, lat];
-                           };
-
                            const path = (Array.isArray(geometryPoints) && geometryPoints.length > 1)
-                             ? geometryPoints.map(toPoint).filter(p => Array.isArray(p))
-                             : routeStops.map(toPoint).filter(p => Array.isArray(p));
+                             ? geometryPoints.map(toMapCoordinate).filter(p => Array.isArray(p))
+                             : routeStops.map(toMapCoordinate).filter(p => Array.isArray(p));
 
                            ensureRouteLayer(path, routeColor || '#2563EB');
                            renderTrafficRouteSegments(path, trafficSegments);
@@ -821,8 +1026,39 @@ internal static class MapHtmlDocumentBuilder
                            }
                          };
 
-                         window.gawelaSetPlannedTourOverlays = function() {};
-                         window.gawelaHighlightPlannedTourOverlay = function() {};
+                         window.gawelaSetPlannedTourOverlays = function(overlays) {
+                           ensurePlannedTourOverlayLayers();
+                           const features = (Array.isArray(overlays) ? overlays : [])
+                             .map(o => {
+                               const id = Number(o && o.id);
+                               const path = (o && Array.isArray(o.path)) ? o.path.map(toMapCoordinate).filter(p => Array.isArray(p)) : [];
+                               if (!Number.isFinite(id) || id <= 0 || path.length < 2) return null;
+                               return {
+                                 type: 'Feature',
+                                 geometry: { type: 'LineString', coordinates: path },
+                                 properties: {
+                                   id,
+                                   label: (o && o.label ? String(o.label) : ''),
+                                   color: (o && o.color ? String(o.color) : '#64748b')
+                                 }
+                               };
+                             })
+                             .filter(f => !!f);
+
+                           const source = map.getSource(plannedTourOverlaysSourceId);
+                           if (source && typeof source.setData === 'function') {
+                             source.setData({ type: 'FeatureCollection', features });
+                           }
+
+                           applyPlannedTourOverlayHighlight();
+                           ensureRouteLayersOnTop();
+                         };
+
+                         window.gawelaHighlightPlannedTourOverlay = function(tourId) {
+                           const parsed = Number(tourId);
+                           plannedTourOverlaySelectedId = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+                           applyPlannedTourOverlayHighlight();
+                         };
                          window.gawelaSetAllMarkerPopupsVisible = function(visible) {
                            routePopupVisible = !!visible;
                            mapMarkers.forEach(m => {
@@ -849,6 +1085,7 @@ internal static class MapHtmlDocumentBuilder
                            });
                          };
                          window.gawelaSetDetailsToggle = function() {};
+                         window.gawelaMapReady = true;
                        } catch (err) {
                          const msg = err && err.message ? err.message : 'Unbekannter Initialisierungsfehler';
                          setStatus(`Karteninitialisierung fehlgeschlagen: ${msg}`);
@@ -869,7 +1106,36 @@ internal static class MapHtmlDocumentBuilder
             .Replace("__TT_TRAFFIC_INCIDENTS__", mapOverlayShowTrafficIncidents ? "true" : "false")
             .Replace("__TT_ROAD_LABELS__", mapOverlayShowRoadLabels ? "true" : "false")
             .Replace("__TT_POI__", mapOverlayShowPoi ? "true" : "false")
-            .Replace("__TT_TILE_CACHE__", tomTomEnableTileCache ? "true" : "false");
+            .Replace("__TT_USE_VEHICLE_DIMENSIONS__", mapOverlayUseVehicleDimensions ? "true" : "false")
+            .Replace("__TT_USE_VEHICLE_WEIGHT_RESTRICTIONS__", mapOverlayUseVehicleWeightRestrictions ? "true" : "false")
+            .Replace("__TT_TILE_CACHE__", tomTomEnableTileCache ? "true" : "false")
+            .Replace("__MAP_OPTIONS_BUTTON_CONTENT__", mapOptionsButtonContent);
+    }
+
+    private static string BuildMapOptionsButtonContent()
+    {
+        try
+        {
+            var desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            var iconPath = System.IO.Path.Combine(desktopDir, "Mapoptions.png");
+            if (!System.IO.File.Exists(iconPath))
+            {
+                return "Map options";
+            }
+
+            var bytes = System.IO.File.ReadAllBytes(iconPath);
+            if (bytes.Length == 0)
+            {
+                return "Map options";
+            }
+
+            var base64 = Convert.ToBase64String(bytes);
+            return $"<img src='data:image/png;base64,{base64}' alt='Map options' />";
+        }
+        catch
+        {
+            return "Map options";
+        }
     }
 
     private static string EscapeJsString(string value)

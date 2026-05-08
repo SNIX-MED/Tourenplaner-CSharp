@@ -293,6 +293,8 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="TomTom API Key" />
                                     <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding TomTomApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -306,6 +308,10 @@
                                     <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" ToolTip="Routenberechnung nur nach kurzer Ruhephase." Text="{Binding TomTomRouteRecalcDebounceMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Tile Cache" />
                                     <CheckBox Grid.Row="5" Grid.Column="1" Margin="0,6,0,6" Content="WebView Cache fuer Kartentiles nutzen (lizenzabhaengig)" IsChecked="{Binding TomTomEnableTileCache, Mode=TwoWay}" />
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Routing-Modus" />
+                                    <ComboBox Grid.Row="6" Grid.Column="1" Style="{StaticResource SettingsComboBoxStyle}" Height="34" ItemsSource="{Binding TomTomRoutingModes}" SelectedItem="{Binding TomTomRoutingMode, Mode=TwoWay}" />
+                                    <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Fahrzeughoehe (m)" />
+                                    <TextBox Grid.Row="7" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" ToolTip="Nur fuer Modus 'heightAware': 0 deaktiviert Hoehenrestriktion." Text="{Binding TomTomVehicleHeightMeters, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </Grid>
                             </StackPanel>
                         </Border>

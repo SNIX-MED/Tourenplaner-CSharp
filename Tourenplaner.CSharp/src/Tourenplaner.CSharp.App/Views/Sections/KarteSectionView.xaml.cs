@@ -244,7 +244,9 @@ public partial class KarteSectionView : UserControl
             vm.TomTomMapOverlayStyle,
             vm.TomTomShowTrafficIncidents,
             vm.TomTomShowRoadLabels,
-            vm.TomTomShowPoi);
+            vm.TomTomShowPoi,
+            vm.TomTomUseVehicleDimensions,
+            vm.TomTomUseVehicleWeightRestrictions);
         MapWebView.NavigateToString(html);
         await Task.CompletedTask;
     }
@@ -544,7 +546,9 @@ public partial class KarteSectionView : UserControl
                 vm?.TomTomMapOverlayStyle ?? AppSettings.DefaultMapOverlayStyle,
                 vm?.TomTomShowTrafficIncidents ?? false,
                 vm?.TomTomShowRoadLabels ?? true,
-                vm?.TomTomShowPoi ?? true);
+                vm?.TomTomShowPoi ?? true,
+                vm?.TomTomUseVehicleDimensions ?? false,
+                vm?.TomTomUseVehicleWeightRestrictions ?? false);
             MapWebView.NavigateToString(html);
             _mapReady = true;
             MapWebView.Visibility = Visibility.Visible;
@@ -579,7 +583,7 @@ public partial class KarteSectionView : UserControl
             for (var i = 0; i < 30; i++)
             {
                 var ready = await MapWebView.CoreWebView2.ExecuteScriptAsync(
-                    "(document.readyState === 'complete' && typeof window.gawelaSetMarkers === 'function' && typeof window.gawelaSetRoute === 'function' && typeof window.gawelaSetPlannedTourOverlays === 'function' && typeof window.gawelaSetCompanyMarker === 'function' && typeof window.gawelaHighlightPlannedTourOverlay === 'function') ? 'true' : 'false';");
+                    "(document.readyState === 'complete' && window.gawelaMapReady === true && typeof window.gawelaSetMarkers === 'function' && typeof window.gawelaSetRoute === 'function' && typeof window.gawelaSetPlannedTourOverlays === 'function' && typeof window.gawelaSetCompanyMarker === 'function' && typeof window.gawelaHighlightPlannedTourOverlay === 'function') ? 'true' : 'false';");
                 _mapScriptReady = ready.Contains("true", StringComparison.OrdinalIgnoreCase);
                 if (_mapScriptReady)
                 {
@@ -917,7 +921,9 @@ public partial class KarteSectionView : UserControl
                     ? string.Equals(parts[3], "1", StringComparison.Ordinal)
                     : true;
                 var showPoi = string.Equals(parts.Length >= 5 ? parts[4] : parts[3], "1", StringComparison.Ordinal);
-                _ = vm.UpdateMapOverlayOptionsAsync(style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi);
+                var useVehicleDimensions = parts.Length >= 6 && string.Equals(parts[5], "1", StringComparison.Ordinal);
+                var useVehicleWeightRestrictions = parts.Length >= 7 && string.Equals(parts[6], "1", StringComparison.Ordinal);
+                _ = ApplyMapOptionsFromWebAsync(vm, style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions);
             }
 
             return;
@@ -987,6 +993,28 @@ public partial class KarteSectionView : UserControl
         finally
         {
             _suppressSelectionSync = false;
+        }
+    }
+
+    private async Task ApplyMapOptionsFromWebAsync(
+        KarteSectionViewModel vm,
+        string style,
+        bool showTrafficFlow,
+        bool showTrafficIncidents,
+        bool showRoadLabels,
+        bool showPoi,
+        bool useVehicleDimensions,
+        bool useVehicleWeightRestrictions)
+    {
+        await vm.UpdateMapOverlayOptionsAsync(style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions);
+        if ((useVehicleDimensions && !vm.TomTomUseVehicleDimensions) ||
+            (useVehicleWeightRestrictions && !vm.TomTomUseVehicleWeightRestrictions))
+        {
+            if (MapWebView.CoreWebView2 is not null)
+            {
+                await MapWebView.CoreWebView2.ExecuteScriptAsync(
+                    "var d=document.getElementById('toggleVehicleDimensions'); if (d) { d.checked = false; } var w=document.getElementById('toggleVehicleWeightRestrictions'); if (w) { w.checked = false; }");
+            }
         }
     }
 

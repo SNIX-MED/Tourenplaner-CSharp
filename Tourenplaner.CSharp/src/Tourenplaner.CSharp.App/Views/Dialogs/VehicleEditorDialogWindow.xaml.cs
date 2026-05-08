@@ -56,9 +56,13 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
     private string _type;
     private string _name;
     private string _licensePlate;
+    private string _grossWeightKgText;
     private string _maxPayloadKgText;
     private string _maxTrailerLoadKgText;
     private string _volumeM3Text;
+    private string _externalLengthCmText;
+    private string _externalWidthCmText;
+    private string _externalHeightCmText;
     private string _lengthCmText;
     private string _widthCmText;
     private string _heightCmText;
@@ -74,9 +78,13 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         _type = NormalizeType(seed.Type, seed.IsTrailer);
         _name = seed.Name ?? string.Empty;
         _licensePlate = seed.LicensePlate ?? string.Empty;
+        _grossWeightKgText = seed.GrossWeightKg <= 0 ? string.Empty : seed.GrossWeightKg.ToString(CultureInfo.InvariantCulture);
         _maxPayloadKgText = seed.MaxPayloadKg <= 0 ? string.Empty : seed.MaxPayloadKg.ToString(CultureInfo.InvariantCulture);
         _maxTrailerLoadKgText = seed.MaxTrailerLoadKg <= 0 ? string.Empty : seed.MaxTrailerLoadKg.ToString(CultureInfo.InvariantCulture);
         _volumeM3Text = seed.VolumeM3 <= 0 ? string.Empty : seed.VolumeM3.ToString(CultureInfo.InvariantCulture);
+        _externalLengthCmText = seed.ExternalLengthCm <= 0 ? string.Empty : seed.ExternalLengthCm.ToString(CultureInfo.InvariantCulture);
+        _externalWidthCmText = seed.ExternalWidthCm <= 0 ? string.Empty : seed.ExternalWidthCm.ToString(CultureInfo.InvariantCulture);
+        _externalHeightCmText = seed.ExternalHeightCm <= 0 ? string.Empty : seed.ExternalHeightCm.ToString(CultureInfo.InvariantCulture);
         _lengthCmText = seed.LengthCm <= 0 ? string.Empty : seed.LengthCm.ToString(CultureInfo.InvariantCulture);
         _widthCmText = seed.WidthCm <= 0 ? string.Empty : seed.WidthCm.ToString(CultureInfo.InvariantCulture);
         _heightCmText = seed.HeightCm <= 0 ? string.Empty : seed.HeightCm.ToString(CultureInfo.InvariantCulture);
@@ -122,6 +130,12 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         set => SetProperty(ref _maxPayloadKgText, value);
     }
 
+    public string GrossWeightKgText
+    {
+        get => _grossWeightKgText;
+        set => SetProperty(ref _grossWeightKgText, value);
+    }
+
     public string MaxTrailerLoadKgText
     {
         get => _maxTrailerLoadKgText;
@@ -138,6 +152,24 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
     {
         get => _lengthCmText;
         set => SetProperty(ref _lengthCmText, value);
+    }
+
+    public string ExternalLengthCmText
+    {
+        get => _externalLengthCmText;
+        set => SetProperty(ref _externalLengthCmText, value);
+    }
+
+    public string ExternalWidthCmText
+    {
+        get => _externalWidthCmText;
+        set => SetProperty(ref _externalWidthCmText, value);
+    }
+
+    public string ExternalHeightCmText
+    {
+        get => _externalHeightCmText;
+        set => SetProperty(ref _externalHeightCmText, value);
     }
 
     public string WidthCmText
@@ -192,6 +224,11 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
             return false;
         }
 
+        if (!TryParseNonNegative(GrossWeightKgText, out var grossWeightKg, out error))
+        {
+            return false;
+        }
+
         if (!TryParseNonNegative(MaxPayloadKgText, out var payloadKg, out error))
         {
             return false;
@@ -203,6 +240,21 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         }
 
         if (!TryParseNonNegative(VolumeM3Text, out var volumeM3, out error))
+        {
+            return false;
+        }
+
+        if (!TryParseNonNegative(ExternalLengthCmText, out var externalLengthCm, out error))
+        {
+            return false;
+        }
+
+        if (!TryParseNonNegative(ExternalWidthCmText, out var externalWidthCm, out error))
+        {
+            return false;
+        }
+
+        if (!TryParseNonNegative(ExternalHeightCmText, out var externalHeightCm, out error))
         {
             return false;
         }
@@ -244,9 +296,13 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
             Type: NormalizeType(_type, IsTrailer),
             Name: Name.Trim(),
             LicensePlate: (LicensePlate ?? string.Empty).Trim().ToUpperInvariant(),
+            GrossWeightKg: grossWeightKg,
             MaxPayloadKg: payloadKg,
             MaxTrailerLoadKg: trailerLoadKg,
             VolumeM3: volumeM3,
+            ExternalLengthCm: externalLengthCm,
+            ExternalWidthCm: externalWidthCm,
+            ExternalHeightCm: externalHeightCm,
             LengthCm: lengthCm,
             WidthCm: widthCm,
             HeightCm: heightCm,

@@ -86,9 +86,13 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             Type: isTrailer ? "trailer" : "truck",
             Name: string.Empty,
             LicensePlate: string.Empty,
+            GrossWeightKg: 0,
             MaxPayloadKg: 0,
             MaxTrailerLoadKg: 0,
             VolumeM3: 0,
+            ExternalLengthCm: 0,
+            ExternalWidthCm: 0,
+            ExternalHeightCm: 0,
             LengthCm: 0,
             WidthCm: 0,
             HeightCm: 0,
@@ -109,9 +113,13 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             Type: entry.Type,
             Name: entry.Name,
             LicensePlate: entry.LicensePlate,
+            GrossWeightKg: entry.GrossWeightKg,
             MaxPayloadKg: entry.MaxPayloadKg,
             MaxTrailerLoadKg: entry.MaxTrailerLoadKg,
             VolumeM3: entry.VolumeM3,
+            ExternalLengthCm: entry.ExternalLengthCm,
+            ExternalWidthCm: entry.ExternalWidthCm,
+            ExternalHeightCm: entry.ExternalHeightCm,
             LengthCm: entry.LengthCm,
             WidthCm: entry.WidthCm,
             HeightCm: entry.HeightCm,
@@ -177,6 +185,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         _trailers.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
 
         var loadingArea = BuildDimensions(result.LengthCm, result.WidthCm, result.HeightCm);
+        var externalDimensions = BuildDimensions(result.ExternalLengthCm, result.ExternalWidthCm, result.ExternalHeightCm);
         if (result.IsTrailer)
         {
             var periods = new List<ResourceUnavailabilityPeriod>();
@@ -196,8 +205,10 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                 Id = id,
                 Name = result.Name.Trim(),
                 LicensePlate = result.LicensePlate.Trim(),
+                GrossWeightKg = Math.Max(0, result.GrossWeightKg),
                 MaxPayloadKg = Math.Max(0, result.MaxPayloadKg),
                 VolumeM3 = Math.Max(0, result.VolumeM3),
+                ExternalDimensions = externalDimensions,
                 LoadingArea = loadingArea,
                 Active = existingTrailer?.Active ?? true,
                 Notes = result.Notes.Trim(),
@@ -225,9 +236,11 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                 Type = NormalizeVehicleType(result.Type),
                 Name = result.Name.Trim(),
                 LicensePlate = result.LicensePlate.Trim(),
+                GrossWeightKg = Math.Max(0, result.GrossWeightKg),
                 MaxPayloadKg = Math.Max(0, result.MaxPayloadKg),
                 MaxTrailerLoadKg = Math.Max(0, result.MaxTrailerLoadKg),
                 VolumeM3 = Math.Max(0, result.VolumeM3),
+                ExternalDimensions = externalDimensions,
                 LoadingArea = loadingArea,
                 Active = existingVehicle?.Active ?? true,
                 Notes = result.Notes.Trim(),
@@ -429,9 +442,13 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                     Type = NormalizeVehicleType(vehicle.Type),
                     Name = vehicle.Name,
                     LicensePlate = vehicle.LicensePlate,
+                    GrossWeightKg = vehicle.GrossWeightKg,
                     MaxPayloadKg = vehicle.MaxPayloadKg,
                     MaxTrailerLoadKg = vehicle.MaxTrailerLoadKg,
                     VolumeM3 = vehicle.VolumeM3,
+                    ExternalLengthCm = vehicle.ExternalDimensions?.LengthCm ?? 0,
+                    ExternalWidthCm = vehicle.ExternalDimensions?.WidthCm ?? 0,
+                    ExternalHeightCm = vehicle.ExternalDimensions?.HeightCm ?? 0,
                     LengthCm = vehicle.LoadingArea?.LengthCm ?? 0,
                     WidthCm = vehicle.LoadingArea?.WidthCm ?? 0,
                     HeightCm = vehicle.LoadingArea?.HeightCm ?? 0,
@@ -457,9 +474,13 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                     Type = "trailer",
                     Name = trailer.Name,
                     LicensePlate = trailer.LicensePlate,
+                    GrossWeightKg = trailer.GrossWeightKg,
                     MaxPayloadKg = trailer.MaxPayloadKg,
                     MaxTrailerLoadKg = 0,
                     VolumeM3 = trailer.VolumeM3,
+                    ExternalLengthCm = trailer.ExternalDimensions?.LengthCm ?? 0,
+                    ExternalWidthCm = trailer.ExternalDimensions?.WidthCm ?? 0,
+                    ExternalHeightCm = trailer.ExternalDimensions?.HeightCm ?? 0,
                     LengthCm = trailer.LoadingArea?.LengthCm ?? 0,
                     WidthCm = trailer.LoadingArea?.WidthCm ?? 0,
                     HeightCm = trailer.LoadingArea?.HeightCm ?? 0,
@@ -719,9 +740,13 @@ public sealed class FleetEntryCardItem : ObservableObject
     public string Type { get; set; } = "truck";
     public string Name { get; set; } = string.Empty;
     public string LicensePlate { get; set; } = string.Empty;
+    public int GrossWeightKg { get; set; }
     public int MaxPayloadKg { get; set; }
     public int MaxTrailerLoadKg { get; set; }
     public int VolumeM3 { get; set; }
+    public int ExternalLengthCm { get; set; }
+    public int ExternalWidthCm { get; set; }
+    public int ExternalHeightCm { get; set; }
     public int LengthCm { get; set; }
     public int WidthCm { get; set; }
     public int HeightCm { get; set; }
@@ -773,6 +798,11 @@ public sealed class FleetEntryCardItem : ObservableObject
                 parts.Add($"Nutzlast: {MaxPayloadKg} kg");
             }
 
+            if (GrossWeightKg > 0)
+            {
+                parts.Add($"Gesamtgewicht: {GrossWeightKg} kg");
+            }
+
             if (!IsTrailer && MaxTrailerLoadKg > 0)
             {
                 parts.Add($"Anhängelast: {MaxTrailerLoadKg} kg");
@@ -786,6 +816,11 @@ public sealed class FleetEntryCardItem : ObservableObject
             if (LengthCm > 0 || WidthCm > 0 || HeightCm > 0)
             {
                 parts.Add($"Ladefläche: {LengthCm} x {WidthCm} x {HeightCm} cm");
+            }
+
+            if (ExternalLengthCm > 0 || ExternalWidthCm > 0 || ExternalHeightCm > 0)
+            {
+                parts.Add($"Aussenmasse: {ExternalLengthCm} x {ExternalWidthCm} x {ExternalHeightCm} cm");
             }
 
             if (!string.IsNullOrWhiteSpace(NextUnavailabilityText))

@@ -9,10 +9,12 @@ public sealed class TomTomRoutingService
 {
     private static readonly HttpClient Client = CreateClient();
     private readonly string _apiKey;
+    private readonly TomTomRoutingProfile _profile;
 
-    public TomTomRoutingService(string? apiKey)
+    public TomTomRoutingService(string? apiKey, TomTomRoutingProfile? profile = null)
     {
         _apiKey = (apiKey ?? string.Empty).Trim();
+        _profile = profile ?? TomTomRoutingProfile.Default;
     }
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_apiKey);
@@ -62,6 +64,33 @@ public sealed class TomTomRoutingService
         var routeQuery = string.Join(":", stops.Select(FormatPoint));
         var url =
             $"https://api.tomtom.com/routing/1/calculateRoute/{routeQuery}/json?key={Uri.EscapeDataString(_apiKey)}&traffic=true&travelMode=car&routeType=fastest&computeTravelTimeFor=all&sectionType=traffic";
+        if (_profile.Mode == TomTomRoutingMode.HeightAware)
+        {
+            if (_profile.VehicleLengthMeters > 0d)
+            {
+                var length = _profile.VehicleLengthMeters.ToString("0.##", CultureInfo.InvariantCulture);
+                url += $"&vehicleLength={Uri.EscapeDataString(length)}";
+            }
+
+            if (_profile.VehicleWidthMeters > 0d)
+            {
+                var width = _profile.VehicleWidthMeters.ToString("0.##", CultureInfo.InvariantCulture);
+                url += $"&vehicleWidth={Uri.EscapeDataString(width)}";
+            }
+
+            if (_profile.VehicleHeightMeters > 0d)
+            {
+                var height = _profile.VehicleHeightMeters.ToString("0.##", CultureInfo.InvariantCulture);
+                url += $"&vehicleHeight={Uri.EscapeDataString(height)}";
+            }
+
+            if (_profile.VehicleWeightKg > 0)
+            {
+                var weight = _profile.VehicleWeightKg.ToString(CultureInfo.InvariantCulture);
+                url += $"&vehicleWeight={Uri.EscapeDataString(weight)}";
+            }
+        }
+
         if (departAt.HasValue)
         {
             var departAtIso = departAt.Value.ToString("yyyy-MM-ddTHH:mm:ssK", CultureInfo.InvariantCulture);
@@ -283,4 +312,20 @@ public sealed class TomTomRoutingService
         client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
         return client;
     }
+}
+
+public enum TomTomRoutingMode
+{
+    Car = 0,
+    HeightAware = 1
+}
+
+public sealed record TomTomRoutingProfile(
+    TomTomRoutingMode Mode,
+    double VehicleHeightMeters,
+    double VehicleLengthMeters = 0d,
+    double VehicleWidthMeters = 0d,
+    int VehicleWeightKg = 0)
+{
+    public static TomTomRoutingProfile Default { get; } = new(TomTomRoutingMode.Car, 0d);
 }
