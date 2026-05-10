@@ -87,4 +87,5 @@ public sealed class MapOverlayUserPreference
     public bool ShowPoi { get; set; } = true;
     public bool UseVehicleDimensions { get; set; }
     public bool UseVehicleWeightRestrictions { get; set; }
+    public bool UseDepartAtTraffic { get; set; } = true;
 }

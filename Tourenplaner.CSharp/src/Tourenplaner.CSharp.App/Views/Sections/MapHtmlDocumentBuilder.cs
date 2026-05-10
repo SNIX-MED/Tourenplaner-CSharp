@@ -12,7 +12,8 @@ internal static class MapHtmlDocumentBuilder
         bool mapOverlayShowRoadLabels,
         bool mapOverlayShowPoi,
         bool mapOverlayUseVehicleDimensions,
-        bool mapOverlayUseVehicleWeightRestrictions)
+        bool mapOverlayUseVehicleWeightRestrictions,
+        bool mapOverlayUseDepartAtTraffic)
     {
         var mapOptionsButtonContent = BuildMapOptionsButtonContent();
 
@@ -26,8 +27,8 @@ internal static class MapHtmlDocumentBuilder
                    html, body, #map { height: 100%; margin: 0; padding: 0; }
                    body { overflow: hidden; font-family: Segoe UI, sans-serif; background: transparent; }
                    #map { background: #f8fafc; }
-                   .status { position: absolute; left: 10px; top: 10px; z-index: 1000; background: rgba(255,255,255,.9); border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 8px; font-size: 12px; color: #334155; }
-                   .gawela-pin-wrap { position: relative; width: 28px; height: 28px; transform-origin: center bottom; }
+                   .status { position: absolute; left: auto !important; top: auto !important; right: 10px !important; bottom: 10px !important; z-index: 1000; background: rgba(255,255,255,.9); border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 8px; font-size: 12px; color: #334155; }
+                   .gawela-pin-wrap { position: relative; width: 28px; height: 28px; transform-origin: center bottom; transform: scale(var(--gawela-pin-scale, 1)); }
                    .gawela-pin { width: 20px; height: 20px; position: absolute; left: 4px; top: 4px; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
                    .gawela-pin-circle { border-radius: 50%; }
                    .gawela-pin-square { border-radius: 4px; }
@@ -60,6 +61,12 @@ internal static class MapHtmlDocumentBuilder
                    .switch-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 14px; color: #1e293b; }
                    .switch-row input { width: 20px; height: 20px; }
                    .tour-hover-tooltip { position: absolute; z-index: 1400; pointer-events: none; transform: translate(-50%, calc(-100% - 10px)); background: rgba(15,23,42,.94); color: #f8fafc; border: 1px solid rgba(148,163,184,.45); border-radius: 8px; padding: 4px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; box-shadow: 0 6px 16px rgba(2,6,23,.32); opacity: 0; transition: opacity .08s linear; }
+                   .tt-popup-content, .mapboxgl-popup-content { transform: scale(var(--gawela-pin-scale, 1)); transform-origin: center bottom; display: inline-block; }
+                   .tt-popup-tip, .mapboxgl-popup-tip { transform: scale(var(--gawela-pin-scale, 1)); transform-origin: center top; }
+                   .tt-popup, .tt-popup *, .mapboxgl-popup, .mapboxgl-popup * { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; -webkit-user-drag: none !important; }
+                   .tt-marker { pointer-events: auto !important; }
+                   .tt-popup, .mapboxgl-popup { z-index: 1400 !important; }
+                   .tt-marker, .mapboxgl-marker { z-index: 1200 !important; }
                    .tour-hover-tooltip.visible { opacity: 1; }
                  </style>
                </head>
@@ -97,6 +104,7 @@ internal static class MapHtmlDocumentBuilder
                        <h4>Routing</h4>
                        <label class="switch-row"><input type="checkbox" id="toggleVehicleDimensions" /> Fahrzeugmasse beruecksichtigen</label>
                        <label class="switch-row"><input type="checkbox" id="toggleVehicleWeightRestrictions" /> Gewichtsrestriktionen beruecksichtigen</label>
+                       <label class="switch-row"><input type="checkbox" id="toggleDepartAtTraffic" /> Traffic zur Startzeit verwenden</label>
                      </div>
                    </div>
                  </aside>
@@ -110,6 +118,7 @@ internal static class MapHtmlDocumentBuilder
                    const showPoi = __TT_POI__;
                    const useVehicleDimensions = __TT_USE_VEHICLE_DIMENSIONS__;
                    const useVehicleWeightRestrictions = __TT_USE_VEHICLE_WEIGHT_RESTRICTIONS__;
+                   const useDepartAtTraffic = __TT_USE_DEPART_AT_TRAFFIC__;
                    const useTileCache = __TT_TILE_CACHE__;
                    window.gawelaMapReady = false;
                    const tourHoverTooltipEl = document.getElementById('tourHoverTooltip');
@@ -201,7 +210,8 @@ internal static class MapHtmlDocumentBuilder
                            showRoadLabels: !!showRoadLabels,
                            showPoi: !!showPoi,
                            useVehicleDimensions: !!useVehicleDimensions,
-                           useVehicleWeightRestrictions: !!useVehicleWeightRestrictions
+                           useVehicleWeightRestrictions: !!useVehicleWeightRestrictions,
+                           useDepartAtTraffic: !!useDepartAtTraffic
                          };
                          const cacheSuffix = useTileCache ? '' : `&nocache=${Date.now()}`;
 
@@ -226,14 +236,26 @@ internal static class MapHtmlDocumentBuilder
 
                           return resolveVectorStyleUri(normalized);
                         };
+                        // Limit navigation to Switzerland + nearby border region to avoid unnecessary world-wide tile/API traffic.
+                        const mapMaxBounds = [
+                          [5.2, 45.4],   // [westLng, southLat]
+                          [11.2, 48.3]   // [eastLng, northLat]
+                        ];
 
                          const map = ttSdk.map({
                            key: apiKey,
                            container: 'map',
                            style: resolveInitialStyleUri(),
                            center: [8.5417, 47.3769],
-                           zoom: 10
+                           zoom: 10,
+                           minZoom: 6.5,
+                           maxBounds: mapMaxBounds
                          });
+                         const mapCanvas = map.getCanvas();
+                         mapCanvas.style.cursor = 'grab';
+                         mapCanvas.addEventListener('mousedown', () => { mapCanvas.style.cursor = 'grabbing'; });
+                         mapCanvas.addEventListener('mouseup', () => { mapCanvas.style.cursor = 'grab'; });
+                         mapCanvas.addEventListener('mouseleave', () => { mapCanvas.style.cursor = 'grab'; });
 
                          let markerMap = new Map();
                          let routeMarkerMap = new Map();
@@ -242,6 +264,11 @@ internal static class MapHtmlDocumentBuilder
                          let routeMarkers = [];
                          let routePopupVisible = false;
                          let markerScale = 1.0;
+                         const applyScaleVariable = (scale) => {
+                           const value = Number.isFinite(scale) ? Math.max(0.6, Math.min(2.4, scale)) : 1.0;
+                           markerScale = value;
+                           document.documentElement.style.setProperty('--gawela-pin-scale', String(value));
+                         };
 
                          applyStyleThumbPreviews();
 
@@ -266,7 +293,6 @@ internal static class MapHtmlDocumentBuilder
                          const buildMarkerElement = (m, isRouteMarker) => {
                            const wrap = document.createElement('div');
                            wrap.className = 'gawela-pin-wrap';
-                           wrap.style.transform = `scale(${markerScale})`;
                            if (m && m.isDimmed) wrap.classList.add('gawela-pin-dimmed');
                            if (m && m.isBatchSelected) wrap.classList.add('gawela-pin-selected');
 
@@ -313,6 +339,8 @@ internal static class MapHtmlDocumentBuilder
                            return el;
                          };
 
+                         const createScaledPopupHtml = (contentHtml) => (contentHtml || '').toString();
+
                          const applyBaseStyle = () => {
                            const normalized = (mapState.style || '').toLowerCase();
                            if (normalized === 'satellite') {
@@ -326,9 +354,11 @@ internal static class MapHtmlDocumentBuilder
 
                          const ensureRouteLayer = (coordinates, colorHex) => {
                            const sourceId = 'gawela-route-source';
+                           const casingLayerId = 'gawela-route-casing-layer';
                            const layerId = 'gawela-route-layer';
 
                            if (!Array.isArray(coordinates) || coordinates.length < 2) {
+                             if (map.getLayer(casingLayerId)) map.removeLayer(casingLayerId);
                              if (map.getLayer(layerId)) map.removeLayer(layerId);
                              if (map.getSource(sourceId)) map.removeSource(sourceId);
                              return;
@@ -352,6 +382,23 @@ internal static class MapHtmlDocumentBuilder
                              map.addSource(sourceId, { type: 'geojson', data });
                            }
 
+                           if (!map.getLayer(casingLayerId)) {
+                             map.addLayer({
+                               id: casingLayerId,
+                               type: 'line',
+                               source: sourceId,
+                               layout: {
+                                 'line-cap': 'round',
+                                 'line-join': 'round'
+                               },
+                               paint: {
+                                 'line-color': '#ffffff',
+                                 'line-width': 10,
+                                 'line-opacity': 0.9
+                               }
+                             });
+                           }
+
                            if (!map.getLayer(layerId)) {
                              map.addLayer({
                                id: layerId,
@@ -362,127 +409,236 @@ internal static class MapHtmlDocumentBuilder
                                  'line-join': 'round'
                                },
                                paint: {
-                                 'line-color': colorHex || '#2563EB',
-                                 'line-width': 6,
-                                 'line-opacity': 0.98
-                               }
-                             });
-                           } else {
-                             map.setPaintProperty(layerId, 'line-color', colorHex || '#2563EB');
-                           }
-                         };
-
-                         const routeTrafficSourcePrefix = 'gawela-route-traffic-source-';
-                         const routeTrafficLayerPrefix = 'gawela-route-traffic-layer-';
-
-                         const clearTrafficRouteLayers = () => {
-                           const style = map.getStyle();
-                           if (!style || !Array.isArray(style.layers)) {
-                             return;
-                           }
-
-                           const layerIds = style.layers
-                             .map(x => x && x.id ? x.id : '')
-                             .filter(id => id.startsWith(routeTrafficLayerPrefix));
-                           layerIds.forEach(id => {
-                             if (map.getLayer(id)) {
-                               map.removeLayer(id);
-                             }
-                           });
-
-                           const sourceIds = Object.keys(style.sources || {})
-                             .filter(id => id.startsWith(routeTrafficSourcePrefix));
-                           sourceIds.forEach(id => {
-                             if (map.getSource(id)) {
-                               map.removeSource(id);
-                             }
-                           });
-                         };
-
-                         const trafficColorForLevel = (trafficLevel) => {
-                           const level = (trafficLevel || '').toString().trim().toLowerCase();
-                           if (!level) return '#f59e0b';
-
-                           if (level === '0') return '#22c55e';
-                           if (level === '1') return '#f59e0b';
-                           if (level === '2') return '#ef4444';
-                           if (level === '3') return '#b91c1c';
-
-                           if (level === 'freeflow' || level === 'free' || level === 'light' || level === 'low' || level === 'leicht') {
-                             return '#22c55e';
-                           }
-                           if (level === 'moderate' || level === 'medium' || level === 'mittel') {
-                             return '#f59e0b';
-                           }
-                           if (level === 'heavy' || level === 'high' || level === 'stark' || level === 'congested') {
-                             return '#ef4444';
-                           }
-                           if (level === 'blocked' || level === 'severe' || level === 'jam' || level === 'jammed' || level === 'roadclosure' || level === 'stationary' || level === 'heavilycongested' || level === 'stopandgo' || level === 'stau') {
-                             return '#b91c1c';
-                           }
-
-                           const numeric = Number(level);
-                           if (Number.isFinite(numeric)) {
-                             if (numeric <= 0) return '#22c55e';
-                             if (numeric <= 1) return '#f59e0b';
-                             if (numeric <= 2) return '#ef4444';
-                             return '#b91c1c';
-                           }
-
-                           return '#f59e0b';
-                         };
-
-                         const renderTrafficRouteSegments = (path, trafficSegments) => {
-                           clearTrafficRouteLayers();
-                           if (!Array.isArray(path) || path.length < 2 || !Array.isArray(trafficSegments) || trafficSegments.length === 0) {
-                             return;
-                           }
-
-                           let segmentIndex = 0;
-                           trafficSegments.forEach(segment => {
-                             const startIndex = Number(segment && segment.startIndex);
-                             const endIndex = Number(segment && segment.endIndex);
-                             if (!Number.isFinite(startIndex) || !Number.isFinite(endIndex)) {
-                               return;
-                             }
-
-                             const from = Math.max(0, Math.min(path.length - 1, Math.floor(startIndex)));
-                             const to = Math.max(0, Math.min(path.length - 1, Math.floor(endIndex)));
-                             if (to <= from) {
-                               return;
-                             }
-
-                             const coords = path.slice(from, to + 1);
-                             if (coords.length < 2) {
-                               return;
-                             }
-
-                             const sourceId = `${routeTrafficSourcePrefix}${segmentIndex}`;
-                             const layerId = `${routeTrafficLayerPrefix}${segmentIndex}`;
-                             segmentIndex++;
-
-                             map.addSource(sourceId, {
-                               type: 'geojson',
-                               data: {
-                                 type: 'Feature',
-                                 geometry: {
-                                   type: 'LineString',
-                                   coordinates: coords
-                                 }
-                               }
-                             });
-
-                             map.addLayer({
-                               id: layerId,
-                               type: 'line',
-                               source: sourceId,
-                               paint: {
-                                 'line-color': trafficColorForLevel(segment.trafficLevel),
+                                 'line-color': colorHex || '#1d4ed8',
                                  'line-width': 6,
                                  'line-opacity': 0.95
                                }
                              });
+                           } else {
+                             map.setPaintProperty(layerId, 'line-color', colorHex || '#1d4ed8');
+                           }
+                         };
+
+                         const setBaseRouteStyleForTraffic = (hasTrafficSegments) => {
+                           const casingLayerId = 'gawela-route-casing-layer';
+                           const layerId = 'gawela-route-layer';
+                           if (map.getLayer(casingLayerId)) {
+                             try {
+                               map.setPaintProperty(casingLayerId, 'line-width', 10);
+                               map.setPaintProperty(casingLayerId, 'line-opacity', 0.9);
+                             } catch (_) {
+                               // ignore temporary style transition errors
+                             }
+                           }
+
+                           if (!map.getLayer(layerId)) {
+                             return;
+                           }
+
+                           try {
+                             map.setPaintProperty(layerId, 'line-width', 6);
+                             map.setPaintProperty(layerId, 'line-opacity', hasTrafficSegments ? 0.88 : 0.95);
+                           } catch (_) {
+                             // ignore temporary style transition errors
+                           }
+                         };
+
+                         const routeTrafficSourceId = 'gawela-route-traffic-source';
+                         const routeTrafficCasingLayerId = 'gawela-route-traffic-casing-layer';
+                         const routeTrafficLayerId = 'gawela-route-traffic-layer';
+
+                         const clearTrafficRouteLayers = () => {
+                           if (map.getLayer(routeTrafficLayerId)) map.removeLayer(routeTrafficLayerId);
+                           if (map.getLayer(routeTrafficCasingLayerId)) map.removeLayer(routeTrafficCasingLayerId);
+                           if (map.getSource(routeTrafficSourceId)) map.removeSource(routeTrafficSourceId);
+                         };
+
+                         const trafficColorForLevel = (trafficLevel) => {
+                           const level = (trafficLevel || '').toString().trim().toLowerCase();
+                           if (!level) return '#1d4ed8';
+
+                           if (level === '0') return '#38bdf8';
+                           if (level === '1') return '#1d4ed8';
+                           if (level === '2') return '#f59e0b';
+                           if (level === '3') return '#dc2626';
+
+                           if (level === 'freeflow' || level === 'free') return '#38bdf8';
+                           if (level === 'light' || level === 'low' || level === 'leicht') return '#1d4ed8';
+                           if (level === 'moderate' || level === 'medium' || level === 'mittel') {
+                             return '#f59e0b';
+                           }
+                           if (level === 'heavy' || level === 'high' || level === 'stark' || level === 'congested') {
+                             return '#ea580c';
+                           }
+                           if (level === 'blocked' || level === 'severe' || level === 'jam' || level === 'jammed' || level === 'roadclosure' || level === 'stationary' || level === 'heavilycongested' || level === 'stopandgo' || level === 'stau') {
+                             return '#dc2626';
+                           }
+
+                           const numeric = Number(level);
+                           if (Number.isFinite(numeric)) {
+                             if (numeric <= 0) return '#38bdf8';
+                             if (numeric <= 1) return '#1d4ed8';
+                             if (numeric <= 2) return '#f59e0b';
+                             return '#dc2626';
+                           }
+
+                           return '#1d4ed8';
+                         };
+
+                         const trafficSeverityForLevel = (trafficLevel) => {
+                           const level = (trafficLevel || '').toString().trim().toLowerCase();
+                           if (!level) return 0;
+
+                           if (level === '0') return 0;
+                           if (level === '1') return 1;
+                           if (level === '2') return 2;
+                           if (level === '3') return 3;
+
+                           if (level === 'freeflow' || level === 'free') return 0;
+                           if (level === 'light' || level === 'low' || level === 'leicht') return 1;
+                           if (level === 'moderate' || level === 'medium' || level === 'mittel') return 1;
+                           if (level === 'heavy' || level === 'high' || level === 'stark' || level === 'congested') return 2;
+                           if (level === 'blocked' || level === 'severe' || level === 'jam' || level === 'jammed' || level === 'roadclosure' || level === 'stationary' || level === 'heavilycongested' || level === 'stopandgo' || level === 'stau') return 3;
+
+                           const numeric = Number(level);
+                           if (Number.isFinite(numeric)) {
+                             if (numeric <= 0) return 0;
+                             if (numeric <= 1) return 1;
+                             if (numeric <= 2) return 2;
+                             return 3;
+                           }
+
+                           return 0;
+                         };
+
+                         const renderTrafficRouteSegments = (path, trafficSegments) => {
+                           if (!Array.isArray(path) || path.length < 2 || !Array.isArray(trafficSegments) || trafficSegments.length === 0) {
+                             clearTrafficRouteLayers();
+                             setBaseRouteStyleForTraffic(false);
+                             return;
+                           }
+
+                           const maxIndex = path.length - 1;
+                           const rawSegments = trafficSegments
+                             .map(segment => {
+                               const startIndex = Number(segment && segment.startIndex);
+                               const endIndex = Number(segment && segment.endIndex);
+                               if (!Number.isFinite(startIndex) || !Number.isFinite(endIndex)) {
+                                 return null;
+                               }
+
+                               return {
+                                 startIndex: Math.floor(startIndex),
+                                 endIndex: Math.floor(endIndex),
+                                 trafficLevel: segment && segment.trafficLevel ? String(segment.trafficLevel) : 'unknown'
+                               };
+                             })
+                             .filter(x => !!x);
+
+                           const rawMaxEnd = rawSegments.reduce((acc, x) => Math.max(acc, x.endIndex), 0);
+                           const needsIndexScaling = rawMaxEnd > (maxIndex * 1.5);
+                           const scaleFactor = needsIndexScaling && rawMaxEnd > 0 ? (maxIndex / rawMaxEnd) : 1;
+
+                           const normalized = rawSegments
+                             .map(segment => {
+                               const scaledStart = Math.floor(segment.startIndex * scaleFactor);
+                               const scaledEnd = Math.floor(segment.endIndex * scaleFactor);
+                               const from = Math.max(0, Math.min(maxIndex - 1, scaledStart));
+                               const to = Math.max(from + 1, Math.min(maxIndex, scaledEnd));
+                               if (to <= from) {
+                                 return null;
+                               }
+
+                               return {
+                                 startIndex: from,
+                                 endIndex: to,
+                                 trafficLevel: segment.trafficLevel
+                               };
+                             })
+                             .filter(x => !!x)
+                             .sort((a, b) => a.startIndex - b.startIndex);
+
+                           const features = normalized
+                             .map(segment => {
+                               const coords = path.slice(segment.startIndex, segment.endIndex + 1);
+                               if (coords.length < 2) return null;
+                               return {
+                                 type: 'Feature',
+                                 properties: {
+                                   trafficColor: trafficColorForLevel(segment.trafficLevel),
+                                   trafficSeverity: trafficSeverityForLevel(segment.trafficLevel)
+                                 },
+                                 geometry: {
+                                   type: 'LineString',
+                                   coordinates: coords
+                                 }
+                               };
+                             })
+                             .filter(x => !!x);
+
+                           if (features.length === 0) {
+                             clearTrafficRouteLayers();
+                             setBaseRouteStyleForTraffic(false);
+                             return;
+                           }
+
+                           const featureCollection = { type: 'FeatureCollection', features };
+                           const existingSource = map.getSource(routeTrafficSourceId);
+                           if (existingSource && typeof existingSource.setData === 'function') {
+                             existingSource.setData(featureCollection);
+                           } else {
+                             if (existingSource) {
+                               try { map.removeSource(routeTrafficSourceId); } catch (_) {}
+                             }
+                             map.addSource(routeTrafficSourceId, {
+                               type: 'geojson',
+                               data: featureCollection
+                             });
+                           }
+
+                           if (!map.getLayer(routeTrafficCasingLayerId)) {
+                             map.addLayer({
+                               id: routeTrafficCasingLayerId,
+                               type: 'line',
+                               source: routeTrafficSourceId,
+                               layout: { 'line-cap': 'round', 'line-join': 'round' },
+                               paint: {
+                               'line-color': '#111827',
+                               'line-width': ['interpolate', ['linear'], ['zoom'], 7, 6.5, 10, 7.5, 13, 8.5],
+                               'line-opacity': 0.75
+                             }
                            });
+                         }
+
+                           if (!map.getLayer(routeTrafficLayerId)) {
+                             map.addLayer({
+                               id: routeTrafficLayerId,
+                               type: 'line',
+                               source: routeTrafficSourceId,
+                               layout: { 'line-cap': 'round', 'line-join': 'round' },
+                               paint: {
+                               'line-color': ['coalesce', ['get', 'trafficColor'], '#f59e0b'],
+                               'line-width': [
+                                 'match',
+                                 ['coalesce', ['get', 'trafficSeverity'], 1],
+                                 0, ['interpolate', ['linear'], ['zoom'], 7, 4.6, 10, 5.2, 13, 6.0],
+                                 1, ['interpolate', ['linear'], ['zoom'], 7, 4.8, 10, 5.5, 13, 6.3],
+                                 2, ['interpolate', ['linear'], ['zoom'], 7, 5.0, 10, 5.8, 13, 6.7],
+                                 ['interpolate', ['linear'], ['zoom'], 7, 5.2, 10, 6.1, 13, 7.0]
+                               ],
+                               'line-opacity': [
+                                 'match',
+                                 ['coalesce', ['get', 'trafficSeverity'], 1],
+                                 0, 0.92,
+                                 1, 0.97,
+                                 2, 1.0,
+                                 1.0
+                               ]
+                             }
+                           });
+                         }
+
+                           setBaseRouteStyleForTraffic(true);
                          };
 
                          const setLayerVisible = (layerId, visible) => {
@@ -536,20 +692,18 @@ internal static class MapHtmlDocumentBuilder
                          const ensureRouteLayersOnTop = () => {
                            try {
                              const routeLayerId = 'gawela-route-layer';
+                             const routeCasingLayerId = 'gawela-route-casing-layer';
+                             if (map.getLayer(routeCasingLayerId)) {
+                               map.moveLayer(routeCasingLayerId);
+                             }
                              if (map.getLayer(routeLayerId)) {
                                map.moveLayer(routeLayerId);
                              }
 
-                             const style = map.getStyle();
-                             if (!style || !Array.isArray(style.layers)) {
-                               return;
-                             }
-
-                             const routeTrafficLayerIds = style.layers
-                               .map(x => x && x.id ? x.id : '')
-                               .filter(id => id.startsWith(routeTrafficLayerPrefix));
-
-                             routeTrafficLayerIds.forEach(id => {
+                             [
+                               routeTrafficCasingLayerId,
+                               routeTrafficLayerId
+                             ].forEach(id => {
                                if (map.getLayer(id)) {
                                  map.moveLayer(id);
                                }
@@ -735,8 +889,17 @@ internal static class MapHtmlDocumentBuilder
                              return;
                            }
 
-                           const isPoiLayer = (layerId) => {
-                             const id = (layerId || '').toLowerCase();
+                           const isPoiLayer = (layer) => {
+                             if (!layer) return false;
+                             const layout = layer.layout || {};
+
+                             // In vector styles, POI icons are usually symbol layers with icon-image.
+                             if (Object.prototype.hasOwnProperty.call(layout, 'icon-image')) {
+                               return true;
+                             }
+
+                             // Fallback for style variants that encode POI in layer ids only.
+                             const id = (layer.id || '').toLowerCase();
                              return id.includes('poi') ||
                                id.includes('parking') ||
                                id.includes('fuel') ||
@@ -750,7 +913,7 @@ internal static class MapHtmlDocumentBuilder
                              if (layer.id.startsWith('gawela-')) return;
                              if (layer.type !== 'symbol') return;
 
-                             const visible = isPoiLayer(layer.id)
+                             const visible = isPoiLayer(layer)
                                ? mapState.showPoi
                                : mapState.showRoadLabels;
 
@@ -779,8 +942,9 @@ internal static class MapHtmlDocumentBuilder
                            const poiToggle = document.getElementById('togglePoi');
                            const vehicleDimensionsToggle = document.getElementById('toggleVehicleDimensions');
                            const vehicleWeightRestrictionsToggle = document.getElementById('toggleVehicleWeightRestrictions');
+                           const departAtTrafficToggle = document.getElementById('toggleDepartAtTraffic');
 
-                           if (!overlay || !toggleBtn || !closeBtn || !trafficFlowToggle || !trafficIncidentsToggle || !roadLabelsToggle || !poiToggle || !vehicleDimensionsToggle || !vehicleWeightRestrictionsToggle) {
+                           if (!overlay || !toggleBtn || !closeBtn || !trafficFlowToggle || !trafficIncidentsToggle || !roadLabelsToggle || !poiToggle || !vehicleDimensionsToggle || !vehicleWeightRestrictionsToggle || !departAtTrafficToggle) {
                              return;
                            }
 
@@ -795,7 +959,8 @@ internal static class MapHtmlDocumentBuilder
                              const showPoiToken = mapState.showPoi ? '1' : '0';
                              const useVehicleDimensionsToken = mapState.useVehicleDimensions ? '1' : '0';
                              const useVehicleWeightRestrictionsToken = mapState.useVehicleWeightRestrictions ? '1' : '0';
-                             window.chrome.webview.postMessage(`mapopts:${mapState.style}|${trafficFlowToken}|${trafficIncidentsToken}|${showRoadLabelsToken}|${showPoiToken}|${useVehicleDimensionsToken}|${useVehicleWeightRestrictionsToken}`);
+                             const useDepartAtTrafficToken = mapState.useDepartAtTraffic ? '1' : '0';
+                             window.chrome.webview.postMessage(`mapopts:${mapState.style}|${trafficFlowToken}|${trafficIncidentsToken}|${showRoadLabelsToken}|${showPoiToken}|${useVehicleDimensionsToken}|${useVehicleWeightRestrictionsToken}|${useDepartAtTrafficToken}`);
                            };
 
                            const openOverlay = () => {
@@ -817,6 +982,7 @@ internal static class MapHtmlDocumentBuilder
                            poiToggle.checked = mapState.showPoi;
                            vehicleDimensionsToggle.checked = mapState.useVehicleDimensions;
                            vehicleWeightRestrictionsToggle.checked = mapState.useVehicleWeightRestrictions;
+                           departAtTrafficToggle.checked = mapState.useDepartAtTraffic;
 
                            trafficFlowToggle.addEventListener('change', () => {
                              mapState.trafficFlow = !!trafficFlowToggle.checked;
@@ -851,6 +1017,11 @@ internal static class MapHtmlDocumentBuilder
 
                            vehicleWeightRestrictionsToggle.addEventListener('change', () => {
                              mapState.useVehicleWeightRestrictions = !!vehicleWeightRestrictionsToggle.checked;
+                             postMapOptions();
+                           });
+
+                           departAtTrafficToggle.addEventListener('change', () => {
+                             mapState.useDepartAtTraffic = !!departAtTrafficToggle.checked;
                              postMapOptions();
                            });
 
@@ -908,13 +1079,20 @@ internal static class MapHtmlDocumentBuilder
                            markers.forEach(m => {
                              if (!m || typeof m.lat !== 'number' || typeof m.lon !== 'number') return;
 
-                             const popup = new ttSdk.Popup({ offset: 24 }).setHTML(`<b>${m.customer || m.id || 'Stopp'}</b><br/>${m.street || ''}`);
+                             const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
+                               createScaledPopupHtml(`<b>${m.customer || m.id || 'Stopp'}</b><br/>${m.street || ''}`)
+                             );
                              const marker = new ttSdk.Marker({ element: buildMarkerElement(m, false), anchor: 'center' })
                                .setLngLat([m.lon, m.lat])
                                .setPopup(popup)
                                .addTo(map);
-
-                             marker.getElement().addEventListener('click', () => {
+                             const markerEl = marker.getElement();
+                             markerEl.style.cursor = 'pointer';
+                             markerEl.style.pointerEvents = 'auto';
+                             markerEl.style.zIndex = '40';
+                             markerEl.addEventListener('mouseenter', () => { map.getCanvas().style.cursor = 'pointer'; });
+                             markerEl.addEventListener('mouseleave', () => { map.getCanvas().style.cursor = 'grab'; });
+                             markerEl.addEventListener('click', () => {
                                if (window.chrome && window.chrome.webview && m.id) {
                                  window.chrome.webview.postMessage(String(m.id));
                                }
@@ -933,7 +1111,9 @@ internal static class MapHtmlDocumentBuilder
 
                          window.gawelaSetCompanyMarker = function(company) {
                            if (!company || typeof company.lat !== 'number' || typeof company.lon !== 'number') return;
-                             const popup = new ttSdk.Popup({ offset: 24 }).setHTML(`<b>${company.name || 'Firma'}</b><br/>${company.address || ''}`);
+                             const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
+                               createScaledPopupHtml(`<b>${company.name || 'Firma'}</b><br/>${company.address || ''}`)
+                             );
                            const marker = new ttSdk.Marker({ element: buildCompanyMarkerElement(), anchor: 'center' })
                              .setLngLat([company.lon, company.lat])
                              .setPopup(popup)
@@ -961,6 +1141,7 @@ internal static class MapHtmlDocumentBuilder
 
                            if (!Array.isArray(routeStops) || routeStops.length === 0) {
                              ensureRouteLayer([], routeColor);
+                             clearTrafficRouteLayers();
                              return;
                            }
 
@@ -975,22 +1156,40 @@ internal static class MapHtmlDocumentBuilder
                            routeStops.forEach(stop => {
                              if (!stop || typeof stop.lat !== 'number' || typeof stop.lon !== 'number') return;
 
-                             const popup = new ttSdk.Popup({ offset: 24 }).setHTML(`Route stop ${stop.label || stop.position || '?'}<br/>Order: ${stop.id || ''}`);
+                             const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
+                               createScaledPopupHtml(`Route stop ${stop.label || stop.position || '?'}<br/>Order: ${stop.id || ''}`)
+                             );
                              const marker = new ttSdk.Marker({ element: buildMarkerElement(stop, true), draggable: true, anchor: 'center' })
                                .setLngLat([stop.lon, stop.lat])
                                .setPopup(popup)
                                .addTo(map);
-
-                             marker.getElement().addEventListener('click', () => {
-                               if (window.chrome && window.chrome.webview && stop.id) {
-                                 window.chrome.webview.postMessage(`routeSelect:${stop.id}`);
-                               }
+                             const markerEl = marker.getElement();
+                             markerEl.style.cursor = 'pointer';
+                             markerEl.style.pointerEvents = 'auto';
+                             markerEl.style.zIndex = '45';
+                             markerEl.addEventListener('mouseenter', () => { map.getCanvas().style.cursor = 'pointer'; });
+                             markerEl.addEventListener('mouseleave', () => { map.getCanvas().style.cursor = 'grab'; });
+                             let dragMoved = false;
+                             marker.on('dragstart', () => {
+                               dragMoved = false;
+                               markerEl.style.cursor = 'grabbing';
                              });
-
+                             marker.on('drag', () => {
+                               dragMoved = true;
+                             });
                              marker.on('dragend', () => {
+                               markerEl.style.cursor = 'pointer';
                                const p = marker.getLngLat();
                                if (window.chrome && window.chrome.webview && stop.id) {
                                  window.chrome.webview.postMessage(`move:${stop.id}:${p.lat.toFixed(6)}:${p.lng.toFixed(6)}`);
+                               }
+                             });
+                             markerEl.addEventListener('click', () => {
+                               if (dragMoved) {
+                                 return;
+                               }
+                               if (window.chrome && window.chrome.webview && stop.id) {
+                                 window.chrome.webview.postMessage(`routeSelect:${stop.id}`);
                                }
                              });
 
@@ -1004,7 +1203,10 @@ internal static class MapHtmlDocumentBuilder
                            if (!marker) return;
                            map.easeTo({ center: marker.getLngLat(), duration: 350 });
                            const popup = marker.getPopup();
-                           if (popup) popup.addTo(map);
+                           if (popup) {
+                             popup.addTo(map);
+                             scalePopupElement(popup);
+                           }
                          };
 
                          window.gawelaHighlightRouteStop = function(orderId) {
@@ -1012,7 +1214,10 @@ internal static class MapHtmlDocumentBuilder
                            if (!marker) return;
                            map.easeTo({ center: marker.getLngLat(), duration: 350 });
                            const popup = marker.getPopup();
-                           if (popup) popup.addTo(map);
+                           if (popup) {
+                             popup.addTo(map);
+                             scalePopupElement(popup);
+                           }
                          };
 
                          window.gawelaSetRouteInfo = function(text) {
@@ -1059,30 +1264,25 @@ internal static class MapHtmlDocumentBuilder
                            plannedTourOverlaySelectedId = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
                            applyPlannedTourOverlayHighlight();
                          };
+                         const scalePopupElement = function() {};
+
                          window.gawelaSetAllMarkerPopupsVisible = function(visible) {
                            routePopupVisible = !!visible;
                            mapMarkers.forEach(m => {
                              const p = m.getPopup();
                              if (!p) return;
-                             if (routePopupVisible) p.addTo(map);
-                             else p.remove();
+                             if (routePopupVisible) {
+                               p.addTo(map);
+                               scalePopupElement(p);
+                             }
+                             else {
+                               p.remove();
+                             }
                            });
                          };
                          window.gawelaSetPopupSizeMultiplier = function(multiplier) {
                            const parsed = Number(multiplier);
-                           markerScale = Number.isFinite(parsed) ? Math.max(0.6, Math.min(2.4, parsed)) : 1.0;
-                           mapMarkers.forEach(m => {
-                             const el = m.getElement();
-                             if (el) {
-                               el.style.transform = `scale(${markerScale})`;
-                             }
-                           });
-                           routeMarkers.forEach(m => {
-                             const el = m.getElement();
-                             if (el) {
-                               el.style.transform = `scale(${markerScale})`;
-                             }
-                           });
+                           applyScaleVariable(parsed);
                          };
                          window.gawelaSetDetailsToggle = function() {};
                          window.gawelaMapReady = true;
@@ -1108,6 +1308,7 @@ internal static class MapHtmlDocumentBuilder
             .Replace("__TT_POI__", mapOverlayShowPoi ? "true" : "false")
             .Replace("__TT_USE_VEHICLE_DIMENSIONS__", mapOverlayUseVehicleDimensions ? "true" : "false")
             .Replace("__TT_USE_VEHICLE_WEIGHT_RESTRICTIONS__", mapOverlayUseVehicleWeightRestrictions ? "true" : "false")
+            .Replace("__TT_USE_DEPART_AT_TRAFFIC__", mapOverlayUseDepartAtTraffic ? "true" : "false")
             .Replace("__TT_TILE_CACHE__", tomTomEnableTileCache ? "true" : "false")
             .Replace("__MAP_OPTIONS_BUTTON_CONTENT__", mapOptionsButtonContent);
     }

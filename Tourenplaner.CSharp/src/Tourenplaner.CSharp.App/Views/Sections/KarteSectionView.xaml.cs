@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -40,6 +41,7 @@ public partial class KarteSectionView : UserControl
     private static readonly GridLength HiddenDetailsPanelWidth = new(0d, GridUnitType.Pixel);
     private const int DataRefreshDebounceMilliseconds = 45;
     private const int UiRefreshDebounceMilliseconds = 12;
+    private const int PinInfoCardScaleScriptThrottleMilliseconds = 16;
     private const double DetailsPanelMinWidthExpanded = 280d;
     private bool _viewInitialized;
     private bool _mapReady;
@@ -54,6 +56,9 @@ public partial class KarteSectionView : UserControl
     private int _mapRefreshRevision;
     private bool _isMapRefreshLoopRunning;
     private MapRefreshOperation _pendingMapRefresh;
+    private CancellationTokenSource? _pinInfoCardScaleThrottleCts;
+    private double _pendingPinInfoCardScale = 1.0d;
+    private double _lastAppliedPinInfoCardScale = double.NaN;
     private readonly WebViewRouteExportService _routeExportService = new();
 
     public KarteSectionView()
@@ -246,7 +251,8 @@ public partial class KarteSectionView : UserControl
             vm.TomTomShowRoadLabels,
             vm.TomTomShowPoi,
             vm.TomTomUseVehicleDimensions,
-            vm.TomTomUseVehicleWeightRestrictions);
+            vm.TomTomUseVehicleWeightRestrictions,
+            vm.TomTomUseDepartAtTraffic);
         MapWebView.NavigateToString(html);
         await Task.CompletedTask;
     }
@@ -548,7 +554,8 @@ public partial class KarteSectionView : UserControl
                 vm?.TomTomShowRoadLabels ?? true,
                 vm?.TomTomShowPoi ?? true,
                 vm?.TomTomUseVehicleDimensions ?? false,
-                vm?.TomTomUseVehicleWeightRestrictions ?? false);
+                vm?.TomTomUseVehicleWeightRestrictions ?? false,
+                vm?.TomTomUseDepartAtTraffic ?? true);
             MapWebView.NavigateToString(html);
             _mapReady = true;
             MapWebView.Visibility = Visibility.Visible;
@@ -810,7 +817,33 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        var scaleJson = JsonSerializer.Serialize(vm.PinInfoCardScale);
+        _pendingPinInfoCardScale = vm.PinInfoCardScale;
+        _pinInfoCardScaleThrottleCts?.Cancel();
+        var throttleCts = new CancellationTokenSource();
+        _pinInfoCardScaleThrottleCts = throttleCts;
+
+        try
+        {
+            await Task.Delay(PinInfoCardScaleScriptThrottleMilliseconds, throttleCts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (throttleCts.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var targetScale = _pendingPinInfoCardScale;
+        if (Math.Abs(targetScale - _lastAppliedPinInfoCardScale) < 0.0001d)
+        {
+            return;
+        }
+
+        _lastAppliedPinInfoCardScale = targetScale;
+        var scaleJson = JsonSerializer.Serialize(targetScale);
         await MapWebView.CoreWebView2.ExecuteScriptAsync(
             $"if (typeof window.gawelaSetPopupSizeMultiplier === 'function') window.gawelaSetPopupSizeMultiplier({scaleJson});");
     }
@@ -923,7 +956,8 @@ public partial class KarteSectionView : UserControl
                 var showPoi = string.Equals(parts.Length >= 5 ? parts[4] : parts[3], "1", StringComparison.Ordinal);
                 var useVehicleDimensions = parts.Length >= 6 && string.Equals(parts[5], "1", StringComparison.Ordinal);
                 var useVehicleWeightRestrictions = parts.Length >= 7 && string.Equals(parts[6], "1", StringComparison.Ordinal);
-                _ = ApplyMapOptionsFromWebAsync(vm, style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions);
+                var useDepartAtTraffic = parts.Length >= 8 ? string.Equals(parts[7], "1", StringComparison.Ordinal) : true;
+                _ = ApplyMapOptionsFromWebAsync(vm, style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions, useDepartAtTraffic);
             }
 
             return;
@@ -1004,9 +1038,10 @@ public partial class KarteSectionView : UserControl
         bool showRoadLabels,
         bool showPoi,
         bool useVehicleDimensions,
-        bool useVehicleWeightRestrictions)
+        bool useVehicleWeightRestrictions,
+        bool useDepartAtTraffic)
     {
-        await vm.UpdateMapOverlayOptionsAsync(style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions);
+        await vm.UpdateMapOverlayOptionsAsync(style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions, useDepartAtTraffic);
         if ((useVehicleDimensions && !vm.TomTomUseVehicleDimensions) ||
             (useVehicleWeightRestrictions && !vm.TomTomUseVehicleWeightRestrictions))
         {

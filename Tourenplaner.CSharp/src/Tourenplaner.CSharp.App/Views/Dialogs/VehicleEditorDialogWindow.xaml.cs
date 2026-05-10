@@ -60,12 +60,12 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
     private string _maxPayloadKgText;
     private string _maxTrailerLoadKgText;
     private string _volumeM3Text;
-    private string _externalLengthCmText;
-    private string _externalWidthCmText;
-    private string _externalHeightCmText;
-    private string _lengthCmText;
-    private string _widthCmText;
-    private string _heightCmText;
+    private string _externalLengthMetersText;
+    private string _externalWidthMetersText;
+    private string _externalHeightMetersText;
+    private string _lengthMetersText;
+    private string _widthMetersText;
+    private string _heightMetersText;
     private string _notes;
     private bool _registerOutage;
     private string _outageStartDate;
@@ -82,12 +82,12 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         _maxPayloadKgText = seed.MaxPayloadKg <= 0 ? string.Empty : seed.MaxPayloadKg.ToString(CultureInfo.InvariantCulture);
         _maxTrailerLoadKgText = seed.MaxTrailerLoadKg <= 0 ? string.Empty : seed.MaxTrailerLoadKg.ToString(CultureInfo.InvariantCulture);
         _volumeM3Text = seed.VolumeM3 <= 0 ? string.Empty : seed.VolumeM3.ToString(CultureInfo.InvariantCulture);
-        _externalLengthCmText = seed.ExternalLengthCm <= 0 ? string.Empty : seed.ExternalLengthCm.ToString(CultureInfo.InvariantCulture);
-        _externalWidthCmText = seed.ExternalWidthCm <= 0 ? string.Empty : seed.ExternalWidthCm.ToString(CultureInfo.InvariantCulture);
-        _externalHeightCmText = seed.ExternalHeightCm <= 0 ? string.Empty : seed.ExternalHeightCm.ToString(CultureInfo.InvariantCulture);
-        _lengthCmText = seed.LengthCm <= 0 ? string.Empty : seed.LengthCm.ToString(CultureInfo.InvariantCulture);
-        _widthCmText = seed.WidthCm <= 0 ? string.Empty : seed.WidthCm.ToString(CultureInfo.InvariantCulture);
-        _heightCmText = seed.HeightCm <= 0 ? string.Empty : seed.HeightCm.ToString(CultureInfo.InvariantCulture);
+        _externalLengthMetersText = FormatMetersFromCentimeters(seed.ExternalLengthCm);
+        _externalWidthMetersText = FormatMetersFromCentimeters(seed.ExternalWidthCm);
+        _externalHeightMetersText = FormatMetersFromCentimeters(seed.ExternalHeightCm);
+        _lengthMetersText = FormatMetersFromCentimeters(seed.LengthCm);
+        _widthMetersText = FormatMetersFromCentimeters(seed.WidthCm);
+        _heightMetersText = FormatMetersFromCentimeters(seed.HeightCm);
         _notes = seed.Notes ?? string.Empty;
         _registerOutage = seed.RegisterOutage;
         _outageStartDate = seed.OutageStartDate ?? string.Empty;
@@ -148,40 +148,40 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         set => SetProperty(ref _volumeM3Text, value);
     }
 
-    public string LengthCmText
+    public string LengthMetersText
     {
-        get => _lengthCmText;
-        set => SetProperty(ref _lengthCmText, value);
+        get => _lengthMetersText;
+        set => SetProperty(ref _lengthMetersText, value);
     }
 
-    public string ExternalLengthCmText
+    public string ExternalLengthMetersText
     {
-        get => _externalLengthCmText;
-        set => SetProperty(ref _externalLengthCmText, value);
+        get => _externalLengthMetersText;
+        set => SetProperty(ref _externalLengthMetersText, value);
     }
 
-    public string ExternalWidthCmText
+    public string ExternalWidthMetersText
     {
-        get => _externalWidthCmText;
-        set => SetProperty(ref _externalWidthCmText, value);
+        get => _externalWidthMetersText;
+        set => SetProperty(ref _externalWidthMetersText, value);
     }
 
-    public string ExternalHeightCmText
+    public string ExternalHeightMetersText
     {
-        get => _externalHeightCmText;
-        set => SetProperty(ref _externalHeightCmText, value);
+        get => _externalHeightMetersText;
+        set => SetProperty(ref _externalHeightMetersText, value);
     }
 
-    public string WidthCmText
+    public string WidthMetersText
     {
-        get => _widthCmText;
-        set => SetProperty(ref _widthCmText, value);
+        get => _widthMetersText;
+        set => SetProperty(ref _widthMetersText, value);
     }
 
-    public string HeightCmText
+    public string HeightMetersText
     {
-        get => _heightCmText;
-        set => SetProperty(ref _heightCmText, value);
+        get => _heightMetersText;
+        set => SetProperty(ref _heightMetersText, value);
     }
 
     public string Notes
@@ -244,32 +244,32 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
             return false;
         }
 
-        if (!TryParseNonNegative(ExternalLengthCmText, out var externalLengthCm, out error))
+        if (!TryParseMetersAsCentimeters(ExternalLengthMetersText, out var externalLengthCm, out error))
         {
             return false;
         }
 
-        if (!TryParseNonNegative(ExternalWidthCmText, out var externalWidthCm, out error))
+        if (!TryParseMetersAsCentimeters(ExternalWidthMetersText, out var externalWidthCm, out error))
         {
             return false;
         }
 
-        if (!TryParseNonNegative(ExternalHeightCmText, out var externalHeightCm, out error))
+        if (!TryParseMetersAsCentimeters(ExternalHeightMetersText, out var externalHeightCm, out error))
         {
             return false;
         }
 
-        if (!TryParseNonNegative(LengthCmText, out var lengthCm, out error))
+        if (!TryParseMetersAsCentimeters(LengthMetersText, out var lengthCm, out error))
         {
             return false;
         }
 
-        if (!TryParseNonNegative(WidthCmText, out var widthCm, out error))
+        if (!TryParseMetersAsCentimeters(WidthMetersText, out var widthCm, out error))
         {
             return false;
         }
 
-        if (!TryParseNonNegative(HeightCmText, out var heightCm, out error))
+        if (!TryParseMetersAsCentimeters(HeightMetersText, out var heightCm, out error))
         {
             return false;
         }
@@ -329,6 +329,38 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
             return false;
         }
 
+        return true;
+    }
+
+    private static string FormatMetersFromCentimeters(int centimeters)
+    {
+        if (centimeters <= 0)
+        {
+            return string.Empty;
+        }
+
+        var meters = centimeters / 100d;
+        return meters.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private static bool TryParseMetersAsCentimeters(string raw, out int centimeters, out string error)
+    {
+        error = string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            centimeters = 0;
+            return true;
+        }
+
+        var normalized = raw.Trim().Replace(',', '.');
+        if (!double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var meters) || meters < 0d)
+        {
+            centimeters = 0;
+            error = "Bitte nur nicht-negative Zahlen in Metern eingeben (z.B. 2.2).";
+            return false;
+        }
+
+        centimeters = (int)Math.Round(meters * 100d, MidpointRounding.AwayFromZero);
         return true;
     }
 

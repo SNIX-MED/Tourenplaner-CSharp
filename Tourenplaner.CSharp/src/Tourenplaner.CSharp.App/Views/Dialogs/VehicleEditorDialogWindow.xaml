@@ -82,28 +82,28 @@
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Volumen (m3)" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding VolumeM3Text, UpdateSourceTrigger=PropertyChanged}" />
 
-                <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Aussenmasse (L x B x H in cm)" />
+                <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Aussenmasse (L x B x H in m)" />
                 <Grid Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" Margin="0,0,6,0" Height="38" Text="{Binding ExternalLengthCmText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBox Grid.Column="1" Margin="6,0,6,0" Height="38" Text="{Binding ExternalWidthCmText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBox Grid.Column="2" Margin="6,0,0,0" Height="38" Text="{Binding ExternalHeightCmText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="0" Margin="0,0,6,0" Height="38" Text="{Binding ExternalLengthMetersText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="1" Margin="6,0,6,0" Height="38" Text="{Binding ExternalWidthMetersText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="2" Margin="6,0,0,0" Height="38" Text="{Binding ExternalHeightMetersText, UpdateSourceTrigger=PropertyChanged}" />
                 </Grid>
 
-                <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Ladefläche (L x B x H in cm)" />
+                <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Ladefläche (L x B x H in m)" />
                 <Grid Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" Margin="0,0,6,0" Height="38" Text="{Binding LengthCmText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBox Grid.Column="1" Margin="6,0,6,0" Height="38" Text="{Binding WidthCmText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBox Grid.Column="2" Margin="6,0,0,0" Height="38" Text="{Binding HeightCmText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="0" Margin="0,0,6,0" Height="38" Text="{Binding LengthMetersText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="1" Margin="6,0,6,0" Height="38" Text="{Binding WidthMetersText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Column="2" Margin="6,0,0,0" Height="38" Text="{Binding HeightMetersText, UpdateSourceTrigger=PropertyChanged}" />
                 </Grid>
 
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Notizen" />
@@ -161,3 +161,4 @@
         </ScrollViewer>
     </Border>
 </Window>
+

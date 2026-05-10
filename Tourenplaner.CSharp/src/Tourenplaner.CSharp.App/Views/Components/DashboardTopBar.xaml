@@ -477,7 +477,7 @@
                                     <Slider Grid.Column="0"
                                             Minimum="0.7"
                                             Maximum="1.8"
-                                            TickFrequency="0.05"
+                                            TickFrequency="0.01"
                                             IsSnapToTickEnabled="False"
                                             VerticalAlignment="Center"
                                             ToolTip="Groesse der Infokarten (Doppelklick = Standardgroesse)"

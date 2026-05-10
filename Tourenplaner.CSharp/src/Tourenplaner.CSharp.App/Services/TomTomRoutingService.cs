@@ -124,7 +124,135 @@ public sealed class TomTomRoutingService
             var geometry = new List<GeoPoint>();
             var legs = new List<OsrmRouteLeg>();
             var trafficSegments = new List<OsrmRouteTrafficSegment>();
+            static string ResolveTrafficLevel(JsonElement section)
+            {
+                var trafficLevel = "unknown";
+                if (section.TryGetProperty("simpleCategory", out var categoryElement) && categoryElement.ValueKind == JsonValueKind.String)
+                {
+                    var rawCategory = (categoryElement.GetString() ?? string.Empty).Trim().ToLowerInvariant();
+                    var normalizedCategory = rawCategory
+                        .Replace("_", string.Empty, StringComparison.Ordinal)
+                        .Replace("-", string.Empty, StringComparison.Ordinal)
+                        .Replace(" ", string.Empty, StringComparison.Ordinal);
+                    trafficLevel = normalizedCategory switch
+                    {
+                        "roadclosure" => "blocked",
+                        "closed" => "blocked",
+                        "jam" => "blocked",
+                        "jammed" => "blocked",
+                        "stationary" => "blocked",
+                        "heavilycongested" => "blocked",
+                        "congested" => "heavy",
+                        "stopandgo" => "heavy",
+                        "slow" => "light",
+                        "freeflow" => "freeFlow",
+                        "open" => "freeFlow",
+                        "none" => "unknown",
+                        _ => "unknown"
+                    };
+                }
+
+                if (string.Equals(trafficLevel, "unknown", StringComparison.OrdinalIgnoreCase) &&
+                    section.TryGetProperty("delayInSeconds", out var delaySecondsElement) &&
+                    delaySecondsElement.ValueKind == JsonValueKind.Number)
+                {
+                    var delaySeconds = delaySecondsElement.GetDouble();
+                    trafficLevel = delaySeconds switch
+                    {
+                        <= 20d => "freeFlow",
+                        <= 90d => "light",
+                        <= 240d => "moderate",
+                        <= 420d => "heavy",
+                        _ => "blocked"
+                    };
+                }
+
+                if (string.Equals(trafficLevel, "unknown", StringComparison.OrdinalIgnoreCase) &&
+                    section.TryGetProperty("magnitudeOfDelay", out var delayMagnitudeElement) &&
+                    delayMagnitudeElement.ValueKind == JsonValueKind.Number)
+                {
+                    var magnitude = delayMagnitudeElement.GetInt32();
+                    trafficLevel = magnitude switch
+                    {
+                        <= 0 => "freeFlow",
+                        1 => "light",
+                        2 => "heavy",
+                        3 => "blocked",
+                        _ => "blocked"
+                    };
+                }
+
+                if (string.Equals(trafficLevel, "unknown", StringComparison.OrdinalIgnoreCase) &&
+                    section.TryGetProperty("effectiveSpeedInKmh", out var speedElement) && speedElement.ValueKind == JsonValueKind.Number)
+                {
+                    var speed = speedElement.GetDouble();
+                    trafficLevel = speed switch
+                    {
+                        >= 70 => "freeFlow",
+                        >= 40 => "light",
+                        >= 20 => "moderate",
+                        _ => "heavy"
+                    };
+                }
+
+                return trafficLevel;
+            }
+
+            static bool TryAppendTrafficSection(
+                JsonElement section,
+                int rawIndexOffset,
+                bool usesLocalLegIndices,
+                IReadOnlyList<int> rawToRouteIndexMap,
+                List<OsrmRouteTrafficSegment> target)
+            {
+                if (!section.TryGetProperty("sectionType", out var sectionTypeElement) ||
+                    sectionTypeElement.ValueKind != JsonValueKind.String ||
+                    !string.Equals(sectionTypeElement.GetString(), "TRAFFIC", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                if (!section.TryGetProperty("startPointIndex", out var startIndexElement) ||
+                    !section.TryGetProperty("endPointIndex", out var endIndexElement) ||
+                    startIndexElement.ValueKind != JsonValueKind.Number ||
+                    endIndexElement.ValueKind != JsonValueKind.Number)
+                {
+                    return false;
+                }
+
+                var localStartIndex = startIndexElement.GetInt32();
+                var localEndIndex = endIndexElement.GetInt32();
+                var rawStartIndex = (usesLocalLegIndices ? rawIndexOffset : 0) + localStartIndex;
+                var rawEndIndex = (usesLocalLegIndices ? rawIndexOffset : 0) + localEndIndex;
+                if (rawStartIndex < 0 || rawEndIndex <= rawStartIndex || rawToRouteIndexMap.Count < 2)
+                {
+                    return false;
+                }
+
+                var maxRawIndex = rawToRouteIndexMap.Count - 1;
+                var clampedRawStart = Math.Min(maxRawIndex - 1, Math.Max(0, rawStartIndex));
+                var clampedRawEnd = Math.Min(maxRawIndex, Math.Max(clampedRawStart + 1, rawEndIndex));
+                var maxRouteIndex = rawToRouteIndexMap.Max();
+                if (maxRouteIndex < 1)
+                {
+                    return false;
+                }
+
+                var clampedStart = Math.Min(maxRouteIndex - 1, Math.Max(0, rawToRouteIndexMap[clampedRawStart]));
+                var clampedEnd = Math.Min(maxRouteIndex, Math.Max(clampedStart + 1, rawToRouteIndexMap[clampedRawEnd]));
+                if (clampedEnd <= clampedStart)
+                {
+                    return false;
+                }
+
+                var trafficLevel = ResolveTrafficLevel(section);
+                target.Add(new OsrmRouteTrafficSegment(clampedStart, clampedEnd, trafficLevel));
+                return true;
+            }
+
             var legIndex = 0;
+            var rawToRouteIndexMap = new List<int>();
+            var rawPointIndexOffset = 0;
             foreach (var leg in legsElement.EnumerateArray())
             {
                 var durationMinutes = 0;
@@ -143,7 +271,6 @@ public sealed class TomTomRoutingService
                 }
 
                 legs.Add(new OsrmRouteLeg(durationMinutes, distanceKm));
-
                 if (!leg.TryGetProperty("points", out var points) || points.ValueKind != JsonValueKind.Array)
                 {
                     legIndex++;
@@ -153,11 +280,13 @@ public sealed class TomTomRoutingService
                 var pointIndex = 0;
                 foreach (var point in points.EnumerateArray())
                 {
+                    var routePointIndex = geometry.Count - 1;
                     if (!point.TryGetProperty("latitude", out var latElement) ||
                         !point.TryGetProperty("longitude", out var lonElement) ||
                         latElement.ValueKind != JsonValueKind.Number ||
                         lonElement.ValueKind != JsonValueKind.Number)
                     {
+                        rawToRouteIndexMap.Add(Math.Max(0, routePointIndex));
                         pointIndex++;
                         continue;
                     }
@@ -165,14 +294,31 @@ public sealed class TomTomRoutingService
                     // Skip duplicated waypoint at leg boundary.
                     if (legIndex > 0 && pointIndex == 0)
                     {
+                        rawToRouteIndexMap.Add(Math.Max(0, routePointIndex));
                         pointIndex++;
                         continue;
                     }
 
                     geometry.Add(new GeoPoint(latElement.GetDouble(), lonElement.GetDouble()));
+                    routePointIndex = geometry.Count - 1;
+                    rawToRouteIndexMap.Add(routePointIndex);
                     pointIndex++;
                 }
 
+                if (leg.TryGetProperty("sections", out var legSectionsElement) && legSectionsElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var section in legSectionsElement.EnumerateArray())
+                    {
+                        _ = TryAppendTrafficSection(
+                            section,
+                            rawPointIndexOffset,
+                            usesLocalLegIndices: true,
+                            rawToRouteIndexMap,
+                            trafficSegments);
+                    }
+                }
+
+                rawPointIndexOffset += points.GetArrayLength();
                 legIndex++;
             }
 
@@ -180,107 +326,12 @@ public sealed class TomTomRoutingService
             {
                 foreach (var section in sectionsElement.EnumerateArray())
                 {
-                    if (!section.TryGetProperty("sectionType", out var sectionTypeElement) ||
-                        sectionTypeElement.ValueKind != JsonValueKind.String ||
-                        !string.Equals(sectionTypeElement.GetString(), "TRAFFIC", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    if (!section.TryGetProperty("startPointIndex", out var startIndexElement) ||
-                        !section.TryGetProperty("endPointIndex", out var endIndexElement) ||
-                        startIndexElement.ValueKind != JsonValueKind.Number ||
-                        endIndexElement.ValueKind != JsonValueKind.Number)
-                    {
-                        continue;
-                    }
-
-                    var startIndex = startIndexElement.GetInt32();
-                    var endIndex = endIndexElement.GetInt32();
-                    if (startIndex < 0 || endIndex <= startIndex || geometry.Count < 2)
-                    {
-                        continue;
-                    }
-
-                    var maxPointIndex = geometry.Count - 1;
-                    var clampedStart = Math.Min(maxPointIndex - 1, Math.Max(0, startIndex));
-                    var clampedEnd = Math.Min(maxPointIndex, Math.Max(clampedStart + 1, endIndex));
-                    if (clampedEnd <= clampedStart)
-                    {
-                        continue;
-                    }
-
-                    var trafficLevel = "unknown";
-                    if (section.TryGetProperty("simpleCategory", out var categoryElement) && categoryElement.ValueKind == JsonValueKind.String)
-                    {
-                        var rawCategory = (categoryElement.GetString() ?? string.Empty).Trim().ToLowerInvariant();
-                        var normalizedCategory = rawCategory
-                            .Replace("_", string.Empty, StringComparison.Ordinal)
-                            .Replace("-", string.Empty, StringComparison.Ordinal)
-                            .Replace(" ", string.Empty, StringComparison.Ordinal);
-                        trafficLevel = normalizedCategory switch
-                        {
-                            "roadclosure" => "blocked",
-                            "closed" => "blocked",
-                            "jam" => "heavy",
-                            "jammed" => "heavy",
-                            "stationary" => "heavy",
-                            "heavilycongested" => "heavy",
-                            "congested" => "moderate",
-                            "stopandgo" => "moderate",
-                            "slow" => "light",
-                            "freeflow" => "freeFlow",
-                            "open" => "freeFlow",
-                            "none" => "unknown",
-                            _ => "unknown"
-                        };
-                    }
-
-                    if (string.Equals(trafficLevel, "unknown", StringComparison.OrdinalIgnoreCase) &&
-                        section.TryGetProperty("delayInSeconds", out var delaySecondsElement) &&
-                        delaySecondsElement.ValueKind == JsonValueKind.Number)
-                    {
-                        var delaySeconds = delaySecondsElement.GetDouble();
-                        trafficLevel = delaySeconds switch
-                        {
-                            <= 10d => "freeFlow",
-                            <= 60d => "light",
-                            <= 180d => "moderate",
-                            <= 480d => "heavy",
-                            _ => "blocked"
-                        };
-                    }
-
-                    if (string.Equals(trafficLevel, "unknown", StringComparison.OrdinalIgnoreCase) &&
-                        section.TryGetProperty("magnitudeOfDelay", out var delayMagnitudeElement) &&
-                        delayMagnitudeElement.ValueKind == JsonValueKind.Number)
-                    {
-                        var magnitude = delayMagnitudeElement.GetInt32();
-                        trafficLevel = magnitude switch
-                        {
-                            <= 0 => "freeFlow",
-                            1 => "light",
-                            2 => "moderate",
-                            3 => "heavy",
-                            _ => "heavy"
-                        };
-                    }
-
-                    if (string.Equals(trafficLevel, "unknown", StringComparison.OrdinalIgnoreCase) &&
-                        section.TryGetProperty("effectiveSpeedInKmh", out var speedElement) && speedElement.ValueKind == JsonValueKind.Number)
-                    {
-                        // Last-resort fallback only: city routes can have low absolute speed without traffic jam.
-                        var speed = speedElement.GetDouble();
-                        trafficLevel = speed switch
-                        {
-                            >= 70 => "freeFlow",
-                            >= 40 => "light",
-                            >= 20 => "moderate",
-                            _ => "heavy"
-                        };
-                    }
-
-                    trafficSegments.Add(new OsrmRouteTrafficSegment(clampedStart, clampedEnd, trafficLevel));
+                    _ = TryAppendTrafficSection(
+                        section,
+                        rawIndexOffset: 0,
+                        usesLocalLegIndices: false,
+                        rawToRouteIndexMap,
+                        trafficSegments);
                 }
             }
 

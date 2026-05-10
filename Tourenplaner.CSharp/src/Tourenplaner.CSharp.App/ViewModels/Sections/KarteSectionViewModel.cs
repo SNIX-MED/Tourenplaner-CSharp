@@ -99,6 +99,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _tomTomShowPoi = true;
     private bool _tomTomUseVehicleDimensions;
     private bool _tomTomUseVehicleWeightRestrictions;
+    private bool _tomTomUseDepartAtTraffic = true;
     private string _tomTomMapOverlayStyle = AppSettings.DefaultMapOverlayStyle;
     private int _tomTomTrafficRefreshSeconds = AppSettings.DefaultTomTomTrafficRefreshSeconds;
     private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
@@ -806,6 +807,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             _tomTomShowPoi = userPreference.ShowPoi;
             _tomTomUseVehicleDimensions = userPreference.UseVehicleDimensions;
             _tomTomUseVehicleWeightRestrictions = userPreference.UseVehicleWeightRestrictions;
+            _tomTomUseDepartAtTraffic = userPreference.UseDepartAtTraffic;
         }
         else
         {
@@ -815,6 +817,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             _tomTomShowPoi = true;
             _tomTomUseVehicleDimensions = false;
             _tomTomUseVehicleWeightRestrictions = false;
+            _tomTomUseDepartAtTraffic = true;
         }
         _tomTomRoutingService = CreateTomTomRoutingService(_tomTomApiKey, _tomTomRoutingMode, _tomTomVehicleHeightMeters);
         OnPropertyChanged(nameof(TomTomApiKey));
@@ -825,6 +828,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(TomTomShowPoi));
         OnPropertyChanged(nameof(TomTomUseVehicleDimensions));
         OnPropertyChanged(nameof(TomTomUseVehicleWeightRestrictions));
+        OnPropertyChanged(nameof(TomTomUseDepartAtTraffic));
         OnPropertyChanged(nameof(TomTomMapOverlayStyle));
         OnPropertyChanged(nameof(TomTomTrafficRefreshSeconds));
         OnPropertyChanged(nameof(TomTomRouteRecalcDebounceMs));
@@ -937,6 +941,7 @@ public bool TomTomShowRoadLabels => _tomTomShowRoadLabels;
 public bool TomTomShowPoi => _tomTomShowPoi;
 public bool TomTomUseVehicleDimensions => _tomTomUseVehicleDimensions;
 public bool TomTomUseVehicleWeightRestrictions => _tomTomUseVehicleWeightRestrictions;
+public bool TomTomUseDepartAtTraffic => _tomTomUseDepartAtTraffic;
 public string TomTomMapOverlayStyle => _tomTomMapOverlayStyle;
 public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs => _tomTomRouteRecalcDebounceMs;
@@ -5333,7 +5338,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         return CreateTomTomRoutingService(_tomTomApiKey, _tomTomRoutingMode, _tomTomVehicleHeightMeters);
     }
 
-    public async Task UpdateMapOverlayOptionsAsync(string style, bool showTrafficFlow, bool showTrafficIncidents, bool showRoadLabels, bool showPoi, bool useVehicleDimensions, bool useVehicleWeightRestrictions)
+    public async Task UpdateMapOverlayOptionsAsync(string style, bool showTrafficFlow, bool showTrafficIncidents, bool showRoadLabels, bool showPoi, bool useVehicleDimensions, bool useVehicleWeightRestrictions, bool useDepartAtTraffic)
     {
         if ((useVehicleDimensions || useVehicleWeightRestrictions) && !HasAssignedPrimaryVehicle())
         {
@@ -5398,6 +5403,13 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             changed = true;
         }
 
+        if (_tomTomUseDepartAtTraffic != useDepartAtTraffic)
+        {
+            _tomTomUseDepartAtTraffic = useDepartAtTraffic;
+            OnPropertyChanged(nameof(TomTomUseDepartAtTraffic));
+            changed = true;
+        }
+
         if (!changed)
         {
             return;
@@ -5414,7 +5426,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             ShowRoadLabels = showRoadLabels,
             ShowPoi = showPoi,
             UseVehicleDimensions = useVehicleDimensions,
-            UseVehicleWeightRestrictions = useVehicleWeightRestrictions
+            UseVehicleWeightRestrictions = useVehicleWeightRestrictions,
+            UseDepartAtTraffic = useDepartAtTraffic
         };
         await _settingsRepository.SaveAsync(settings);
         RequestRouteGeometryRebuild();
@@ -5481,10 +5494,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 .ToList();
             var waypoints = validStops.Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
             var plannedDeparture = BuildPlannedDepartureDateTime();
-            var routeSignature = BuildRouteSignature(waypoints, plannedDeparture);
-            var departAtText = plannedDeparture.HasValue
-                ? plannedDeparture.Value.ToString("HH:mm", CultureInfo.InvariantCulture)
-                : "n/a";
+            var trafficDeparture = _tomTomUseDepartAtTraffic ? plannedDeparture : null;
+            var routeSignature = BuildRouteSignature(waypoints, trafficDeparture);
 
             IReadOnlyList<GeoPoint> geometry = Array.Empty<GeoPoint>();
             IReadOnlyList<OsrmRouteLeg> legs = Array.Empty<OsrmRouteLeg>();
@@ -5502,7 +5513,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 }
                 else
                 {
-                var loadedFromPersistentCache = TryLoadRouteComputationCache(routeSignature, plannedDeparture, out var cachedGeometry, out var cachedLegs, out var cachedTrafficSegments, out var cachedSource);
+                var loadedFromPersistentCache = TryLoadRouteComputationCache(routeSignature, trafficDeparture, out var cachedGeometry, out var cachedLegs, out var cachedTrafficSegments, out var cachedSource);
                 if (loadedFromPersistentCache)
                 {
                     geometry = cachedGeometry;
@@ -5515,11 +5526,12 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 else
                 {
                     var needsRemoteRefresh = !string.Equals(routeSignature, _lastRouteSignature, StringComparison.Ordinal) ||
-                                             DateTime.UtcNow - _lastRouteProviderCallUtc >= TimeSpan.FromSeconds(Math.Max(15, _tomTomTrafficRefreshSeconds));
+                                             DateTime.UtcNow - _lastRouteProviderCallUtc >= TimeSpan.FromSeconds(Math.Max(15, _tomTomTrafficRefreshSeconds)) ||
+                                             _routeTrafficSegments.Count == 0;
 
                     if (needsRemoteRefresh)
                     {
-                        var tomTomResult = await activeRoutingService.TryBuildRouteWithLegsAsync(waypoints, plannedDeparture, cancellationToken);
+                        var tomTomResult = await activeRoutingService.TryBuildRouteWithLegsAsync(waypoints, trafficDeparture, cancellationToken);
                         if (tomTomResult.GeometryPoints.Count >= 2 && tomTomResult.Legs.Count == waypoints.Count - 1)
                         {
                             geometry = tomTomResult.GeometryPoints;
@@ -5580,12 +5592,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             _timedStops.Clear();
             _timedStops.AddRange(validStops);
             var routeVehicle = ResolvePrimaryAssignedVehicle();
-            var routingModeText = (_tomTomUseVehicleDimensions || _tomTomUseVehicleWeightRestrictions)
-                ? $"Fahrzeugrestriktionen (Masse: {(_tomTomUseVehicleDimensions ? "an" : "aus")}, Gewicht: {(_tomTomUseVehicleWeightRestrictions ? "an" : "aus")})"
-                : string.Equals(_tomTomRoutingMode, "heightAware", StringComparison.OrdinalIgnoreCase)
-                    ? $"heightAware ({_tomTomVehicleHeightMeters:0.##} m)"
-                    : "car";
-            RoutingProviderStatusText = $"Routing: {routingSource} | Modus: {routingModeText} | Abfahrt berücksichtigt: {departAtText} | Traffic-Segmente: {_routeTrafficSegments.Count}";
+            RoutingProviderStatusText = $"Routing: {routingSource} | Masse: {(_tomTomUseVehicleDimensions ? "an" : "aus")} | Gewicht: {(_tomTomUseVehicleWeightRestrictions ? "an" : "aus")} | Traffic-Segmente: {_routeTrafficSegments.Count}";
             OnPropertyChanged(nameof(RouteGeometryPoints));
             RefreshDriveTimesFromCurrentRoute();
         }
@@ -5602,11 +5609,30 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
     }
 
-    private static string BuildRouteSignature(IReadOnlyList<GeoPoint> waypoints, DateTimeOffset? plannedDeparture)
+    private string BuildRouteSignature(IReadOnlyList<GeoPoint> waypoints, DateTimeOffset? plannedDeparture)
     {
         var path = string.Join("|", waypoints.Select(x => $"{x.Latitude:F6},{x.Longitude:F6}"));
         var departAt = plannedDeparture?.ToString("yyyy-MM-ddTHH:mm:ssK", CultureInfo.InvariantCulture) ?? "none";
-        return $"{path}#departAt={departAt}#trafficV2";
+        var vehicle = ResolvePrimaryAssignedVehicle();
+        var dimensions = vehicle?.ExternalDimensions;
+
+        var vehicleLengthMeters = _tomTomUseVehicleDimensions
+            ? Math.Clamp((dimensions?.LengthCm ?? 0) / 100d, 0d, 50d)
+            : 0d;
+        var vehicleWidthMeters = _tomTomUseVehicleDimensions
+            ? Math.Clamp((dimensions?.WidthCm ?? 0) / 100d, 0d, 10d)
+            : 0d;
+        var vehicleHeightMeters = _tomTomUseVehicleDimensions
+            ? Math.Clamp((dimensions?.HeightCm ?? 0) / 100d, 0d, 10d)
+            : 0d;
+        var vehicleWeightKg = _tomTomUseVehicleWeightRestrictions
+            ? Math.Clamp(vehicle?.GrossWeightKg ?? 0, 0, 100000)
+            : 0;
+
+        var restrictionsSignature = FormattableString.Invariant(
+            $"dims={(_tomTomUseVehicleDimensions ? 1 : 0)}:{vehicleLengthMeters:0.###},{vehicleWidthMeters:0.###},{vehicleHeightMeters:0.###};weight={(_tomTomUseVehicleWeightRestrictions ? 1 : 0)}:{vehicleWeightKg};mode={_tomTomRoutingMode};heightAware={_tomTomVehicleHeightMeters:0.###}");
+
+        return $"{path}#departAt={departAt}#trafficV2#{restrictionsSignature}";
     }
 
     private bool TryLoadRouteComputationCache(

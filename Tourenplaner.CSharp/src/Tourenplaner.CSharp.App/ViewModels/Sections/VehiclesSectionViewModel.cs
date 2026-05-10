@@ -815,12 +815,12 @@ public sealed class FleetEntryCardItem : ObservableObject
 
             if (LengthCm > 0 || WidthCm > 0 || HeightCm > 0)
             {
-                parts.Add($"Ladefläche: {LengthCm} x {WidthCm} x {HeightCm} cm");
+                parts.Add($"Ladefläche: {FormatMeters(LengthCm)} x {FormatMeters(WidthCm)} x {FormatMeters(HeightCm)} m");
             }
 
             if (ExternalLengthCm > 0 || ExternalWidthCm > 0 || ExternalHeightCm > 0)
             {
-                parts.Add($"Aussenmasse: {ExternalLengthCm} x {ExternalWidthCm} x {ExternalHeightCm} cm");
+                parts.Add($"Aussenmasse: {FormatMeters(ExternalLengthCm)} x {FormatMeters(ExternalWidthCm)} x {FormatMeters(ExternalHeightCm)} m");
             }
 
             if (!string.IsNullOrWhiteSpace(NextUnavailabilityText))
@@ -830,6 +830,12 @@ public sealed class FleetEntryCardItem : ObservableObject
 
             return string.Join(" | ", parts);
         }
+    }
+
+    private static string FormatMeters(int centimeters)
+    {
+        var meters = Math.Max(0, centimeters) / 100d;
+        return meters.ToString("0.##");
     }
 }
 
@@ -847,3 +853,4 @@ public sealed record VehicleCombinationOption(string Id, string Label)
         return Label;
     }
 }
+
