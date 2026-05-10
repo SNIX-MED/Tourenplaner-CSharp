@@ -1414,6 +1414,8 @@
                                       Grid.Column="0"
                                       Width="40"
                                       Height="40"
+                                      PreviewMouseLeftButtonDown="UserSelectionButton_PreviewMouseLeftButtonDown"
+                                      Click="UserSelectionButton_Click"
                                       ToolTip="{Binding CurrentUserName}"
                                       Background="{DynamicResource Brush.ButtonBackground}"
                                       BorderBrush="{DynamicResource Brush.ButtonBorder}"
@@ -1453,11 +1455,12 @@
                                        FontSize="16"
                                        Text="&#xE716;" />
                         </ToggleButton>
-                        <Popup PlacementTarget="{Binding ElementName=UserSelectionButton}"
+                        <Popup x:Name="UserSelectionPopup"
+                               PlacementTarget="{Binding ElementName=UserSelectionButton}"
                                Placement="Bottom"
                                StaysOpen="False"
                                AllowsTransparency="True"
-                               IsOpen="{Binding IsChecked, ElementName=UserSelectionButton, Mode=TwoWay}">
+                               Closed="UserSelectionPopup_Closed">
                             <Border Style="{StaticResource SoftCardStyle}"
                                     Margin="0,8,0,0"
                                     Padding="10"

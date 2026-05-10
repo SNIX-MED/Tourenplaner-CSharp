@@ -9,6 +9,8 @@ namespace Tourenplaner.CSharp.App.Views.Components;
 
 public partial class DashboardTopBar : UserControl
 {
+    private bool _suppressNextUserSelectionClick;
+
     public DashboardTopBar()
     {
         InitializeComponent();
@@ -30,6 +32,44 @@ public partial class DashboardTopBar : UserControl
 
         button.IsChecked = false;
         e.Handled = true;
+    }
+
+    private void UserSelectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ToggleButton)
+        {
+            return;
+        }
+
+        if (_suppressNextUserSelectionClick)
+        {
+            _suppressNextUserSelectionClick = false;
+            UserSelectionButton.IsChecked = false;
+            e.Handled = true;
+            return;
+        }
+
+        UserSelectionPopup.IsOpen = !UserSelectionPopup.IsOpen;
+        UserSelectionButton.IsChecked = UserSelectionPopup.IsOpen;
+        e.Handled = true;
+    }
+
+    private void UserSelectionButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!UserSelectionPopup.IsOpen)
+        {
+            return;
+        }
+
+        UserSelectionPopup.IsOpen = false;
+        UserSelectionButton.IsChecked = false;
+        _suppressNextUserSelectionClick = true;
+        e.Handled = true;
+    }
+
+    private void UserSelectionPopup_Closed(object? sender, EventArgs e)
+    {
+        UserSelectionButton.IsChecked = false;
     }
 
     private void PinInfoCardScaleSlider_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)

@@ -1270,9 +1270,9 @@
                     </Border.Style>
                     <Border BorderBrush="{DynamicResource Brush.BorderSoft}"
                             BorderThickness="1"
-                            CornerRadius="0"
+                            CornerRadius="14"
                             Background="{DynamicResource Brush.Card}"
-                            ClipToBounds="False"
+                            ClipToBounds="True"
                             SnapsToDevicePixels="True"
                             UseLayoutRounding="True">
                         <Grid>

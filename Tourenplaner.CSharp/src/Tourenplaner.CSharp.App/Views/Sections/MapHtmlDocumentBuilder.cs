@@ -25,7 +25,8 @@ internal static class MapHtmlDocumentBuilder
                  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                  <style>
                    html, body, #map { height: 100%; margin: 0; padding: 0; }
-                   body { overflow: hidden; font-family: Segoe UI, sans-serif; background: transparent; }
+                   html, body { border-radius: 14px; overflow: hidden; }
+                   body { font-family: Segoe UI, sans-serif; background: transparent; }
                    #map { background: #f8fafc; }
                    .status { position: absolute; left: auto !important; top: auto !important; right: 10px !important; bottom: 10px !important; z-index: 1000; background: rgba(255,255,255,.9); border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 8px; font-size: 12px; color: #334155; }
                    .gawela-pin-wrap { position: relative; width: 28px; height: 28px; transform-origin: center bottom; transform: scale(var(--gawela-pin-scale, 1)); }
@@ -46,7 +47,7 @@ internal static class MapHtmlDocumentBuilder
                    .gawela-company-marker svg { width: 12px; height: 12px; fill: #ffffff; display: block; }
                    .map-options-toggle { position: absolute; right: 12px; top: 12px; z-index: 1100; border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; padding: 8px 10px; font-size: 12px; color: #0f172a; cursor: pointer; font-weight: 600; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 36px; }
                    .map-options-toggle img { display: block; width: 20px; height: 20px; object-fit: contain; }
-                   .map-options-overlay { position: absolute; right: 0; top: 0; height: 100%; width: min(340px, 84vw); z-index: 1200; background: rgba(255,255,255,.98); border-left: 1px solid #dbe3ee; transform: translateX(100%); transition: transform .22s ease; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: flex; flex-direction: column; }
+                   .map-options-overlay { position: absolute; right: 8px; top: 8px; bottom: 8px; width: min(340px, calc(84vw - 8px)); z-index: 1200; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 18px; transform: translateX(calc(100% + 10px)); transition: transform .22s ease; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: flex; flex-direction: column; overflow: hidden; }
                    .map-options-overlay.open { transform: translateX(0); }
                    .map-options-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 10px; border-bottom: 1px solid #e2e8f0; }
                    .map-options-title { font-size: 25px; font-weight: 700; color: #0f172a; margin: 0; }
@@ -262,6 +263,7 @@ internal static class MapHtmlDocumentBuilder
                          let mapMarkers = [];
                          let companyMarkers = [];
                          let routeMarkers = [];
+                         let hasAppliedInitialMarkerFit = false;
                          let routePopupVisible = false;
                          let markerScale = 1.0;
                          const applyScaleVariable = (scale) => {
@@ -1104,8 +1106,9 @@ internal static class MapHtmlDocumentBuilder
                              hasBounds = true;
                            });
 
-                           if (hasBounds) {
+                           if (hasBounds && !hasAppliedInitialMarkerFit) {
                              map.fitBounds(bounds, { padding: 24, maxZoom: 14 });
+                             hasAppliedInitialMarkerFit = true;
                            }
                          };
 
