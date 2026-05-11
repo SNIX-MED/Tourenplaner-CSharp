@@ -1414,7 +1414,6 @@
                                       Grid.Column="0"
                                       Width="40"
                                       Height="40"
-                                      PreviewMouseLeftButtonDown="UserSelectionButton_PreviewMouseLeftButtonDown"
                                       Click="UserSelectionButton_Click"
                                       ToolTip="{Binding CurrentUserName}"
                                       Background="{DynamicResource Brush.ButtonBackground}"

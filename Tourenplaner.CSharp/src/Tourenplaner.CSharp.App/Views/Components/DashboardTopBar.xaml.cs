@@ -9,7 +9,7 @@ namespace Tourenplaner.CSharp.App.Views.Components;
 
 public partial class DashboardTopBar : UserControl
 {
-    private bool _suppressNextUserSelectionClick;
+    private DateTime _suppressUserPopupReopenUntilUtc = DateTime.MinValue;
 
     public DashboardTopBar()
     {
@@ -34,44 +34,6 @@ public partial class DashboardTopBar : UserControl
         e.Handled = true;
     }
 
-    private void UserSelectionButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not ToggleButton)
-        {
-            return;
-        }
-
-        if (_suppressNextUserSelectionClick)
-        {
-            _suppressNextUserSelectionClick = false;
-            UserSelectionButton.IsChecked = false;
-            e.Handled = true;
-            return;
-        }
-
-        UserSelectionPopup.IsOpen = !UserSelectionPopup.IsOpen;
-        UserSelectionButton.IsChecked = UserSelectionPopup.IsOpen;
-        e.Handled = true;
-    }
-
-    private void UserSelectionButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (!UserSelectionPopup.IsOpen)
-        {
-            return;
-        }
-
-        UserSelectionPopup.IsOpen = false;
-        UserSelectionButton.IsChecked = false;
-        _suppressNextUserSelectionClick = true;
-        e.Handled = true;
-    }
-
-    private void UserSelectionPopup_Closed(object? sender, EventArgs e)
-    {
-        UserSelectionButton.IsChecked = false;
-    }
-
     private void PinInfoCardScaleSlider_PreviewMouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement element || element.DataContext is not KarteSectionViewModel vm)
@@ -81,6 +43,34 @@ public partial class DashboardTopBar : UserControl
 
         vm.PinInfoCardScale = 1.0d;
         e.Handled = true;
+    }
+
+    private void UserSelectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        var nowUtc = DateTime.UtcNow;
+        if (nowUtc < _suppressUserPopupReopenUntilUtc)
+        {
+            UserSelectionButton.IsChecked = false;
+            UserSelectionPopup.IsOpen = false;
+            return;
+        }
+
+        if (UserSelectionPopup.IsOpen)
+        {
+            UserSelectionPopup.IsOpen = false;
+            UserSelectionButton.IsChecked = false;
+            _suppressUserPopupReopenUntilUtc = DateTime.UtcNow.AddMilliseconds(250);
+            return;
+        }
+
+        UserSelectionPopup.IsOpen = true;
+        UserSelectionButton.IsChecked = true;
+    }
+
+    private void UserSelectionPopup_Closed(object? sender, EventArgs e)
+    {
+        UserSelectionButton.IsChecked = false;
+        _suppressUserPopupReopenUntilUtc = DateTime.UtcNow.AddMilliseconds(250);
     }
 
     private async void OnAddCalendarManualEntryClicked(object sender, RoutedEventArgs e)

@@ -44,6 +44,7 @@ public sealed class MainShellViewModel : ObservableObject
     private readonly SettingsSectionViewModel _settingsSection;
     private readonly NavigationItemViewModel _gpsNavigationItem;
     private readonly NavigationItemViewModel _spediteurNavigationItem;
+    private NavigationItemViewModel? _lastNonSettingsNavigationItem;
     private readonly HashSet<object> _activatedSections = new(ReferenceEqualityComparer.Instance);
     private bool _isSidebarCollapsed;
 
@@ -132,6 +133,7 @@ public sealed class MainShellViewModel : ObservableObject
         _settingsNavigationItem = NavigationItems.First(item => item.DisplayName == "Einstellungen");
         _gpsNavigationItem = NavigationItems.First(item => item.DisplayName == "GPS");
         _spediteurNavigationItem = NavigationItems.First(item => item.DisplayName == "Spediteur");
+        _lastNonSettingsNavigationItem = NavigationItems.FirstOrDefault(item => !ReferenceEquals(item, _settingsNavigationItem));
         SidebarNavigationItems = [];
         AvailableUserNames = [];
         ApplyToolSettingsFromSettingsSection();
@@ -225,6 +227,11 @@ public sealed class MainShellViewModel : ObservableObject
 
             if (SetProperty(ref _selectedNavigationItem, value))
             {
+                if (value is not null && !ReferenceEquals(value, _settingsNavigationItem))
+                {
+                    _lastNonSettingsNavigationItem = value;
+                }
+
                 CurrentSection = value?.Section;
                 TriggerSectionRefreshOnce(value?.Section);
             }
@@ -328,6 +335,20 @@ public sealed class MainShellViewModel : ObservableObject
 
     private void OpenSettings()
     {
+        if (ReferenceEquals(SelectedNavigationItem, _settingsNavigationItem))
+        {
+            SelectedNavigationItem = _lastNonSettingsNavigationItem
+                ?? SidebarNavigationItems.FirstOrDefault()
+                ?? NavigationItems.FirstOrDefault()
+                ?? _settingsNavigationItem;
+            return;
+        }
+
+        if (SelectedNavigationItem is not null && !ReferenceEquals(SelectedNavigationItem, _settingsNavigationItem))
+        {
+            _lastNonSettingsNavigationItem = SelectedNavigationItem;
+        }
+
         SelectedNavigationItem = _settingsNavigationItem;
     }
 

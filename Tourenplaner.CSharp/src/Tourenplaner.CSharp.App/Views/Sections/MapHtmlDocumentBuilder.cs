@@ -46,6 +46,10 @@ internal static class MapHtmlDocumentBuilder
                    .gawela-company-marker { width: 22px; height: 22px; border-radius: 50%; background: #0f766e; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; }
                    .gawela-company-marker svg { width: 12px; height: 12px; fill: #ffffff; display: block; }
                    .map-options-toggle { position: absolute; right: 12px; top: 12px; z-index: 1100; border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; padding: 8px 10px; font-size: 12px; color: #0f172a; cursor: pointer; font-weight: 600; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 36px; }
+                   .details-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 1350; width: 34px; height: 34px; border: 1px solid #c4ccda; background: #f4f6fb; border-radius: 14px; color: #475569; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; line-height: 1; box-shadow: 0 1px 2px rgba(15,23,42,.08); padding: 0; }
+                   .details-toggle.visible { display: inline-flex; }
+                   .details-toggle:hover { background: #e9edf6; border-color: #bac4d4; }
+                   .details-toggle:active { opacity: .82; }
                    .map-options-toggle img { display: block; width: 20px; height: 20px; object-fit: contain; }
                    .map-options-overlay { position: absolute; right: 8px; top: 8px; bottom: 8px; width: min(340px, calc(84vw - 8px)); z-index: 1200; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 18px; transform: translateX(calc(100% + 10px)); transition: transform .22s ease; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: flex; flex-direction: column; overflow: hidden; }
                    .map-options-overlay.open { transform: translateX(0); }
@@ -75,6 +79,7 @@ internal static class MapHtmlDocumentBuilder
                  <div id="map"></div>
                  <div id="status" class="status">Karte wird initialisiert...</div>
                  <div id="tourHoverTooltip" class="tour-hover-tooltip" aria-hidden="true"></div>
+                 <button id="detailsToggle" class="details-toggle" type="button" aria-label="Auftragsdetails umschalten">&lt;</button>
                  <button id="mapOptionsToggle" class="map-options-toggle" type="button" aria-label="Map options">__MAP_OPTIONS_BUTTON_CONTENT__</button>
                  <aside id="mapOptionsOverlay" class="map-options-overlay" aria-hidden="true">
                    <div class="map-options-header">
@@ -123,6 +128,7 @@ internal static class MapHtmlDocumentBuilder
                    const useTileCache = __TT_TILE_CACHE__;
                    window.gawelaMapReady = false;
                    const tourHoverTooltipEl = document.getElementById('tourHoverTooltip');
+                   const detailsToggleEl = document.getElementById('detailsToggle');
 
                    const statusEl = document.getElementById('status');
                    const setStatus = (t) => { if (statusEl) statusEl.textContent = t; };
@@ -142,7 +148,20 @@ internal static class MapHtmlDocumentBuilder
                    window.gawelaSetRouteInfo = function() {};
                    window.gawelaSetAllMarkerPopupsVisible = function() {};
                    window.gawelaSetPopupSizeMultiplier = function() {};
-                   window.gawelaSetDetailsToggle = function() {};
+                   window.gawelaSetDetailsToggle = function(isVisible, glyph) {
+                     if (!detailsToggleEl) return;
+                     const visible = !!isVisible;
+                     detailsToggleEl.classList.toggle('visible', visible);
+                     detailsToggleEl.setAttribute('aria-hidden', visible ? 'false' : 'true');
+                     detailsToggleEl.textContent = glyph ? String(glyph) : '<';
+                   };
+                   if (detailsToggleEl) {
+                     detailsToggleEl.addEventListener('click', () => {
+                       if (window.chrome && window.chrome.webview) {
+                         window.chrome.webview.postMessage('toggleDetails');
+                       }
+                     });
+                   }
                    window.gawelaAddToRoute = function() {};
 
                    if (!apiKey || !apiKey.trim()) {
@@ -1287,7 +1306,13 @@ internal static class MapHtmlDocumentBuilder
                            const parsed = Number(multiplier);
                            applyScaleVariable(parsed);
                          };
-                         window.gawelaSetDetailsToggle = function() {};
+                         window.gawelaSetDetailsToggle = function(isVisible, glyph) {
+                           if (!detailsToggleEl) return;
+                           const visible = !!isVisible;
+                           detailsToggleEl.classList.toggle('visible', visible);
+                           detailsToggleEl.setAttribute('aria-hidden', visible ? 'false' : 'true');
+                           detailsToggleEl.textContent = glyph ? String(glyph) : '<';
+                         };
                          window.gawelaMapReady = true;
                        } catch (err) {
                          const msg = err && err.message ? err.message : 'Unbekannter Initialisierungsfehler';
