@@ -143,13 +143,17 @@
                                          VerticalAlignment="Center"
                                          Margin="0,0,10,0"
                                          ToolTip="Ort suchen (Enter)..."
-                                         Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                         Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+                                    </TextBox.InputBindings>
+                                </TextBox>
                                 <Button Grid.Column="1"
                                         Height="40"
                                         Margin="0,0,10,0"
                                         Content="Suchen"
                                         Style="{StaticResource PrimaryButtonStyle}"
-                                        Command="{Binding RefreshCommand}" />
+                                        Command="{Binding SearchCommand}" />
                                 <TextBlock Grid.Column="2"
                                            VerticalAlignment="Center"
                                            Margin="0,0,10,0"
@@ -472,19 +476,21 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="120" />
-                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="40" />
                                     </Grid.ColumnDefinitions>
                                     <Slider Grid.Column="0"
                                             Minimum="0.7"
                                             Maximum="1.8"
                                             TickFrequency="0.01"
                                             IsSnapToTickEnabled="False"
+                                            IsMoveToPointEnabled="True"
                                             VerticalAlignment="Center"
                                             ToolTip="Groesse der Infokarten (Doppelklick = Standardgroesse)"
                                             PreviewMouseDoubleClick="PinInfoCardScaleSlider_PreviewMouseDoubleClick"
                                             Value="{Binding PinInfoCardScale, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Grid.Column="1"
                                                Margin="8,0,0,0"
+                                               HorizontalAlignment="Right"
                                                VerticalAlignment="Center"
                                                FontSize="12"
                                                FontWeight="SemiBold"

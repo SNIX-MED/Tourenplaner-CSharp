@@ -144,6 +144,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private int _routeVisualRevision;
     private DateTime _lastRouteProviderCallUtc = DateTime.MinValue;
     private string _lastRouteSignature = string.Empty;
+    private CancellationTokenSource? _pinInfoCardScaleAutoSaveCts;
     private CancellationTokenSource? _routeRebuildDebounceCts;
     private readonly string _routeComputationCachePath;
     private SavedTourLookupItem? _selectedSavedTour;
@@ -159,6 +160,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private CancellationTokenSource? _tourOverviewStartTimeAutoSaveCts;
     private string? _detailSelectedProductStatus;
     private bool _suppressDetailSelectedProductStatusApply;
+    private bool _hasTemporarySearchPin;
+    private double _temporarySearchPinLatitude;
+    private double _temporarySearchPinLongitude;
+    private string _temporarySearchPinLabel = string.Empty;
+    private int _temporarySearchPinRevision;
+    private int _searchFocusRevision;
     private readonly Guid _instanceId = Guid.NewGuid();
 
     public KarteSectionViewModel(
@@ -183,6 +190,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _routeComputationCachePath = Path.Combine(dataRoot, "route-computation-cache.json");
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
+        SearchCommand = new AsyncCommand(SearchAsync);
         AddToRouteCommand = new DelegateCommand(AddSelectedOrderToRoute, () => SelectedOrder is not null);
         AddSelectedOrdersToRouteCommand = new DelegateCommand(AddSelectedOrdersToRoute, CanAddSelectedOrdersToRoute);
         RemoveOrderFromTourCommand = new AsyncCommand(RemoveSelectedOrderFromTourAsync, CanRemoveSelectedOrderFromTour);
@@ -228,6 +236,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public ObservableCollection<SavedTourOverviewItem> TourOverviewItems { get; } = new();
 
     public ICommand RefreshCommand { get; }
+    public ICommand SearchCommand { get; }
 
     public ICommand AddToRouteCommand { get; }
 
@@ -507,9 +516,164 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             if (SetProperty(ref _pinInfoCardScale, clamped))
             {
                 OnPropertyChanged(nameof(PinInfoCardScalePercentText));
+                RequestPinInfoCardScaleSave();
             }
         }
     }
+
+    private async Task SearchAsync()
+    {
+        var query = (_searchText ?? string.Empty).Trim();
+        RebuildOrderGrid();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            ClearTemporarySearchPin();
+            return;
+        }
+
+        var localExactMatch = FindExactLocalOrderMatch(query);
+        if (localExactMatch is not null)
+        {
+            SelectedOrder = localExactMatch;
+            _searchFocusRevision++;
+            OnPropertyChanged(nameof(SearchFocusRevision));
+            ClearTemporarySearchPin();
+            StatusText = $"Auftrag {localExactMatch.OrderId} gefunden.";
+            return;
+        }
+
+        var geocoded = await AddressGeocodingService.TryGeocodeAddressAsync(
+            street: string.Empty,
+            postalCode: string.Empty,
+            city: string.Empty,
+            fallbackAddress: query,
+            tomTomApiKey: _tomTomApiKey,
+            cacheFilePath: _geocodeCachePath);
+
+        if (geocoded is not null)
+        {
+            SetTemporarySearchPin(geocoded.Latitude, geocoded.Longitude, query);
+            StatusText = $"Adresse gefunden: {query}";
+            return;
+        }
+
+        var localContainsMatch = FindBestLocalSearchMatch(query);
+        if (localContainsMatch is not null)
+        {
+            SetTemporarySearchPin(localContainsMatch.Latitude, localContainsMatch.Longitude, localContainsMatch.Address);
+            StatusText = $"Lokaler Treffer auf Karte markiert: {localContainsMatch.OrderId}";
+            return;
+        }
+
+        ClearTemporarySearchPin();
+        StatusText = $"Kein Treffer für \"{query}\" gefunden.";
+    }
+
+    private MapOrderItem? FindExactLocalOrderMatch(string query)
+    {
+        var normalized = query.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        var exact = MapOrders.FirstOrDefault(x =>
+            string.Equals((x.OrderId ?? string.Empty).Trim(), normalized, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        var orderModel = _allOrders.FirstOrDefault(x =>
+            string.Equals((x.Id ?? string.Empty).Trim(), normalized, StringComparison.OrdinalIgnoreCase));
+        if (orderModel is null)
+        {
+            return null;
+        }
+
+        return MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, orderModel.Id, StringComparison.OrdinalIgnoreCase))
+            ?? BuildMapOrderItem(orderModel);
+    }
+
+    private MapOrderItem? FindBestLocalSearchMatch(string query)
+    {
+        var normalized = query.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        var exact = MapOrders.FirstOrDefault(x =>
+            string.Equals((x.OrderId ?? string.Empty).Trim(), normalized, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        var contains = MapOrders.FirstOrDefault(x =>
+            (x.OrderId ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+            (x.Customer ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+            (x.Address ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase));
+        if (contains is not null)
+        {
+            return contains;
+        }
+
+        var orderModel = _allOrders.FirstOrDefault(x =>
+            (x.Id ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+            (x.CustomerName ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+            (x.Address ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+            (x.DeliveryAddress?.Street ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+            (x.DeliveryAddress?.PostalCode ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+            (x.DeliveryAddress?.City ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase));
+        if (orderModel is null)
+        {
+            return null;
+        }
+
+        return MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, orderModel.Id, StringComparison.OrdinalIgnoreCase))
+            ?? BuildMapOrderItem(orderModel);
+    }
+
+    private void SetTemporarySearchPin(double latitude, double longitude, string label)
+    {
+        _hasTemporarySearchPin = true;
+        _temporarySearchPinLatitude = latitude;
+        _temporarySearchPinLongitude = longitude;
+        _temporarySearchPinLabel = (label ?? string.Empty).Trim();
+        _temporarySearchPinRevision++;
+        OnPropertyChanged(nameof(HasTemporarySearchPin));
+        OnPropertyChanged(nameof(TemporarySearchPinLatitude));
+        OnPropertyChanged(nameof(TemporarySearchPinLongitude));
+        OnPropertyChanged(nameof(TemporarySearchPinLabel));
+        OnPropertyChanged(nameof(TemporarySearchPinRevision));
+    }
+
+    private void ClearTemporarySearchPin()
+    {
+        if (!_hasTemporarySearchPin && _temporarySearchPinRevision == 0)
+        {
+            return;
+        }
+
+        _hasTemporarySearchPin = false;
+        _temporarySearchPinLatitude = 0d;
+        _temporarySearchPinLongitude = 0d;
+        _temporarySearchPinLabel = string.Empty;
+        _temporarySearchPinRevision++;
+        OnPropertyChanged(nameof(HasTemporarySearchPin));
+        OnPropertyChanged(nameof(TemporarySearchPinLatitude));
+        OnPropertyChanged(nameof(TemporarySearchPinLongitude));
+        OnPropertyChanged(nameof(TemporarySearchPinLabel));
+        OnPropertyChanged(nameof(TemporarySearchPinRevision));
+    }
+
+    public bool HasTemporarySearchPin => _hasTemporarySearchPin;
+    public double TemporarySearchPinLatitude => _temporarySearchPinLatitude;
+    public double TemporarySearchPinLongitude => _temporarySearchPinLongitude;
+    public string TemporarySearchPinLabel => _temporarySearchPinLabel;
+    public int TemporarySearchPinRevision => _temporarySearchPinRevision;
+    public int SearchFocusRevision => _searchFocusRevision;
 
     public bool MapPinInfoCardShowName => _mapPinInfoCardShowName;
     public bool MapPinInfoCardShowOrderNumber => _mapPinInfoCardShowOrderNumber;
@@ -781,6 +945,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _mapPinInfoCardShowNotes = settings.MapPinInfoCardShowNotes;
         _mapPinInfoCardShowProducts = settings.MapPinInfoCardShowProducts;
         _mapPinInfoCardShowTotalWeight = settings.MapPinInfoCardShowTotalWeight;
+        _pinInfoCardScale = settings.PinInfoCardScale is >= 0.7d and <= 1.8d
+            ? settings.PinInfoCardScale
+            : AppSettings.DefaultPinInfoCardScale;
         _mapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
             : settings.MapRouteCapacityWarningThresholdPercent;
@@ -835,6 +1002,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(TomTomRoutingMode));
         OnPropertyChanged(nameof(TomTomVehicleHeightMeters));
         OnPropertyChanged(nameof(TomTomEnableTileCache));
+        OnPropertyChanged(nameof(PinInfoCardScale));
+        OnPropertyChanged(nameof(PinInfoCardScalePercentText));
         var (defaultHour, defaultMinute) = ParseStartTimePartsOrDefault(settings.TourDefaultStartTime);
         _defaultRouteStartHour = defaultHour;
         _defaultRouteStartMinute = defaultMinute;
@@ -1088,12 +1257,21 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
     public void SelectRouteStopByOrderId(string orderId)
     {
-        var match = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+        var resolvedOrderId = ResolveCanonicalOrderId(orderId);
+        var match = RouteStops.FirstOrDefault(x =>
+            string.Equals(x.OrderId, resolvedOrderId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
         if (match is not null)
         {
             SelectedRouteStop = match;
-            SelectOrderDetailsById(orderId);
         }
+
+        SelectOrderDetailsById(resolvedOrderId);
+    }
+
+    public void SelectOrderDetailsByOrderId(string? orderId)
+    {
+        SelectOrderDetailsById(orderId);
     }
 
     public async Task FocusTourAsync(int tourId)
@@ -2985,16 +3163,20 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
     private static string ExtractTourStopOrderId(TourStopRecord stop)
     {
+        var id = (stop.Id ?? string.Empty).Trim();
+        if (id.StartsWith("auftrag:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parsed = id["auftrag:".Length..].Trim();
+            if (!string.IsNullOrWhiteSpace(parsed))
+            {
+                return parsed;
+            }
+        }
+
         var number = (stop.Auftragsnummer ?? string.Empty).Trim();
         if (!string.IsNullOrWhiteSpace(number))
         {
             return number;
-        }
-
-        var id = (stop.Id ?? string.Empty).Trim();
-        if (id.StartsWith("auftrag:", StringComparison.OrdinalIgnoreCase))
-        {
-            return id["auftrag:".Length..];
         }
 
         return id;
@@ -4833,15 +5015,64 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return;
         }
 
-        var match = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+        var resolvedOrderId = ResolveCanonicalOrderId(orderId);
+        var match = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, resolvedOrderId, StringComparison.OrdinalIgnoreCase));
         if (match is not null)
         {
             SelectedOrder = match;
             return;
         }
 
-        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, resolvedOrderId, StringComparison.OrdinalIgnoreCase));
         SelectedOrder = order is null ? null : BuildMapOrderItem(order);
+    }
+
+    private string ResolveCanonicalOrderId(string? rawOrderId)
+    {
+        var normalized = (rawOrderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return string.Empty;
+        }
+
+        var direct = _allOrders.FirstOrDefault(x => string.Equals(x.Id, normalized, StringComparison.OrdinalIgnoreCase));
+        if (direct is not null)
+        {
+            return direct.Id;
+        }
+
+        if (normalized.StartsWith("auftrag:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parsed = normalized["auftrag:".Length..].Trim();
+            if (!string.IsNullOrWhiteSpace(parsed))
+            {
+                var parsedMatch = _allOrders.FirstOrDefault(x => string.Equals(x.Id, parsed, StringComparison.OrdinalIgnoreCase));
+                if (parsedMatch is not null)
+                {
+                    return parsedMatch.Id;
+                }
+            }
+        }
+
+        foreach (var stop in _savedTours.SelectMany(x => x.Stops ?? []))
+        {
+            var stopId = (stop.Id ?? string.Empty).Trim();
+            var stopNumber = (stop.Auftragsnummer ?? string.Empty).Trim();
+            if (!string.Equals(stopId, normalized, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(stopNumber, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var candidate = ExtractTourStopOrderId(stop);
+            var candidateMatch = _allOrders.FirstOrDefault(x => string.Equals(x.Id, candidate, StringComparison.OrdinalIgnoreCase));
+            if (candidateMatch is not null)
+            {
+                return candidateMatch.Id;
+            }
+        }
+
+        return normalized;
     }
 
     private async Task UpdateSelectedOrderStatusAsync(string? nextStatus)
@@ -5353,6 +5584,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
         var normalizedStyle = NormalizeMapOverlayStyle(style);
         var changed = false;
+        var routingOptionsChanged = false;
 
         if (!string.Equals(_tomTomMapOverlayStyle, normalizedStyle, StringComparison.OrdinalIgnoreCase))
         {
@@ -5394,6 +5626,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             _tomTomUseVehicleDimensions = useVehicleDimensions;
             OnPropertyChanged(nameof(TomTomUseVehicleDimensions));
             changed = true;
+            routingOptionsChanged = true;
         }
 
         if (_tomTomUseVehicleWeightRestrictions != useVehicleWeightRestrictions)
@@ -5401,6 +5634,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             _tomTomUseVehicleWeightRestrictions = useVehicleWeightRestrictions;
             OnPropertyChanged(nameof(TomTomUseVehicleWeightRestrictions));
             changed = true;
+            routingOptionsChanged = true;
         }
 
         if (_tomTomUseDepartAtTraffic != useDepartAtTraffic)
@@ -5408,6 +5642,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             _tomTomUseDepartAtTraffic = useDepartAtTraffic;
             OnPropertyChanged(nameof(TomTomUseDepartAtTraffic));
             changed = true;
+            routingOptionsChanged = true;
         }
 
         if (!changed)
@@ -5430,7 +5665,44 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             UseDepartAtTraffic = useDepartAtTraffic
         };
         await _settingsRepository.SaveAsync(settings);
-        RequestRouteGeometryRebuild();
+        if (routingOptionsChanged)
+        {
+            RequestRouteGeometryRebuild();
+        }
+    }
+
+    private void RequestPinInfoCardScaleSave()
+    {
+        _pinInfoCardScaleAutoSaveCts?.Cancel();
+        _pinInfoCardScaleAutoSaveCts?.Dispose();
+        _pinInfoCardScaleAutoSaveCts = new CancellationTokenSource();
+        var token = _pinInfoCardScaleAutoSaveCts.Token;
+        _ = SavePinInfoCardScaleAsync(token);
+    }
+
+    private async Task SavePinInfoCardScaleAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(250, cancellationToken);
+            var settings = await _settingsRepository.LoadAsync(cancellationToken);
+            var clampedScale = Math.Clamp(_pinInfoCardScale, 0.7d, 1.8d);
+            if (Math.Abs(settings.PinInfoCardScale - clampedScale) < 0.0001d)
+            {
+                return;
+            }
+
+            settings.PinInfoCardScale = clampedScale;
+            await _settingsRepository.SaveAsync(settings, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Slider moved again; persist only the latest value.
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to save pin info card scale: {ex.Message}");
+        }
     }
 
     private static string ResolveCurrentSettingsUserName(AppSettings settings)

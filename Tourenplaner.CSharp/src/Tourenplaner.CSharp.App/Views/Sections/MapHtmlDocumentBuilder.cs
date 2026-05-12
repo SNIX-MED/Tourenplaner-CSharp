@@ -45,8 +45,12 @@ internal static class MapHtmlDocumentBuilder
                    .gawela-pin-selected { outline: 2px solid #111827; outline-offset: 2px; }
                    .gawela-company-marker { width: 22px; height: 22px; border-radius: 50%; background: #0f766e; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; }
                    .gawela-company-marker svg { width: 12px; height: 12px; fill: #ffffff; display: block; }
-                   .map-options-toggle { position: absolute; right: 12px; top: 12px; z-index: 1100; border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; padding: 8px 10px; font-size: 12px; color: #0f172a; cursor: pointer; font-weight: 600; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 36px; }
-                   .details-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 1350; width: 34px; height: 34px; border: 1px solid #c4ccda; background: #f4f6fb; border-radius: 14px; color: #475569; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 17px; font-weight: 600; line-height: 1; box-shadow: 0 1px 2px rgba(15,23,42,.08); padding: 0; }
+                   .map-top-controls { position: absolute; right: 12px; top: 12px; z-index: 1350; display: inline-flex; align-items: center; gap: 8px; }
+                   .map-options-toggle { border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; padding: 0; font-size: 12px; color: #0f172a; cursor: pointer; font-weight: 600; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
+                   .map-options-toggle.hidden { display: none !important; }
+                   .map-options-toggle:hover { background: #e9edf6; border-color: #bac4d4; }
+                   .map-options-toggle:active { opacity: .82; }
+                   .details-toggle { border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; color: #475569; cursor: pointer; display: none; align-items: center; justify-content: center; width: 40px; height: 40px; min-width: 40px; min-height: 40px; box-shadow: 0 4px 14px rgba(15,23,42,.18); padding: 0; font-family: 'Segoe MDL2 Assets'; font-size: 14px; line-height: 1; }
                    .details-toggle.visible { display: inline-flex; }
                    .details-toggle:hover { background: #e9edf6; border-color: #bac4d4; }
                    .details-toggle:active { opacity: .82; }
@@ -79,8 +83,10 @@ internal static class MapHtmlDocumentBuilder
                  <div id="map"></div>
                  <div id="status" class="status">Karte wird initialisiert...</div>
                  <div id="tourHoverTooltip" class="tour-hover-tooltip" aria-hidden="true"></div>
-                 <button id="detailsToggle" class="details-toggle" type="button" aria-label="Auftragsdetails umschalten">&lt;</button>
-                 <button id="mapOptionsToggle" class="map-options-toggle" type="button" aria-label="Map options">__MAP_OPTIONS_BUTTON_CONTENT__</button>
+                 <div class="map-top-controls">
+                   <button id="mapOptionsToggle" class="map-options-toggle" type="button" aria-label="Map options">__MAP_OPTIONS_BUTTON_CONTENT__</button>
+                   <button id="detailsToggle" class="details-toggle" type="button" aria-label="Auftragsdetails umschalten">&#xE76B;</button>
+                 </div>
                  <aside id="mapOptionsOverlay" class="map-options-overlay" aria-hidden="true">
                    <div class="map-options-header">
                      <h3 class="map-options-title">Map options</h3>
@@ -147,13 +153,22 @@ internal static class MapHtmlDocumentBuilder
                    window.gawelaHighlightRouteStop = function() {};
                    window.gawelaSetRouteInfo = function() {};
                    window.gawelaSetAllMarkerPopupsVisible = function() {};
+                   window.gawelaSetStickyPopupOrderId = function() {};
                    window.gawelaSetPopupSizeMultiplier = function() {};
+                   window.gawelaSetTempSearchMarker = function() {};
+                   window.gawelaClearTempSearchMarker = function() {};
+                   const resolveDetailsToggleGlyph = (glyph) => {
+                     const value = (glyph || '').toString().trim();
+                     if (value === '>') return '\uE76C';
+                     if (value === '<') return '\uE76B';
+                     return '\uE76B';
+                   };
                    window.gawelaSetDetailsToggle = function(isVisible, glyph) {
                      if (!detailsToggleEl) return;
                      const visible = !!isVisible;
                      detailsToggleEl.classList.toggle('visible', visible);
                      detailsToggleEl.setAttribute('aria-hidden', visible ? 'false' : 'true');
-                     detailsToggleEl.textContent = glyph ? String(glyph) : '<';
+                     detailsToggleEl.textContent = resolveDetailsToggleGlyph(glyph);
                    };
                    if (detailsToggleEl) {
                      detailsToggleEl.addEventListener('click', () => {
@@ -282,8 +297,14 @@ internal static class MapHtmlDocumentBuilder
                          let mapMarkers = [];
                          let companyMarkers = [];
                          let routeMarkers = [];
+                         let tempSearchMarker = null;
+                         let companyMarkerLocation = null;
                          let hasAppliedInitialMarkerFit = false;
                          let routePopupVisible = false;
+                         let stickyPopupOrderId = '';
+                         let routeStopHitTargets = [];
+                         let routeStopCanvasClickBound = false;
+                         let lastAutoCenteredRouteKey = '';
                          let markerScale = 1.0;
                          const applyScaleVariable = (scale) => {
                            const value = Number.isFinite(scale) ? Math.max(0.6, Math.min(2.4, scale)) : 1.0;
@@ -298,6 +319,44 @@ internal static class MapHtmlDocumentBuilder
                            arr.length = 0;
                          };
 
+                         const selectRouteStopNearPoint = (point) => {
+                           if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
+                           if (!Array.isArray(routeStopHitTargets) || routeStopHitTargets.length === 0) return false;
+
+                           const thresholdPx = Math.max(14, Math.min(26, 16 * markerScale));
+                           const thresholdSq = thresholdPx * thresholdPx;
+                           let best = null;
+                           let bestDistSq = Number.POSITIVE_INFINITY;
+
+                           routeStopHitTargets.forEach(stop => {
+                             if (!stop || !stop.id || !Number.isFinite(stop.lat) || !Number.isFinite(stop.lon)) return;
+                             const projected = map.project([stop.lon, stop.lat]);
+                             const dx = projected.x - point.x;
+                             const dy = projected.y - point.y;
+                             const distSq = (dx * dx) + (dy * dy);
+                             if (distSq < bestDistSq) {
+                               bestDistSq = distSq;
+                               best = stop;
+                             }
+                           });
+
+                           if (!best || bestDistSq > thresholdSq) return false;
+                           if (window.chrome && window.chrome.webview) {
+                             window.chrome.webview.postMessage(String(best.id));
+                             window.chrome.webview.postMessage(`routeSelect:${best.id}`);
+                           }
+                           return true;
+                         };
+
+                         const ensureRouteStopCanvasClickBinding = () => {
+                           if (routeStopCanvasClickBound) return;
+                           map.on('click', (evt) => {
+                             if (!evt || !evt.point) return;
+                             selectRouteStopNearPoint(evt.point);
+                           });
+                           routeStopCanvasClickBound = true;
+                         };
+
                          const normalizeShape = (shape) => {
                            const s = (shape || '').toString().toLowerCase();
                            if (s === 'triangle' || s === 'square' || s === 'circle') return s;
@@ -306,8 +365,8 @@ internal static class MapHtmlDocumentBuilder
 
                          const avisoBadgeClass = (avisoStatus) => {
                            const s = (avisoStatus || '').toString().trim().toLowerCase();
-                           if (s.includes('voll') || s.includes('komplett')) return 'gawela-pin-badge-aviso-full';
-                           if (s.includes('teil')) return 'gawela-pin-badge-aviso-partial';
+                           if (s.includes('best') || s.includes('voll') || s.includes('komplett')) return 'gawela-pin-badge-aviso-full';
+                           if (s.includes('inform') || s.includes('teil')) return 'gawela-pin-badge-aviso-partial';
                            return 'gawela-pin-badge-aviso-none';
                          };
 
@@ -335,19 +394,17 @@ internal static class MapHtmlDocumentBuilder
                            }
                            wrap.appendChild(pin);
 
-                           if (!isRouteMarker) {
-                             const badges = document.createElement('div');
-                             badges.className = 'gawela-pin-badges';
+                           const badges = document.createElement('div');
+                           badges.className = 'gawela-pin-badges';
 
-                             if (m && m.isAssigned) {
-                               const aviso = document.createElement('div');
-                               aviso.className = `gawela-pin-badge ${avisoBadgeClass(m.avisoStatus)}`;
-                               badges.appendChild(aviso);
-                             }
+                           if (m && m.isAssigned) {
+                             const aviso = document.createElement('div');
+                             aviso.className = `gawela-pin-badge ${avisoBadgeClass(m.avisoStatus)}`;
+                             badges.appendChild(aviso);
+                           }
 
-                             if (badges.children.length > 0) {
-                               wrap.appendChild(badges);
-                             }
+                           if (badges.children.length > 0) {
+                             wrap.appendChild(badges);
                            }
 
                            return wrap;
@@ -640,12 +697,24 @@ internal static class MapHtmlDocumentBuilder
                                paint: {
                                'line-color': ['coalesce', ['get', 'trafficColor'], '#f59e0b'],
                                'line-width': [
-                                 'match',
-                                 ['coalesce', ['get', 'trafficSeverity'], 1],
-                                 0, ['interpolate', ['linear'], ['zoom'], 7, 4.6, 10, 5.2, 13, 6.0],
-                                 1, ['interpolate', ['linear'], ['zoom'], 7, 4.8, 10, 5.5, 13, 6.3],
-                                 2, ['interpolate', ['linear'], ['zoom'], 7, 5.0, 10, 5.8, 13, 6.7],
-                                 ['interpolate', ['linear'], ['zoom'], 7, 5.2, 10, 6.1, 13, 7.0]
+                                 'interpolate',
+                                 ['linear'],
+                                 ['zoom'],
+                                 7, [
+                                   '+',
+                                   4.8,
+                                   ['match', ['coalesce', ['get', 'trafficSeverity'], 1], 0, -0.2, 1, 0.0, 2, 0.2, 0.4]
+                                 ],
+                                 10, [
+                                   '+',
+                                   5.5,
+                                   ['match', ['coalesce', ['get', 'trafficSeverity'], 1], 0, -0.3, 1, 0.0, 2, 0.3, 0.6]
+                                 ],
+                                 13, [
+                                   '+',
+                                   6.3,
+                                   ['match', ['coalesce', ['get', 'trafficSeverity'], 1], 0, -0.3, 1, 0.0, 2, 0.4, 0.7]
+                                 ]
                                ],
                                'line-opacity': [
                                  'match',
@@ -867,6 +936,9 @@ internal static class MapHtmlDocumentBuilder
                              });
 
                              map.on('click', plannedTourOverlaysHitLayerId, (evt) => {
+                               if (evt && evt.point && selectRouteStopNearPoint(evt.point)) {
+                                 return;
+                               }
                                const feature = evt && evt.features && evt.features[0];
                                const idRaw = feature && feature.properties ? feature.properties.id : null;
                                const id = Number(idRaw);
@@ -987,11 +1059,13 @@ internal static class MapHtmlDocumentBuilder
                            const openOverlay = () => {
                              overlay.classList.add('open');
                              overlay.setAttribute('aria-hidden', 'false');
+                             toggleBtn.classList.add('hidden');
                            };
 
                            const closeOverlay = () => {
                              overlay.classList.remove('open');
                              overlay.setAttribute('aria-hidden', 'true');
+                             toggleBtn.classList.remove('hidden');
                            };
 
                            toggleBtn.addEventListener('click', openOverlay);
@@ -1065,6 +1139,7 @@ internal static class MapHtmlDocumentBuilder
                            applyPoiVisibility();
                            applyTrafficLayers();
                            initOptionsOverlay();
+                           ensureRouteStopCanvasClickBinding();
                            setStatus('TomTom Karte aktiv');
                            postDiag(true, `Karte aktiv (TomTom SDK: ${loadedJs}, CSS: ${loadedCss})`);
                          });
@@ -1107,6 +1182,7 @@ internal static class MapHtmlDocumentBuilder
                                .setLngLat([m.lon, m.lat])
                                .setPopup(popup)
                                .addTo(map);
+                             marker.__gawelaOrderId = m.id ? String(m.id) : '';
                              const markerEl = marker.getElement();
                              markerEl.style.cursor = 'pointer';
                              markerEl.style.pointerEvents = 'auto';
@@ -1115,9 +1191,17 @@ internal static class MapHtmlDocumentBuilder
                              markerEl.addEventListener('mouseleave', () => { map.getCanvas().style.cursor = 'grab'; });
                              markerEl.addEventListener('click', () => {
                                if (window.chrome && window.chrome.webview && m.id) {
+                                 stickyPopupOrderId = String(m.id);
+                                 popup.addTo(map);
+                                 scalePopupElement(popup);
                                  window.chrome.webview.postMessage(String(m.id));
                                }
                              });
+
+                             if (routePopupVisible || (m.id && stickyPopupOrderId && String(m.id) === stickyPopupOrderId)) {
+                               popup.addTo(map);
+                               scalePopupElement(popup);
+                             }
 
                              markerMap.set(m.id, marker);
                              mapMarkers.push(marker);
@@ -1133,6 +1217,10 @@ internal static class MapHtmlDocumentBuilder
 
                          window.gawelaSetCompanyMarker = function(company) {
                            if (!company || typeof company.lat !== 'number' || typeof company.lon !== 'number') return;
+                             companyMarkerLocation = {
+                               lat: Number(company.lat),
+                               lon: Number(company.lon)
+                             };
                              const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
                                createScaledPopupHtml(`<b>${company.name || 'Firma'}</b><br/>${company.address || ''}`)
                              );
@@ -1160,6 +1248,7 @@ internal static class MapHtmlDocumentBuilder
                            };
                            clearMarkers(routeMarkers);
                            routeMarkerMap = new Map();
+                           routeStopHitTargets = [];
 
                            if (!Array.isArray(routeStops) || routeStops.length === 0) {
                              ensureRouteLayer([], routeColor);
@@ -1171,12 +1260,67 @@ internal static class MapHtmlDocumentBuilder
                              ? geometryPoints.map(toMapCoordinate).filter(p => Array.isArray(p))
                              : routeStops.map(toMapCoordinate).filter(p => Array.isArray(p));
 
+                           const routeKey = routeStops
+                             .map(stop => {
+                               if (!stop) return '';
+                               const id = (stop.id || '').toString().trim();
+                               const lat = Number(stop.lat);
+                               const lon = Number(stop.lon);
+                               if (!id || !Number.isFinite(lat) || !Number.isFinite(lon)) return id;
+                               return `${id}@${lat.toFixed(4)},${lon.toFixed(4)}`;
+                             })
+                             .join('|');
+
                            ensureRouteLayer(path, routeColor || '#2563EB');
                            renderTrafficRouteSegments(path, trafficSegments);
                            ensureRouteLayersOnTop();
 
+                           if (routeKey && routeKey !== lastAutoCenteredRouteKey) {
+                             const bounds = new ttSdk.LngLatBounds();
+                             let hasBounds = false;
+
+                             // Center by actual route stops so all planned pins are visible.
+                             routeStops.forEach(stop => {
+                               if (!stop) return;
+                               const lat = Number(stop.lat);
+                               const lon = Number(stop.lon);
+                               if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+                               bounds.extend([lon, lat]);
+                               hasBounds = true;
+                             });
+
+                             if (companyMarkerLocation &&
+                                 Number.isFinite(companyMarkerLocation.lat) &&
+                                 Number.isFinite(companyMarkerLocation.lon)) {
+                               bounds.extend([companyMarkerLocation.lon, companyMarkerLocation.lat]);
+                               hasBounds = true;
+                             }
+
+                             // Fallback to geometry when stop coordinates are incomplete.
+                             if (!hasBounds) {
+                               path.forEach(point => {
+                                 if (Array.isArray(point) && point.length >= 2) {
+                                   bounds.extend(point);
+                                   hasBounds = true;
+                                 }
+                               });
+                             }
+
+                             if (hasBounds) {
+                               map.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: 420 });
+                               lastAutoCenteredRouteKey = routeKey;
+                             }
+                           }
+
                            routeStops.forEach(stop => {
                              if (!stop || typeof stop.lat !== 'number' || typeof stop.lon !== 'number') return;
+                             if (stop.id) {
+                               routeStopHitTargets.push({
+                                 id: stop.id,
+                                 lat: Number(stop.lat),
+                                 lon: Number(stop.lon)
+                               });
+                             }
 
                              const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
                                createScaledPopupHtml(`Route stop ${stop.label || stop.position || '?'}<br/>Order: ${stop.id || ''}`)
@@ -1185,40 +1329,63 @@ internal static class MapHtmlDocumentBuilder
                                .setLngLat([stop.lon, stop.lat])
                                .setPopup(popup)
                                .addTo(map);
-                             const markerEl = marker.getElement();
+                             marker.__gawelaOrderId = stop.id ? String(stop.id) : '';
+                            const markerEl = marker.getElement();
                              markerEl.style.cursor = 'pointer';
                              markerEl.style.pointerEvents = 'auto';
                              markerEl.style.zIndex = '45';
                              markerEl.addEventListener('mouseenter', () => { map.getCanvas().style.cursor = 'pointer'; });
                              markerEl.addEventListener('mouseleave', () => { map.getCanvas().style.cursor = 'grab'; });
-                             let dragMoved = false;
+                             let draggedDuringInteraction = false;
                              marker.on('dragstart', () => {
-                               dragMoved = false;
+                               draggedDuringInteraction = false;
                                markerEl.style.cursor = 'grabbing';
                              });
                              marker.on('drag', () => {
-                               dragMoved = true;
+                               draggedDuringInteraction = true;
                              });
-                             marker.on('dragend', () => {
-                               markerEl.style.cursor = 'pointer';
-                               const p = marker.getLngLat();
+                            marker.on('dragend', () => {
+                              markerEl.style.cursor = 'pointer';
+                              const p = marker.getLngLat();
                                if (window.chrome && window.chrome.webview && stop.id) {
                                  window.chrome.webview.postMessage(`move:${stop.id}:${p.lat.toFixed(6)}:${p.lng.toFixed(6)}`);
                                }
                              });
-                             markerEl.addEventListener('click', () => {
-                               if (dragMoved) {
+                             const selectRouteStopFromMarker = () => {
+                              if (draggedDuringInteraction) {
+                                draggedDuringInteraction = false;
+                                return;
+                              }
+
+                             if (window.chrome && window.chrome.webview && stop.id) {
+                                stickyPopupOrderId = String(stop.id);
+                                popup.addTo(map);
+                                scalePopupElement(popup);
+                                // Use the same message path as normal map pins for reliable details selection.
+                                window.chrome.webview.postMessage(String(stop.id));
+                                // Keep route selection behavior in sync.
+                                window.chrome.webview.postMessage(`routeSelect:${stop.id}`);
+                              }
+                             };
+                             markerEl.addEventListener('pointerup', (evt) => {
+                               if (evt && typeof evt.button === 'number' && evt.button !== 0) {
                                  return;
                                }
-                               if (window.chrome && window.chrome.webview && stop.id) {
-                                 window.chrome.webview.postMessage(`routeSelect:${stop.id}`);
-                               }
+                               selectRouteStopFromMarker();
+                             });
+                             markerEl.addEventListener('click', () => {
+                               selectRouteStopFromMarker();
                              });
 
-                             routeMarkerMap.set(stop.id, marker);
-                             routeMarkers.push(marker);
-                           });
-                         };
+                             if (routePopupVisible || (stop.id && stickyPopupOrderId && String(stop.id) === stickyPopupOrderId)) {
+                               popup.addTo(map);
+                               scalePopupElement(popup);
+                             }
+
+                            routeMarkerMap.set(stop.id, marker);
+                            routeMarkers.push(marker);
+                          });
+                        };
 
                          window.gawelaHighlightMarker = function(orderId) {
                            const marker = markerMap.get(orderId);
@@ -1245,6 +1412,62 @@ internal static class MapHtmlDocumentBuilder
                          window.gawelaSetRouteInfo = function(text) {
                            const t = (text || '').toString().trim();
                            setStatus(t.length > 0 ? t : 'TomTom Karte aktiv');
+                         };
+
+                         window.gawelaSetStickyPopupOrderId = function(orderId) {
+                           const normalized = (orderId || '').toString().trim();
+                           stickyPopupOrderId = normalized;
+                           if (normalized || routePopupVisible) {
+                             return;
+                           }
+
+                           mapMarkers.forEach(m => {
+                             const p = m.getPopup();
+                             if (p) p.remove();
+                           });
+                           routeMarkers.forEach(m => {
+                             const p = m.getPopup();
+                             if (p) p.remove();
+                           });
+                         };
+
+                         window.gawelaClearTempSearchMarker = function() {
+                           if (tempSearchMarker) {
+                             tempSearchMarker.remove();
+                             tempSearchMarker = null;
+                           }
+                         };
+
+                         window.gawelaSetTempSearchMarker = function(item) {
+                           if (!item || typeof item.lat !== 'number' || typeof item.lon !== 'number') {
+                             window.gawelaClearTempSearchMarker();
+                             return;
+                           }
+
+                           const lat = Number(item.lat);
+                           const lon = Number(item.lon);
+                           if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+                             window.gawelaClearTempSearchMarker();
+                             return;
+                           }
+
+                           if (tempSearchMarker) {
+                             tempSearchMarker.remove();
+                             tempSearchMarker = null;
+                           }
+
+                           const pinEl = document.createElement('div');
+                           pinEl.style.width = '16px';
+                           pinEl.style.height = '16px';
+                           pinEl.style.borderRadius = '9999px';
+                           pinEl.style.background = '#DC2626';
+                           pinEl.style.border = '2px solid #FFFFFF';
+                           pinEl.style.boxShadow = '0 2px 8px rgba(0,0,0,0.28)';
+                           pinEl.style.pointerEvents = 'none';
+                           tempSearchMarker = new ttSdk.Marker({ element: pinEl, anchor: 'center' })
+                             .setLngLat([lon, lat])
+                             .addTo(map);
+                           map.easeTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 13), duration: 420 });
                          };
 
                          window.gawelaAddToRoute = function(orderId) {
@@ -1298,7 +1521,30 @@ internal static class MapHtmlDocumentBuilder
                                scalePopupElement(p);
                              }
                              else {
-                               p.remove();
+                               const markerId = (m && m.__gawelaOrderId) ? String(m.__gawelaOrderId) : '';
+                               if (stickyPopupOrderId && markerId === stickyPopupOrderId) {
+                                 p.addTo(map);
+                                 scalePopupElement(p);
+                               } else {
+                                 p.remove();
+                               }
+                             }
+                           });
+                           routeMarkers.forEach(m => {
+                             const p = m.getPopup();
+                             if (!p) return;
+                             if (routePopupVisible) {
+                               p.addTo(map);
+                               scalePopupElement(p);
+                             }
+                             else {
+                               const markerId = (m && m.__gawelaOrderId) ? String(m.__gawelaOrderId) : '';
+                               if (stickyPopupOrderId && markerId === stickyPopupOrderId) {
+                                 p.addTo(map);
+                                 scalePopupElement(p);
+                               } else {
+                                 p.remove();
+                               }
                              }
                            });
                          };
@@ -1311,7 +1557,7 @@ internal static class MapHtmlDocumentBuilder
                            const visible = !!isVisible;
                            detailsToggleEl.classList.toggle('visible', visible);
                            detailsToggleEl.setAttribute('aria-hidden', visible ? 'false' : 'true');
-                           detailsToggleEl.textContent = glyph ? String(glyph) : '<';
+                           detailsToggleEl.textContent = resolveDetailsToggleGlyph(glyph);
                          };
                          window.gawelaMapReady = true;
                        } catch (err) {

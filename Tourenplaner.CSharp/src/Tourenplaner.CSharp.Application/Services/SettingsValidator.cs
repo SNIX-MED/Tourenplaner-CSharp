@@ -122,6 +122,11 @@ public sealed class SettingsValidator
             errors.Add("MapRouteCapacityWarningThresholdPercent must be between 0 and 100.");
         }
 
+        if (settings.PinInfoCardScale is < 0.7d or > 1.8d)
+        {
+            errors.Add("PinInfoCardScale must be between 0.7 and 1.8.");
+        }
+
         if (settings.TomTomTrafficRefreshSeconds < 15)
         {
             errors.Add("TomTomTrafficRefreshSeconds must be at least 15.");

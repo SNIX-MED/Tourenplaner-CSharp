@@ -33,7 +33,8 @@ public partial class KarteSectionView : UserControl
         PinInfoCardsVisibility = 1 << 4,
         PinInfoCardScale = 1 << 5,
         DetailsToggle = 1 << 6,
-        PlannedTourOverlayHighlight = 1 << 7
+        PlannedTourOverlayHighlight = 1 << 7,
+        TemporarySearchPin = 1 << 8
     }
 
     private static readonly GridLength DefaultRoutePanelWidth = new(460d, GridUnitType.Pixel);
@@ -175,6 +176,10 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.MarkerSelection);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.SearchFocusRevision))
+        {
+            QueueMapRefresh(MapRefreshOperation.MarkerSelection, UiRefreshDebounceMilliseconds);
+        }
         else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedRouteStop))
         {
             QueueMapRefresh(MapRefreshOperation.RouteSelection);
@@ -218,6 +223,10 @@ public partial class KarteSectionView : UserControl
         else if (e.PropertyName == nameof(KarteSectionViewModel.PinInfoCardScale))
         {
             QueueMapRefresh(MapRefreshOperation.PinInfoCardScale, UiRefreshDebounceMilliseconds);
+        }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.TemporarySearchPinRevision))
+        {
+            QueueMapRefresh(MapRefreshOperation.TemporarySearchPin, UiRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.IsDetailsOpen) ||
                  e.PropertyName == nameof(KarteSectionViewModel.IsDetailsPanelExpanded) ||
@@ -331,6 +340,11 @@ public partial class KarteSectionView : UserControl
             if ((operation & MapRefreshOperation.PinInfoCardScale) != 0)
             {
                 await ApplyPinInfoCardScaleAsync();
+            }
+
+            if ((operation & MapRefreshOperation.TemporarySearchPin) != 0)
+            {
+                await ApplyTemporarySearchPinAsync();
             }
 
             if ((operation & MapRefreshOperation.MarkerSelection) != 0)
@@ -702,7 +716,7 @@ public partial class KarteSectionView : UserControl
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetCompanyMarker === 'function') window.gawelaSetCompanyMarker({JsonSerializer.Serialize(company)});");
         await ApplyPinInfoCardsVisibilityAsync();
         await ApplyPinInfoCardScaleAsync();
-        await HighlightSelectedMarkerAsync();
+        await ApplyTemporarySearchPinAsync();
     }
 
     private async Task PushRouteToMapAsync()
@@ -760,7 +774,6 @@ public partial class KarteSectionView : UserControl
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetPlannedTourOverlays === 'function') window.gawelaSetPlannedTourOverlays({overlaysJson});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson}, {routeColorJson}, {trafficSegmentsJson});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRouteInfo === 'function') window.gawelaSetRouteInfo({routeInfoJson});");
-        await HighlightSelectedRouteStopAsync();
         await HighlightPlannedTourOverlayAsync();
     }
 
@@ -773,6 +786,7 @@ public partial class KarteSectionView : UserControl
 
         var id = vm.SelectedOrder?.OrderId ?? string.Empty;
         var jsonId = JsonSerializer.Serialize(id);
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetStickyPopupOrderId === 'function') window.gawelaSetStickyPopupOrderId({jsonId});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaHighlightMarker === 'function') window.gawelaHighlightMarker({jsonId});");
     }
 
@@ -1014,20 +1028,22 @@ public partial class KarteSectionView : UserControl
         }
 
         var match = vm.MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, raw, StringComparison.OrdinalIgnoreCase));
-        if (match is null)
+        if (match is not null)
         {
+            try
+            {
+                _suppressSelectionSync = true;
+                vm.SelectedOrder = match;
+            }
+            finally
+            {
+                _suppressSelectionSync = false;
+            }
+
             return;
         }
 
-        try
-        {
-            _suppressSelectionSync = true;
-            vm.SelectedOrder = match;
-        }
-        finally
-        {
-            _suppressSelectionSync = false;
-        }
+        vm.SelectOrderDetailsByOrderId(raw);
     }
 
     private async Task ApplyMapOptionsFromWebAsync(
@@ -1184,6 +1200,30 @@ public partial class KarteSectionView : UserControl
         {
             vm.EditOrderCommand.Execute(null);
         }
+    }
+
+    private async Task ApplyTemporarySearchPinAsync()
+    {
+        if (!_mapReady || !_mapScriptReady || MapWebView.CoreWebView2 is null || DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        if (!vm.HasTemporarySearchPin)
+        {
+            await MapWebView.CoreWebView2.ExecuteScriptAsync(
+                "if (typeof window.gawelaClearTempSearchMarker === 'function') window.gawelaClearTempSearchMarker();");
+            return;
+        }
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            lat = vm.TemporarySearchPinLatitude,
+            lon = vm.TemporarySearchPinLongitude,
+            label = vm.TemporarySearchPinLabel
+        });
+        await MapWebView.CoreWebView2.ExecuteScriptAsync(
+            $"if (typeof window.gawelaSetTempSearchMarker === 'function') window.gawelaSetTempSearchMarker({payload});");
     }
 
     private void RouteStopsList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
