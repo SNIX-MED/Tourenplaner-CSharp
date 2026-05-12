@@ -2,7 +2,6 @@
 using System.IO;
 using System.Linq;
 using System.Windows.Input;
-using System.Diagnostics;
 using System.Reflection;
 using System.Globalization;
 using System.ComponentModel;
@@ -32,7 +31,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private readonly JsonAppSettingsRepository _repository;
     private readonly SettingsValidator _validator;
     private readonly BackupManager _backupManager;
-    private readonly GitHubReleaseUpdateService _updateService;
     private readonly IOrderRepository? _orderRepository;
     private readonly ISettingsRepository? _settingsRepository;
     private readonly AppDataSyncService? _dataSyncService;
@@ -96,18 +94,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _runtimeVersion = string.Empty;
     private string _latestBackupFile = "n/a";
     private int _availableBackupsCount;
-    private string _updateFeedUrl = AppSettings.DefaultUpdateFeedUrl;
     private bool _showGpsTool = true;
     private string _gpsToolUrl = AppSettings.DefaultGpsToolUrl;
     private bool _showSpediteurTool = true;
     private string _spediteurToolUrl = AppSettings.DefaultSpediteurToolUrl;
     private string _tourDefaultStartTime = AppSettings.DefaultTourStartTime;
-    private string _latestReleaseVersion = "Noch nicht geprüft";
-    private string _latestReleasePublishedAt = "n/a";
-    private string _updateCheckResult = "Noch nicht geprüft.";
-    private string _latestReleaseLink = string.Empty;
-    private string _latestReleaseAsset = "n/a";
-    private GitHubReleaseInfo? _latestRelease;
     private string _validationSummary = string.Empty;
     private bool _suppressAutoSave;
     private CancellationTokenSource? _autoSaveCts;
@@ -126,7 +117,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         _repository = new JsonAppSettingsRepository(settingsJsonPath);
         _validator = new SettingsValidator();
         _backupManager = new BackupManager();
-        _updateService = new GitHubReleaseUpdateService();
         _orderRepository = orderRepository;
         _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService;
@@ -156,9 +146,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         CreateBackupCommand = new AsyncCommand(CreateBackupAsync);
         RestoreLatestBackupCommand = new AsyncCommand(RestoreLatestBackupAsync);
         CleanupBackupsCommand = new DelegateCommand(CleanupBackups);
-        OpenUpdateFeedCommand = new DelegateCommand(OpenUpdateFeed);
-        CheckForUpdatesCommand = new AsyncCommand(CheckForUpdatesAsync);
-        DownloadLatestUpdateCommand = new AsyncCommand(DownloadLatestUpdateAsync);
         
         // SQL Import Commands
         TestSqlConnectionCommand = new AsyncCommand(
@@ -191,12 +178,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     public ICommand CleanupBackupsCommand { get; }
 
-    public ICommand OpenUpdateFeedCommand { get; }
-
-    public ICommand CheckForUpdatesCommand { get; }
-
-    public ICommand DownloadLatestUpdateCommand { get; }
-    
     public AsyncCommand TestSqlConnectionCommand { get; }
 
     public AsyncCommand ImportOrdersCommand { get; }
@@ -471,12 +452,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _availableBackupsCount, value);
     }
 
-    public string UpdateFeedUrl
-    {
-        get => _updateFeedUrl;
-        set => SetProperty(ref _updateFeedUrl, value);
-    }
-
     public bool ShowGpsTool
     {
         get => _showGpsTool;
@@ -505,30 +480,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _tourDefaultStartTime;
         set => SetProperty(ref _tourDefaultStartTime, value);
-    }
-
-    public string LatestReleaseVersion
-    {
-        get => _latestReleaseVersion;
-        private set => SetProperty(ref _latestReleaseVersion, value);
-    }
-
-    public string LatestReleasePublishedAt
-    {
-        get => _latestReleasePublishedAt;
-        private set => SetProperty(ref _latestReleasePublishedAt, value);
-    }
-
-    public string UpdateCheckResult
-    {
-        get => _updateCheckResult;
-        private set => SetProperty(ref _updateCheckResult, value);
-    }
-
-    public string LatestReleaseAsset
-    {
-        get => _latestReleaseAsset;
-        private set => SetProperty(ref _latestReleaseAsset, value);
     }
 
     public string SqlDatabasePath
@@ -603,7 +554,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             var settings = await _repository.LoadAsync();
             ApplyModel(settings);
             UpdateBackupStatus(settings.BackupDir);
-            ResetUpdateState();
             ValidationSummary = string.Empty;
             StatusText = "Settings loaded.";
         }
@@ -724,7 +674,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(BackupRetentionDays) or
             nameof(AutoBackupEnabled) or
             nameof(AutoBackupIntervalDays) or
-            nameof(UpdateFeedUrl) or
             nameof(ShowGpsTool) or
             nameof(GpsToolUrl) or
             nameof(ShowSpediteurTool) or
@@ -822,109 +771,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         StatusText = "Statusfarben auf Standard zurückgesetzt.";
     }
 
-    private void OpenUpdateFeed()
-    {
-        var target = !string.IsNullOrWhiteSpace(_latestReleaseLink)
-            ? _latestReleaseLink
-            : (UpdateFeedUrl ?? string.Empty).Trim();
-
-        if (!Uri.TryCreate(target, UriKind.Absolute, out var uri))
-        {
-            StatusText = "Ungültige Update-URL.";
-            return;
-        }
-
-        Process.Start(new ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
-        StatusText = "Update-Seite im Browser geöffnet.";
-    }
-
-    private async Task CheckForUpdatesAsync()
-    {
-        try
-        {
-            var release = await _updateService.GetLatestReleaseAsync(UpdateFeedUrl);
-            _latestRelease = release;
-            _latestReleaseLink = release.HtmlUrl;
-            LatestReleaseVersion = string.IsNullOrWhiteSpace(release.ReleaseName)
-                ? release.TagName
-                : $"{release.ReleaseName} ({release.TagName})";
-            LatestReleasePublishedAt = release.PublishedAt?.ToLocalTime().ToString("dd.MM.yyyy HH:mm") ?? "n/a";
-            LatestReleaseAsset = _updateService.SelectPreferredAsset(release)?.Name ?? "Kein Asset im Release";
-
-            var currentVersion = GitHubReleaseUpdateService.TryParseVersion(ApplicationVersion);
-            var releaseVersion = GitHubReleaseUpdateService.TryParseVersion(release.TagName);
-            var updateAvailable = releaseVersion is not null && currentVersion is not null
-                ? releaseVersion > currentVersion
-                : !string.Equals(release.TagName.Trim(), ApplicationVersion.Trim(), StringComparison.OrdinalIgnoreCase);
-
-            UpdateCheckResult = updateAvailable
-                ? "Neue Version verfügbar."
-                : "Die installierte Version ist aktuell.";
-
-            if (release.IsPrerelease)
-            {
-                UpdateCheckResult += " GitHub markiert dieses Release als Vorabversion.";
-            }
-
-            StatusText = updateAvailable
-                ? $"Update gefunden: {release.TagName}"
-                : "Keine neuere GitHub-Version gefunden.";
-        }
-        catch (Exception ex)
-        {
-            _latestRelease = null;
-            _latestReleaseLink = string.Empty;
-            LatestReleaseVersion = "Prüfung fehlgeschlagen";
-            LatestReleasePublishedAt = "n/a";
-            LatestReleaseAsset = "n/a";
-            UpdateCheckResult = "Release-Prüfung fehlgeschlagen.";
-            StatusText = $"Update-Prüfung fehlgeschlagen: {ex.Message}";
-        }
-    }
-
-    private async Task DownloadLatestUpdateAsync()
-    {
-        try
-        {
-            if (_latestRelease is null)
-            {
-                await CheckForUpdatesAsync();
-            }
-
-            if (_latestRelease is null)
-            {
-                StatusText = "Es ist noch kein Release geladen.";
-                return;
-            }
-
-            var asset = _updateService.SelectPreferredAsset(_latestRelease);
-            if (asset is null)
-            {
-                OpenUpdateFeed();
-                StatusText = "Kein Download-Asset gefunden. Die Release-Seite wurde geöffnet.";
-                return;
-            }
-
-            var downloadsDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "Downloads");
-
-            var targetPath = await _updateService.DownloadAssetAsync(asset, downloadsDirectory);
-            LatestReleaseAsset = asset.Name;
-
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{targetPath}\"")
-            {
-                UseShellExecute = true
-            });
-
-            StatusText = $"Update heruntergeladen: {Path.GetFileName(targetPath)}";
-        }
-        catch (Exception ex)
-        {
-            StatusText = $"Update-Download fehlgeschlagen: {ex.Message}";
-        }
-    }
-
     private AppSettings BuildModel()
     {
         return new AppSettings
@@ -975,7 +821,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             AutoBackupEnabled = AutoBackupEnabled,
             AutoBackupIntervalDays = AutoBackupIntervalDays,
             LastBackupIso = LastBackupIso,
-            UpdateFeedUrl = string.IsNullOrWhiteSpace(UpdateFeedUrl) ? AppSettings.DefaultUpdateFeedUrl : UpdateFeedUrl.Trim(),
             ShowGpsTool = ShowGpsTool,
             GpsToolUrl = string.IsNullOrWhiteSpace(GpsToolUrl) ? AppSettings.DefaultGpsToolUrl : GpsToolUrl.Trim(),
             ShowSpediteurTool = ShowSpediteurTool,
@@ -1044,7 +889,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         AutoBackupEnabled = settings.AutoBackupEnabled;
         AutoBackupIntervalDays = settings.AutoBackupIntervalDays;
         LastBackupIso = settings.LastBackupIso;
-        UpdateFeedUrl = string.IsNullOrWhiteSpace(settings.UpdateFeedUrl) ? AppSettings.DefaultUpdateFeedUrl : settings.UpdateFeedUrl;
         ShowGpsTool = settings.ShowGpsTool;
         GpsToolUrl = string.IsNullOrWhiteSpace(settings.GpsToolUrl) ? AppSettings.DefaultGpsToolUrl : settings.GpsToolUrl;
         ShowSpediteurTool = settings.ShowSpediteurTool;
@@ -1129,16 +973,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
         AvailableBackupsCount = 0;
         LatestBackupFile = "n/a";
-    }
-
-    private void ResetUpdateState()
-    {
-        _latestRelease = null;
-        _latestReleaseLink = string.Empty;
-        LatestReleaseVersion = "Noch nicht geprüft";
-        LatestReleasePublishedAt = "n/a";
-        LatestReleaseAsset = "n/a";
-        UpdateCheckResult = "Noch nicht geprüft.";
     }
 
     private async Task TestConnectionAsync()

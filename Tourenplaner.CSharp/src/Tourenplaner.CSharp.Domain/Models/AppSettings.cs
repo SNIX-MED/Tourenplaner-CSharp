@@ -3,7 +3,6 @@
 public sealed class AppSettings
 {
     public const string DefaultAvisoEmailSubjectTemplate = "Lieferung von Auftrag X";
-    public const string DefaultUpdateFeedUrl = "https://github.com/SNIX-MED/Tourenplaner-CSharp/releases";
     public const string DefaultStatusColorNotSpecified = "#A3A3A3";
     public const string DefaultStatusColorOrdered = "#0EA5E9";
     public const string DefaultStatusColorOnTheWay = "#F59E0B";
@@ -57,7 +56,6 @@ public sealed class AppSettings
     public bool AutoBackupEnabled { get; set; }
     public int AutoBackupIntervalDays { get; set; } = 7;
     public string LastBackupIso { get; set; } = string.Empty;
-    public string UpdateFeedUrl { get; set; } = DefaultUpdateFeedUrl;
     public bool ShowGpsTool { get; set; } = true;
     public string GpsToolUrl { get; set; } = DefaultGpsToolUrl;
     public bool ShowSpediteurTool { get; set; } = true;

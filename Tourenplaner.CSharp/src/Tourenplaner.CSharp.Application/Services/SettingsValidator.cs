@@ -44,19 +44,6 @@ public sealed class SettingsValidator
             errors.Add("AvisoEmailSubjectTemplate must not be empty.");
         }
 
-        if (!Uri.TryCreate((settings.UpdateFeedUrl ?? string.Empty).Trim(), UriKind.Absolute, out var updateUri))
-        {
-            errors.Add("UpdateFeedUrl must be a valid absolute URL.");
-        }
-        else
-        {
-            var host = updateUri.Host.Trim().ToLowerInvariant();
-            if (host != "github.com" && host != "www.github.com" && host != "api.github.com")
-            {
-                errors.Add("UpdateFeedUrl must point to GitHub.");
-            }
-        }
-
         if (!Uri.TryCreate((settings.GpsToolUrl ?? string.Empty).Trim(), UriKind.Absolute, out _))
         {
             errors.Add("GpsToolUrl must be a valid absolute URL.");
