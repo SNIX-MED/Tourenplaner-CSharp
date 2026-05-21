@@ -224,6 +224,16 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.PinInfoCardScale, UiRefreshDebounceMilliseconds);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowName) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowOrderNumber) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowStreet) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowPostalCodeCity) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowNotes) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowProducts) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowTotalWeight))
+        {
+            QueueMapRefresh(MapRefreshOperation.Markers, UiRefreshDebounceMilliseconds);
+        }
         else if (e.PropertyName == nameof(KarteSectionViewModel.TemporarySearchPinRevision))
         {
             QueueMapRefresh(MapRefreshOperation.TemporarySearchPin, UiRefreshDebounceMilliseconds);

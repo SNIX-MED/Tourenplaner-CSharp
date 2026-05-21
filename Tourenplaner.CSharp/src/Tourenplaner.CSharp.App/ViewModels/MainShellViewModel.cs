@@ -438,6 +438,32 @@ public sealed class MainShellViewModel : ObservableObject
         SelectedNavigationItem = NavigationItems.FirstOrDefault(x => ReferenceEquals(x.Section, section)) ?? SelectedNavigationItem;
     }
 
+    public void ActivateSidebarNavigationItem(NavigationItemViewModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_selectedNavigationItem, item))
+        {
+            if (!ReferenceEquals(CurrentSection, item.Section))
+            {
+                CurrentSection = item.Section;
+                TriggerSectionRefreshOnce(item.Section);
+            }
+
+            if (!ReferenceEquals(item, _settingsNavigationItem))
+            {
+                _lastNonSettingsNavigationItem = item;
+            }
+
+            return;
+        }
+
+        SelectedNavigationItem = item;
+    }
+
     private static Task TryRefreshSectionAsync(object section)
     {
         return section switch

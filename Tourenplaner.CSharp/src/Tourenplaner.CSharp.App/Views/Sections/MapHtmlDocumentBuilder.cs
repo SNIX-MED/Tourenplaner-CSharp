@@ -55,6 +55,7 @@ internal static class MapHtmlDocumentBuilder
                    .details-toggle:hover { background: #e9edf6; border-color: #bac4d4; }
                    .details-toggle:active { opacity: .82; }
                    .map-options-toggle img { display: block; width: 20px; height: 20px; object-fit: contain; }
+                   .map-options-toggle svg { display: block; width: 20px; height: 20px; fill: #0f172a; }
                    .map-options-overlay { position: absolute; right: 8px; top: 8px; bottom: 8px; width: min(340px, calc(84vw - 8px)); z-index: 1200; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 18px; transform: translateX(calc(100% + 10px)); transition: transform .22s ease; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: flex; flex-direction: column; overflow: hidden; }
                    .map-options-overlay.open { transform: translateX(0); }
                    .map-options-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 10px; border-bottom: 1px solid #e2e8f0; }
@@ -418,6 +419,72 @@ internal static class MapHtmlDocumentBuilder
                          };
 
                          const createScaledPopupHtml = (contentHtml) => (contentHtml || '').toString();
+
+                         const escapeHtml = (value) => {
+                           const text = (value ?? '').toString();
+                           return text
+                             .replaceAll('&', '&amp;')
+                             .replaceAll('<', '&lt;')
+                             .replaceAll('>', '&gt;')
+                             .replaceAll('"', '&quot;')
+                             .replaceAll("'", '&#39;');
+                         };
+
+                         const buildPinPopupHtml = (m) => {
+                           const lines = [];
+                           const showName = !(m && m.showName === false);
+                           const showOrderNumber = !!(m && m.showOrderNumber);
+                           const showStreet = !(m && m.showStreet === false);
+                           const showPostalCodeCity = !!(m && m.showPostalCodeCity);
+                           const showNotes = !!(m && m.showNotes);
+                           const showProducts = !!(m && m.showProducts);
+                           const showTotalWeight = !!(m && m.showTotalWeight);
+
+                           const customer = m && m.customer ? String(m.customer).trim() : '';
+                           const orderId = m && m.id ? String(m.id).trim() : '';
+                           const street = m && m.street ? String(m.street).trim() : '';
+                           const postalCodeCity = m && m.postalCodeCity ? String(m.postalCodeCity).trim() : '';
+                           const notes = m && m.notes ? String(m.notes).trim() : '';
+                           const totalWeightKgText = m && m.totalWeightKgText ? String(m.totalWeightKgText).trim() : '';
+                           const products = Array.isArray(m && m.products)
+                             ? m.products.map(x => (x ?? '').toString().trim()).filter(x => x.length > 0)
+                             : [];
+
+                           if (showName && customer.length > 0) {
+                             const orderSuffix = showOrderNumber && orderId.length > 0
+                               ? ` (${escapeHtml(orderId)})`
+                               : '';
+                             lines.push(`<b>${escapeHtml(customer)}${orderSuffix}</b>`);
+                           } else if (showOrderNumber && orderId.length > 0) {
+                             lines.push(`Auftrag: ${escapeHtml(orderId)}`);
+                           }
+
+                           if (showStreet && street.length > 0) {
+                             lines.push(escapeHtml(street));
+                           }
+
+                           if (showPostalCodeCity && postalCodeCity.length > 0) {
+                             lines.push(escapeHtml(postalCodeCity));
+                           }
+
+                           if (showNotes && notes.length > 0) {
+                             lines.push(`Notiz: ${escapeHtml(notes)}`);
+                           }
+
+                           if (showProducts && products.length > 0) {
+                             lines.push(`Produkte:<br/>${products.map(x => escapeHtml(x)).join('<br/>')}`);
+                           }
+
+                           if (showTotalWeight && totalWeightKgText.length > 0) {
+                             lines.push(`Gesamtgewicht: ${escapeHtml(totalWeightKgText)} kg`);
+                           }
+
+                           if (lines.length === 0) {
+                             return `<b>${escapeHtml(customer || orderId || 'Stopp')}</b>`;
+                           }
+
+                           return lines.join('<br/>');
+                         };
 
                          const applyBaseStyle = () => {
                            const normalized = (mapState.style || '').toLowerCase();
@@ -1176,7 +1243,7 @@ internal static class MapHtmlDocumentBuilder
                              if (!m || typeof m.lat !== 'number' || typeof m.lon !== 'number') return;
 
                              const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
-                               createScaledPopupHtml(`<b>${m.customer || m.id || 'Stopp'}</b><br/>${m.street || ''}`)
+                               createScaledPopupHtml(buildPinPopupHtml(m))
                              );
                              const marker = new ttSdk.Marker({ element: buildMarkerElement(m, false), anchor: 'center' })
                                .setLngLat([m.lon, m.lat])
@@ -1595,13 +1662,13 @@ internal static class MapHtmlDocumentBuilder
             var iconPath = System.IO.Path.Combine(desktopDir, "Mapoptions.png");
             if (!System.IO.File.Exists(iconPath))
             {
-                return "Map options";
+                return BuildMapOptionsFallbackIcon();
             }
 
             var bytes = System.IO.File.ReadAllBytes(iconPath);
             if (bytes.Length == 0)
             {
-                return "Map options";
+                return BuildMapOptionsFallbackIcon();
             }
 
             var base64 = Convert.ToBase64String(bytes);
@@ -1609,8 +1676,13 @@ internal static class MapHtmlDocumentBuilder
         }
         catch
         {
-            return "Map options";
+            return BuildMapOptionsFallbackIcon();
         }
+    }
+
+    private static string BuildMapOptionsFallbackIcon()
+    {
+        return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M11 2h2l.36 2.13c.56.14 1.1.36 1.6.66l1.9-1.03 1.41 1.41-1.03 1.9c.3.5.52 1.04.66 1.6L22 11v2l-2.13.36c-.14.56-.36 1.1-.66 1.6l1.03 1.9-1.41 1.41-1.9-1.03c-.5.3-1.04.52-1.6.66L13 22h-2l-.36-2.13c-.56-.14-1.1-.36-1.6-.66l-1.9 1.03-1.41-1.41 1.03-1.9c-.3-.5-.52-1.04-.66-1.6L2 13v-2l2.13-.36c.14-.56.36-1.1.66-1.6l-1.03-1.9 1.41-1.41 1.9 1.03c.5-.3 1.04-.52 1.6-.66L11 2zm1 6a4 4 0 100 8 4 4 0 000-8z'/></svg>";
     }
 
     private static string EscapeJsString(string value)

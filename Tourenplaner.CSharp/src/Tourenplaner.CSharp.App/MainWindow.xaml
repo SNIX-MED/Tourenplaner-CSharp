@@ -100,9 +100,11 @@
                         <TextBlock Margin="4,8,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextSubtle}" Text="(c) GAWELA" />
                     </StackPanel>
 
-                    <ListBox Margin="0,2,0,0"
+                    <ListBox x:Name="SidebarNavigationListBox"
+                             Margin="0,2,0,0"
                              ItemsSource="{Binding Source={StaticResource SidebarNavigationItemsView}}"
                              SelectedItem="{Binding SelectedNavigationItem, Mode=TwoWay}"
+                             PreviewMouseLeftButtonUp="SidebarNavigationListBox_PreviewMouseLeftButtonUp"
                              ItemContainerStyle="{StaticResource SidebarListBoxItemStyle}">
                         <ListBox.GroupStyle>
                             <GroupStyle>

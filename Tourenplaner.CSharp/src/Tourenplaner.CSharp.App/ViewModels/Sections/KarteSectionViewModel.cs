@@ -1002,6 +1002,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(TomTomRoutingMode));
         OnPropertyChanged(nameof(TomTomVehicleHeightMeters));
         OnPropertyChanged(nameof(TomTomEnableTileCache));
+        OnPropertyChanged(nameof(MapPinInfoCardShowName));
+        OnPropertyChanged(nameof(MapPinInfoCardShowOrderNumber));
+        OnPropertyChanged(nameof(MapPinInfoCardShowStreet));
+        OnPropertyChanged(nameof(MapPinInfoCardShowPostalCodeCity));
+        OnPropertyChanged(nameof(MapPinInfoCardShowNotes));
+        OnPropertyChanged(nameof(MapPinInfoCardShowProducts));
+        OnPropertyChanged(nameof(MapPinInfoCardShowTotalWeight));
         OnPropertyChanged(nameof(PinInfoCardScale));
         OnPropertyChanged(nameof(PinInfoCardScalePercentText));
         var (defaultHour, defaultMinute) = ParseStartTimePartsOrDefault(settings.TourDefaultStartTime);

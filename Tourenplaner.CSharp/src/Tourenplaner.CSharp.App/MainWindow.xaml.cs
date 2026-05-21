@@ -1,7 +1,10 @@
 using System.Windows;
 using System.Windows.Controls.Primitives;
+using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Tourenplaner.CSharp.App.ViewModels;
 
 namespace Tourenplaner.CSharp.App;
 
@@ -48,5 +51,37 @@ public partial class MainWindow : Window
         [
             new CustomPopupPlacement(new Point(x, y), PopupPrimaryAxis.None)
         ];
+    }
+
+    private void SidebarNavigationListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not MainShellViewModel vm)
+        {
+            return;
+        }
+
+        if (FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject) is not ListBoxItem listBoxItem ||
+            listBoxItem.DataContext is not NavigationItemViewModel navigationItem)
+        {
+            return;
+        }
+
+        vm.ActivateSidebarNavigationItem(navigationItem);
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? source) where T : DependencyObject
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is T target)
+            {
+                return target;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 }
