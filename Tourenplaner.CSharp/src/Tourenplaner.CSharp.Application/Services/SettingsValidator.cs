@@ -114,6 +114,11 @@ public sealed class SettingsValidator
             errors.Add("PinInfoCardScale must be between 0.7 and 1.8.");
         }
 
+        if (settings.PinInfoCardZoomBehaviorStrength is < 0.2d or > 4.0d)
+        {
+            errors.Add("PinInfoCardZoomBehaviorStrength must be between 0.2 and 4.0.");
+        }
+
         if (settings.TomTomTrafficRefreshSeconds < 15)
         {
             errors.Add("TomTomTrafficRefreshSeconds must be at least 15.");

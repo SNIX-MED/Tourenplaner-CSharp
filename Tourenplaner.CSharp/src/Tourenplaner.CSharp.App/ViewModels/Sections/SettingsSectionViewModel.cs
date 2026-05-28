@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Reflection;
 using System.Globalization;
 using System.ComponentModel;
+using Microsoft.Win32;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Services;
@@ -39,15 +40,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     private string _statusText = "Loading settings...";
     
-    // SQL Import Settings
-    private string _sqlServer = SqlConnectionSettings.DefaultServer;
-    private string _sqlDatabase = "Business11";
-    private string _sqlDatabasePath = string.Empty;
-    private bool _sqlUseWindowsAuth = true;
-    private string _sqlUserId = string.Empty;
-    private string _sqlPassword = string.Empty;
-    private bool _sqlImportEnabled = false;
-    private bool _isTestingConnection = false;
+    // XML Import Settings
+    private string _xmlImportFilePath = string.Empty;
     private bool _isImportingOrders = false;
     private string _importStatusMessage = "";
     
@@ -74,6 +68,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private bool _mapPinInfoCardShowNotes = true;
     private bool _mapPinInfoCardShowProducts = true;
     private bool _mapPinInfoCardShowTotalWeight = true;
+    private double _pinInfoCardZoomBehaviorStrength = AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
     private int _mapRouteCapacityWarningThresholdPercent = AppSettings.DefaultMapRouteCapacityWarningThresholdPercent;
     private string _tomTomApiKey = "IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH";
     private string _tomTomMapStyle = AppSettings.DefaultTomTomMapStyle;
@@ -103,6 +98,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private bool _suppressAutoSave;
     private CancellationTokenSource? _autoSaveCts;
     private bool _autoSaveInProgress;
+    private CancellationTokenSource? _pinInfoCardZoomBehaviorSaveCts;
     private string _currentUserName = string.Empty;
     private Dictionary<string, MapOverlayUserPreference> _mapOverlayPreferencesByUser = new(StringComparer.OrdinalIgnoreCase);
 
@@ -147,13 +143,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         RestoreLatestBackupCommand = new AsyncCommand(RestoreLatestBackupAsync);
         CleanupBackupsCommand = new DelegateCommand(CleanupBackups);
         
-        // SQL Import Commands
-        TestSqlConnectionCommand = new AsyncCommand(
-            TestConnectionAsync,
-            canExecute: () => !IsTestingConnection && !IsImportingOrders);
+        // XML Import Commands
+        BrowseXmlImportFileCommand = new DelegateCommand(BrowseXmlImportFile);
+        DownloadXmlTemplateCommand = new DelegateCommand(DownloadXmlTemplateFile);
         ImportOrdersCommand = new AsyncCommand(
             ImportOrdersAsync,
-            canExecute: () => SqlImportEnabled && !IsTestingConnection && !IsImportingOrders);
+            canExecute: () => !string.IsNullOrWhiteSpace(XmlImportFilePath) && !IsImportingOrders);
 
         PropertyChanged += OnSelfPropertyChanged;
 
@@ -178,7 +173,9 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     public ICommand CleanupBackupsCommand { get; }
 
-    public AsyncCommand TestSqlConnectionCommand { get; }
+    public ICommand BrowseXmlImportFileCommand { get; }
+
+    public ICommand DownloadXmlTemplateCommand { get; }
 
     public AsyncCommand ImportOrdersCommand { get; }
 
@@ -332,6 +329,19 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _mapPinInfoCardShowTotalWeight, value);
     }
 
+    public double PinInfoCardZoomBehaviorStrength
+    {
+        get => _pinInfoCardZoomBehaviorStrength;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.2d, 4.0d);
+            if (SetProperty(ref _pinInfoCardZoomBehaviorStrength, clamped))
+            {
+                RequestPinInfoCardZoomBehaviorStrengthSave();
+            }
+        }
+    }
+
     public int MapRouteCapacityWarningThresholdPercent
     {
         get => _mapRouteCapacityWarningThresholdPercent;
@@ -482,52 +492,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _tourDefaultStartTime, value);
     }
 
-    public string SqlDatabasePath
+    public string XmlImportFilePath
     {
-        get => _sqlDatabasePath;
-        set => SetProperty(ref _sqlDatabasePath, value);
-    }
-
-    public string SqlServer
-    {
-        get => _sqlServer;
-        set => SetProperty(ref _sqlServer, value);
-    }
-
-    public string SqlDatabase
-    {
-        get => _sqlDatabase;
-        set => SetProperty(ref _sqlDatabase, value);
-    }
-
-    public bool SqlUseWindowsAuth
-    {
-        get => _sqlUseWindowsAuth;
-        set => SetProperty(ref _sqlUseWindowsAuth, value);
-    }
-
-    public string SqlUserId
-    {
-        get => _sqlUserId;
-        set => SetProperty(ref _sqlUserId, value);
-    }
-
-    public string SqlPassword
-    {
-        get => _sqlPassword;
-        set => SetProperty(ref _sqlPassword, value);
-    }
-
-    public bool SqlImportEnabled
-    {
-        get => _sqlImportEnabled;
-        set => SetProperty(ref _sqlImportEnabled, value);
-    }
-
-    public bool IsTestingConnection
-    {
-        get => _isTestingConnection;
-        set => SetProperty(ref _isTestingConnection, value);
+        get => _xmlImportFilePath;
+        set => SetProperty(ref _xmlImportFilePath, value);
     }
 
     public bool IsImportingOrders
@@ -594,6 +562,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     private void OnSelfPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(XmlImportFilePath) || e.PropertyName == nameof(IsImportingOrders))
+        {
+            ImportOrdersCommand.RaiseCanExecuteChanged();
+        }
+
         if (_suppressAutoSave || _autoSaveInProgress)
         {
             return;
@@ -659,6 +632,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(MapPinInfoCardShowNotes) or
             nameof(MapPinInfoCardShowProducts) or
             nameof(MapPinInfoCardShowTotalWeight) or
+            nameof(PinInfoCardZoomBehaviorStrength) or
             nameof(MapRouteCapacityWarningThresholdPercent) or
             nameof(TomTomApiKey) or
             nameof(TomTomMapStyle) or
@@ -679,13 +653,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(ShowSpediteurTool) or
             nameof(SpediteurToolUrl) or
             nameof(TourDefaultStartTime) or
-            nameof(SqlDatabasePath) or
-            nameof(SqlServer) or
-            nameof(SqlDatabase) or
-            nameof(SqlUseWindowsAuth) or
-            nameof(SqlUserId) or
-            nameof(SqlPassword) or
-            nameof(SqlImportEnabled);
+            nameof(XmlImportFilePath);
     }
 
     public async Task CreateBackupAsync()
@@ -801,6 +769,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             MapPinInfoCardShowNotes = MapPinInfoCardShowNotes,
             MapPinInfoCardShowProducts = MapPinInfoCardShowProducts,
             MapPinInfoCardShowTotalWeight = MapPinInfoCardShowTotalWeight,
+            PinInfoCardZoomBehaviorStrength = Math.Clamp(PinInfoCardZoomBehaviorStrength, 0.2d, 4.0d),
             MapRouteCapacityWarningThresholdPercent = Math.Clamp(MapRouteCapacityWarningThresholdPercent, 0, 100),
             TomTomApiKey = (TomTomApiKey ?? string.Empty).Trim(),
             TomTomMapStyle = NormalizeTomTomMapStyle(TomTomMapStyle),
@@ -826,16 +795,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             ShowSpediteurTool = ShowSpediteurTool,
             SpediteurToolUrl = string.IsNullOrWhiteSpace(SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : SpediteurToolUrl.Trim(),
             TourDefaultStartTime = NormalizeTourDefaultStartTime(TourDefaultStartTime),
-            SqlImportSettings = new SqlConnectionSettings
-            {
-                Server = string.IsNullOrWhiteSpace(SqlServer) ? SqlConnectionSettings.DefaultServer : SqlServer.Trim(),
-                Database = string.IsNullOrWhiteSpace(SqlDatabase) ? "Business11" : SqlDatabase.Trim(),
-                DatabasePath = SqlDatabasePath,
-                UseWindowsAuthentication = SqlUseWindowsAuth,
-                UserId = (SqlUserId ?? string.Empty).Trim(),
-                Password = SqlPassword ?? string.Empty
-            },
-            SqlImportEnabled = SqlImportEnabled,
+            XmlImportFilePath = (XmlImportFilePath ?? string.Empty).Trim(),
             QuickAccessItems = new List<string>()
         };
     }
@@ -867,6 +827,9 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         MapPinInfoCardShowNotes = settings.MapPinInfoCardShowNotes;
         MapPinInfoCardShowProducts = settings.MapPinInfoCardShowProducts;
         MapPinInfoCardShowTotalWeight = settings.MapPinInfoCardShowTotalWeight;
+        PinInfoCardZoomBehaviorStrength = settings.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
+            ? settings.PinInfoCardZoomBehaviorStrength
+            : AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
         MapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
             : settings.MapRouteCapacityWarningThresholdPercent;
@@ -895,20 +858,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         SpediteurToolUrl = string.IsNullOrWhiteSpace(settings.SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : settings.SpediteurToolUrl;
         TourDefaultStartTime = NormalizeTourDefaultStartTime(settings.TourDefaultStartTime);
         
-        // SQL Settings
-        SqlServer = string.IsNullOrWhiteSpace(settings.SqlImportSettings?.Server)
-            ? SqlConnectionSettings.DefaultServer
-            : settings.SqlImportSettings.Server;
-        SqlDatabase = string.IsNullOrWhiteSpace(settings.SqlImportSettings?.Database)
-            ? "Business11"
-            : settings.SqlImportSettings.Database;
-        SqlDatabasePath = string.IsNullOrWhiteSpace(settings.SqlImportSettings?.DatabasePath)
-            ? string.Empty
-            : settings.SqlImportSettings.DatabasePath;
-        SqlUseWindowsAuth = settings.SqlImportSettings?.UseWindowsAuthentication ?? true;
-        SqlUserId = settings.SqlImportSettings?.UserId ?? string.Empty;
-        SqlPassword = settings.SqlImportSettings?.Password ?? string.Empty;
-        SqlImportEnabled = settings.SqlImportEnabled;
+        XmlImportFilePath = settings.XmlImportFilePath ?? string.Empty;
     }
 
     private static string NormalizeTourDefaultStartTime(string? value)
@@ -975,48 +925,82 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         LatestBackupFile = "n/a";
     }
 
-    private async Task TestConnectionAsync()
+    private void BrowseXmlImportFile()
     {
-        IsTestingConnection = true;
-        ImportStatusMessage = "🔌 Verbindung wird getestet...";
+        var dialog = new OpenFileDialog
+        {
+            Filter = "XML-Dateien (*.xml)|*.xml|Alle Dateien (*.*)|*.*",
+            Title = "XML-Importdatei auswaehlen",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            XmlImportFilePath = dialog.FileName;
+            ImportStatusMessage = $"Ausgewaehlte XML-Datei: {XmlImportFilePath}";
+            ImportOrdersCommand.RaiseCanExecuteChanged();
+        }
+    }
 
+    private void RequestPinInfoCardZoomBehaviorStrengthSave()
+    {
+        if (_suppressAutoSave)
+        {
+            return;
+        }
+
+        _pinInfoCardZoomBehaviorSaveCts?.Cancel();
+        _pinInfoCardZoomBehaviorSaveCts?.Dispose();
+        _pinInfoCardZoomBehaviorSaveCts = new CancellationTokenSource();
+        var token = _pinInfoCardZoomBehaviorSaveCts.Token;
+        _ = SavePinInfoCardZoomBehaviorStrengthAsync(token);
+    }
+
+    private async Task SavePinInfoCardZoomBehaviorStrengthAsync(CancellationToken cancellationToken)
+    {
         try
         {
-            var settings = new SqlConnectionSettings
+            await Task.Delay(150, cancellationToken);
+            var settings = await _repository.LoadAsync(cancellationToken);
+            var clamped = Math.Clamp(_pinInfoCardZoomBehaviorStrength, 0.2d, 4.0d);
+            if (Math.Abs(settings.PinInfoCardZoomBehaviorStrength - clamped) < 0.0001d)
             {
-                Server = string.IsNullOrWhiteSpace(SqlServer) ? SqlConnectionSettings.DefaultServer : SqlServer.Trim(),
-                Database = string.IsNullOrWhiteSpace(SqlDatabase) ? "Business11" : SqlDatabase.Trim(),
-                DatabasePath = SqlDatabasePath,
-                UseWindowsAuthentication = SqlUseWindowsAuth,
-                UserId = (SqlUserId ?? string.Empty).Trim(),
-                Password = SqlPassword ?? string.Empty
-            };
+                return;
+            }
 
-            var service = new SqlServerOrderService(settings);
-            await service.TestConnectionAsync();
+            settings.PinInfoCardZoomBehaviorStrength = clamped;
+            await _repository.SaveAsync(settings, cancellationToken);
+            _dataSyncService?.PublishSettings(_instanceId);
+        }
+        catch (OperationCanceledException)
+        {
+            // Keep only the latest slider value.
+        }
+        catch
+        {
+            // Ignore transient write failures; normal save flow can still persist values.
+        }
+    }
 
-            ImportStatusMessage = "✓ Verbindung erfolgreich!";
-            SqlImportEnabled = true;
-            StatusText = "SQL Server Verbindung erfolgreich getestet.";
-            
-            // Aktualisiere Button-Status
-            ImportOrdersCommand.RaiseCanExecuteChanged();
-        }
-        catch (Exception ex)
+    private void DownloadXmlTemplateFile()
+    {
+        var dialog = new SaveFileDialog
         {
-            var hint = BuildSqlConnectionHint();
-            ImportStatusMessage = string.IsNullOrWhiteSpace(hint)
-                ? $"✗ Fehler: {ex.Message}"
-                : $"✗ Fehler: {ex.Message}{Environment.NewLine}{hint}";
-            SqlImportEnabled = false;
-            StatusText = "SQL Server Verbindung fehlgeschlagen.";
-        }
-        finally
+            Filter = "XML-Dateien (*.xml)|*.xml",
+            Title = "XML-Musterdatei speichern",
+            FileName = "Auftragsimport-Muster.xml",
+            DefaultExt = ".xml",
+            AddExtension = true,
+            OverwritePrompt = true
+        };
+        if (dialog.ShowDialog() != true)
         {
-            IsTestingConnection = false;
-            TestSqlConnectionCommand.RaiseCanExecuteChanged();
-            ImportOrdersCommand.RaiseCanExecuteChanged();
+            return;
         }
+
+        var xmlService = new XmlOrderImportService();
+        File.WriteAllText(dialog.FileName, xmlService.CreateTemplateXml());
+        ImportStatusMessage = $"Musterdatei gespeichert: {dialog.FileName}";
     }
 
     private async Task ImportOrdersAsync()
@@ -1028,30 +1012,27 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         }
 
         IsImportingOrders = true;
-        ImportStatusMessage = "⏳ Importiere Aufträge aus SQL Server...";
+        ImportStatusMessage = "⏳ Importiere Aufträge aus XML...";
 
         try
         {
-            var appSettings = await _settingsRepository.GetAsync();
-            appSettings.SqlImportSettings = new SqlConnectionSettings
+            if (string.IsNullOrWhiteSpace(XmlImportFilePath) || !File.Exists(XmlImportFilePath))
             {
-                Server = string.IsNullOrWhiteSpace(SqlServer) ? SqlConnectionSettings.DefaultServer : SqlServer.Trim(),
-                Database = string.IsNullOrWhiteSpace(SqlDatabase) ? "Business11" : SqlDatabase.Trim(),
-                DatabasePath = SqlDatabasePath,
-                UseWindowsAuthentication = SqlUseWindowsAuth,
-                UserId = (SqlUserId ?? string.Empty).Trim(),
-                Password = SqlPassword ?? string.Empty
-            };
+                throw new FileNotFoundException("Bitte zuerst eine gueltige XML-Datei auswaehlen.");
+            }
 
-            var sqlService = new SqlServerOrderService(appSettings.SqlImportSettings);
-            // Always run a full sync here so delivery-type rule changes (ArticleID mapping)
-            // are re-applied to existing orders as well.
-            var sqlOrders = await sqlService.GetNewAndUpdatedOrdersAsync(null);
+            var appSettings = await _settingsRepository.GetAsync();
+            appSettings.XmlImportFilePath = XmlImportFilePath;
+            appSettings.LastXmlImportDate = DateTime.Now;
+            await _settingsRepository.SaveAsync(appSettings);
+
+            var xmlService = new XmlOrderImportService();
+            var sqlOrders = xmlService.LoadOrdersFromFile(XmlImportFilePath);
 
             if (sqlOrders.Count == 0)
             {
                 ImportStatusMessage = "ℹ Keine importierbaren Aufträge gefunden.";
-                StatusText = "SQL Import: Keine Daten gefunden.";
+                StatusText = "XML Import: Keine Daten gefunden.";
                 return;
             }
 
@@ -1074,20 +1055,16 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             }
 
             ImportStatusMessage = message;
-            StatusText = $"SQL Import erfolgreich: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert.";
+            StatusText = $"XML Import erfolgreich: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert.";
         }
         catch (Exception ex)
         {
-            var hint = BuildSqlConnectionHint();
-            ImportStatusMessage = string.IsNullOrWhiteSpace(hint)
-                ? $"✗ Importfehler: {ex.Message}"
-                : $"✗ Importfehler: {ex.Message}{Environment.NewLine}{hint}";
-            StatusText = $"SQL Import fehlgeschlagen: {ex.Message}";
+            ImportStatusMessage = $"✗ Importfehler: {ex.Message}";
+            StatusText = $"XML Import fehlgeschlagen: {ex.Message}";
         }
         finally
         {
             IsImportingOrders = false;
-            TestSqlConnectionCommand.RaiseCanExecuteChanged();
             ImportOrdersCommand.RaiseCanExecuteChanged();
         }
     }
@@ -1153,33 +1130,4 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         });
     }
 
-    private string BuildSqlConnectionHint()
-    {
-        var trimmedPath = (SqlDatabasePath ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(trimmedPath))
-        {
-            return "Hinweis: Bitte SQL Server, Datenbankname und bei Bedarf den MDF-Pfad prüfen.";
-        }
-
-        if (trimmedPath.Length >= 2 && char.IsLetter(trimmedPath[0]) && trimmedPath[1] == ':')
-        {
-            try
-            {
-                var root = Path.GetPathRoot(trimmedPath);
-                if (!string.IsNullOrWhiteSpace(root))
-                {
-                    var drive = new DriveInfo(root);
-                    if (drive.DriveType is DriveType.Network or DriveType.NoRootDirectory)
-                    {
-                        return "Hinweis: Der angegebene Pfad liegt auf einem Netzlaufwerk. SQL Server-Dienste können gemappte Laufwerke wie L: oft nicht verwenden. In diesem Fall direkt mit Server + Datenbankname verbinden oder einen lokalen/UNC-Pfad verwenden, auf den der SQL-Dienst Zugriff hat.";
-                    }
-                }
-            }
-            catch
-            {
-            }
-        }
-
-        return "Hinweis: Falls die Datenbank bereits an eine SQL-Instanz angehängt ist, reichen meist SQL Server und Datenbankname. Der MDF-Pfad ist dann optional.";
-    }
 }

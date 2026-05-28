@@ -32,9 +32,10 @@ public partial class KarteSectionView : UserControl
         RouteSelection = 1 << 3,
         PinInfoCardsVisibility = 1 << 4,
         PinInfoCardScale = 1 << 5,
-        DetailsToggle = 1 << 6,
-        PlannedTourOverlayHighlight = 1 << 7,
-        TemporarySearchPin = 1 << 8
+        PinInfoCardZoomBehavior = 1 << 6,
+        DetailsToggle = 1 << 7,
+        PlannedTourOverlayHighlight = 1 << 8,
+        TemporarySearchPin = 1 << 9
     }
 
     private static readonly GridLength DefaultRoutePanelWidth = new(460d, GridUnitType.Pixel);
@@ -224,6 +225,10 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.PinInfoCardScale, UiRefreshDebounceMilliseconds);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.PinInfoCardZoomBehaviorStrength))
+        {
+            QueueMapRefresh(MapRefreshOperation.PinInfoCardZoomBehavior, UiRefreshDebounceMilliseconds);
+        }
         else if (e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowName) ||
                  e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowOrderNumber) ||
                  e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowStreet) ||
@@ -350,6 +355,10 @@ public partial class KarteSectionView : UserControl
             if ((operation & MapRefreshOperation.PinInfoCardScale) != 0)
             {
                 await ApplyPinInfoCardScaleAsync();
+            }
+            if ((operation & MapRefreshOperation.PinInfoCardZoomBehavior) != 0)
+            {
+                await ApplyPinInfoCardZoomBehaviorAsync();
             }
 
             if ((operation & MapRefreshOperation.TemporarySearchPin) != 0)
@@ -631,6 +640,7 @@ public partial class KarteSectionView : UserControl
                     MapRefreshOperation.Markers |
                     MapRefreshOperation.Route |
                     MapRefreshOperation.PinInfoCardScale |
+                    MapRefreshOperation.PinInfoCardZoomBehavior |
                     MapRefreshOperation.DetailsToggle);
             }
             else
@@ -726,6 +736,7 @@ public partial class KarteSectionView : UserControl
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetCompanyMarker === 'function') window.gawelaSetCompanyMarker({JsonSerializer.Serialize(company)});");
         await ApplyPinInfoCardsVisibilityAsync();
         await ApplyPinInfoCardScaleAsync();
+        await ApplyPinInfoCardZoomBehaviorAsync();
         await ApplyTemporarySearchPinAsync();
     }
 
@@ -870,6 +881,18 @@ public partial class KarteSectionView : UserControl
         var scaleJson = JsonSerializer.Serialize(targetScale);
         await MapWebView.CoreWebView2.ExecuteScriptAsync(
             $"if (typeof window.gawelaSetPopupSizeMultiplier === 'function') window.gawelaSetPopupSizeMultiplier({scaleJson});");
+    }
+
+    private async Task ApplyPinInfoCardZoomBehaviorAsync()
+    {
+        if (!_mapReady || !_mapScriptReady || MapWebView.CoreWebView2 is null || DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        var strengthJson = JsonSerializer.Serialize(vm.PinInfoCardZoomBehaviorStrength);
+        await MapWebView.CoreWebView2.ExecuteScriptAsync(
+            $"if (typeof window.gawelaSetPopupZoomBehaviorStrength === 'function') window.gawelaSetPopupZoomBehaviorStrength({strengthJson});");
     }
 
     private async Task ApplyDetailsToggleStateAsync()

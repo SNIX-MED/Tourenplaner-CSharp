@@ -16,6 +16,15 @@ internal static class MapHtmlDocumentBuilder
         bool mapOverlayUseDepartAtTraffic)
     {
         var mapOptionsButtonContent = BuildMapOptionsButtonContent();
+        var infoIconLocation = BuildInfoCardIconDataUri(
+            "1.svg",
+            "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M12 22C12 22 19 15.5 19 9.5C19 5.36 15.87 2 12 2C8.13 2 5 5.36 5 9.5C5 15.5 12 22 12 22Z' fill='#1D9BF0'/><circle cx='12' cy='9.5' r='2.7' fill='white'/></svg>");
+        var infoIconProducts = BuildInfoCardIconDataUri(
+            "2.svg",
+            "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M12 2.75L20.5 7.25V16.75L12 21.25L3.5 16.75V7.25L12 2.75Z' stroke='#16A34A' stroke-width='1.8' stroke-linejoin='round'/><path d='M3.8 7.45L12 11.85L20.2 7.45' stroke='#16A34A' stroke-width='1.8' stroke-linejoin='round'/><path d='M12 11.85V20.7' stroke='#16A34A' stroke-width='1.8' stroke-linecap='round'/><path d='M8.3 5L16.4 9.2' stroke='#16A34A' stroke-width='1.8' stroke-linecap='round'/></svg>");
+        var infoIconWeight = BuildInfoCardIconDataUri(
+            "3.svg",
+            "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M9.2 7.8C9.2 5.8 10.45 4.4 12 4.4C13.55 4.4 14.8 5.8 14.8 7.8' stroke='#6D5CE7' stroke-width='1.8' stroke-linecap='round'/><path d='M6.6 8.2H17.4L19.6 20H4.4L6.6 8.2Z' fill='#6D5CE7'/><text x='12' y='16.2' text-anchor='middle' font-size='5.2' font-family='Arial, sans-serif' font-weight='700' fill='white'>kg</text></svg>");
 
         var template = """
                <!doctype html>
@@ -71,13 +80,27 @@ internal static class MapHtmlDocumentBuilder
                    .switch-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 14px; color: #1e293b; }
                    .switch-row input { width: 20px; height: 20px; }
                    .tour-hover-tooltip { position: absolute; z-index: 1400; pointer-events: none; transform: translate(-50%, calc(-100% - 10px)); background: rgba(15,23,42,.94); color: #f8fafc; border: 1px solid rgba(148,163,184,.45); border-radius: 8px; padding: 4px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; box-shadow: 0 6px 16px rgba(2,6,23,.32); opacity: 0; transition: opacity .08s linear; }
-                   .tt-popup-content, .mapboxgl-popup-content { transform: scale(var(--gawela-pin-scale, 1)); transform-origin: center bottom; display: inline-block; }
-                   .tt-popup-tip, .mapboxgl-popup-tip { transform: scale(var(--gawela-pin-scale, 1)); transform-origin: center top; }
+                   .tt-popup-content, .mapboxgl-popup-content { transform: scale(var(--gawela-pin-scale, 1)); transform-origin: center bottom; display: inline-block; padding: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
+                   .tt-popup-tip, .mapboxgl-popup-tip { display: none !important; }
                    .tt-popup, .tt-popup *, .mapboxgl-popup, .mapboxgl-popup * { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; -webkit-user-drag: none !important; }
                    .tt-marker { pointer-events: auto !important; }
                    .tt-popup, .mapboxgl-popup { z-index: 1400 !important; }
                    .tt-marker, .mapboxgl-marker { z-index: 1200 !important; }
                    .tour-hover-tooltip.visible { opacity: 1; }
+                   .gawela-info-card { width: 420px; max-width: min(86vw, 420px); background: #ffffff; border: 1px solid #e6e8ee; border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15); color: #111827; overflow: hidden; }
+                   .gawela-info-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; }
+                   .gawela-info-card-name { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.12; letter-spacing: -0.01em; color: #111827; }
+                   .gawela-info-card-badge { display: inline-block; font-size: 14px; line-height: 1; padding: 7px 10px; border-radius: 10px; background: #f3f4f6; color: #3f3f46; white-space: nowrap; }
+                   .gawela-info-card-section { display: flex; align-items: flex-start; gap: 12px; padding: 12px 18px; border-top: 1px solid #eceef3; }
+                   .gawela-info-card-section-weight { align-items: center; }
+                   .gawela-info-card-icon-wrap { width: 48px; height: 48px; min-width: 48px; border-radius: 999px; background: #f4f6fb; display: flex; align-items: center; justify-content: center; }
+                   .gawela-info-card-icon-wrap img { width: 28px; height: 28px; display: block; }
+                   .gawela-info-card-line { margin: 0; font-size: 15px; line-height: 1.28; color: #1f2937; }
+                   .gawela-info-card-label { margin: 0 0 4px; font-size: 15px; line-height: 1.24; font-weight: 700; color: #111827; }
+                   .gawela-info-card-weight { margin: 0; font-size: 19px; line-height: 1.2; color: #1f2937; }
+                   .gawela-info-card-weight strong { font-weight: 800; color: #111827; }
+                   .gawela-info-card-tail-wrap { height: 10px; display: flex; justify-content: center; margin-top: -1px; }
+                   .gawela-info-card-tail { width: 18px; height: 10px; background: #ffffff; border-left: 1px solid #e6e8ee; border-right: 1px solid #e6e8ee; border-bottom: 1px solid #e6e8ee; clip-path: polygon(50% 100%, 0 0, 100% 0); box-sizing: border-box; }
                  </style>
                </head>
                <body>
@@ -156,6 +179,7 @@ internal static class MapHtmlDocumentBuilder
                    window.gawelaSetAllMarkerPopupsVisible = function() {};
                    window.gawelaSetStickyPopupOrderId = function() {};
                    window.gawelaSetPopupSizeMultiplier = function() {};
+                   window.gawelaSetPopupZoomBehaviorStrength = function() {};
                    window.gawelaSetTempSearchMarker = function() {};
                    window.gawelaClearTempSearchMarker = function() {};
                    const resolveDetailsToggleGlyph = (glyph) => {
@@ -307,10 +331,42 @@ internal static class MapHtmlDocumentBuilder
                          let routeStopCanvasClickBound = false;
                          let lastAutoCenteredRouteKey = '';
                          let markerScale = 1.0;
+                         let manualPopupScale = 1.0;
+                         let zoomPopupScale = 1.0;
+                         let popupZoomBehaviorStrength = 1.0;
+                         let zoomScaleRafScheduled = false;
                          const applyScaleVariable = (scale) => {
-                           const value = Number.isFinite(scale) ? Math.max(0.6, Math.min(2.4, scale)) : 1.0;
+                           const value = Number.isFinite(scale) ? Math.max(0.35, Math.min(2.4, scale)) : 1.0;
                            markerScale = value;
                            document.documentElement.style.setProperty('--gawela-pin-scale', String(value));
+                         };
+                         const getZoomBasedInfoCardScale = (zoom) => {
+                           const strength = Number.isFinite(popupZoomBehaviorStrength)
+                             ? Math.max(0.2, Math.min(4.0, popupZoomBehaviorStrength))
+                             : 1.0;
+                           const minZoom = 5.5;
+                           const maxZoom = 15.0;
+                           const minScale = Math.max(0.05, 0.40 - (0.09 * strength));
+                           const maxScale = 1.0;
+                           const normalizedRaw = (Number(zoom) - minZoom) / (maxZoom - minZoom);
+                           const normalized = Math.max(0, Math.min(1, normalizedRaw));
+                           const exponent = 0.55 + (0.85 * strength);
+                           const eased = Math.pow(normalized, exponent);
+                           return minScale + (eased * (maxScale - minScale));
+                         };
+                         const recomputePopupScale = () => {
+                           const currentZoom = (map && typeof map.getZoom === 'function') ? map.getZoom() : 10;
+                           zoomPopupScale = getZoomBasedInfoCardScale(currentZoom);
+                           const combined = manualPopupScale * zoomPopupScale;
+                           applyScaleVariable(combined);
+                         };
+                         const schedulePopupScaleRecompute = () => {
+                           if (zoomScaleRafScheduled) return;
+                           zoomScaleRafScheduled = true;
+                           window.requestAnimationFrame(() => {
+                             zoomScaleRafScheduled = false;
+                             recomputePopupScale();
+                           });
                          };
 
                          applyStyleThumbPreviews();
@@ -431,7 +487,6 @@ internal static class MapHtmlDocumentBuilder
                          };
 
                          const buildPinPopupHtml = (m) => {
-                           const lines = [];
                            const showName = !(m && m.showName === false);
                            const showOrderNumber = !!(m && m.showOrderNumber);
                            const showStreet = !(m && m.showStreet === false);
@@ -449,41 +504,43 @@ internal static class MapHtmlDocumentBuilder
                            const products = Array.isArray(m && m.products)
                              ? m.products.map(x => (x ?? '').toString().trim()).filter(x => x.length > 0)
                              : [];
+                           const cardName = showName && customer.length > 0
+                             ? customer
+                             : (orderId.length > 0 ? `Auftrag ${orderId}` : 'Stopp');
+                           const headerBadge = showOrderNumber && orderId.length > 0
+                             ? `<span class='gawela-info-card-badge'>${escapeHtml(orderId)}</span>`
+                             : '';
 
-                           if (showName && customer.length > 0) {
-                             const orderSuffix = showOrderNumber && orderId.length > 0
-                               ? ` (${escapeHtml(orderId)})`
-                               : '';
-                             lines.push(`<b>${escapeHtml(customer)}${orderSuffix}</b>`);
-                           } else if (showOrderNumber && orderId.length > 0) {
-                             lines.push(`Auftrag: ${escapeHtml(orderId)}`);
-                           }
+                           const sections = [];
 
-                           if (showStreet && street.length > 0) {
-                             lines.push(escapeHtml(street));
-                           }
-
-                           if (showPostalCodeCity && postalCodeCity.length > 0) {
-                             lines.push(escapeHtml(postalCodeCity));
-                           }
-
-                           if (showNotes && notes.length > 0) {
-                             lines.push(`Notiz: ${escapeHtml(notes)}`);
+                           const addressLines = [];
+                           if (showStreet && street.length > 0) addressLines.push(street);
+                           if (showPostalCodeCity && postalCodeCity.length > 0) addressLines.push(postalCodeCity);
+                           if (addressLines.length > 0) {
+                             sections.push(
+                               `<section class='gawela-info-card-section'><div class='gawela-info-card-icon-wrap'><img src='__INFO_ICON_LOCATION__' alt='' /></div><div>${addressLines.map(line => `<p class='gawela-info-card-line'>${escapeHtml(line)}</p>`).join('')}</div></section>`
+                             );
                            }
 
                            if (showProducts && products.length > 0) {
-                             lines.push(`Produkte:<br/>${products.map(x => escapeHtml(x)).join('<br/>')}`);
+                             sections.push(
+                               `<section class='gawela-info-card-section'><div class='gawela-info-card-icon-wrap'><img src='__INFO_ICON_PRODUCTS__' alt='' /></div><div><p class='gawela-info-card-label'>Produkte</p>${products.map(line => `<p class='gawela-info-card-line'>${escapeHtml(line)}</p>`).join('')}</div></section>`
+                             );
+                           }
+
+                           if (showNotes && notes.length > 0) {
+                             sections.push(
+                               `<section class='gawela-info-card-section'><div class='gawela-info-card-icon-wrap'><img src='__INFO_ICON_PRODUCTS__' alt='' /></div><div><p class='gawela-info-card-label'>Notizen</p><p class='gawela-info-card-line'>${escapeHtml(notes)}</p></div></section>`
+                             );
                            }
 
                            if (showTotalWeight && totalWeightKgText.length > 0) {
-                             lines.push(`Gesamtgewicht: ${escapeHtml(totalWeightKgText)} kg`);
+                             sections.push(
+                               `<section class='gawela-info-card-section gawela-info-card-section-weight'><div class='gawela-info-card-icon-wrap'><img src='__INFO_ICON_WEIGHT__' alt='' /></div><div><p class='gawela-info-card-weight'><strong>${escapeHtml(totalWeightKgText)} kg</strong></p></div></section>`
+                             );
                            }
 
-                           if (lines.length === 0) {
-                             return `<b>${escapeHtml(customer || orderId || 'Stopp')}</b>`;
-                           }
-
-                           return lines.join('<br/>');
+                           return `<div class='gawela-info-card'><header class='gawela-info-card-header'><h4 class='gawela-info-card-name'>${escapeHtml(cardName)}</h4>${headerBadge}</header>${sections.join('')}</div><div class='gawela-info-card-tail-wrap'><div class='gawela-info-card-tail'></div></div>`;
                          };
 
                          const applyBaseStyle = () => {
@@ -1211,14 +1268,18 @@ internal static class MapHtmlDocumentBuilder
                            postDiag(true, `Karte aktiv (TomTom SDK: ${loadedJs}, CSS: ${loadedCss})`);
                          });
 
-                        map.on('styledata', () => {
+                         map.on('styledata', () => {
                           applyPoiVisibility();
                           applyTrafficLayers();
+                          schedulePopupScaleRecompute();
                           if (window.__gawelaLastRoutePayload) {
                             const last = window.__gawelaLastRoutePayload;
                              window.gawelaSetRoute(last.routeStops, last.geometryPoints, last.routeColor, last.trafficSegments);
                            }
                          });
+                         map.on('zoom', schedulePopupScaleRecompute);
+                         map.on('zoomend', schedulePopupScaleRecompute);
+                         map.on('load', schedulePopupScaleRecompute);
 
                          map.on('error', (e) => {
                            const reason = e && e.error && e.error.message ? e.error.message : 'Unbekannter Kartenfehler';
@@ -1617,7 +1678,13 @@ internal static class MapHtmlDocumentBuilder
                          };
                          window.gawelaSetPopupSizeMultiplier = function(multiplier) {
                            const parsed = Number(multiplier);
-                           applyScaleVariable(parsed);
+                           manualPopupScale = Number.isFinite(parsed) ? Math.max(0.7, Math.min(1.8, parsed)) : 1.0;
+                           recomputePopupScale();
+                         };
+                         window.gawelaSetPopupZoomBehaviorStrength = function(strength) {
+                           const parsed = Number(strength);
+                           popupZoomBehaviorStrength = Number.isFinite(parsed) ? Math.max(0.2, Math.min(4.0, parsed)) : 1.0;
+                           recomputePopupScale();
                          };
                          window.gawelaSetDetailsToggle = function(isVisible, glyph) {
                            if (!detailsToggleEl) return;
@@ -1651,7 +1718,10 @@ internal static class MapHtmlDocumentBuilder
             .Replace("__TT_USE_VEHICLE_WEIGHT_RESTRICTIONS__", mapOverlayUseVehicleWeightRestrictions ? "true" : "false")
             .Replace("__TT_USE_DEPART_AT_TRAFFIC__", mapOverlayUseDepartAtTraffic ? "true" : "false")
             .Replace("__TT_TILE_CACHE__", tomTomEnableTileCache ? "true" : "false")
-            .Replace("__MAP_OPTIONS_BUTTON_CONTENT__", mapOptionsButtonContent);
+            .Replace("__MAP_OPTIONS_BUTTON_CONTENT__", mapOptionsButtonContent)
+            .Replace("__INFO_ICON_LOCATION__", infoIconLocation)
+            .Replace("__INFO_ICON_PRODUCTS__", infoIconProducts)
+            .Replace("__INFO_ICON_WEIGHT__", infoIconWeight);
     }
 
     private static string BuildMapOptionsButtonContent()
@@ -1678,6 +1748,21 @@ internal static class MapHtmlDocumentBuilder
         {
             return BuildMapOptionsFallbackIcon();
         }
+    }
+
+    private static string BuildInfoCardIconDataUri(string fileName, string fallbackSvgMarkup)
+    {
+        _ = fileName;
+        return BuildInlineSvgDataUri(fallbackSvgMarkup);
+    }
+
+    private static string BuildInlineSvgDataUri(string svgMarkup)
+    {
+        var payload = string.IsNullOrWhiteSpace(svgMarkup)
+            ? "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='#cbd5e1'/></svg>"
+            : svgMarkup;
+        var bytes = System.Text.Encoding.UTF8.GetBytes(payload);
+        return $"data:image/svg+xml;base64,{Convert.ToBase64String(bytes)}";
     }
 
     private static string BuildMapOptionsFallbackIcon()

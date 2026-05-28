@@ -130,6 +130,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _mapPinInfoCardShowNotes = true;
     private bool _mapPinInfoCardShowProducts = true;
     private bool _mapPinInfoCardShowTotalWeight = true;
+    private double _pinInfoCardZoomBehaviorStrength = AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
     private bool _isRouteCalculating;
     private int _routeGeometryInFlightCount;
     private int _routeGeometryRevision;
@@ -319,6 +320,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         ? "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-infocards-off.jpg"
         : "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-infocards-on.jpg";
     public string PinInfoCardScalePercentText => $"{Math.Round(PinInfoCardScale * 100d):0}%";
+    public string PinInfoCardZoomBehaviorStrengthText => $"{PinInfoCardZoomBehaviorStrength:0.00}x";
     public string ToggleAllPlannedToursButtonText => IsAllPlannedToursVisible ? "Touren ausblenden" : "Alle Touren anzeigen";
     public string ToggleAllPlannedToursImagePath => IsAllPlannedToursVisible
         ? "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Touren-ausblenden.png"
@@ -516,6 +518,20 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             if (SetProperty(ref _pinInfoCardScale, clamped))
             {
                 OnPropertyChanged(nameof(PinInfoCardScalePercentText));
+                RequestPinInfoCardScaleSave();
+            }
+        }
+    }
+
+    public double PinInfoCardZoomBehaviorStrength
+    {
+        get => _pinInfoCardZoomBehaviorStrength;
+        set
+        {
+            var clamped = Math.Clamp(value, 0.2d, 4.0d);
+            if (SetProperty(ref _pinInfoCardZoomBehaviorStrength, clamped))
+            {
+                OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrengthText));
                 RequestPinInfoCardScaleSave();
             }
         }
@@ -948,6 +964,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _pinInfoCardScale = settings.PinInfoCardScale is >= 0.7d and <= 1.8d
             ? settings.PinInfoCardScale
             : AppSettings.DefaultPinInfoCardScale;
+        _pinInfoCardZoomBehaviorStrength = settings.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
+            ? settings.PinInfoCardZoomBehaviorStrength
+            : AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
         _mapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
             : settings.MapRouteCapacityWarningThresholdPercent;
@@ -1011,6 +1030,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(MapPinInfoCardShowTotalWeight));
         OnPropertyChanged(nameof(PinInfoCardScale));
         OnPropertyChanged(nameof(PinInfoCardScalePercentText));
+        OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrength));
+        OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrengthText));
         var (defaultHour, defaultMinute) = ParseStartTimePartsOrDefault(settings.TourDefaultStartTime);
         _defaultRouteStartHour = defaultHour;
         _defaultRouteStartMinute = defaultMinute;
@@ -5319,7 +5340,54 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return;
         }
 
+        if ((args.Kinds & AppDataKind.Settings) != 0 &&
+            (args.Kinds & (AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees)) == AppDataKind.None)
+        {
+            _ = ReloadPinInfoCardDisplaySettingsAsync();
+            return;
+        }
+
         _ = RefreshAsync();
+    }
+
+    private async Task ReloadPinInfoCardDisplaySettingsAsync()
+    {
+        try
+        {
+            var settings = await _settingsRepository.LoadAsync();
+            var nextScale = settings.PinInfoCardScale is >= 0.7d and <= 1.8d
+                ? settings.PinInfoCardScale
+                : AppSettings.DefaultPinInfoCardScale;
+            var nextZoomBehaviorStrength = settings.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
+                ? settings.PinInfoCardZoomBehaviorStrength
+                : AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
+            var changed = false;
+
+            if (Math.Abs(_pinInfoCardScale - nextScale) > 0.0001d)
+            {
+                _pinInfoCardScale = nextScale;
+                OnPropertyChanged(nameof(PinInfoCardScale));
+                OnPropertyChanged(nameof(PinInfoCardScalePercentText));
+                changed = true;
+            }
+
+            if (Math.Abs(_pinInfoCardZoomBehaviorStrength - nextZoomBehaviorStrength) > 0.0001d)
+            {
+                _pinInfoCardZoomBehaviorStrength = nextZoomBehaviorStrength;
+                OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrength));
+                OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrengthText));
+                changed = true;
+            }
+
+            if (changed)
+            {
+                OnPropertyChanged(nameof(RouteVisualRevision));
+            }
+        }
+        catch
+        {
+            // Ignore transient settings reload errors; regular refresh paths still recover state.
+        }
     }
     private string BuildAvisoEmailSubject(string orderId)
     {
@@ -5694,12 +5762,15 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             await Task.Delay(250, cancellationToken);
             var settings = await _settingsRepository.LoadAsync(cancellationToken);
             var clampedScale = Math.Clamp(_pinInfoCardScale, 0.7d, 1.8d);
-            if (Math.Abs(settings.PinInfoCardScale - clampedScale) < 0.0001d)
+            var clampedZoomBehaviorStrength = Math.Clamp(_pinInfoCardZoomBehaviorStrength, 0.2d, 4.0d);
+            if (Math.Abs(settings.PinInfoCardScale - clampedScale) < 0.0001d &&
+                Math.Abs(settings.PinInfoCardZoomBehaviorStrength - clampedZoomBehaviorStrength) < 0.0001d)
             {
                 return;
             }
 
             settings.PinInfoCardScale = clampedScale;
+            settings.PinInfoCardZoomBehaviorStrength = clampedZoomBehaviorStrength;
             await _settingsRepository.SaveAsync(settings, cancellationToken);
         }
         catch (OperationCanceledException)

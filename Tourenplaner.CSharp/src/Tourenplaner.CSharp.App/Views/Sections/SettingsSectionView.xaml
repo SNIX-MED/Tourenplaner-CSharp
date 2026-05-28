@@ -225,6 +225,7 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Nicht festgelegt" />
                                     <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding StatusColorNotSpecified, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -251,6 +252,19 @@
                                     <CheckBox Grid.Row="13" Grid.Column="1" Margin="0,6,0,6" Content="Produkte (Menge, Name) anzeigen" IsChecked="{Binding MapPinInfoCardShowProducts, Mode=TwoWay}" />
                                     <TextBlock Grid.Row="14" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Gesamtgewicht" />
                                     <CheckBox Grid.Row="14" Grid.Column="1" Margin="0,6,0,6" Content="Gesamtgewicht anzeigen" IsChecked="{Binding MapPinInfoCardShowTotalWeight, Mode=TwoWay}" />
+                                    <TextBlock Grid.Row="15" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Infokarten Zoomverhalten" />
+                                    <StackPanel Grid.Row="15" Grid.Column="1" Margin="0,6,0,6">
+                                        <Slider Minimum="0.2"
+                                                Maximum="4.0"
+                                                SmallChange="0.1"
+                                                LargeChange="0.2"
+                                                TickFrequency="0.1"
+                                                IsSnapToTickEnabled="False"
+                                                Value="{Binding PinInfoCardZoomBehaviorStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="{Binding PinInfoCardZoomBehaviorStrength, StringFormat='{}Staerke: {0:0.00}x (0.2 = schwach, 4.0 = sehr stark)'}" />
+                                    </StackPanel>
                                 </Grid>
 
                                 <TextBlock Margin="0,16,0,0" FontSize="26" FontWeight="SemiBold" Text="Kalender-Auslastung" />
@@ -491,46 +505,43 @@
                                     <TextBlock FontFamily="Segoe Fluent Icons" FontSize="19" Text="&#xE9F9;" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Border>
                                 <StackPanel Grid.Column="1">
-                                    <TextBlock Style="{StaticResource SettingsSectionTitleStyle}" Text="SQL Server Import" />
-                                    <TextBlock Style="{StaticResource SettingsSectionSubtitleStyle}" Text="Konfigurieren und Importieren von Auftraegen aus der Business11 Datenbank." />
+                                    <TextBlock Style="{StaticResource SettingsSectionTitleStyle}" Text="XML Import" />
+                                    <TextBlock Style="{StaticResource SettingsSectionSubtitleStyle}" Text="Auftraege aus XML importieren und XML-Musterdatei herunterladen." />
                                 </StackPanel>
                             </Grid>
                         </Expander.Header>
                         <Border Margin="0,12,0,0" Style="{StaticResource SharpGlassPanelBorderStyle}" Padding="14">
                             <StackPanel>
                                 <WrapPanel Margin="0,0,0,10">
-                                    <Button Width="160" Content="Verbindung testen" Command="{Binding TestSqlConnectionCommand}" />
+                                    <Button Width="180" Content="XML-Datei waehlen" Command="{Binding BrowseXmlImportFileCommand}" />
+                                    <Button Width="220" Margin="8,0,0,0" Content="XML-Musterdatei herunterladen" Command="{Binding DownloadXmlTemplateCommand}" />
                                     <Button Width="180" Margin="8,0,0,0" Content="Auftraege importieren" Foreground="White" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ImportOrdersCommand}" />
                                 </WrapPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="220" />
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="SQL Server" />
-                                    <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" ToolTip="z.B. .\SQLEXPRESS, . oder SERVER\INSTANZ" Text="{Binding SqlServer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Datenbankname" />
-                                    <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" ToolTip="z.B. Business11" Text="{Binding SqlDatabase, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Datenbankpfad" />
-                                    <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" ToolTip="Ordner oder .mdf-Datei der Business11-Datenbank" Text="{Binding SqlDatabasePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Windows-Auth" />
-                                    <CheckBox Grid.Row="3" Grid.Column="1" Margin="0,6,0,6" ToolTip="Verwendet Windows-Authentifizierung, wenn aktiviert" IsChecked="{Binding SqlUseWindowsAuth, Mode=TwoWay}" />
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="SQL Benutzer" />
-                                    <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding SqlUserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="SQL Passwort" />
-                                    <TextBox Grid.Row="5" Grid.Column="1" Style="{StaticResource SettingsTextBoxStyle}" Height="34" Text="{Binding SqlPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="XML-Dateipfad" />
+                                    <Button Grid.Row="0" Grid.Column="1"
+                                            Width="34"
+                                            Height="34"
+                                            Margin="0,0,8,0"
+                                            Padding="0"
+                                            ToolTip="XML-Datei auswaehlen"
+                                            Command="{Binding BrowseXmlImportFileCommand}">
+                                        <Image Source="pack://application:,,,/Assets/Ordner.png"
+                                               Width="20"
+                                               Height="20"
+                                               Stretch="Uniform"
+                                               SnapsToDevicePixels="True" />
+                                    </Button>
+                                    <TextBox Grid.Row="0" Grid.Column="2" Style="{StaticResource SettingsTextBoxStyle}" Height="34" ToolTip="Pfad zur XML-Datei mit den Auftragsdaten" Text="{Binding XmlImportFilePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </Grid>
-                                <Border Margin="0,12,0,0" Padding="12" CornerRadius="12" Background="{DynamicResource Brush.GlassSurfaceSoft}" BorderBrush="{DynamicResource Brush.GlassStroke}" BorderThickness="1">
-                                    <TextBlock TextWrapping="Wrap" Text="{Binding ImportStatusMessage}" />
-                                </Border>
                             </StackPanel>
                         </Border>
                     </Expander>

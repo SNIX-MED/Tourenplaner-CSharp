@@ -15,6 +15,7 @@ public sealed class AppSettings
     public const string DefaultTourStartTime = "07:30";
     public const int DefaultMapRouteCapacityWarningThresholdPercent = 5;
     public const double DefaultPinInfoCardScale = 1.0d;
+    public const double DefaultPinInfoCardZoomBehaviorStrength = 1.0d;
     public const string DefaultTomTomMapStyle = "main";
     public const int DefaultTomTomTrafficRefreshSeconds = 60;
     public const int DefaultTomTomRouteRecalcDebounceMs = 900;
@@ -47,6 +48,7 @@ public sealed class AppSettings
     public bool MapPinInfoCardShowProducts { get; set; } = true;
     public bool MapPinInfoCardShowTotalWeight { get; set; } = true;
     public double PinInfoCardScale { get; set; } = DefaultPinInfoCardScale;
+    public double PinInfoCardZoomBehaviorStrength { get; set; } = DefaultPinInfoCardZoomBehaviorStrength;
     public int MapRouteCapacityWarningThresholdPercent { get; set; } = DefaultMapRouteCapacityWarningThresholdPercent;
     public List<string> QuickAccessItems { get; set; } = new() { "action:export_route", string.Empty, string.Empty, string.Empty };
     public bool BackupsEnabled { get; set; }
@@ -76,6 +78,8 @@ public sealed class AppSettings
     public SqlConnectionSettings SqlImportSettings { get; set; } = new();
     public DateTime? LastSqlImportDate { get; set; }
     public bool SqlImportEnabled { get; set; } = false;
+    public string XmlImportFilePath { get; set; } = string.Empty;
+    public DateTime? LastXmlImportDate { get; set; }
 }
 
 public sealed class MapOverlayUserPreference

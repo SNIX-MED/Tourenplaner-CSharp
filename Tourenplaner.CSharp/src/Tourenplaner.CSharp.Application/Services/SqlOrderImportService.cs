@@ -132,7 +132,7 @@ public class SqlOrderImportService : ISqlOrderImportService
                 Supplier = string.Empty,
                 Quantity = (int)p.Menge,
                 UnitWeightKg = (double)p.Gewicht,
-                WeightKg = (double)(p.Bruttogewicht * p.Menge),
+                WeightKg = (double)(p.Gewicht * p.Menge),
                 Dimensions = string.Empty,
                 DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus
             }).ToList(),
@@ -192,7 +192,7 @@ public class SqlOrderImportService : ISqlOrderImportService
             Supplier = string.Empty,
             Quantity = (int)p.Menge,
             UnitWeightKg = (double)p.Gewicht,
-            WeightKg = (double)(p.Bruttogewicht * p.Menge),
+            WeightKg = (double)(p.Gewicht * p.Menge),
             Dimensions = string.Empty,
             DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus
         }).ToList();

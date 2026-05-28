@@ -31,6 +31,10 @@
     <Resource Include="Assets\Einstellungen.png" />
     <Resource Include="Assets\icon-infocards-off.jpg" />
     <Resource Include="Assets\icon-infocards-on.jpg" />
+    <Resource Include="Assets\MapInfoCardIcons\1.svg" />
+    <Resource Include="Assets\MapInfoCardIcons\2.svg" />
+    <Resource Include="Assets\MapInfoCardIcons\3.svg" />
+    <Resource Include="Assets\Ordner.png" />
     <Resource Include="Assets\Pin.png" />
     <Resource Include="Assets\Touren-ausblenden.png" />
     <Resource Include="Assets\Touren-einblenden.png" />
