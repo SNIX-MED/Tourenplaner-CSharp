@@ -3446,6 +3446,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             ToAlphaLabel(index + 1),
             string.IsNullOrWhiteSpace(stop.Customer) ? stop.Address : stop.Customer,
             stop.Address,
+            ResolveDeliveryTypeText(stop.OrderId),
             stop.OrderId,
             stop.Latitude,
             stop.Longitude,
@@ -4296,6 +4297,20 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             Math.Round(
                 (order.Products ?? []).Sum(OrderProductFormatter.ResolveTotalWeightKg),
                 MidpointRounding.AwayFromZero));
+    }
+
+    private string ResolveDeliveryTypeText(string? orderId)
+    {
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedOrderId))
+        {
+            return string.Empty;
+        }
+
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, normalizedOrderId, StringComparison.OrdinalIgnoreCase));
+        return order is null
+            ? string.Empty
+            : NormalizeDeliveryType(order.DeliveryType);
     }
 
     private void RaiseCommandStates()

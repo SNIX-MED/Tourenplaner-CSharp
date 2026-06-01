@@ -248,6 +248,9 @@ public static class TourPdfHtmlBuilder
         var extraHtml = extras.Count == 0
             ? string.Empty
             : $"<div class=\"stop-extra\">{Html(string.Join(" | ", extras))}</div>";
+        var deliveryTypeHtml = string.IsNullOrWhiteSpace(stop.DeliveryType)
+            ? string.Empty
+            : $"<div class=\"stop-address\">{Html(stop.DeliveryType.Trim())}</div>";
 
         return $$"""
                  <div class="stop">
@@ -255,6 +258,7 @@ public static class TourPdfHtmlBuilder
                    <div>
                      <div class="stop-name">{{Html(stop.Name)}}</div>
                      <div class="stop-address">{{Html(stop.Address)}}</div>
+                     {{deliveryTypeHtml}}
                      {{extraHtml}}
                    </div>
                  </div>

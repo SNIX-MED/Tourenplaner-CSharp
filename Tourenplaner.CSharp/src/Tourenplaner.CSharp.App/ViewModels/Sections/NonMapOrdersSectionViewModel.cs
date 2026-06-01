@@ -47,7 +47,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private bool _showArchivedOrders;
 
     public NonMapOrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService, Func<int, Task>? openTourAsync = null)
-        : base("Post/Spedition/Abholung", "Auftraege fuer Post, Spedition oder Selbstabholung.")
+        : base("Post/Spedition/Abholung", "Aufträge für Post, Spedition oder Selbstabholung.")
     {
         _repository = new JsonOrderRepository(ordersJsonPath);
         var dataRoot = Path.GetDirectoryName(ordersJsonPath) ?? string.Empty;

@@ -15,6 +15,7 @@ public sealed record RouteExportStopInfo(
     string Label,
     string Name,
     string Address,
+    string DeliveryType,
     string OrderNumber,
     double Latitude,
     double Longitude,

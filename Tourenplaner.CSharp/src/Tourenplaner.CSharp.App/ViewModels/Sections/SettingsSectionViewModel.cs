@@ -927,17 +927,17 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     private void BrowseXmlImportFile()
     {
-        var dialog = new OpenFileDialog
+            var dialog = new OpenFileDialog
         {
             Filter = "XML-Dateien (*.xml)|*.xml|Alle Dateien (*.*)|*.*",
-            Title = "XML-Importdatei auswaehlen",
+            Title = "XML-Importdatei auswählen",
             CheckFileExists = true,
             Multiselect = false
         };
         if (dialog.ShowDialog() == true)
         {
             XmlImportFilePath = dialog.FileName;
-            ImportStatusMessage = $"Ausgewaehlte XML-Datei: {XmlImportFilePath}";
+            ImportStatusMessage = $"Ausgewählte XML-Datei: {XmlImportFilePath}";
             ImportOrdersCommand.RaiseCanExecuteChanged();
         }
     }
@@ -1016,9 +1016,9 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
         try
         {
-            if (string.IsNullOrWhiteSpace(XmlImportFilePath) || !File.Exists(XmlImportFilePath))
+                if (string.IsNullOrWhiteSpace(XmlImportFilePath) || !File.Exists(XmlImportFilePath))
             {
-                throw new FileNotFoundException("Bitte zuerst eine gueltige XML-Datei auswaehlen.");
+                throw new FileNotFoundException("Bitte zuerst eine gültige XML-Datei auswählen.");
             }
 
             var appSettings = await _settingsRepository.GetAsync();

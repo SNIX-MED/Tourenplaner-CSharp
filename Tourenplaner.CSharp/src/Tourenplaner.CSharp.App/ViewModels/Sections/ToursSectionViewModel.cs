@@ -2300,11 +2300,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 ? Math.Max(0, totalWeight - capacity.AllowedWeightKg.Value)
                 : 0;
             warnings.Add(new TourPlanningWarningItem(
-                Title: "Ueberladung",
+                Title: "Überladung",
                 Message: capacity.AllowedWeightKg.HasValue
-                    ? $"Totalgewicht {totalWeight} kg, zulaessig {capacity.AllowedWeightKg.Value} kg, Ueberladung {overloadKg} kg."
-                    : $"Totalgewicht {totalWeight} kg ist hoeher als die bekannte Kapazitaet.",
-                Suggestion: "Tour aufteilen oder Fahrzeug/Anhaenger mit hoeherer Kapazitaet waehlen."));
+                    ? $"Totalgewicht {totalWeight} kg, zulässig {capacity.AllowedWeightKg.Value} kg, Überladung {overloadKg} kg."
+                    : $"Totalgewicht {totalWeight} kg ist höher als die bekannte Kapazität.",
+                Suggestion: "Tour aufteilen oder Fahrzeug/Anhänger mit höherer Kapazität wählen."));
         }
 
         foreach (var assignment in assignments)
@@ -2318,8 +2318,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             {
                 warnings.Add(new TourPlanningWarningItem(
                     Title: "Fahrzeugklasse",
-                    Message: $"Anhaenger {ResolveTrailerLabel(assignment.TrailerId)} ist ohne Zugfahrzeug zugewiesen.",
-                    Suggestion: "Passendes Zugfahrzeug zuweisen oder Anhaenger entfernen."));
+                    Message: $"Anhänger {ResolveTrailerLabel(assignment.TrailerId)} ist ohne Zugfahrzeug zugewiesen.",
+                    Suggestion: "Passendes Zugfahrzeug zuweisen oder Anhänger entfernen."));
                 continue;
             }
 
@@ -2332,8 +2332,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             {
                 warnings.Add(new TourPlanningWarningItem(
                     Title: "Fahrzeugklasse",
-                    Message: $"Keine aktive Kombination fuer {ResolveVehicleLabel(assignment.VehicleId)} + {ResolveTrailerLabel(assignment.TrailerId)}.",
-                    Suggestion: "Kombination in Fahrzeugverwaltung aktivieren oder kompatible Kombination waehlen."));
+                    Message: $"Keine aktive Kombination für {ResolveVehicleLabel(assignment.VehicleId)} + {ResolveTrailerLabel(assignment.TrailerId)}.",
+                    Suggestion: "Kombination in Fahrzeugverwaltung aktivieren oder kompatible Kombination wählen."));
             }
         }
 

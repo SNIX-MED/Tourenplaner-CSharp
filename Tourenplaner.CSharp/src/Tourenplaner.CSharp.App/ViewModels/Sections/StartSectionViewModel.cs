@@ -27,7 +27,7 @@ public sealed class StartSectionViewModel : SectionViewModelBase
     private readonly List<CalendarManualEntry> _manualEntries = [];
     private string _statusText = "Startseite wird geladen...";
     private string _calendarHeadline = "Kalender";
-    private string _dashboardSummary = "Tourenuebersicht wird geladen...";
+    private string _dashboardSummary = "Tourenübersicht wird geladen...";
     private string _nextPlannedDayText = "Noch kein Eintragstag geplant";
 
     public StartSectionViewModel(
