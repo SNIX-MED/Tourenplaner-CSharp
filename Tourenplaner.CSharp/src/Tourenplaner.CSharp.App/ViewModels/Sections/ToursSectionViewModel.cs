@@ -15,6 +15,9 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class ToursSectionViewModel : SectionViewModelBase
 {
+    private const string PauseStopKind = "pause";
+    private const string PauseStopIdPrefix = "pause:";
+    private const int DefaultPauseMinutes = 15;
     private static readonly CultureInfo UiCulture = CultureInfo.GetCultureInfo("de-CH");
     private readonly JsonToursRepository _tourRepository;
     private readonly JsonOrderRepository _orderRepository;
@@ -941,7 +944,49 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         await _tourRepository.SaveAsync(_loadedTours);
         _dataSyncService.PublishTours(_instanceId, sourceTour.Id.ToString(CultureInfo.InvariantCulture), sourceTour.Id.ToString(CultureInfo.InvariantCulture));
         RebuildTourRowsWithCurrentFilter(keepSelectionTourId: sourceTour.Id);
-        StatusText = $"Aufenthaltszeit für Auftrag {ExtractOrderIdFromStop(stop)} gesetzt: {stop.ServiceMinutes} min.";
+        StatusText = $"Zeit für {BuildStopDisplayLabel(stop)} gesetzt: {stop.ServiceMinutes} min.";
+    }
+
+    public async Task AddPauseAfterSelectedTourStopAsync()
+    {
+        if (SelectedTourStop?.Source is null ||
+            SelectedTourStop.IsCompanyStop)
+        {
+            return;
+        }
+
+        var sourceTour = _loadedTours.FirstOrDefault(x => x.Id == SelectedTourStop.SourceTourId);
+        if (sourceTour is null)
+        {
+            return;
+        }
+
+        var movableStops = sourceTour.Stops.Where(s => !IsCompanyStop(s)).ToList();
+        var sourceIndex = movableStops.IndexOf(SelectedTourStop.Source);
+        if (sourceIndex < 0)
+        {
+            return;
+        }
+
+        var dialog = new RouteStopStayMinutesDialogWindow(DefaultPauseMinutes)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow,
+            Title = "Pause einfügen"
+        };
+
+        if (dialog.ShowDialog() != true || !dialog.StayMinutes.HasValue)
+        {
+            return;
+        }
+
+        var pauseStop = CreatePauseStop(dialog.StayMinutes.Value);
+        movableStops.Insert(sourceIndex + 1, pauseStop);
+        RebuildTourStopsWithAnchors(sourceTour, movableStops);
+        _scheduleService.ApplySchedule(sourceTour);
+        await _tourRepository.SaveAsync(_loadedTours);
+        _dataSyncService.PublishTours(_instanceId, sourceTour.Id.ToString(CultureInfo.InvariantCulture), sourceTour.Id.ToString(CultureInfo.InvariantCulture));
+        RebuildTourRowsWithCurrentFilter(keepSelectionTourId: sourceTour.Id);
+        StatusText = $"Pause mit {pauseStop.ServiceMinutes} min hinter {BuildStopDisplayLabel(SelectedTourStop.Source)} eingefügt.";
     }
 
     public async Task RemoveSelectedTourStopAsync()
@@ -992,13 +1037,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         RebuildTourRowsWithCurrentFilter(keepSelectionTourId: sourceTour.Id);
-        StatusText = $"Stopp {removedOrderId} wurde aus der Tour entfernt.";
+        StatusText = $"{BuildStopDisplayLabel(removedStop)} wurde aus der Tour entfernt.";
     }
 
     public async Task EditSelectedTourStopOrderAsync()
     {
         if (SelectedTourStop?.Source is null ||
-            SelectedTourStop.IsCompanyStop)
+            SelectedTourStop.IsCompanyStop ||
+            SelectedTourStop.IsPauseStop)
         {
             return;
         }
@@ -1525,7 +1571,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             var schedule = _scheduleService.BuildSchedule(tour);
             var employeeText = BuildEmployeeFirstNameText(tour.EmployeeIds ?? []);
             var totalWeight = tour.Stops
-                .Where(s => !IsCompanyStop(s))
+                .Where(IsCustomerStop)
                 .Sum(s => ParseWeightKg(s.Gewicht));
             Tours.Add(new TourOverviewItem
             {
@@ -1537,7 +1583,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 VehicleId = BuildVehicleOverviewText(tour),
                 TrailerId = BuildTrailerOverviewText(tour),
                 Employees = employeeText,
-                StopCount = tour.Stops.Count(s => !IsCompanyStop(s)),
+                StopCount = tour.Stops.Count(IsCustomerStop),
                 TotalWeightKg = totalWeight,
                 StopConflicts = schedule.Stops.Count(s => s.HasConflict),
                 AssignmentConflicts = conflicts.TryGetValue(tour.Id, out var count) ? count : 0,
@@ -1712,6 +1758,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private static string ExtractOrderIdFromStop(TourStopRecord stop)
     {
+        if (IsPauseStop(stop))
+        {
+            return string.Empty;
+        }
+
         var orderNumber = (stop.Auftragsnummer ?? string.Empty).Trim();
         if (!string.IsNullOrWhiteSpace(orderNumber))
         {
@@ -1849,6 +1900,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         {
             var stop = orderedStops[index];
             var isCompanyStop = IsCompanyStop(stop);
+            var isPauseStop = IsPauseStop(stop);
             var isRouteStart = index == 0;
             var isRouteEnd = index == orderedStops.Count - 1;
             var arrival = stop.PlannedArrival ?? string.Empty;
@@ -1859,17 +1911,20 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 SourceTourId = SelectedTour.TourId,
                 Source = stop,
                 IsCompanyStop = isCompanyStop,
+                IsPauseStop = isPauseStop,
                 IsRouteStart = isRouteStart,
                 IsRouteEnd = isRouteEnd,
-                Order = isCompanyStop ? string.Empty : stop.Order.ToString(CultureInfo.InvariantCulture),
-                OrderNumber = isCompanyStop ? string.Empty : stop.Auftragsnummer,
-                Name = isCompanyStop ? NormalizeCompanyStopName(stop.Name) : stop.Name,
-                Address = isCompanyStop ? string.Empty : stop.Address,
-                Window = isCompanyStop ? string.Empty : $"{stop.TimeWindowStart} - {stop.TimeWindowEnd}".Trim(' ', '-'),
+                Order = isCompanyStop || isPauseStop ? string.Empty : stop.Order.ToString(CultureInfo.InvariantCulture),
+                OrderNumber = isCompanyStop || isPauseStop ? string.Empty : stop.Auftragsnummer,
+                Name = isCompanyStop ? NormalizeCompanyStopName(stop.Name) : (isPauseStop ? "Pause" : stop.Name),
+                Address = isCompanyStop || isPauseStop ? string.Empty : stop.Address,
+                Window = isCompanyStop || isPauseStop ? string.Empty : $"{stop.TimeWindowStart} - {stop.TimeWindowEnd}".Trim(' ', '-'),
                 Arrival = arrival,
                 Departure = departure,
-                Weight = isCompanyStop ? string.Empty : $"{ParseWeightKg(stop.Gewicht)} kg",
-                Conflict = isCompanyStop ? string.Empty : (stop.ScheduleConflict ? (string.IsNullOrWhiteSpace(stop.ScheduleConflictText) ? "Yes" : stop.ScheduleConflictText) : string.Empty)
+                Weight = isCompanyStop || isPauseStop ? string.Empty : $"{ParseWeightKg(stop.Gewicht)} kg",
+                Conflict = isCompanyStop || isPauseStop ? string.Empty : (stop.ScheduleConflict ? (string.IsNullOrWhiteSpace(stop.ScheduleConflictText) ? "Yes" : stop.ScheduleConflictText) : string.Empty),
+                PauseDurationText = isPauseStop ? $"{Math.Max(0, stop.ServiceMinutes)} min" : string.Empty,
+                PauseTimeRangeText = isPauseStop ? BuildPauseTimeRangeText(arrival, departure) : string.Empty
             });
         }
     }
@@ -1902,7 +1957,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var totalWeight = SelectedTour.Source.Stops
-            .Where(s => !IsCompanyStop(s))
+            .Where(IsCustomerStop)
             .Sum(s => ParseWeightKg(s.Gewicht));
         SelectedTourWeightText = $"Totalgewicht: {totalWeight} kg";
 
@@ -2065,6 +2120,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             Stops = source.Stops.Select(stop => new TourStopRecord
             {
                 Id = stop.Id,
+                StopKind = stop.StopKind,
                 Name = stop.Name,
                 Address = stop.Address,
                 Auftragsnummer = stop.Auftragsnummer,
@@ -2461,7 +2517,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private static int CalculateTourWeightKg(TourRecord tour)
     {
         return (tour.Stops ?? [])
-            .Where(s => !IsCompanyStop(s))
+            .Where(IsCustomerStop)
             .Sum(s => ParseWeightKg(s.Gewicht));
     }
 
@@ -2555,6 +2611,59 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return TourStopIdentity.IsCompanyStop(stop);
     }
 
+    private static bool IsPauseStop(TourStopRecord stop)
+    {
+        var stopKind = (stop.StopKind ?? string.Empty).Trim();
+        var id = (stop.Id ?? string.Empty).Trim();
+        return string.Equals(stopKind, PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
+               id.StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCustomerStop(TourStopRecord stop)
+    {
+        return !IsCompanyStop(stop) && !IsPauseStop(stop);
+    }
+
+    private static TourStopRecord CreatePauseStop(int serviceMinutes)
+    {
+        return new TourStopRecord
+        {
+            Id = $"{PauseStopIdPrefix}{Guid.NewGuid():N}",
+            StopKind = PauseStopKind,
+            Name = "Pause",
+            ServiceMinutes = Math.Max(0, serviceMinutes)
+        };
+    }
+
+    private static string BuildPauseTimeRangeText(string arrival, string departure)
+    {
+        var from = (arrival ?? string.Empty).Trim();
+        var to = (departure ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(from) && !string.IsNullOrWhiteSpace(to))
+        {
+            return $"{from} - {to}";
+        }
+
+        return !string.IsNullOrWhiteSpace(from) ? from : to;
+    }
+
+    private static string BuildStopDisplayLabel(TourStopRecord stop)
+    {
+        if (IsPauseStop(stop))
+        {
+            return "Pause";
+        }
+
+        var orderId = ExtractOrderIdFromStop(stop);
+        if (!string.IsNullOrWhiteSpace(orderId))
+        {
+            return $"Auftrag {orderId}";
+        }
+
+        var name = (stop.Name ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(name) ? "Stopp" : name;
+    }
+
     private static string NormalizeCompanyStopName(string name)
     {
         return TourStopIdentity.NormalizeCompanyStopDisplayName(name);
@@ -2605,6 +2714,7 @@ public sealed class TourStopOverviewItem
     public int SourceTourId { get; set; }
     public TourStopRecord Source { get; set; } = new();
     public bool IsCompanyStop { get; set; }
+    public bool IsPauseStop { get; set; }
     public bool IsRouteStart { get; set; }
     public bool IsRouteEnd { get; set; }
     public string Order { get; set; } = string.Empty;
@@ -2616,7 +2726,9 @@ public sealed class TourStopOverviewItem
     public string Departure { get; set; } = string.Empty;
     public string Weight { get; set; } = string.Empty;
     public string Conflict { get; set; } = string.Empty;
-    public string DisplayName => string.IsNullOrWhiteSpace(OrderNumber) ? Name : $"{Name} ({OrderNumber})";
+    public string PauseDurationText { get; set; } = string.Empty;
+    public string PauseTimeRangeText { get; set; } = string.Empty;
+    public string DisplayName => IsPauseStop ? "Pause" : (string.IsNullOrWhiteSpace(OrderNumber) ? Name : $"{Name} ({OrderNumber})");
     public string DisplayTime => !string.IsNullOrWhiteSpace(Arrival) ? Arrival : Departure;
 }
 

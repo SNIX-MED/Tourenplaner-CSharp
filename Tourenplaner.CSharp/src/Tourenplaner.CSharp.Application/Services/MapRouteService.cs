@@ -5,6 +5,9 @@ namespace Tourenplaner.CSharp.Application.Services;
 
 public sealed class MapRouteService
 {
+    private const string PauseStopKind = "pause";
+    private const string PauseStopIdPrefix = "pause:";
+
     public int DetermineNextTourId(IEnumerable<TourRecord>? tours)
     {
         var maxId = (tours ?? Array.Empty<TourRecord>())
@@ -114,16 +117,19 @@ public sealed class MapRouteService
 
         tourStops.AddRange(ordered.Select(x => new TourStopRecord
         {
-            Id = $"auftrag:{x.OrderId}",
-            Auftragsnummer = x.OrderId,
-            Name = x.Customer,
-            Address = x.Address,
+            Id = IsPauseRouteStop(x)
+                ? (string.IsNullOrWhiteSpace(x.OrderId) ? $"{PauseStopIdPrefix}{Guid.NewGuid():N}" : x.OrderId)
+                : $"auftrag:{x.OrderId}",
+            StopKind = IsPauseRouteStop(x) ? PauseStopKind : string.Empty,
+            Auftragsnummer = IsPauseRouteStop(x) ? string.Empty : x.OrderId,
+            Name = IsPauseRouteStop(x) ? "Pause" : x.Customer,
+            Address = IsPauseRouteStop(x) ? string.Empty : x.Address,
             Order = x.Position + 1,
-            Lat = x.Latitude,
-            Lon = x.Longitude,
-            Lng = x.Longitude,
+            Lat = IsPauseRouteStop(x) ? null : x.Latitude,
+            Lon = IsPauseRouteStop(x) ? null : x.Longitude,
+            Lng = IsPauseRouteStop(x) ? null : x.Longitude,
             ServiceMinutes = x.ServiceMinutes < 0 ? safeServiceMinutes : x.ServiceMinutes,
-            EmployeeInfoText = (x.EmployeeInfoText ?? string.Empty).Trim()
+            EmployeeInfoText = IsPauseRouteStop(x) ? string.Empty : (x.EmployeeInfoText ?? string.Empty).Trim()
         }));
 
         tourStops.Add(new TourStopRecord
@@ -153,9 +159,18 @@ public sealed class MapRouteService
     public IReadOnlySet<string> ExtractRouteOrderIds(IReadOnlyList<MapRouteStop>? routeStops)
     {
         return Normalize(routeStops)
+            .Where(x => !IsPauseRouteStop(x))
             .Select(x => x.OrderId)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPauseRouteStop(MapRouteStop stop)
+    {
+        var stopKind = (stop.StopKind ?? string.Empty).Trim();
+        var orderId = (stop.OrderId ?? string.Empty).Trim();
+        return string.Equals(stopKind, PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
+               orderId.StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryParseTourDate(string? value, out DateOnly result)

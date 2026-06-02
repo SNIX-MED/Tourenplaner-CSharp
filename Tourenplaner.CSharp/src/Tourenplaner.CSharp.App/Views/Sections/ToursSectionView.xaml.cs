@@ -102,6 +102,16 @@ public partial class ToursSectionView : UserControl
         await vm.RemoveSelectedTourStopAsync();
     }
 
+    private async void OnSelectedTourStopAddPauseMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ToursSectionViewModel vm)
+        {
+            return;
+        }
+
+        await vm.AddPauseAfterSelectedTourStopAsync();
+    }
+
     private async void OnSelectedTourStopEditOrderMenuItemClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ToursSectionViewModel vm)

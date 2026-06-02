@@ -37,17 +37,50 @@
             <TextBlock Grid.Row="3"
                        Margin="0,12,0,0"
                        FontWeight="SemiBold"
-                       Text="Avisierungsstatus" />
+                       Text="Avisierungsstatus">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowAvisoStatus}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
             <ComboBox Grid.Row="4"
                       Margin="0,4,0,0"
                       Height="34"
                       ItemsSource="{Binding AvisoStatusOptions}"
-                      SelectedItem="{Binding SelectedAvisoStatus, Mode=TwoWay}" />
+                      SelectedItem="{Binding SelectedAvisoStatus, Mode=TwoWay}">
+                <ComboBox.Style>
+                    <Style TargetType="ComboBox">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowAvisoStatus}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ComboBox.Style>
+            </ComboBox>
 
             <TextBlock Grid.Row="5"
                        Margin="0,12,0,0"
                        FontWeight="SemiBold"
-                       Text="Info für Mitarbeiter" />
+                       Text="Info für Mitarbeiter">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowEmployeeInfo}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
             <TextBox Grid.Row="6"
                      Margin="0,4,0,0"
                      MinHeight="170"
@@ -55,7 +88,18 @@
                      TextWrapping="Wrap"
                      AcceptsReturn="True"
                      VerticalScrollBarVisibility="Auto"
-                     Text="{Binding EmployeeInfoText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                     Text="{Binding EmployeeInfoText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                <TextBox.Style>
+                    <Style TargetType="TextBox">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowEmployeeInfo}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBox.Style>
+            </TextBox>
 
             <Grid Grid.Row="7" Margin="0,16,0,0">
                 <Grid.ColumnDefinitions>

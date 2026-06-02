@@ -852,9 +852,20 @@
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
                                                 <StackPanel Margin="0,0,0,0">
+                                                    <StackPanel.Style>
+                                                        <Style TargetType="StackPanel">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </StackPanel.Style>
                                                     <Border CornerRadius="14"
                                                             BorderThickness="1"
                                                             Margin="0,0,0,8"
+                                                            MouseLeftButtonDown="OnRouteStopMouseLeftButtonDown"
                                                             ContextMenuOpening="OnRouteStopContextMenuOpening">
                                                         <Border.ContextMenu>
                                                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
@@ -878,9 +889,21 @@
                                                                 <MenuItem Header="Stopp bearbeiten"
                                                                           Style="{StaticResource RouteStopContextMenuItemStyle}"
                                                                           Click="OnRouteStopEditStayMenuItemClick" />
-                                                                <MenuItem Header="Auftrag bearbeiten"
+                                                                <MenuItem Header="Pause danach einfügen"
                                                                           Style="{StaticResource RouteStopContextMenuItemStyle}"
-                                                                          Click="OnRouteStopEditOrderMenuItemClick" />
+                                                                          Click="OnRouteStopAddPauseMenuItemClick" />
+                                                                <MenuItem Header="Auftrag bearbeiten"
+                                                                          Click="OnRouteStopEditOrderMenuItemClick">
+                                                                    <MenuItem.Style>
+                                                                        <Style TargetType="MenuItem" BasedOn="{StaticResource RouteStopContextMenuItemStyle}">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </MenuItem.Style>
+                                                                </MenuItem>
                                                                 <Separator />
                                                                 <MenuItem Header="Stopp entfernen"
                                                                           Style="{StaticResource RouteStopContextMenuItemStyle}"
@@ -905,7 +928,7 @@
                                                                     <DataTrigger Binding="{Binding IsCompanyAnchor}" Value="True">
                                                                         <Setter Property="Padding" Value="4,2" />
                                                                     </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                                                    <DataTrigger Binding="{Binding IsStopSelected}" Value="True">
                                                                         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
@@ -1121,7 +1144,45 @@
                                                     <Border Margin="16,-2,16,6"
                                                             Padding="6,2"
                                                             CornerRadius="10"
-                                                            BorderThickness="1">
+                                                            BorderThickness="1"
+                                                            MouseLeftButtonDown="OnRouteLegMouseLeftButtonDown"
+                                                            ContextMenuOpening="OnRouteLegContextMenuOpening">
+                                                        <Border.ContextMenu>
+                                                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                                                         Placement="MousePoint"
+                                                                         HorizontalOffset="6"
+                                                                         VerticalOffset="2"
+                                                                         Style="{StaticResource RouteStopContextMenuStyle}">
+                                                                <ContextMenu.Resources>
+                                                                    <Style TargetType="Separator">
+                                                                        <Setter Property="Margin" Value="0,4" />
+                                                                        <Setter Property="Template">
+                                                                            <Setter.Value>
+                                                                                <ControlTemplate TargetType="Separator">
+                                                                                    <Border Height="1"
+                                                                                            Background="{DynamicResource Brush.BorderSoft}" />
+                                                                                </ControlTemplate>
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </Style>
+                                                                </ContextMenu.Resources>
+                                                                <MenuItem x:Name="RouteLegAddPauseMenuItem"
+                                                                          Header="Pause hinzufügen"
+                                                                          Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                                          Click="OnRouteLegAddPauseMenuItemClick" />
+                                                                <MenuItem x:Name="RouteLegEditPauseMenuItem"
+                                                                          Header="Pause bearbeiten"
+                                                                          Visibility="Collapsed"
+                                                                          Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                                          Click="OnRouteLegEditPauseMenuItemClick" />
+                                                                <MenuItem x:Name="RouteLegRemovePauseMenuItem"
+                                                                          Header="Pause entfernen"
+                                                                          Visibility="Collapsed"
+                                                                          Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                                          Foreground="{DynamicResource Brush.Danger}"
+                                                                          Click="OnRouteLegRemovePauseMenuItemClick" />
+                                                            </ContextMenu>
+                                                        </Border.ContextMenu>
                                                         <Border.Style>
                                                             <Style TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
                                                                 <Setter Property="BorderThickness" Value="0" />
@@ -1136,34 +1197,79 @@
                                                                     <DataTrigger Binding="{Binding HasNextLeg}" Value="False">
                                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                                     </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding HasPauseAfter}" Value="True">
+                                                                        <Setter Property="Background" Value="#FFF8EC" />
+                                                                        <Setter Property="BorderThickness" Value="1" />
+                                                                        <Setter Property="BorderBrush" Value="#F8D48A" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsLegSelected}" Value="True">
+                                                                        <Setter Property="Background" Value="#EEF6FF" />
+                                                                        <Setter Property="BorderThickness" Value="1" />
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                    </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </Border.Style>
-                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="&#xE804;"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           Margin="0,0,6,0"
-                                           Foreground="{Binding NextLegAccentColor}" />
-                                                            <TextBlock Text="{Binding NextLegDurationText}"
-                                                                       FontWeight="SemiBold"
-                                                                       Foreground="{DynamicResource Brush.TextPrimary}" />
-                                                            <TextBlock Text="  -  "
-                                                                       Foreground="{DynamicResource Brush.TextMuted}" />
-                                                            <TextBlock Text="{Binding NextLegDistanceText}"
-                                                                       FontWeight="SemiBold"
-                                                                       Foreground="{DynamicResource Brush.TextPrimary}" />
-                                                            <TextBlock Text="  |  "
-                                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                                       Margin="8,0,0,0" />
-                                                            <TextBlock Text="{Binding NextLegDepartureText}"
-                                                                       Foreground="{DynamicResource Brush.TextSecondary}" />
-                                <TextBlock Text="  ->  "
-                                           Foreground="{DynamicResource Brush.TextMuted}" />
-                                                            <TextBlock Text="{Binding NextLegArrivalText}"
-                                                                       Foreground="{DynamicResource Brush.TextSecondary}" />
-                                                        </StackPanel>
+                                                        <Grid VerticalAlignment="Center">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <TextBlock Text="&#xE804;"
+                                                                           FontFamily="Segoe MDL2 Assets"
+                                                                           FontSize="12"
+                                                                           FontWeight="SemiBold"
+                                                                           Margin="0,0,6,0"
+                                                                           Foreground="{Binding NextLegAccentColor}" />
+                                                                <TextBlock Text="{Binding NextLegDurationText}"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource Brush.TextPrimary}" />
+                                                                <TextBlock Text="  -  "
+                                                                           Foreground="{DynamicResource Brush.TextMuted}" />
+                                                                <TextBlock Text="{Binding NextLegDistanceText}"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource Brush.TextPrimary}" />
+                                                                <TextBlock Text="  |  "
+                                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                                           Margin="8,0,0,0" />
+                                                                <TextBlock Text="{Binding NextLegDepartureText}"
+                                                                           Foreground="{DynamicResource Brush.TextSecondary}" />
+                                                                <TextBlock Text="  ->  "
+                                                                           Foreground="{DynamicResource Brush.TextMuted}" />
+                                                                <TextBlock Text="{Binding NextLegArrivalText}"
+                                                                           Foreground="{DynamicResource Brush.TextSecondary}" />
+                                                            </StackPanel>
+                                                            <Border Grid.Column="1"
+                                                                    Margin="10,0,0,0"
+                                                                    Padding="7,3"
+                                                                    VerticalAlignment="Center"
+                                                                    Background="#FFF7E8"
+                                                                    BorderBrush="#F5C66B"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="8">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasPauseAfter}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                    <Image Width="14"
+                                                                           Height="14"
+                                                                           Margin="0,0,5,0"
+                                                                           Source="pack://application:,,,/Assets/Pause.png" />
+                                                                    <TextBlock Text="{Binding PauseAfterText}"
+                                                                               FontSize="11"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="#8A5A00" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </Grid>
                                                     </Border>
                                                 </StackPanel>
                                             </DataTemplate>

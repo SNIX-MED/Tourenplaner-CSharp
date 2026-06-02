@@ -31,6 +31,7 @@
     <Resource Include="Assets\Einstellungen.png" />
     <Resource Include="Assets\MapOptions.png" />
     <Resource Include="Assets\MapOptions.svg" />
+    <Resource Include="Assets\Pause.png" />
     <Resource Include="Assets\icon-infocards-off.jpg" />
     <Resource Include="Assets\icon-infocards-on.jpg" />
     <Resource Include="Assets\MapInfoCardIcons\1.svg" />

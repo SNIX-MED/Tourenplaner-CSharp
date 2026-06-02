@@ -128,6 +128,34 @@ public static class TourPdfHtmlBuilder
                        line-height: 1.45;
                        white-space: pre-line;
                      }
+                     .stop-with-pause {
+                       display: flex;
+                       flex-direction: column;
+                       gap: 6px;
+                     }
+                     .pause-row {
+                       display: flex;
+                       justify-content: flex-end;
+                     }
+                     .pause-badge {
+                       display: inline-flex;
+                       align-items: center;
+                       gap: 6px;
+                       padding: 4px 9px;
+                       border-radius: 8px;
+                       border: 1px solid #f1d7ab;
+                       background: #fff7eb;
+                       color: #9a6700;
+                       font-size: 11px;
+                       font-weight: 600;
+                     }
+                     .pause-icon {
+                       width: 7px;
+                       height: 7px;
+                       border-radius: 999px;
+                       background: #1f2937;
+                       box-shadow: 0 0 0 2px #fde7c3;
+                     }
                      .map-shell {
                        display: flex;
                        align-items: stretch;
@@ -252,15 +280,29 @@ public static class TourPdfHtmlBuilder
             ? string.Empty
             : $"<div class=\"stop-address\">{Html(stop.DeliveryType.Trim())}</div>";
 
+        var pauseHtml = stop.PauseAfterMinutes <= 0
+            ? string.Empty
+            : $$"""
+               <div class="pause-row">
+                 <div class="pause-badge">
+                   <span class="pause-icon"></span>
+                   <span>{{Html($"Pause {stop.PauseAfterMinutes} min")}}</span>
+                 </div>
+               </div>
+               """;
+
         return $$"""
-                 <div class="stop">
-                   <div class="marker">{{Html(stop.Label)}}</div>
-                   <div>
-                     <div class="stop-name">{{Html(stop.Name)}}</div>
-                     <div class="stop-address">{{Html(stop.Address)}}</div>
-                     {{deliveryTypeHtml}}
-                     {{extraHtml}}
+                 <div class="stop-with-pause">
+                   <div class="stop">
+                     <div class="marker">{{Html(stop.Label)}}</div>
+                     <div>
+                       <div class="stop-name">{{Html(stop.Name)}}</div>
+                       <div class="stop-address">{{Html(stop.Address)}}</div>
+                       {{deliveryTypeHtml}}
+                       {{extraHtml}}
+                     </div>
                    </div>
+                   {{pauseHtml}}
                  </div>
                  """;
     }

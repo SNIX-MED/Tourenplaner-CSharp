@@ -23,6 +23,9 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
 {
     private const string CompanyStartStopId = "__company_start__";
     private const string CompanyEndStopId = "__company_end__";
+    private const string PauseStopKind = "pause";
+    private const string PauseStopIdPrefix = "pause:";
+    private const int DefaultPauseMinutes = 15;
     private const int MaxDraftRouteUndoEntries = 30;
     private const string PlannedTourStatus = "Eingeplant";
     private const string AvisoBadgeColorNotAvisiert = "#64748B";
@@ -68,6 +71,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private bool _includePlannedOrders = true;
     private MapOrderItem? _selectedOrder;
     private RouteStopItem? _selectedRouteStop;
+    private bool _preferLegSelectionVisual;
     private string _routeName = $"Tour {DateOnly.FromDateTime(DateTime.Today):dd.MM.yyyy}";
     private string _routeDate = DateOnly.FromDateTime(DateTime.Today).ToString("dd.MM.yyyy");
     private string _routeStartHour = "07";
@@ -924,6 +928,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         {
             if (SetProperty(ref _selectedRouteStop, value))
             {
+                UpdateRouteSelectionVisuals(value, _preferLegSelectionVisual);
+                _preferLegSelectionVisual = false;
                 if (value is not null && !IsCompanyStop(value))
                 {
                     SelectOrderDetailsById(value.OrderId);
@@ -1212,7 +1218,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     public IReadOnlyList<RouteStopItem> GetRouteSnapshot()
     {
         return RouteStops
-            .Where(x => !IsCompanyStop(x))
+            .Where(IsOrderStop)
             .Select(x => new RouteStopItem
         {
             Position = x.Position,
@@ -1291,10 +1297,37 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
         if (match is not null)
         {
+            _preferLegSelectionVisual = false;
             SelectedRouteStop = match;
+            if (ReferenceEquals(SelectedRouteStop, match))
+            {
+                UpdateRouteSelectionVisuals(match, selectLeg: false);
+            }
+        }
+        else
+        {
+            UpdateRouteSelectionVisuals(null, selectLeg: false);
         }
 
         SelectOrderDetailsById(resolvedOrderId);
+    }
+
+    public void SelectRouteLegByOrderId(string orderId)
+    {
+        var resolvedOrderId = ResolveCanonicalOrderId(orderId);
+        var match = RouteStops.FirstOrDefault(x =>
+            string.Equals(x.OrderId, resolvedOrderId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+        if (match is not null)
+        {
+            _preferLegSelectionVisual = true;
+            SelectedRouteStop = match;
+            UpdateRouteSelectionVisuals(match, selectLeg: true);
+        }
+        else
+        {
+            UpdateRouteSelectionVisuals(null, selectLeg: true);
+        }
     }
 
     public void SelectOrderDetailsByOrderId(string? orderId)
@@ -1440,7 +1473,9 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return;
         }
 
-        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedRouteStop.OrderId, StringComparison.OrdinalIgnoreCase));
+        var order = IsPauseStop(SelectedRouteStop)
+            ? null
+            : _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedRouteStop.OrderId, StringComparison.OrdinalIgnoreCase));
         var currentAvisoStatus = NormalizeAvisoStatus(order?.AvisoStatus);
         var dialog = new RouteStopStayMinutesDialogWindow(
             SelectedRouteStop.PlannedStayMinutes,
@@ -1478,8 +1513,147 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
         RefreshDriveTimesFromCurrentRoute();
         MarkRouteChanged();
-        StatusText = $"Stoppdaten für Auftrag {SelectedRouteStop.OrderId} gespeichert (Aufenthalt {SelectedRouteStop.PlannedStayMinutes} min, Aviso {selectedAvisoStatus}).";
+        StatusText = IsPauseStop(SelectedRouteStop)
+            ? $"Pausendauer gespeichert: {SelectedRouteStop.PlannedStayMinutes} min."
+            : $"Stoppdaten für Auftrag {SelectedRouteStop.OrderId} gespeichert (Aufenthalt {SelectedRouteStop.PlannedStayMinutes} min, Aviso {selectedAvisoStatus}).";
 
+    }
+
+    public Task AddPauseAfterSelectedRouteStopAsync()
+    {
+        if (SelectedRouteStop is null || IsCompanyStop(SelectedRouteStop))
+        {
+            return Task.CompletedTask;
+        }
+
+        var dialog = new RouteStopStayMinutesDialogWindow(DefaultPauseMinutes)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow,
+            Title = "Pause einfügen"
+        };
+
+        if (dialog.ShowDialog() != true || dialog.StayMinutes is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var sourceIndex = RouteStops.IndexOf(SelectedRouteStop);
+        if (sourceIndex < 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var insertIndex = Math.Min(sourceIndex + 1, Math.Max(0, RouteStops.Count - 1));
+        var pauseStop = new RouteStopItem
+        {
+            OrderId = $"{PauseStopIdPrefix}{Guid.NewGuid():N}",
+            Customer = "Pause",
+            Address = string.Empty,
+            Latitude = double.NaN,
+            Longitude = double.NaN,
+            PlannedStayMinutes = Math.Max(0, dialog.StayMinutes.Value),
+            IsPauseStop = true,
+            EmployeeInfoText = string.Empty
+        };
+
+        RouteStops.Insert(insertIndex, pauseStop);
+        SelectedRouteStop = RouteStops[Math.Max(0, sourceIndex)];
+        RebuildPositions();
+        MarkRouteChanged();
+        StatusText = $"Pause mit {pauseStop.PlannedStayMinutes} min eingefügt.";
+        return Task.CompletedTask;
+    }
+
+    public Task EditPauseAfterSelectedRouteStopAsync()
+    {
+        if (SelectedRouteStop is null || IsCompanyStop(SelectedRouteStop))
+        {
+            return Task.CompletedTask;
+        }
+
+        var pauses = GetPauseStopsAfter(SelectedRouteStop);
+        if (pauses.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        var currentMinutes = pauses.Sum(x => Math.Max(0, x.PlannedStayMinutes));
+        var dialog = new RouteStopStayMinutesDialogWindow(currentMinutes)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow,
+            Title = "Pause bearbeiten"
+        };
+
+        if (dialog.ShowDialog() != true || dialog.StayMinutes is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var targetMinutes = Math.Max(0, dialog.StayMinutes.Value);
+        pauses[0].PlannedStayMinutes = targetMinutes;
+        for (var i = pauses.Count - 1; i >= 1; i--)
+        {
+            RouteStops.Remove(pauses[i]);
+        }
+
+        RebuildPositions();
+        MarkRouteChanged();
+        StatusText = $"Pause auf {targetMinutes} min geändert.";
+        return Task.CompletedTask;
+    }
+
+    public void RemovePauseAfterSelectedRouteStop()
+    {
+        if (SelectedRouteStop is null || IsCompanyStop(SelectedRouteStop))
+        {
+            return;
+        }
+
+        var pauses = GetPauseStopsAfter(SelectedRouteStop);
+        if (pauses.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var pause in pauses)
+        {
+            RouteStops.Remove(pause);
+        }
+
+        RebuildPositions();
+        MarkRouteChanged();
+        StatusText = "Pause entfernt.";
+    }
+
+    public bool HasPauseAfterSelectedRouteStop()
+    {
+        return SelectedRouteStop is not null &&
+               !IsCompanyStop(SelectedRouteStop) &&
+               GetPauseStopsAfter(SelectedRouteStop).Count > 0;
+    }
+
+    private List<RouteStopItem> GetPauseStopsAfter(RouteStopItem routeStop)
+    {
+        var pauses = new List<RouteStopItem>();
+        var startIndex = RouteStops.IndexOf(routeStop);
+        if (startIndex < 0)
+        {
+            return pauses;
+        }
+
+        for (var i = startIndex + 1; i < RouteStops.Count; i++)
+        {
+            var candidate = RouteStops[i];
+            if (IsPauseStop(candidate))
+            {
+                pauses.Add(candidate);
+                continue;
+            }
+
+            break;
+        }
+
+        return pauses;
     }
 
     private void RebuildOrderGrid(string? preferredSelectedId = null)
@@ -2799,6 +2973,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 _companyAddress,
                 _companyLocation,
                 defaultServiceMinutes: 10);
+            new TourScheduleService().ApplySchedule(updated);
         }
         else
         {
@@ -2954,7 +3129,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     private static HashSet<string> ExtractNonCompanyTourOrderIds(TourRecord tour)
     {
         return (tour.Stops ?? [])
-            .Where(x => !IsCompanyTourStop(x))
+            .Where(IsCustomerTourStop)
             .Select(ExtractTourStopOrderId)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
@@ -2972,6 +3147,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 .Select(stop => new TourStopRecord
                 {
                     Id = (stop.Id ?? string.Empty).Trim(),
+                    StopKind = (stop.StopKind ?? string.Empty).Trim(),
                     Name = (stop.Name ?? string.Empty).Trim(),
                     Address = (stop.Address ?? string.Empty).Trim(),
                     Auftragsnummer = (stop.Auftragsnummer ?? string.Empty).Trim(),
@@ -3151,16 +3327,23 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             var middle = (tour.Stops ?? [])
                 .OrderBy(x => x.Order)
                 .Where(x => !IsCompanyTourStop(x))
-                .Select(stop => new RouteStopItem
+                .Select(stop =>
                 {
-                    OrderId = ExtractTourStopOrderId(stop),
-                    Customer = NormalizeTourStopName(stop.Name),
-                    Address = stop.Address ?? string.Empty,
-                    Latitude = stop.Lat ?? double.NaN,
-                    Longitude = stop.Lng ?? stop.Lon ?? double.NaN,
-                    IsCompanyAnchor = false,
-                    PlannedStayMinutes = Math.Max(0, stop.ServiceMinutes),
-                    EmployeeInfoText = stop.EmployeeInfoText ?? string.Empty
+                    var isPause = IsPauseTourStop(stop);
+                    return new RouteStopItem
+                    {
+                        OrderId = isPause
+                            ? (string.IsNullOrWhiteSpace(stop.Id) ? $"{PauseStopIdPrefix}{Guid.NewGuid():N}" : stop.Id.Trim())
+                            : ExtractTourStopOrderId(stop),
+                        Customer = isPause ? "Pause" : NormalizeTourStopName(stop.Name),
+                        Address = isPause ? string.Empty : (stop.Address ?? string.Empty),
+                        Latitude = isPause ? double.NaN : stop.Lat ?? double.NaN,
+                        Longitude = isPause ? double.NaN : stop.Lng ?? stop.Lon ?? double.NaN,
+                        IsCompanyAnchor = false,
+                        IsPauseStop = isPause,
+                        PlannedStayMinutes = Math.Max(0, stop.ServiceMinutes),
+                        EmployeeInfoText = isPause ? string.Empty : stop.EmployeeInfoText ?? string.Empty
+                    };
                 })
                 .ToList();
 
@@ -3191,6 +3374,11 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
     private static string ExtractTourStopOrderId(TourStopRecord stop)
     {
+        if (IsPauseTourStop(stop))
+        {
+            return string.Empty;
+        }
+
         var id = (stop.Id ?? string.Empty).Trim();
         if (id.StartsWith("auftrag:", StringComparison.OrdinalIgnoreCase))
         {
@@ -3245,6 +3433,115 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     private static bool IsCompanyTourStop(TourStopRecord stop)
     {
         return TourStopIdentity.IsCompanyStop(stop);
+    }
+
+    private static bool IsPauseTourStop(TourStopRecord stop)
+    {
+        var stopKind = (stop.StopKind ?? string.Empty).Trim();
+        var id = (stop.Id ?? string.Empty).Trim();
+        return string.Equals(stopKind, PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
+               id.StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCustomerTourStop(TourStopRecord stop)
+    {
+        return !IsCompanyTourStop(stop) && !IsPauseTourStop(stop);
+    }
+
+    private static void MergeManualPauseStops(TourRecord updatedTour, TourRecord existingTour)
+    {
+        var existingStops = (existingTour.Stops ?? [])
+            .OrderBy(x => x.Order)
+            .ToList();
+        if (!existingStops.Any(IsPauseTourStop))
+        {
+            return;
+        }
+
+        const string startAnchorKey = "__start__";
+        var pausesByAnchor = new Dictionary<string, List<TourStopRecord>>(StringComparer.OrdinalIgnoreCase);
+        string currentAnchor = startAnchorKey;
+
+        foreach (var stop in existingStops)
+        {
+            if (IsCustomerTourStop(stop))
+            {
+                currentAnchor = ExtractTourStopOrderId(stop);
+                continue;
+            }
+
+            if (!IsPauseTourStop(stop))
+            {
+                continue;
+            }
+
+            if (!pausesByAnchor.TryGetValue(currentAnchor, out var pauses))
+            {
+                pauses = new List<TourStopRecord>();
+                pausesByAnchor[currentAnchor] = pauses;
+            }
+
+            pauses.Add(CloneTourStop(stop));
+        }
+
+        var start = updatedTour.Stops.FirstOrDefault(x => string.Equals((x.Id ?? string.Empty).Trim(), CompanyStartStopId, StringComparison.OrdinalIgnoreCase));
+        var end = updatedTour.Stops.FirstOrDefault(x => string.Equals((x.Id ?? string.Empty).Trim(), CompanyEndStopId, StringComparison.OrdinalIgnoreCase));
+        var customerStops = updatedTour.Stops.Where(IsCustomerTourStop).ToList();
+        var mergedStops = new List<TourStopRecord>();
+
+        if (pausesByAnchor.TryGetValue(startAnchorKey, out var leadingPauses))
+        {
+            mergedStops.AddRange(leadingPauses.Select(CloneTourStop));
+        }
+
+        foreach (var customerStop in customerStops)
+        {
+            mergedStops.Add(customerStop);
+            var anchor = ExtractTourStopOrderId(customerStop);
+            if (string.IsNullOrWhiteSpace(anchor) || !pausesByAnchor.TryGetValue(anchor, out var anchoredPauses))
+            {
+                continue;
+            }
+
+            mergedStops.AddRange(anchoredPauses.Select(CloneTourStop));
+        }
+
+        updatedTour.Stops = [
+            .. (start is null ? [] : new[] { start }),
+            .. mergedStops,
+            .. (end is null ? [] : new[] { end })
+        ];
+
+        for (var i = 0; i < updatedTour.Stops.Count; i++)
+        {
+            updatedTour.Stops[i].Order = i + 1;
+        }
+    }
+
+    private static TourStopRecord CloneTourStop(TourStopRecord stop)
+    {
+        return new TourStopRecord
+        {
+            Id = (stop.Id ?? string.Empty).Trim(),
+            StopKind = (stop.StopKind ?? string.Empty).Trim(),
+            Name = (stop.Name ?? string.Empty).Trim(),
+            Address = (stop.Address ?? string.Empty).Trim(),
+            Auftragsnummer = (stop.Auftragsnummer ?? string.Empty).Trim(),
+            Lat = stop.Lat,
+            Lon = stop.Lon,
+            Lng = stop.Lng,
+            Order = stop.Order,
+            TimeWindowStart = (stop.TimeWindowStart ?? string.Empty).Trim(),
+            TimeWindowEnd = (stop.TimeWindowEnd ?? string.Empty).Trim(),
+            ServiceMinutes = stop.ServiceMinutes,
+            PlannedArrival = (stop.PlannedArrival ?? string.Empty).Trim(),
+            PlannedDeparture = (stop.PlannedDeparture ?? string.Empty).Trim(),
+            WaitMinutes = stop.WaitMinutes,
+            ScheduleConflict = stop.ScheduleConflict,
+            ScheduleConflictText = (stop.ScheduleConflictText ?? string.Empty).Trim(),
+            Gewicht = (stop.Gewicht ?? string.Empty).Trim(),
+            EmployeeInfoText = (stop.EmployeeInfoText ?? string.Empty).Trim()
+        };
     }
 
     private static string NormalizeTourStopName(string? value)
@@ -3434,7 +3731,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return false;
         }
 
-        var routeStops = RouteStops.Where(x => !IsCompanyStop(x)).ToList();
+        var routeStops = RouteStops.Where(IsOrderStop).ToList();
         if (routeStops.Count == 0)
         {
             error = "Es ist aktuell keine gültige Tour geladen.";
@@ -3453,7 +3750,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             ResolveTimeWindow(stop.OrderId),
             stop.EtaText,
             ResolveWeightText(stop.OrderId),
-            stop.EmployeeInfoText))
+            stop.EmployeeInfoText,
+            GetPauseStopsAfter(stop).Sum(x => Math.Max(0, x.PlannedStayMinutes))))
             .ToList();
 
         snapshot = new RouteExportSnapshot(
@@ -3599,7 +3897,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 x.Latitude,
                 x.Longitude,
                 x.PlannedStayMinutes,
-                x.EmployeeInfoText))
+                x.EmployeeInfoText,
+                x.IsPauseStop ? PauseStopKind : string.Empty))
             .ToList();
     }
 
@@ -3622,12 +3921,14 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 RouteStops.Add(new RouteStopItem
                 {
                     Position = stop.Position,
-                    OrderId = stop.OrderId,
-                    Customer = stop.Customer,
-                    Address = stop.Address,
+                    OrderId = stop.OrderId ?? string.Empty,
+                    Customer = stop.Customer ?? string.Empty,
+                    Address = stop.Address ?? string.Empty,
                     Latitude = stop.Latitude,
                     Longitude = stop.Longitude,
                     IsCompanyAnchor = false,
+                    IsPauseStop = string.Equals((stop.StopKind ?? string.Empty).Trim(), PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
+                                  (stop.OrderId ?? string.Empty).StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase),
                     PlannedStayMinutes = stop.ServiceMinutes < 0 ? 10 : stop.ServiceMinutes,
                     EmployeeInfoText = stop.EmployeeInfoText
                 });
@@ -3828,7 +4129,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         {
             var stop = RouteStops[i];
             stop.Position = i + 1;
-            stop.DisplayIndex = IsCompanyStop(stop) ? 0 : ++displayIndex;
+            stop.DisplayIndex = IsCompanyStop(stop) || IsPauseStop(stop) ? 0 : ++displayIndex;
         }
 
         ClearRouteStopEtaValues();
@@ -3850,12 +4151,14 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         {
             stop.EtaText = string.Empty;
             stop.ClearNextLeg();
+            stop.ClearPauseAfter();
         }
     }
 
     private void UpdateRouteDistanceFromStops()
     {
         var distancePoints = RouteStops
+            .Where(x => !IsPauseStop(x))
             .Where(x => !double.IsNaN(x.Latitude) && !double.IsNaN(x.Longitude))
             .ToList();
         RouteDistanceKm = _optimizationService.ComputeTotalDistanceKm(distancePoints, x => x.Latitude, x => x.Longitude);
@@ -3863,7 +4166,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
     private void UpdateDriveTimePlaceholderState()
     {
-        if (RouteStops.Count(x => !IsCompanyStop(x)) == 0)
+        if (!RouteStops.Any(IsOrderStop))
         {
             ClearDriveTimes();
             return;
@@ -3875,14 +4178,14 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
     private void UpdateStatus()
     {
-        var routeStopCount = RouteStops.Count(x => !IsCompanyStop(x));
+        var routeStopCount = RouteStops.Count(IsOrderStop);
         StatusText = $"Map orders: {MapOrders.Count} | Route stops: {routeStopCount} | Route distance: {RouteDistanceKm:0.##} km";
     }
 
     private void UpdateRouteSummary()
     {
         var totalWeightKg = RouteStops
-            .Where(x => !IsCompanyStop(x))
+            .Where(IsOrderStop)
             .Select(x => FindOrderWeightKg(x.OrderId))
             .Sum();
         var summaryVehicleId = _currentRouteVehicleId;
@@ -3890,7 +4193,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         var summarySecondaryVehicleId = _currentRouteSecondaryVehicleId;
         var summarySecondaryTrailerId = _currentRouteSecondaryTrailerId;
 
-        var hasRouteStops = RouteStops.Any(x => !IsCompanyStop(x));
+        var hasRouteStops = RouteStops.Any(IsOrderStop);
         if (!hasRouteStops && _activeTourId <= 0 && _selectedTourOverviewId > 0)
         {
             var selectedOverviewTour = _savedTours.FirstOrDefault(x => x.Id == _selectedTourOverviewId);
@@ -3902,7 +4205,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 summarySecondaryTrailerId = (selectedOverviewTour.SecondaryTrailerId ?? string.Empty).Trim();
 
                 var overviewOrderIds = (selectedOverviewTour.Stops ?? [])
-                    .Where(x => !IsCompanyTourStop(x))
+                    .Where(IsCustomerTourStop)
                     .Select(ExtractTourStopOrderId)
                     .Where(x => !string.IsNullOrWhiteSpace(x))
                     .Select(x => x.Trim())
@@ -5496,6 +5799,27 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         return stop.IsCompanyAnchor || IsCompanyOrderId(stop.OrderId);
     }
 
+    private void UpdateRouteSelectionVisuals(RouteStopItem? selectedStop, bool selectLeg)
+    {
+        foreach (var stop in RouteStops)
+        {
+            var isSelected = selectedStop is not null && ReferenceEquals(stop, selectedStop);
+            stop.IsStopSelected = isSelected && !selectLeg;
+            stop.IsLegSelected = isSelected && selectLeg;
+        }
+    }
+
+    private static bool IsPauseStop(RouteStopItem stop)
+    {
+        var orderId = (stop.OrderId ?? string.Empty).Trim();
+        return stop.IsPauseStop || orderId.StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsOrderStop(RouteStopItem stop)
+    {
+        return !IsCompanyStop(stop) && !IsPauseStop(stop);
+    }
+
     private static bool IsCompanyOrderId(string? orderId)
     {
         var id = (orderId ?? string.Empty).Trim();
@@ -5518,7 +5842,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             var startTimeText = string.IsNullOrWhiteSpace(tour.StartTime)
                 ? "--:--"
                 : (tour.StartTime ?? string.Empty).Trim();
-            var stopCount = (tour.Stops ?? []).Count(x => !IsCompanyTourStop(x));
+            var stopCount = (tour.Stops ?? []).Count(IsCustomerTourStop);
             TourOverviewItems.Add(new SavedTourOverviewItem(
                 tour.Id,
                 BuildTourLookupLabel(tour),
@@ -5854,6 +6178,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         try
         {
             var validStops = RouteStops
+                .Where(x => !IsPauseStop(x))
                 .Where(x => !double.IsNaN(x.Latitude) && !double.IsNaN(x.Longitude))
                 .Where(x => x.Latitude is >= -90 and <= 90 && x.Longitude is >= -180 and <= 180)
                 .ToList();
@@ -6146,9 +6471,14 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     {
         ClearRouteStopEtaValues();
 
-        if (_timedStops.Count < 2 || _routeLegs.Count == 0)
+        var routedStops = RouteStops
+            .Where(x => !IsPauseStop(x))
+            .Where(HasValidCoordinate)
+            .ToList();
+
+        if (routedStops.Count < 2 || _routeLegs.Count == 0)
         {
-            if (RouteStops.Count(x => !IsCompanyStop(x)) == 0)
+            if (!RouteStops.Any(IsOrderStop))
             {
                 ClearDriveTimes();
             }
@@ -6163,44 +6493,71 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         var totalDistanceKm = 0d;
         var sb = new StringBuilder();
 
-        _timedStops[0].EtaText = start.ToString("HH:mm");
+        var routeLegIndex = 0;
+        RouteStopItem? previousRoutedStop = null;
 
-        for (var i = 0; i < _routeLegs.Count && i + 1 < _timedStops.Count; i++)
+        foreach (var stop in RouteStops)
         {
-            var fromStop = _timedStops[i];
-            var toStop = _timedStops[i + 1];
-            var leg = _routeLegs[i];
+            if (IsPauseStop(stop))
+            {
+                stop.EtaText = current.ToString("HH:mm");
+                previousRoutedStop?.AddPauseAfter(Math.Max(0, stop.PlannedStayMinutes));
+                totalStayMinutes += Math.Max(0, stop.PlannedStayMinutes);
+                current = current.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
+                continue;
+            }
 
+            if (!HasValidCoordinate(stop))
+            {
+                continue;
+            }
+
+            if (previousRoutedStop is null)
+            {
+                stop.EtaText = start.ToString("HH:mm");
+                previousRoutedStop = stop;
+                continue;
+            }
+
+            if (routeLegIndex >= _routeLegs.Count)
+            {
+                break;
+            }
+
+            var leg = _routeLegs[routeLegIndex];
             var depart = current;
             current = current.AddMinutes(leg.DurationMinutes);
             var arrive = current;
             totalDriveMinutes += leg.DurationMinutes;
             totalDistanceKm += leg.DistanceKm;
-            fromStop.SetNextLeg(
+
+            previousRoutedStop.SetNextLeg(
                 durationText: FormatDuration(leg.DurationMinutes),
                 distanceText: $"{leg.DistanceKm:0.0} km",
                 departureText: depart.ToString("HH:mm"),
                 arrivalText: arrive.ToString("HH:mm"),
-                accentColorHex: i % 2 == 0 ? "#7BC6A4" : "#8EC6E8");
+                accentColorHex: routeLegIndex % 2 == 0 ? "#7BC6A4" : "#8EC6E8");
 
-            sb.AppendLine($"{BuildStopLabel(fromStop, isFrom: true)} -> {BuildStopLabel(toStop, isFrom: false)}");
+            sb.AppendLine($"{BuildStopLabel(previousRoutedStop, isFrom: true)} -> {BuildStopLabel(stop, isFrom: false)}");
             sb.AppendLine($"{leg.DurationMinutes} min | {leg.DistanceKm:0.0} km");
             sb.AppendLine($"{depart:HH:mm} -> {arrive:HH:mm}");
-            if (i < _routeLegs.Count - 1)
+            if (routeLegIndex < _routeLegs.Count - 1)
             {
                 sb.AppendLine();
             }
 
-            toStop.EtaText = arrive.ToString("HH:mm");
-            if (!IsCompanyStop(toStop))
+            stop.EtaText = arrive.ToString("HH:mm");
+            if (!IsCompanyStop(stop) && !IsPauseStop(stop))
             {
-                totalStayMinutes += Math.Max(0, toStop.PlannedStayMinutes);
-                current = current.AddMinutes(Math.Max(0, toStop.PlannedStayMinutes));
+                totalStayMinutes += Math.Max(0, stop.PlannedStayMinutes);
+                current = current.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
             }
+
+            previousRoutedStop = stop;
+            routeLegIndex++;
         }
 
-        var end = start.AddMinutes(totalDriveMinutes + totalStayMinutes);
-        _timedStops[^1].EtaText = end.ToString("HH:mm");
+        var end = current;
         RouteTimingSummary = $"Start: {start:HH:mm} | Fahrt: {totalDriveMinutes} min | Aufenthalt: {totalStayMinutes} min | Ende: {end:HH:mm}";
         RouteOperationalSummaryText = $"Gesamt Fahrzeit: {FormatDuration(totalDriveMinutes)} | Gesamt Distanz: {totalDistanceKm:0.0} km | Start: {start:HH:mm} | Ende: {end:HH:mm}";
         DriveTimesText = sb.Length == 0 ? "Noch keine Stopps geplant." : sb.ToString().TrimEnd();
@@ -6774,6 +7131,9 @@ public sealed class RouteStopItem : ObservableObject
     private double _latitude;
     private double _longitude;
     private bool _isCompanyAnchor;
+    private bool _isPauseStop;
+    private bool _isStopSelected;
+    private bool _isLegSelected;
     private int _plannedStayMinutes = 10;
     private string _etaText = string.Empty;
     private string _nextLegDurationText = string.Empty;
@@ -6782,6 +7142,7 @@ public sealed class RouteStopItem : ObservableObject
     private string _nextLegArrivalText = string.Empty;
     private string _nextLegAccentColor = "#8EC6E8";
     private string _employeeInfoText = string.Empty;
+    private int _pauseAfterMinutes;
 
     public int Position
     {
@@ -6885,6 +7246,38 @@ public sealed class RouteStopItem : ObservableObject
         }
     }
 
+    public bool IsPauseStop
+    {
+        get => _isPauseStop;
+        set
+        {
+            if (SetProperty(ref _isPauseStop, value))
+            {
+                OnPropertyChanged(nameof(DisplayName));
+                OnPropertyChanged(nameof(DisplayOrder));
+                OnPropertyChanged(nameof(DisplayStay));
+                OnPropertyChanged(nameof(DisplayPosition));
+                OnPropertyChanged(nameof(DisplayEta));
+                OnPropertyChanged(nameof(RouteBadgeText));
+                OnPropertyChanged(nameof(DisplayNameWithOrder));
+                OnPropertyChanged(nameof(DisplayAddress));
+                OnPropertyChanged(nameof(DisplayEmployeeInfo));
+            }
+        }
+    }
+
+    public bool IsStopSelected
+    {
+        get => _isStopSelected;
+        set => SetProperty(ref _isStopSelected, value);
+    }
+
+    public bool IsLegSelected
+    {
+        get => _isLegSelected;
+        set => SetProperty(ref _isLegSelected, value);
+    }
+
     public int PlannedStayMinutes
     {
         get => _plannedStayMinutes;
@@ -6965,6 +7358,20 @@ public sealed class RouteStopItem : ObservableObject
         }
     }
 
+    public int PauseAfterMinutes
+    {
+        get => _pauseAfterMinutes;
+        private set
+        {
+            var clamped = Math.Max(0, value);
+            if (SetProperty(ref _pauseAfterMinutes, clamped))
+            {
+                OnPropertyChanged(nameof(HasPauseAfter));
+                OnPropertyChanged(nameof(PauseAfterText));
+            }
+        }
+    }
+
     private bool IsCompanyDisplay => IsCompanyAnchor ||
                                      string.Equals(OrderId, "__company_start__", StringComparison.OrdinalIgnoreCase) ||
                                      string.Equals(OrderId, "__company_end__", StringComparison.OrdinalIgnoreCase) ||
@@ -6974,18 +7381,20 @@ public sealed class RouteStopItem : ObservableObject
     public bool IsRouteEnd => string.Equals(OrderId, "__company_end__", StringComparison.OrdinalIgnoreCase);
     public string RouteBadgeText => IsRouteStart ? "Start" : IsRouteEnd ? "Ende" : string.Empty;
     public bool HasNextLeg => !string.IsNullOrWhiteSpace(NextLegDurationText) && !string.IsNullOrWhiteSpace(NextLegDistanceText);
+    public bool HasPauseAfter => PauseAfterMinutes > 0;
     public string DisplayPosition => ToAlphaLabel(DisplayIndex > 0 ? DisplayIndex : Position);
-    public string DisplayName => IsCompanyDisplay ? Address : (!string.IsNullOrWhiteSpace(Customer) ? Customer : Address);
+    public string DisplayName => IsCompanyDisplay ? Address : (IsPauseStop ? "Pause" : (!string.IsNullOrWhiteSpace(Customer) ? Customer : Address));
     public string DisplayNameWithOrder =>
         IsCompanyDisplay || string.IsNullOrWhiteSpace(DisplayOrder) || string.Equals(DisplayOrder, "-", StringComparison.Ordinal)
             ? DisplayName
             : $"{DisplayName} ({DisplayOrder})";
-    public string DisplayAddress => string.Equals(DisplayName, Address, StringComparison.OrdinalIgnoreCase) ? string.Empty : Address;
+    public string DisplayAddress => IsPauseStop || string.Equals(DisplayName, Address, StringComparison.OrdinalIgnoreCase) ? string.Empty : Address;
     public string DisplayWindow => "--";
-    public string DisplayOrder => string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId;
+    public string DisplayOrder => IsPauseStop ? string.Empty : (string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId);
     public string DisplayStay => IsCompanyDisplay ? string.Empty : $"{PlannedStayMinutes} min";
     public string DisplayEta => string.IsNullOrWhiteSpace(EtaText) ? "--:--" : EtaText;
-    public string DisplayEmployeeInfo => IsCompanyDisplay ? string.Empty : EmployeeInfoText;
+    public string DisplayEmployeeInfo => IsCompanyDisplay || IsPauseStop ? string.Empty : EmployeeInfoText;
+    public string PauseAfterText => $"{PauseAfterMinutes} min";
 
     public void SetNextLeg(string durationText, string distanceText, string departureText, string arrivalText, string accentColorHex)
     {
@@ -7003,6 +7412,16 @@ public sealed class RouteStopItem : ObservableObject
         NextLegDepartureText = string.Empty;
         NextLegArrivalText = string.Empty;
         NextLegAccentColor = "#8EC6E8";
+    }
+
+    public void AddPauseAfter(int minutes)
+    {
+        PauseAfterMinutes += Math.Max(0, minutes);
+    }
+
+    public void ClearPauseAfter()
+    {
+        PauseAfterMinutes = 0;
     }
 
     private static string ToAlphaLabel(int position)

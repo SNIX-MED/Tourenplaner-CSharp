@@ -3,6 +3,7 @@
 public sealed class TourStopRecord
 {
     public string Id { get; set; } = string.Empty;
+    public string StopKind { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string Auftragsnummer { get; set; } = string.Empty;

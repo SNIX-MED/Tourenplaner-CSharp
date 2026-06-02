@@ -175,7 +175,15 @@ public partial class KarteSectionView : UserControl
 
         if (e.PropertyName == nameof(KarteSectionViewModel.SelectedOrder) && !_suppressSelectionSync)
         {
-            QueueMapRefresh(MapRefreshOperation.MarkerSelection);
+            if (DataContext is KarteSectionViewModel routeVm &&
+                routeVm.SelectedRouteStop is { IsLegSelected: true })
+            {
+                QueueMapRefresh(MapRefreshOperation.MarkerSelection | MapRefreshOperation.RouteSelection);
+            }
+            else
+            {
+                QueueMapRefresh(MapRefreshOperation.MarkerSelection);
+            }
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.SearchFocusRevision))
         {
@@ -805,7 +813,9 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        var id = vm.SelectedOrder?.OrderId ?? string.Empty;
+        var id = vm.SelectedRouteStop is { IsLegSelected: true }
+            ? string.Empty
+            : vm.SelectedOrder?.OrderId ?? string.Empty;
         var jsonId = JsonSerializer.Serialize(id);
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetStickyPopupOrderId === 'function') window.gawelaSetStickyPopupOrderId({jsonId});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaHighlightMarker === 'function') window.gawelaHighlightMarker({jsonId});");
@@ -818,7 +828,9 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        var id = vm.SelectedRouteStop?.OrderId ?? string.Empty;
+        var id = vm.SelectedRouteStop is { IsLegSelected: true }
+            ? string.Empty
+            : vm.SelectedRouteStop?.OrderId ?? string.Empty;
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaHighlightRouteStop === 'function') window.gawelaHighlightRouteStop({JsonSerializer.Serialize(id)});");
     }
 
@@ -1201,6 +1213,34 @@ public partial class KarteSectionView : UserControl
         await vm.EditSelectedRouteStopStayMinutesAsync();
     }
 
+    private void OnRouteStopMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            return;
+        }
+
+        vm.SelectRouteStopByOrderId(stopItem.OrderId);
+        QueueMapRefresh(MapRefreshOperation.RouteSelection);
+    }
+
+    private async void OnRouteStopAddPauseMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            return;
+        }
+
+        vm.SelectRouteStopByOrderId(stopItem.OrderId);
+        await vm.AddPauseAfterSelectedRouteStopAsync();
+    }
+
     private void OnRouteStopRemoveMenuItemClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
@@ -1233,6 +1273,93 @@ public partial class KarteSectionView : UserControl
         {
             vm.EditOrderCommand.Execute(null);
         }
+    }
+
+    private void OnRouteLegContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        vm.SelectRouteLegByOrderId(stopItem.OrderId);
+        if (element.ContextMenu is not ContextMenu contextMenu)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var hasPause = vm.HasPauseAfterSelectedRouteStop();
+        if (contextMenu.Items.Count >= 3 &&
+            contextMenu.Items[0] is MenuItem addPauseMenuItem &&
+            contextMenu.Items[1] is MenuItem editPauseMenuItem &&
+            contextMenu.Items[2] is MenuItem removePauseMenuItem)
+        {
+            addPauseMenuItem.Visibility = hasPause ? Visibility.Collapsed : Visibility.Visible;
+            editPauseMenuItem.Visibility = hasPause ? Visibility.Visible : Visibility.Collapsed;
+            removePauseMenuItem.Visibility = hasPause ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void OnRouteLegMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            return;
+        }
+
+        vm.SelectRouteLegByOrderId(stopItem.OrderId);
+        QueueMapRefresh(MapRefreshOperation.RouteSelection);
+        e.Handled = true;
+    }
+
+    private async void OnRouteLegAddPauseMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            return;
+        }
+
+        vm.SelectRouteStopByOrderId(stopItem.OrderId);
+        await vm.AddPauseAfterSelectedRouteStopAsync();
+    }
+
+    private async void OnRouteLegEditPauseMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            return;
+        }
+
+        vm.SelectRouteStopByOrderId(stopItem.OrderId);
+        await vm.EditPauseAfterSelectedRouteStopAsync();
+    }
+
+    private void OnRouteLegRemovePauseMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            stopItem.IsCompanyAnchor)
+        {
+            return;
+        }
+
+        vm.SelectRouteStopByOrderId(stopItem.OrderId);
+        vm.RemovePauseAfterSelectedRouteStop();
     }
 
     private async Task ApplyTemporarySearchPinAsync()

@@ -439,14 +439,26 @@
                                         <MenuItem Header="Aufenthaltszeit ändern"
                                                   Style="{StaticResource QuickActionsMenuItemStyle}"
                                                   Click="OnSelectedTourStopEditStayMenuItemClick" />
+                                        <MenuItem Header="Pause danach einfügen"
+                                                  Style="{StaticResource QuickActionsMenuItemStyle}"
+                                                  Click="OnSelectedTourStopAddPauseMenuItemClick" />
                                         <MenuItem Header="Stopp entfernen"
                                                   Style="{StaticResource QuickActionsMenuItemStyle}"
                                                   Foreground="{DynamicResource Brush.Danger}"
                                                   Click="OnSelectedTourStopRemoveMenuItemClick" />
                                         <Separator />
                                         <MenuItem Header="Auftrag bearbeiten"
-                                                  Style="{StaticResource QuickActionsMenuItemStyle}"
-                                                  Click="OnSelectedTourStopEditOrderMenuItemClick" />
+                                                  Click="OnSelectedTourStopEditOrderMenuItemClick">
+                                            <MenuItem.Style>
+                                                <Style TargetType="MenuItem" BasedOn="{StaticResource QuickActionsMenuItemStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedTourStop.IsPauseStop}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </MenuItem.Style>
+                                        </MenuItem>
                                     </ContextMenu>
                                 </ListBox.ContextMenu>
                                 <ListBox.ItemTemplate>
@@ -481,7 +493,18 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
+                                            <StackPanel>
                                             <Grid>
+                                                <Grid.Style>
+                                                    <Style TargetType="Grid">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Grid.Style>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
@@ -633,6 +656,48 @@
                                                     </TextBlock>
                                                 </StackPanel>
                                             </Grid>
+                                            <Grid>
+                                                <Grid.Style>
+                                                    <Style TargetType="Grid">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Grid.Style>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal"
+                                                            VerticalAlignment="Center">
+                                                    <Border Background="#FFF7E8"
+                                                            BorderBrush="#F5C66B"
+                                                            BorderThickness="1"
+                                                            CornerRadius="10"
+                                                            Padding="8,3">
+                                                        <TextBlock Text="Pause"
+                                                                   FontSize="12"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#8A5A00" />
+                                                    </Border>
+                                                    <TextBlock Margin="10,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding PauseDurationText}"
+                                                               FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource Brush.TextPrimary}" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1"
+                                                           VerticalAlignment="Center"
+                                                           HorizontalAlignment="Right"
+                                                           Text="{Binding PauseTimeRangeText}"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource Brush.TextMuted}" />
+                                            </Grid>
+                                            </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
