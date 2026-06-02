@@ -1728,14 +1728,17 @@ internal static class MapHtmlDocumentBuilder
     {
         try
         {
-            var desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            var iconPath = System.IO.Path.Combine(desktopDir, "Mapoptions.png");
-            if (!System.IO.File.Exists(iconPath))
+            var resourceUri = new Uri("pack://application:,,,/Assets/MapOptions.png", UriKind.Absolute);
+            var resource = System.Windows.Application.GetResourceStream(resourceUri);
+            if (resource?.Stream is null)
             {
                 return BuildMapOptionsFallbackIcon();
             }
 
-            var bytes = System.IO.File.ReadAllBytes(iconPath);
+            using var stream = resource.Stream;
+            using var memory = new System.IO.MemoryStream();
+            stream.CopyTo(memory);
+            var bytes = memory.ToArray();
             if (bytes.Length == 0)
             {
                 return BuildMapOptionsFallbackIcon();
