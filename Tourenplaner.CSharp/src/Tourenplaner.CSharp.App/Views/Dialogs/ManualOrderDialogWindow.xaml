@@ -10,7 +10,8 @@
         Height="860"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResizeWithGrip"
-        Background="{DynamicResource Brush.WindowBackground}">
+        Background="{DynamicResource Brush.WindowBackground}"
+        PreviewMouseLeftButtonDown="OnPreviewMouseLeftButtonDown">
     <Window.Resources>
         <Style x:Key="ArchiveToggleButtonStyle" TargetType="ToggleButton">
             <Setter Property="Height" Value="38" />
@@ -141,6 +142,83 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="ManualOrderTabControlStyle" TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid KeyboardNavigation.TabNavigation="Local"
+                              SnapsToDevicePixels="True">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TabPanel Grid.Row="0"
+                                      Panel.ZIndex="1"
+                                      Margin="0,0,0,0"
+                                      IsItemsHost="True"
+                                      Background="Transparent" />
+                            <Border Grid.Row="1"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="0">
+                                <ContentPresenter x:Name="PART_SelectedContentHost"
+                                                  Margin="0"
+                                                  ContentSource="SelectedContent" />
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ManualOrderTabItemStyle" TargetType="TabItem">
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Padding" Value="20,10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="Background" Value="#FFE6EDF7" />
+            <Setter Property="BorderBrush" Value="#FFBCD0E5" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Root"
+                                Margin="{TemplateBinding Margin}"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12,12,0,0">
+                            <ContentPresenter x:Name="HeaderContent"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              ContentSource="Header" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#FFF7FAFD" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FF93B3D4" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                <Setter TargetName="Root" Property="Background" Value="#FFFFFFFF" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#FF6E97C2" />
+                                <Setter TargetName="Root" Property="BorderThickness" Value="2" />
+                                <Setter TargetName="HeaderContent" Property="TextElement.FontWeight" Value="Bold" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#FF94A3B8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
     <Border Margin="12" Style="{StaticResource FlatCardStyle}" Padding="14">
@@ -223,239 +301,251 @@
                 </Grid>
             </Grid>
 
-            <ScrollViewer x:Name="ContentScrollViewer" Grid.Row="1" Margin="0,14,0,12" VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <Grid Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border Grid.Column="0"
-                                Style="{StaticResource SoftCardStyle}"
-                                Padding="12"
-                                Margin="0,0,6,0"
-                                Effect="{x:Null}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <Grid MinHeight="42">
-                                    <TextBlock FontSize="18"
-                                               FontWeight="SemiBold"
-                                               VerticalAlignment="Center"
-                                               Text="Auftragsadresse" />
+            <TabControl Grid.Row="1" Margin="0,14,0,12" Style="{StaticResource ManualOrderTabControlStyle}">
+                <TabItem Header="Adresse" Style="{StaticResource ManualOrderTabItemStyle}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,12,0,0">
+                            <Border Style="{StaticResource SoftCardStyle}"
+                                    Padding="12"
+                                    Margin="0,0,0,10"
+                                    Effect="{x:Null}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid MinHeight="42">
+                                        <TextBlock FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Text="Auftragsadresse" />
+                                    </Grid>
+                                    <Grid Grid.Row="1" Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                            <TextBlock FontWeight="SemiBold" Text="Name" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressName, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="10,0,10,0">
+                                            <TextBlock FontWeight="SemiBold" Text="Person" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressContactPerson, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Margin="10,0,0,0">
+                                            <TextBlock FontWeight="SemiBold" Text="Zusatz" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressAdditional, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="2*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                            <TextBlock FontWeight="SemiBold" Text="Strasse" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressStreet, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="10,0,10,0">
+                                            <TextBlock FontWeight="SemiBold" Text="PLZ" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressPostalCode, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Margin="10,0,0,0">
+                                            <TextBlock FontWeight="SemiBold" Text="Ort" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressCity, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </Grid>
                                 </Grid>
-                                <Grid Grid.Row="1" Margin="0,10,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
+                            </Border>
 
-                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Name" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressName, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="10,0,10,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Person" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressContactPerson, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2" Margin="10,0,0,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Zusatz" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressAdditional, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
+                            <Border Style="{StaticResource SoftCardStyle}"
+                                    Padding="12"
+                                    Margin="0,0,0,10"
+                                    Effect="{x:Null}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid MinHeight="42">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Text="Lieferadresse" />
+                                        <Button Grid.Column="1"
+                                                Margin="12,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Content="Wie Auftragsadresse"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Click="OnUseOrderAddressForDeliveryClicked" />
+                                    </Grid>
+                                    <Grid Grid.Row="1" Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                            <TextBlock FontWeight="SemiBold" Text="Name" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding DeliveryName, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="10,0,10,0">
+                                            <TextBlock FontWeight="SemiBold" Text="Person" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding DeliveryContactPerson, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Margin="10,0,0,0">
+                                            <TextBlock FontWeight="SemiBold" Text="Zusatz" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding DeliveryAdditional, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="2*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                            <TextBlock FontWeight="SemiBold" Text="Strasse" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding DeliveryStreet, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="10,0,10,0">
+                                            <TextBlock FontWeight="SemiBold" Text="PLZ" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding DeliveryPostalCode, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Margin="10,0,0,0">
+                                            <TextBlock FontWeight="SemiBold" Text="Ort" />
+                                            <TextBox Margin="0,4,0,0" Text="{Binding DeliveryCity, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </Grid>
                                 </Grid>
-                                <Grid Grid.Row="2" Margin="0,8,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="2*" />
-                                        <ColumnDefinition Width="120" />
-                                        <ColumnDefinition Width="2*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Strasse" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressStreet, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="10,0,10,0">
-                                        <TextBlock FontWeight="SemiBold" Text="PLZ" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressPostalCode, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2" Margin="10,0,0,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Ort" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding OrderAddressCity, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                </Grid>
-                            </Grid>
-                        </Border>
+                            </Border>
 
-                        <Border Grid.Column="1"
-                                Style="{StaticResource SoftCardStyle}"
-                                Padding="12"
-                                Margin="6,0,0,0"
-                                Effect="{x:Null}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <Grid MinHeight="42">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               FontSize="18"
-                                               FontWeight="SemiBold"
-                                               VerticalAlignment="Center"
-                                               Text="Lieferadresse" />
-                                    <Button Grid.Column="1"
-                                            Margin="12,0,0,0"
-                                            VerticalAlignment="Center"
-                                            Content="Wie Auftragsadresse"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Click="OnUseOrderAddressForDeliveryClicked" />
-                                </Grid>
-                                <Grid Grid.Row="1" Margin="0,10,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Name" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding DeliveryName, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="10,0,10,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Person" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding DeliveryContactPerson, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2" Margin="10,0,0,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Zusatz" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding DeliveryAdditional, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                </Grid>
-                                <Grid Grid.Row="2" Margin="0,8,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="2*" />
-                                        <ColumnDefinition Width="120" />
-                                        <ColumnDefinition Width="2*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Strasse" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding DeliveryStreet, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Margin="10,0,10,0">
-                                        <TextBlock FontWeight="SemiBold" Text="PLZ" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding DeliveryPostalCode, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2" Margin="10,0,0,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Ort" />
-                                        <TextBox Margin="0,4,0,0" Text="{Binding DeliveryCity, UpdateSourceTrigger=PropertyChanged}" />
-                                    </StackPanel>
-                                </Grid>
-                            </Grid>
-                        </Border>
-                    </Grid>
-
-                    <Grid Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                            <TextBlock FontWeight="SemiBold" Text="E-Mail" />
-                            <TextBox Margin="0,4,0,0" Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                            <TextBlock FontWeight="SemiBold" Text="Telefon" />
-                            <TextBox Margin="0,4,0,0" Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                    </Grid>
-
-                    <Border Style="{StaticResource SoftCardStyle}" Padding="12" Margin="0,0,0,10">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid>
+                            <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" FontSize="18" FontWeight="SemiBold" Text="Produkte" />
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <Button Content="Produkt bearbeiten" Click="OnEditProductClicked">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Setter Property="IsEnabled" Value="False" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CanEditOrRemoveProductLine}" Value="True">
-                                                        <Setter Property="IsEnabled" Value="True" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <Button Margin="8,0,0,0" ToolTip="Produkt entfernen" Click="OnRemoveProductClicked">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource DialogIconActionButtonStyle}">
-                                                <Setter Property="IsEnabled" Value="False" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CanEditOrRemoveProductLine}" Value="True">
-                                                        <Setter Property="IsEnabled" Value="True" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                        <TextBlock Style="{StaticResource DialogIconGlyphStyle}"
-                                                   Text="&#xE74D;" />
-                                    </Button>
-                                    <Button Margin="8,0,0,0" Content="Produkt hinzufügen" Style="{StaticResource SuccessButtonStyle}" Click="OnAddProductClicked" />
+                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                    <TextBlock FontWeight="SemiBold" Text="E-Mail" />
+                                    <TextBox Margin="0,4,0,0" Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                    <TextBlock FontWeight="SemiBold" Text="Telefon" />
+                                    <TextBox Margin="0,4,0,0" Text="{Binding Phone, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>
                             </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
 
-                            <DataGrid Grid.Row="1"
-                                      Margin="0,10,0,8"
-                                      AutoGenerateColumns="False"
-                                      CanUserAddRows="False"
-                                      IsReadOnly="True"
-                                      RowStyle="{StaticResource ProductsGridRowStyle}"
-                                      CellStyle="{StaticResource ProductsGridCellStyle}"
-                                      PreviewMouseWheel="OnProductGridPreviewMouseWheel"
-                                      MouseDoubleClick="OnProductGridDoubleClick"
-                                      ItemsSource="{Binding ProductLines}"
-                                      SelectedItem="{Binding SelectedProductLine}">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Produkt" Width="*" Binding="{Binding Name}" />
-                                    <DataGridTextColumn Header="Lieferant" Width="180" Binding="{Binding Supplier}" />
-                                    <DataGridTextColumn Header="Menge" Width="90" Binding="{Binding Quantity}" />
-                                    <DataGridTextColumn Header="Gewicht/Stk (kg)" Width="140" Binding="{Binding UnitWeightKg}" />
-                                    <DataGridTextColumn Header="Totalgewicht (kg)" Width="150" Binding="{Binding TotalWeightKg}" />
-                                    <DataGridTextColumn Header="Masse" Width="180" Binding="{Binding Dimensions}" />
-                                    <DataGridTextColumn Header="Lieferstatus" Width="130" Binding="{Binding DeliveryStatus}" />
-                                </DataGrid.Columns>
-                            </DataGrid>
+                <TabItem Header="Produkte" Style="{StaticResource ManualOrderTabItemStyle}">
+                    <ScrollViewer x:Name="ContentScrollViewer" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,12,0,0">
+                            <Border Style="{StaticResource SoftCardStyle}"
+                                    Padding="12"
+                                    Margin="0,0,0,10"
+                                    Effect="{x:Null}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" FontSize="18" FontWeight="SemiBold" Text="Produkte" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button Content="Produkt bearbeiten" Click="OnEditProductClicked">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CanEditOrRemoveProductLine}" Value="True">
+                                                                <Setter Property="IsEnabled" Value="True" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <Button Margin="8,0,0,0" ToolTip="Produkt entfernen" Click="OnRemoveProductClicked">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource DialogIconActionButtonStyle}">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CanEditOrRemoveProductLine}" Value="True">
+                                                                <Setter Property="IsEnabled" Value="True" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                                <TextBlock Style="{StaticResource DialogIconGlyphStyle}"
+                                                           Text="&#xE74D;" />
+                                            </Button>
+                                            <Button Margin="8,0,0,0" Content="Produkt hinzufügen" Style="{StaticResource SuccessButtonStyle}" Click="OnAddProductClicked" />
+                                        </StackPanel>
+                                    </Grid>
 
-                            
-                        </Grid>
-                    </Border>
+                                    <DataGrid Grid.Row="1"
+                                              Margin="0,10,0,8"
+                                              AutoGenerateColumns="False"
+                                              CanUserAddRows="False"
+                                              IsReadOnly="True"
+                                              RowStyle="{StaticResource ProductsGridRowStyle}"
+                                              CellStyle="{StaticResource ProductsGridCellStyle}"
+                                              PreviewMouseWheel="OnProductGridPreviewMouseWheel"
+                                              MouseDoubleClick="OnProductGridDoubleClick"
+                                              ItemsSource="{Binding ProductLines}"
+                                              SelectedItem="{Binding SelectedProductLine}">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Produkt" Width="*" Binding="{Binding Name}" />
+                                            <DataGridTextColumn Header="Lieferant" Width="180" Binding="{Binding Supplier}" />
+                                            <DataGridTextColumn Header="Menge" Width="90" Binding="{Binding Quantity}" />
+                                            <DataGridTextColumn Header="Gew./Stk" Width="95" Binding="{Binding UnitWeightKgRoundedUp, StringFormat={}{0:0.##}}" />
+                                            <DataGridTextColumn Header="Total kg" Width="95" Binding="{Binding TotalWeightKgRoundedUp, StringFormat={}{0:0.##}}" />
+                                            <DataGridTextColumn Header="Masse" Width="180" Binding="{Binding Dimensions}" />
+                                            <DataGridTextColumn Header="Lieferstatus" Width="130" Binding="{Binding DeliveryStatus}" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
 
-                    <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Text="Notizen" />
-                        <TextBox Margin="0,4,0,0"
-                                 Height="110"
-                                 AcceptsReturn="True"
-                                 VerticalScrollBarVisibility="Auto"
-                                 TextWrapping="Wrap"
-                                 Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
-                </StackPanel>
-            </ScrollViewer>
+                <TabItem Header="Notizen" Style="{StaticResource ManualOrderTabItemStyle}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <Border Style="{StaticResource SoftCardStyle}"
+                                Padding="12"
+                                Margin="0,12,0,0"
+                                Effect="{x:Null}">
+                            <StackPanel>
+                                <TextBlock FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Margin="0,0,0,10"
+                                           Text="Notizen" />
+                                <TextBox MinHeight="420"
+                                         AcceptsReturn="True"
+                                         VerticalScrollBarVisibility="Auto"
+                                         TextWrapping="Wrap"
+                                         Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Border>
+                    </ScrollViewer>
+                </TabItem>
+
+            </TabControl>
 
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>

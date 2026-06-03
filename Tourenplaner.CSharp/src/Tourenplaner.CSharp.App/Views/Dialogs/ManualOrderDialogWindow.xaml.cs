@@ -106,6 +106,45 @@ public partial class ManualOrderDialogWindow : Window
     {
         ViewModel.CopyOrderAddressToDeliveryAddress();
     }
+
+    private void OnPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 3)
+        {
+            return;
+        }
+
+        if (e.OriginalSource is not DependencyObject source)
+        {
+            return;
+        }
+
+        var textBox = FindAncestor<TextBox>(source);
+        if (textBox is null)
+        {
+            return;
+        }
+
+        textBox.Focus();
+        textBox.SelectAll();
+        e.Handled = true;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? source)
+        where T : DependencyObject
+    {
+        while (source is not null)
+        {
+            if (source is T typed)
+            {
+                return typed;
+            }
+
+            source = System.Windows.Media.VisualTreeHelper.GetParent(source);
+        }
+
+        return null;
+    }
 }
 
 public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
@@ -531,6 +570,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             if (SetProperty(ref _name, value))
             {
                 OnPropertyChanged(nameof(TotalWeightKg));
+                OnPropertyChanged(nameof(TotalWeightKgRoundedUp));
                 OnPropertyChanged(nameof(Summary));
             }
         }
@@ -557,6 +597,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             if (SetProperty(ref _quantity, normalized))
             {
                 OnPropertyChanged(nameof(TotalWeightKg));
+                OnPropertyChanged(nameof(TotalWeightKgRoundedUp));
                 OnPropertyChanged(nameof(Summary));
             }
         }
@@ -571,6 +612,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             if (SetProperty(ref _unitWeightKg, normalized))
             {
                 OnPropertyChanged(nameof(TotalWeightKg));
+                OnPropertyChanged(nameof(UnitWeightKgRoundedUp));
+                OnPropertyChanged(nameof(TotalWeightKgRoundedUp));
                 OnPropertyChanged(nameof(Summary));
             }
         }
@@ -602,6 +645,10 @@ public sealed class ProductLineInput : INotifyPropertyChanged
     }
 
     public double TotalWeightKg => Quantity * UnitWeightKg;
+
+    public double UnitWeightKgRoundedUp => Math.Ceiling(UnitWeightKg * 100d) / 100d;
+
+    public double TotalWeightKgRoundedUp => Math.Ceiling(TotalWeightKg * 100d) / 100d;
 
     public string Summary => OrderProductFormatter.BuildDetails([ToOrderProductInfo()]);
 
