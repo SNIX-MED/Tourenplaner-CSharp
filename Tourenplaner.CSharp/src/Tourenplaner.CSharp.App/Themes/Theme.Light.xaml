@@ -60,8 +60,11 @@
     <SolidColorBrush x:Key="Brush.TableRow" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="Brush.TableAltRow" Color="#F8FAFC" />
     <SolidColorBrush x:Key="Brush.TableGrid" Color="#D4DEEA" />
-    <SolidColorBrush x:Key="Brush.RowHover" Color="#EEF2FF" />
-    <SolidColorBrush x:Key="Brush.RowSelected" Color="#D6ECFF" />
+    <SolidColorBrush x:Key="Brush.TableHeaderBackground" Color="#F8FAFD" />
+    <SolidColorBrush x:Key="Brush.TableHeaderForeground" Color="#64748B" />
+    <SolidColorBrush x:Key="Brush.RowHover" Color="#F7FAFF" />
+    <SolidColorBrush x:Key="Brush.RowSelected" Color="#F4F8FF" />
+    <SolidColorBrush x:Key="Brush.RowSelectionIndicator" Color="#2563EB" />
 
     <SolidColorBrush x:Key="Brush.SidebarItemBackground" Color="#FFFFFF" />
     <SolidColorBrush x:Key="Brush.SidebarItemBorder" Color="#E2E8F0" />

@@ -734,12 +734,12 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="RowBackground" Value="{DynamicResource Brush.TableRow}" />
         <Setter Property="AlternatingRowBackground" Value="{DynamicResource Brush.TableAltRow}" />
-        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="GridLinesVisibility" Value="None" />
         <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Brush.TableGrid}" />
         <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource Brush.BorderSoft}" />
         <Setter Property="HeadersVisibility" Value="Column" />
-        <Setter Property="ColumnHeaderHeight" Value="40" />
-        <Setter Property="RowHeight" Value="40" />
+        <Setter Property="ColumnHeaderHeight" Value="48" />
+        <Setter Property="RowHeight" Value="52" />
         <Setter Property="CanUserResizeRows" Value="False" />
         <Setter Property="SelectionUnit" Value="FullRow" />
         <Setter Property="AlternationCount" Value="2" />
@@ -750,10 +750,11 @@
     </Style>
 
     <Style TargetType="DataGridColumnHeader">
-        <Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" />
-        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-        <Setter Property="Padding" Value="12,9" />
+        <Setter Property="Background" Value="{DynamicResource Brush.TableHeaderBackground}" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TableHeaderForeground}" />
+        <Setter Property="Padding" Value="14,10" />
         <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
         <Setter Property="Cursor" Value="Hand" />
@@ -771,8 +772,36 @@
 
     <Style TargetType="DataGridRow">
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.TableRow}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridRow">
+                    <Border x:Name="RowBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <DataGridCellsPresenter Margin="4,0,0,0" />
+                            <Border x:Name="SelectionIndicator"
+                                    Width="4"
+                                    HorizontalAlignment="Left"
+                                    Background="{DynamicResource Brush.RowSelectionIndicator}"
+                                    Visibility="Collapsed"
+                                    Panel.ZIndex="1" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="SelectionIndicator" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{DynamicResource Brush.RowHover}" />
@@ -785,7 +814,7 @@
     </Style>
 
     <Style TargetType="DataGridCell">
-        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Padding" Value="14,0" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Background" Value="Transparent" />

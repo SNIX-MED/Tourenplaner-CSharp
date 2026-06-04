@@ -8,12 +8,12 @@
              d:DesignHeight="720"
              d:DesignWidth="1200">
     <UserControl.Resources>
-        <Style x:Key="OrdersGridStyle" TargetType="DataGrid">
+        <Style x:Key="OrdersGridStyle" TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
             <Setter Property="Background" Value="{DynamicResource Brush.TableBackground}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="RowBackground" Value="Transparent" />
             <Setter Property="AlternatingRowBackground" Value="Transparent" />
-            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="GridLinesVisibility" Value="None" />
             <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Brush.TableGrid}" />
             <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
             <Setter Property="HeadersVisibility" Value="Column" />
@@ -25,19 +25,19 @@
             <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
         </Style>
 
-        <Style x:Key="OrdersGridHeaderStyle" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" />
+        <Style x:Key="OrdersGridHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="Background" Value="{DynamicResource Brush.TableHeaderBackground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
-            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TableHeaderForeground}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Padding" Value="14,10" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
 
-        <Style x:Key="OrdersGridRowStyle" TargetType="DataGridRow">
+        <Style x:Key="OrdersGridRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             <Setter Property="MinHeight" Value="60" />
@@ -72,13 +72,59 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="OrdersGridCellStyle" TargetType="DataGridCell">
+        <Style x:Key="OrdersGridCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+
+        <Style x:Key="DeliveryTypeBadgeStyle" TargetType="Border">
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="#E8F1FF" />
+            <Setter Property="BorderBrush" Value="#BFDBFE" />
+            <Setter Property="Tag" Value="#2563EB" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding OrderStatus}" Value="Teilweise bereit">
+                    <Setter Property="Background" Value="#ECFDF3" />
+                    <Setter Property="BorderBrush" Value="#BBF7D0" />
+                    <Setter Property="Tag" Value="#16A34A" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding OrderStatus}" Value="Lieferbereit">
+                    <Setter Property="Background" Value="#F3E8FF" />
+                    <Setter Property="BorderBrush" Value="#D8B4FE" />
+                    <Setter Property="Tag" Value="#9333EA" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding OrderStatus}" Value="Unterwegs">
+                    <Setter Property="Background" Value="#FFF3E6" />
+                    <Setter Property="BorderBrush" Value="#FDBA74" />
+                    <Setter Property="Tag" Value="#EA580C" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding OrderStatus}" Value="Teilweise Unterwegs">
+                    <Setter Property="Background" Value="#FFF7ED" />
+                    <Setter Property="BorderBrush" Value="#FCD34D" />
+                    <Setter Property="Tag" Value="#D97706" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DeliveryTypeBadgeTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{Binding RelativeSource={RelativeSource AncestorType=Border}, Path=Tag}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="DeliveryStatusTextStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="2,4,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
 
         <Style x:Key="PrimaryTextStyle" TargetType="TextBlock">
@@ -414,10 +460,10 @@
                                                    FontWeight="SemiBold">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="Black" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
-                                                            <Setter Property="Foreground" Value="Black" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -435,10 +481,10 @@
                                         <TextBlock Text="{Binding ScheduledDate}" VerticalAlignment="Center">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="Black" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
-                                                            <Setter Property="Foreground" Value="Black" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -497,46 +543,17 @@
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Style="{StaticResource PrimaryTextStyle}" Text="{Binding DeliveryType}" />
-                                        <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="{Binding OrderStatus}" />
+                                        <Border x:Name="DeliveryTypeBadge"
+                                                HorizontalAlignment="Left"
+                                                Style="{StaticResource DeliveryTypeBadgeStyle}">
+                                            <TextBlock Style="{StaticResource DeliveryTypeBadgeTextStyle}" Text="{Binding DeliveryType}" />
+                                        </Border>
+                                        <TextBlock Style="{StaticResource DeliveryStatusTextStyle}" Text="{Binding OrderStatus}" />
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
-                        <DataGridTemplateColumn Width="68" IsReadOnly="True">
-                            <DataGridTemplateColumn.HeaderTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text=" " />
-                                </DataTemplate>
-                            </DataGridTemplateColumn.HeaderTemplate>
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <Button Width="36"
-                                            Height="36"
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Padding="0"
-                                            Click="OnOpenOrderClick"
-                                            Style="{StaticResource SecondaryButtonStyle}">
-                                        <Button.Template>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border Background="{TemplateBinding Background}"
-                                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                                        CornerRadius="18">
-                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Button.Template>
-                                        <TextBlock FontFamily="Segoe Fluent Icons"
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource Brush.TextMuted}"
-                                                   Text="&#xE72A;" />
-                                    </Button>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </controls:RoundedClipBorder>

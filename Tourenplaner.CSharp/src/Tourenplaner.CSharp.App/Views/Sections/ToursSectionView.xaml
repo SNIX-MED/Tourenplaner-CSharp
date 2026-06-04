@@ -15,12 +15,12 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
-        <Style x:Key="ToursGridStyle" TargetType="DataGrid">
+        <Style x:Key="ToursGridStyle" TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
             <Setter Property="Background" Value="{DynamicResource Brush.TableBackground}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="RowBackground" Value="Transparent" />
             <Setter Property="AlternatingRowBackground" Value="Transparent" />
-            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="GridLinesVisibility" Value="None" />
             <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Brush.TableGrid}" />
             <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
             <Setter Property="HeadersVisibility" Value="Column" />
@@ -32,19 +32,19 @@
             <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
         </Style>
 
-        <Style x:Key="ToursGridHeaderStyle" TargetType="DataGridColumnHeader">
-            <Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" />
+        <Style x:Key="ToursGridHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="Background" Value="{DynamicResource Brush.TableHeaderBackground}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
-            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TableHeaderForeground}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Padding" Value="14,10" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
 
-        <Style x:Key="ToursGridRowStyle" TargetType="DataGridRow">
+        <Style x:Key="ToursGridRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             <Setter Property="MinHeight" Value="44" />
@@ -79,7 +79,7 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="ToursGridCellStyle" TargetType="DataGridCell">
+        <Style x:Key="ToursGridCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Padding" Value="10,0" />
