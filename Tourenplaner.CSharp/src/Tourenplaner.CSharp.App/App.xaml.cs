@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Threading;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.App.Views.Dialogs;
@@ -20,6 +21,11 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        var splashWindow = new StartupSplashWindow();
+        splashWindow.Show();
+        await RenderSplashStepAsync(splashWindow, "Arbeitsdaten werden vorbereitet...");
 
         var dataRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -32,6 +38,7 @@ public partial class App : System.Windows.Application
 
         try
         {
+            await RenderSplashStepAsync(splashWindow, "Dateien und Einstellungen werden geladen...");
             var settingsPath = Path.Combine(dataRoot, "settings.json");
             var ordersJsonPath = Path.Combine(dataRoot, "orders.json");
             var toursJsonPath = Path.Combine(dataRoot, "tours.json");
@@ -59,14 +66,27 @@ public partial class App : System.Windows.Application
                     dataRoot)
             };
 
+            await RenderSplashStepAsync(splashWindow, "Verlauf wird initialisiert...");
             historyService.Initialize();
             _historyService = historyService;
+
+            await RenderSplashStepAsync(splashWindow, "Tourdaten werden geprueft...");
             await RunTourIntegrityCheckOnStartup(toursJsonPath, settingsPath);
+            await RenderSplashStepAsync(splashWindow, "Oberflaeche wird gestartet...");
+
+            MainWindow = mainWindow;
             mainWindow.Show();
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+            splashWindow.Close();
             await PromptPastTourArchivingOnStartupAsync(mainWindow, toursJsonPath, ordersJsonPath);
         }
         catch (Exception ex)
         {
+            if (splashWindow.IsVisible)
+            {
+                splashWindow.Close();
+            }
+
             TryLogException("StartupFailed", ex);
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"Die App konnte nicht gestartet werden.{Environment.NewLine}{Environment.NewLine}" +
@@ -77,6 +97,14 @@ public partial class App : System.Windows.Application
                 MessageBoxImage.Error);
             Shutdown(-1);
         }
+    }
+
+    private static async Task RenderSplashStepAsync(StartupSplashWindow splashWindow, string message)
+    {
+        splashWindow.SetStatus(message);
+        await splashWindow.Dispatcher.InvokeAsync(
+            () => { },
+            DispatcherPriority.Render);
     }
 
     protected override void OnExit(ExitEventArgs e)

@@ -24,6 +24,24 @@ cd Tourenplaner.CSharp
 dotnet run --project src/Tourenplaner.CSharp.App/Tourenplaner.CSharp.App.csproj
 ```
 
+## Windows EXE / Installer
+
+Direkt startbare Windows-EXE erzeugen:
+
+```powershell
+./scripts/publish-windows.ps1
+```
+
+Das Ergebnis liegt danach unter `artifacts/publish/win-x64/GAWELA.Tourenplaner.exe`.
+
+Installer-EXE erzeugen:
+
+```powershell
+./scripts/publish-windows.ps1 -BuildInstaller
+```
+
+Das Setup wird unter `artifacts/installer/win-x64/GAWELA-Tourenplaner-Setup.exe` abgelegt.
+
 ## SQL-Import
 
 Der SQL-Import läuft in zwei Phasen (wie im Python-Projekt):

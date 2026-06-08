@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>GAWELA.Tourenplaner</AssemblyName>
+    <RootNamespace>Tourenplaner.CSharp.Launcher</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\Tourenplaner.CSharp.App\Assets\Applogo.png" Link="Assets\Applogo.png" />
+  </ItemGroup>
+
+</Project>

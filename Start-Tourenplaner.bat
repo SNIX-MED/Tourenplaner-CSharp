@@ -2,41 +2,39 @@
 setlocal
 
 set "SCRIPT_DIR=%~dp0"
-set "PROJECT_PATH=%SCRIPT_DIR%Tourenplaner.CSharp\src\Tourenplaner.CSharp.App\Tourenplaner.CSharp.App.csproj"
-set "EXE_PATH=%SCRIPT_DIR%Tourenplaner.CSharp\src\Tourenplaner.CSharp.App\bin\Debug\net8.0-windows\Tourenplaner.CSharp.App.exe"
-set "LOG_PATH=%LOCALAPPDATA%\Tourenplaner.CSharp\data\app-crash.log"
+set "SOLUTION_PATH=%SCRIPT_DIR%Tourenplaner.CSharp\Tourenplaner.CSharp.sln"
+set "RELEASE_LAUNCHER_PATH=%SCRIPT_DIR%Tourenplaner.CSharp\artifacts\publish\win-x64\GAWELA.Tourenplaner.exe"
+set "DEBUG_LAUNCHER_PATH=%SCRIPT_DIR%Tourenplaner.CSharp\src\Tourenplaner.CSharp.Launcher\bin\Debug\net8.0-windows\GAWELA.Tourenplaner.exe"
 
-if not exist "%PROJECT_PATH%" (
-    echo Die Projektdatei wurde nicht gefunden:
-    echo %PROJECT_PATH%
-    pause
-    exit /b 1
-)
-
-tasklist /FI "IMAGENAME eq Tourenplaner.CSharp.App.exe" | find /I "Tourenplaner.CSharp.App.exe" >nul
-if %errorlevel%==0 (
-    echo Die App laeuft bereits. Bitte vorhandenes Fenster verwenden oder die App zuerst schliessen.
-    pause
+if exist "%RELEASE_LAUNCHER_PATH%" (
+    start "" "%RELEASE_LAUNCHER_PATH%"
     exit /b 0
 )
 
-echo Baue aktuelle Version...
-dotnet build "%PROJECT_PATH%" -v minimal -m:1 -nr:false -p:NuGetAudit=false
+if not exist "%SOLUTION_PATH%" (
+    echo Die Solution wurde nicht gefunden:
+    echo %SOLUTION_PATH%
+    pause
+    exit /b 1
+)
+
+echo Baue aktuelle Version mit Launcher...
+dotnet build "%SOLUTION_PATH%" -v minimal -m:1 -nr:false -p:NuGetAudit=false
 if errorlevel 1 (
     echo.
-    echo Build fehlgeschlagen. App wird nicht gestartet.
+    echo Build fehlgeschlagen. Tourenplaner wird nicht gestartet.
     pause
     exit /b 1
 )
 
-if not exist "%EXE_PATH%" (
-    echo Die App-EXE wurde nicht gefunden:
-    echo %EXE_PATH%
+if not exist "%DEBUG_LAUNCHER_PATH%" (
+    echo Die Launcher-EXE wurde nicht gefunden:
+    echo %DEBUG_LAUNCHER_PATH%
     echo.
-    echo Bitte zuerst das Projekt bauen.
+    echo Bitte zuerst die Solution erfolgreich bauen.
     pause
     exit /b 1
 )
 
-start "" "%EXE_PATH%"
+start "" "%DEBUG_LAUNCHER_PATH%"
 exit /b 0

@@ -1,11 +1,13 @@
-﻿# Build output
+# Build output
 **/bin/
 **/obj/
+**/artifacts/
 
 # User files
 *.user
 *.suo
 *.cache
+*.lnk
 
 # VS
 .vs/
