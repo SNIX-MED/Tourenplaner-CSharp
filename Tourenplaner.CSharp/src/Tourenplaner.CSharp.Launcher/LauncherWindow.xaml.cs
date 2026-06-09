@@ -150,21 +150,21 @@ public partial class LauncherWindow : Window
             var targetDirectory = Path.Combine(Path.GetTempPath(), "GAWELA-Tourenplaner", "downloads", versionText);
             var installerPath = await UpdateService.DownloadInstallerAsync(manifest, targetDirectory, progress, cancellationToken);
 
-            SetStatus("Update wird installiert...");
-            SetProgress(null, isIndeterminate: true, message: "Installer wird vorbereitet");
+            SetStatus("Update ist bereit...");
+            SetDetails("Windows wird jetzt das Setup mit Berechtigungsabfrage oeffnen.");
+            SetProgress(null, isIndeterminate: true, message: "Setup wird gestartet");
 
             var launcherPath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "GAWELA.Tourenplaner.exe");
-            var scriptPath = UpdateService.CreateSilentInstallerScript(installerPath, launcherPath, Environment.ProcessId);
+            var scriptPath = UpdateService.CreateInstallerScript(installerPath, launcherPath, Environment.ProcessId);
 
             Process.Start(new ProcessStartInfo
             {
                 FileName = "powershell",
-                Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
-                UseShellExecute = true,
-                WindowStyle = ProcessWindowStyle.Hidden
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
+                UseShellExecute = true
             });
 
-            await Task.Delay(300, cancellationToken);
+            await Task.Delay(700, cancellationToken);
             Application.Current.Shutdown();
             return true;
         }

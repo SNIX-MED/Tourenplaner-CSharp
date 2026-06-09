@@ -115,22 +115,22 @@ internal sealed class UpdateService
         return destinationPath;
     }
 
-    public static string CreateSilentInstallerScript(string installerPath, string launcherPath, int launcherProcessId)
+    public static string CreateInstallerScript(string installerPath, string launcherPath, int launcherProcessId)
     {
         var scriptPath = Path.Combine(Path.GetTempPath(), "GAWELA-Tourenplaner", "apply-update.ps1");
         Directory.CreateDirectory(Path.GetDirectoryName(scriptPath)!);
 
         var script = $$"""
-        $ErrorActionPreference = 'SilentlyContinue'
+        $ErrorActionPreference = 'Stop'
         while (Get-Process -Id {{launcherProcessId}} -ErrorAction SilentlyContinue) {
             Start-Sleep -Milliseconds 400
         }
 
         $installer = '{{EscapePowerShell(installerPath)}}'
         $launcher = '{{EscapePowerShell(launcherPath)}}'
-        $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/FORCECLOSEAPPLICATIONS')
+        $arguments = @('/CLOSEAPPLICATIONS', '/FORCECLOSEAPPLICATIONS')
 
-        $process = Start-Process -FilePath $installer -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru
+        $process = Start-Process -FilePath $installer -ArgumentList $arguments -Verb RunAs -Wait -PassThru
         if ($process.ExitCode -eq 0 -and (Test-Path $launcher)) {
             Start-Process -FilePath $launcher
         }
