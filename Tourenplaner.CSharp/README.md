@@ -1,96 +1,187 @@
-﻿# Tourenplaner.CSharp
+# Tourenplaner.CSharp
 
-.NET 8 WPF migration of the GAWELA Tourenplaner using a layered architecture.
+Der GAWELA Tourenplaner ist hier als .NET-8-WPF-Anwendung mit Layered Architecture umgesetzt.
 
-## Solution layout
+## Projektstruktur
 
-- `src/Tourenplaner.CSharp.App` - WPF shell, navigation, views, view models
-- `src/Tourenplaner.CSharp.Application` - use cases, service logic, abstractions
-- `src/Tourenplaner.CSharp.Domain` - core entities and value objects
-- `src/Tourenplaner.CSharp.Infrastructure` - JSON repositories and persistence
-- `tests/Tourenplaner.CSharp.Tests` - unit tests for services and repositories
+- `src/Tourenplaner.CSharp.App` - WPF-Oberflaeche, Views, ViewModels, Dialoge
+- `src/Tourenplaner.CSharp.Application` - Anwendungslogik, Services, Abstraktionen
+- `src/Tourenplaner.CSharp.Domain` - Fachobjekte und Kernmodelle
+- `src/Tourenplaner.CSharp.Infrastructure` - JSON-Repositories, Persistenz, externe Dienste
+- `src/Tourenplaner.CSharp.Launcher` - Start-Launcher mit automatischer Update-Pruefung
+- `tests/Tourenplaner.CSharp.Tests` - Unit-Tests
 
-## Start
+## Voraussetzungen
+
+- Windows
+- .NET 8 SDK
+- optional fuer den Installer-Build: `Inno Setup 6`
+
+## Lokale Entwicklung
+
+Solution bauen:
 
 ```powershell
-cd Tourenplaner.CSharp
 dotnet build Tourenplaner.CSharp.sln
 ```
 
-Run app:
+App direkt starten:
 
 ```powershell
-cd Tourenplaner.CSharp
 dotnet run --project src/Tourenplaner.CSharp.App/Tourenplaner.CSharp.App.csproj
 ```
 
-## Windows EXE / Installer
+Lokale Vorschau ueber Batch-Datei:
 
-Direkt startbare Windows-EXE erzeugen:
+```bat
+..\Start-Vorschau.bat
+```
+
+## Versionierung
+
+Die sichtbare Programmversion wird zentral in `Directory.Build.props` gepflegt:
+
+- `Version`
+- `AssemblyVersion`
+- `FileVersion`
+- `InformationalVersion`
+
+Wenn eine neue Release-Version gebaut wird, muss diese Datei entsprechend aktualisiert werden.
+
+## Windows-Release bauen
+
+Direkt startbare Release-EXE erzeugen:
 
 ```powershell
 ./scripts/publish-windows.ps1
 ```
 
-Das Ergebnis liegt danach unter `artifacts/publish/win-x64/GAWELA.Tourenplaner.exe`.
+Ergebnis:
 
-Installer-EXE erzeugen:
+- `artifacts/publish/win-x64/GAWELA.Tourenplaner.exe`
+
+Diese Version ist fuer lokale Release-Tests gedacht, nicht fuer die Endanwender-Installation.
+
+## Windows-Installer bauen
+
+Installer inkl. Update-Manifest erzeugen:
 
 ```powershell
 ./scripts/publish-windows.ps1 -BuildInstaller
 ```
 
-Das Setup wird unter `artifacts/installer/win-x64/GAWELA-Tourenplaner-Setup.exe` abgelegt.
+Ergebnis:
 
-Der Installer wird mit Inno Setup 6 gebaut und bietet:
+- `artifacts/installer/win-x64/GAWELA-Tourenplaner-Setup.exe`
+- `artifacts/installer/win-x64/update-manifest.json`
 
+Der Installer bietet:
+
+- grafischen Setup-Assistenten
 - frei waehlbaren Installationspfad
 - optionale Desktop-Verknuepfung
-- optionale Startmenue-Verknuepfung
+- optionale Startmenu-Verknuepfung
 - Deinstallation ueber Windows
-- automatische Update-Pruefung beim Start ueber `update-config.json` und `update-manifest.json`
 
-Vor dem Build des Installers muss `Inno Setup 6` auf dem Build-Rechner installiert sein.
+## Installation auf einem Ziel-PC
 
-Fuer automatische Updates wird beim Publish eine `update-config.json` erzeugt, sofern das Git-Remote auf GitHub zeigt oder `-ReleaseBaseUrl` gesetzt ist. Beim Installer-Build entsteht zusaetzlich `artifacts/installer/win-x64/update-manifest.json`.
+Auf dem Ziel-PC wird nur diese Datei benoetigt:
 
-Fuer einen Release muessen mindestens diese Dateien in denselben GitHub-Release hochgeladen werden:
+- `GAWELA-Tourenplaner-Setup.exe`
+
+Installation:
+
+1. `GAWELA-Tourenplaner-Setup.exe` auf den Ziel-PC kopieren.
+2. Setup starten.
+3. Installationspfad waehlen.
+4. Optional Desktop- und Startmenu-Verknuepfung aktivieren.
+5. Installation abschliessen.
+
+## Automatische Updates
+
+Die installierte Version prueft beim Start automatisch, ob eine neuere Version verfuegbar ist.
+
+Dafuer werden zwei Dateien verwendet:
+
+- `update-config.json` im Publish-Build
+- `update-manifest.json` im GitHub-Release
+
+Beim Start passiert Folgendes:
+
+1. Der Launcher liest `update-config.json`.
+2. Er laedt `update-manifest.json` aus GitHub.
+3. Wenn eine neuere Version verfuegbar ist, wird `GAWELA-Tourenplaner-Setup.exe` automatisch heruntergeladen.
+4. Das Update wird im Hintergrund installiert.
+5. Anschliessend startet der Launcher die aktualisierte Version neu.
+
+Wichtig:
+
+- Alte Installationen ohne den neuen Launcher aktualisieren sich nicht selbst.
+- In diesem Fall muss einmal manuell die neue Setup-Datei installiert werden.
+- Ab dieser neuen Version funktionieren spaetere Updates automatisch.
+
+## Release auf GitHub
+
+Die aktuelle Release-Struktur nutzt GitHub Releases.
+
+Mindestens diese beiden Dateien muessen in denselben Release hochgeladen werden:
 
 - `GAWELA-Tourenplaner-Setup.exe`
 - `update-manifest.json`
 
-Optional kann die Release-Basis explizit gesetzt werden:
+Die aktuelle Release-Basis ist auf GitHub konfiguriert als:
 
-```powershell
-./scripts/publish-windows.ps1 -BuildInstaller -ReleaseBaseUrl "https://github.com/<owner>/<repo>/releases/latest/download"
-```
+`https://github.com/SNIX-MED/Tourenplaner-CSharp/releases/latest/download`
 
-Bei einer neuen Version muss `Version` in `Directory.Build.props` erhoeht werden.
+## Startdateien im Repository
+
+Im Repository-Stamm liegen zwei Batch-Dateien:
+
+- `..\Start-Vorschau.bat` startet immer die lokale unveroeffentlichte Entwicklungsfassung
+- `..\Start-Releaseversion.bat` startet bevorzugt den zuletzt erzeugten Publish-Build
 
 ## SQL-Import
 
-Der SQL-Import läuft in zwei Phasen (wie im Python-Projekt):
+Der SQL-Import laeuft zweistufig:
 
-1. Phase 1: SQL lesen, deduplizieren, map/non-map trennen, bestehende Einträge aktualisieren, pending ohne Koordinaten persistieren.
-2. Phase 2: pending im Hintergrund geocodieren (Fallback-Reihenfolge), Fortschritt in der UI anzeigen, Treffer übernehmen, Fehlschläge als pending belassen.
+1. Daten lesen, deduplizieren, map/non-map trennen und persistieren
+2. fehlende Koordinaten im Hintergrund geocodieren
 
 Konfiguration in `settings.json`:
 
-- `SqlServerInstance` (Default `.\SQLEXPRESS`)
-- `SqlDatabase` (optional, wird sonst aus größter `.mdf` in `SqlDataDir` abgeleitet)
+- `SqlServerInstance`
+- `SqlDatabase`
 - `SqlDataDir`
 
-Persistierte Dateien im lokalen App-Datenordner (`%LOCALAPPDATA%\\Tourenplaner.CSharp\\data`):
+Persistierte Daten im lokalen App-Datenordner:
 
-- `pending_sql_orders.json`
-- `non_map_sql_orders.json`
-- `geocode_cache.json`
-- `logs/sql_import_geocode_failed_*.txt` (nur bei Geocode-Fehlschlägen)
+- `%LOCALAPPDATA%\Tourenplaner.CSharp\data\pending_sql_orders.json`
+- `%LOCALAPPDATA%\Tourenplaner.CSharp\data\non_map_sql_orders.json`
+- `%LOCALAPPDATA%\Tourenplaner.CSharp\data\geocode_cache.json`
+- `%LOCALAPPDATA%\Tourenplaner.CSharp\data\logs\sql_import_geocode_failed_*.txt`
 
-UI-Status:
+## Nuetzliche Befehle
 
-- `Bereit`
-- `Läuft seit HH:mm:ss`
-- `Liste bereit. Geocoding läuft x/y`
-- `Fertig: gelesen ..., neu ..., aktualisiert ..., geocodiert ..., offen ohne Koordinaten ...`
-- `Fehler: ...`
+Build:
+
+```powershell
+dotnet build Tourenplaner.CSharp.sln
+```
+
+Tests:
+
+```powershell
+dotnet test Tourenplaner.CSharp.sln
+```
+
+Release-EXE bauen:
+
+```powershell
+./scripts/publish-windows.ps1
+```
+
+Installer bauen:
+
+```powershell
+./scripts/publish-windows.ps1 -BuildInstaller
+```

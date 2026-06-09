@@ -516,7 +516,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         try
         {
             var entryAssembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-            ApplicationVersion = entryAssembly.GetName().Version?.ToString() ?? "0.0.0";
+            ApplicationVersion =
+                entryAssembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                ?? entryAssembly.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version
+                ?? entryAssembly.GetName().Version?.ToString()
+                ?? "0.0.0";
             RuntimeVersion = Environment.Version.ToString();
 
             var settings = await _repository.LoadAsync();

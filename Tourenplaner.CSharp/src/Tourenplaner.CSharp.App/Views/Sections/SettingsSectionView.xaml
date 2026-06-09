@@ -549,25 +549,43 @@
             </StackPanel>
         </ScrollViewer>
 
-        <Border Grid.Row="1" Margin="0,12,0,0" Padding="12" CornerRadius="12" Background="{DynamicResource Brush.DangerSoft}" BorderBrush="{DynamicResource Brush.Danger}" BorderThickness="1">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding ValidationSummary}" Value="">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding ValidationSummary}" Value="{x:Null}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <StackPanel>
-                <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="Pruefung" />
-                <TextBlock TextWrapping="Wrap" Text="{Binding ValidationSummary, Mode=OneWay}" />
-            </StackPanel>
-        </Border>
+        <StackPanel Grid.Row="1" Margin="0,12,0,0">
+            <Border Padding="12"
+                    CornerRadius="12"
+                    Background="{DynamicResource Brush.GlassSurfaceSoft}"
+                    BorderBrush="{DynamicResource Brush.GlassStroke}"
+                    BorderThickness="1">
+                <DockPanel LastChildFill="False">
+                    <TextBlock DockPanel.Dock="Left"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource Brush.TextPrimary}"
+                               Text="Programmversion" />
+                    <TextBlock DockPanel.Dock="Right"
+                               Foreground="{DynamicResource Brush.TextMuted}"
+                               Text="{Binding ApplicationVersion, Mode=OneWay}" />
+                </DockPanel>
+            </Border>
+
+            <Border Margin="0,12,0,0" Padding="12" CornerRadius="12" Background="{DynamicResource Brush.DangerSoft}" BorderBrush="{DynamicResource Brush.Danger}" BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ValidationSummary}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ValidationSummary}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel>
+                    <TextBlock Margin="0,0,0,6" FontWeight="SemiBold" Text="Pruefung" />
+                    <TextBlock TextWrapping="Wrap" Text="{Binding ValidationSummary, Mode=OneWay}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
     </Grid>
 </UserControl>
 
