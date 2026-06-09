@@ -61,7 +61,8 @@ internal static class InstalledAppUpdateService
         {
             FileName = "powershell",
             Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
-            UseShellExecute = true
+            UseShellExecute = true,
+            WindowStyle = ProcessWindowStyle.Hidden
         });
 
         return InstalledAppUpdateResult.UpdateStarted;

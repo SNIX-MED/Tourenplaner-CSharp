@@ -161,7 +161,8 @@ public partial class LauncherWindow : Window
             {
                 FileName = "powershell",
                 Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
-                UseShellExecute = true
+                UseShellExecute = true,
+                WindowStyle = ProcessWindowStyle.Hidden
             });
 
             await Task.Delay(700, cancellationToken);
