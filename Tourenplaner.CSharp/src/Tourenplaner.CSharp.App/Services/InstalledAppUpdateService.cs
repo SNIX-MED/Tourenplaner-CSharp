@@ -11,6 +11,10 @@ namespace Tourenplaner.CSharp.App.Services;
 internal static class InstalledAppUpdateService
 {
     private static readonly HttpClient Client = CreateClient();
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     public static async Task<InstalledAppUpdateResult> TryApplyUpdateAsync(
         IProgress<string>? progress = null,
@@ -215,7 +219,7 @@ internal static class InstalledAppUpdateService
         var normalized = content.Trim().TrimStart('\uFEFF');
         return string.IsNullOrWhiteSpace(normalized)
             ? default
-            : JsonSerializer.Deserialize<T>(normalized);
+            : JsonSerializer.Deserialize<T>(normalized, JsonOptions);
     }
 
     private static string EscapePowerShell(string path)

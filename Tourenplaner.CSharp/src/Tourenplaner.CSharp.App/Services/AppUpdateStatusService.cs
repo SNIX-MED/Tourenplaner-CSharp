@@ -9,6 +9,10 @@ namespace Tourenplaner.CSharp.App.Services;
 internal static class AppUpdateStatusService
 {
     private static readonly HttpClient Client = CreateClient();
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     public static string GetCurrentVersion()
     {
@@ -113,7 +117,7 @@ internal static class AppUpdateStatusService
         var normalized = content.Trim().TrimStart('\uFEFF');
         return string.IsNullOrWhiteSpace(normalized)
             ? default
-            : JsonSerializer.Deserialize<T>(normalized);
+            : JsonSerializer.Deserialize<T>(normalized, JsonOptions);
     }
 
     private static Version? ParseVersion(string? versionText)

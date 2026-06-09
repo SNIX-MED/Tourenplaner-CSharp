@@ -10,6 +10,10 @@ namespace Tourenplaner.CSharp.Launcher;
 internal sealed class UpdateService
 {
     private static readonly HttpClient Client = CreateClient();
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     public static async Task<UpdateConfiguration?> LoadConfigurationAsync(string baseDirectory, CancellationToken cancellationToken)
     {
@@ -152,7 +156,7 @@ internal sealed class UpdateService
         var normalized = content.Trim().TrimStart('\uFEFF');
         return string.IsNullOrWhiteSpace(normalized)
             ? default
-            : JsonSerializer.Deserialize<T>(normalized);
+            : JsonSerializer.Deserialize<T>(normalized, JsonOptions);
     }
 
     private static string ComputeSha256(string filePath)
