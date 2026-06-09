@@ -85,29 +85,31 @@ internal sealed class UpdateService
         Directory.CreateDirectory(uniqueDirectory);
         var destinationPath = Path.Combine(uniqueDirectory, fileName);
 
-        using var response = await Client.GetAsync(manifest.InstallerUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var totalBytes = response.Content.Headers.ContentLength;
-        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var fileStream = File.Create(destinationPath);
-
-        var buffer = new byte[81920];
-        long downloadedBytes = 0;
-        while (true)
+        using (var response = await Client.GetAsync(manifest.InstallerUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
         {
-            var read = await responseStream.ReadAsync(buffer, cancellationToken);
-            if (read == 0)
+            response.EnsureSuccessStatusCode();
+
+            var totalBytes = response.Content.Headers.ContentLength;
+            await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.Read);
+
+            var buffer = new byte[81920];
+            long downloadedBytes = 0;
+            while (true)
             {
-                break;
+                var read = await responseStream.ReadAsync(buffer, cancellationToken);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                downloadedBytes += read;
+                progress?.Report(new UpdateDownloadProgress(downloadedBytes, totalBytes));
             }
 
-            await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            downloadedBytes += read;
-            progress?.Report(new UpdateDownloadProgress(downloadedBytes, totalBytes));
+            await fileStream.FlushAsync(cancellationToken);
         }
-
-        await fileStream.FlushAsync(cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(manifest.Sha256))
         {
@@ -135,6 +137,17 @@ internal sealed class UpdateService
         $installer = '{{EscapePowerShell(installerPath)}}'
         $launcher = '{{EscapePowerShell(launcherPath)}}'
         $arguments = @('/CLOSEAPPLICATIONS', '/FORCECLOSEAPPLICATIONS')
+
+        for ($i = 0; $i -lt 40; $i++) {
+            try {
+                $stream = [System.IO.File]::Open($installer, 'Open', 'Read', 'ReadWrite')
+                $stream.Dispose()
+                break
+            }
+            catch {
+                Start-Sleep -Milliseconds 500
+            }
+        }
 
         $process = Start-Process -FilePath $installer -ArgumentList $arguments -Verb RunAs -Wait -PassThru
         if ($process.ExitCode -eq 0 -and (Test-Path $launcher)) {
