@@ -46,6 +46,18 @@ $launcherProject = Join-Path $projectRoot "src\Tourenplaner.CSharp.Launcher\Tour
 $appPublishRoot = Join-Path $artifactsRoot "obj\publish-app"
 $launcherPublishRoot = Join-Path $artifactsRoot "obj\publish-launcher"
 $resolvedReleaseBaseUrl = if ($ReleaseBaseUrl) { $ReleaseBaseUrl.TrimEnd('/') } else { Get-GitHubReleaseBaseUrl -RepositoryRoot $projectRoot }
+$appRidOutputRoot = Join-Path $projectRoot "src\Tourenplaner.CSharp.App\bin\$Configuration\net8.0-windows\$RuntimeIdentifier"
+$launcherRidOutputRoot = Join-Path $projectRoot "src\Tourenplaner.CSharp.Launcher\bin\$Configuration\net8.0-windows\$RuntimeIdentifier"
+$appRidObjRoot = Join-Path $projectRoot "src\Tourenplaner.CSharp.App\obj\$Configuration\net8.0-windows\$RuntimeIdentifier"
+$launcherRidObjRoot = Join-Path $projectRoot "src\Tourenplaner.CSharp.Launcher\obj\$Configuration\net8.0-windows\$RuntimeIdentifier"
+
+Remove-Item -Recurse -Force $publishRoot -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $appPublishRoot -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $launcherPublishRoot -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $appRidOutputRoot -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $launcherRidOutputRoot -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $appRidObjRoot -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $launcherRidObjRoot -ErrorAction SilentlyContinue
 
 New-Item -ItemType Directory -Force -Path $publishRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $appPublishRoot | Out-Null
@@ -78,6 +90,19 @@ New-Item -ItemType Directory -Force -Path (Join-Path $publishRoot "app") | Out-N
 
 Copy-Item -LiteralPath (Join-Path $launcherPublishRoot "GAWELA.Tourenplaner.exe") -Destination $publishRoot
 Copy-Item -Path (Join-Path $appPublishRoot "*") -Destination (Join-Path $publishRoot "app") -Recurse -Force
+
+$expectedVersion = [xml](Get-Content -LiteralPath (Join-Path $projectRoot "Directory.Build.props"))
+$expectedVersionText = $expectedVersion.Project.PropertyGroup.Version
+$launcherVersion = (Get-Item (Join-Path $publishRoot "GAWELA.Tourenplaner.exe")).VersionInfo.ProductVersion
+$appVersion = (Get-Item (Join-Path $publishRoot "app\Tourenplaner.CSharp.App.exe")).VersionInfo.ProductVersion
+
+if ($launcherVersion -ne $expectedVersionText) {
+    throw "Die veroeffentlichte Launcher-Version stimmt nicht: erwartet $expectedVersionText, erhalten $launcherVersion"
+}
+
+if ($appVersion -ne $expectedVersionText) {
+    throw "Die veroeffentlichte App-Version stimmt nicht: erwartet $expectedVersionText, erhalten $appVersion"
+}
 
 if ($resolvedReleaseBaseUrl) {
     Write-Utf8NoBomJson -Path (Join-Path $publishRoot "update-config.json") -Value @{
