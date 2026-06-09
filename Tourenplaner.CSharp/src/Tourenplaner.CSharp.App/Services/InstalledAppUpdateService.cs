@@ -150,7 +150,7 @@ internal static class InstalledAppUpdateService
         }
 
         $installer = '{{EscapePowerShell(installerPath)}}'
-        $arguments = @('/CLOSEAPPLICATIONS', '/FORCECLOSEAPPLICATIONS')
+        $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/CLOSEAPPLICATIONS', '/FORCECLOSEAPPLICATIONS')
 
         for ($i = 0; $i -lt 40; $i++) {
             try {
