@@ -128,7 +128,6 @@ $issTemplatePath = Join-Path $PSScriptRoot "installer\TourenplanerInstaller.iss"
 $launcherPath = Join-Path $publishedRoot "GAWELA.Tourenplaner.exe"
 $wizardImagePath = Join-Path $brandingRoot "wizard.bmp"
 $wizardSmallImagePath = Join-Path $brandingRoot "wizard-small.bmp"
-$bannerPath = Join-Path $projectRoot "src\Tourenplaner.CSharp.App\Assets\Banner.png"
 $logoPath = Join-Path $projectRoot "src\Tourenplaner.CSharp.App\Assets\Applogo.png"
 $isccPath = Get-InnoSetupCompilerPath
 $updateManifestPath = Join-Path $installerRoot "update-manifest.json"
@@ -164,7 +163,7 @@ if ([string]::IsNullOrWhiteSpace($resolvedAppVersion)) {
 Remove-Item -Recurse -Force $installerRoot -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $brandingRoot | Out-Null
 
-New-InstallerBitmap -DestinationPath $wizardImagePath -Width 164 -Height 314 -BannerPath $bannerPath -LogoPath $logoPath
+New-InstallerBitmap -DestinationPath $wizardImagePath -Width 164 -Height 314 -LogoPath $logoPath
 New-InstallerBitmap -DestinationPath $wizardSmallImagePath -Width 55 -Height 55 -LogoPath $logoPath
 
 $isccArguments = @(

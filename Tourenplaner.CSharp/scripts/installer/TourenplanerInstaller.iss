@@ -50,8 +50,8 @@ RestartApplications=no
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Desktop-Verknuepfung erstellen"; GroupDescription: "Verknuepfungen:"; Flags: checkedonce
-Name: "startmenuicon"; Description: "Startmenu-Verknuepfung erstellen"; GroupDescription: "Verknuepfungen:"; Flags: checkedonce
+Name: "desktopicon"; Description: "Desktop-Verknüpfung erstellen"; GroupDescription: "Verknüpfungen:"; Flags: checkedonce
+Name: "startmenuicon"; Description: "Startmenü-Verknüpfung erstellen"; GroupDescription: "Verknüpfungen:"; Flags: checkedonce
 
 [Files]
 Source: "{#PublishedFilesRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
