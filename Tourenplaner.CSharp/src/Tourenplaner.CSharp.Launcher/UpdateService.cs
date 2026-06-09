@@ -20,7 +20,7 @@ internal sealed class UpdateService
         }
 
         await using var stream = File.OpenRead(configPath);
-        var config = await JsonSerializer.DeserializeAsync<UpdateConfiguration>(stream, cancellationToken: cancellationToken);
+        var config = await ReadJsonAsync<UpdateConfiguration>(stream, cancellationToken);
         if (config is null || string.IsNullOrWhiteSpace(config.ManifestUrl))
         {
             return null;
@@ -47,7 +47,7 @@ internal sealed class UpdateService
         response.EnsureSuccessStatusCode();
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var manifest = await JsonSerializer.DeserializeAsync<UpdateManifest>(stream, cancellationToken: cancellationToken);
+        var manifest = await ReadJsonAsync<UpdateManifest>(stream, cancellationToken);
         if (manifest is null ||
             string.IsNullOrWhiteSpace(manifest.Version) ||
             string.IsNullOrWhiteSpace(manifest.InstallerUrl))
@@ -143,6 +143,16 @@ internal sealed class UpdateService
     private static string EscapePowerShell(string path)
     {
         return path.Replace("'", "''", StringComparison.Ordinal);
+    }
+
+    private static async Task<T?> ReadJsonAsync<T>(Stream stream, CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+        var content = await reader.ReadToEndAsync(cancellationToken);
+        var normalized = content.Trim().TrimStart('\uFEFF');
+        return string.IsNullOrWhiteSpace(normalized)
+            ? default
+            : JsonSerializer.Deserialize<T>(normalized);
     }
 
     private static string ComputeSha256(string filePath)

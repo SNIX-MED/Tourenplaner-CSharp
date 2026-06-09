@@ -7,6 +7,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Write-Utf8NoBomJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [object]$Value
+    )
+
+    $json = $Value | ConvertTo-Json
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $json, $utf8NoBom)
+}
+
 function Get-GitHubReleaseBaseUrl {
     param(
         [Parameter(Mandatory = $true)]
@@ -67,9 +80,9 @@ Copy-Item -LiteralPath (Join-Path $launcherPublishRoot "GAWELA.Tourenplaner.exe"
 Copy-Item -Path (Join-Path $appPublishRoot "*") -Destination (Join-Path $publishRoot "app") -Recurse -Force
 
 if ($resolvedReleaseBaseUrl) {
-    @{
+    Write-Utf8NoBomJson -Path (Join-Path $publishRoot "update-config.json") -Value @{
         manifestUrl = "$resolvedReleaseBaseUrl/update-manifest.json"
-    } | ConvertTo-Json | Set-Content -Path (Join-Path $publishRoot "update-config.json") -Encoding UTF8
+    }
 }
 else {
     Write-Warning "Es konnte keine Release-URL ermittelt werden. update-config.json wird nicht erzeugt."

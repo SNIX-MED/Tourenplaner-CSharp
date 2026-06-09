@@ -38,6 +38,26 @@ public partial class App : System.Windows.Application
 
         try
         {
+            var updateProgress = new Progress<string>(message => splashWindow.SetStatus(message));
+            var updateResult = await InstalledAppUpdateService.TryApplyUpdateAsync(updateProgress);
+            if (updateResult.UpdateWasStarted)
+            {
+                if (splashWindow.IsVisible)
+                {
+                    splashWindow.Close();
+                }
+
+                Shutdown();
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(updateResult.ErrorMessage))
+            {
+                TryLogInfo("AutomaticUpdate", $"Automatisches Update konnte nicht gestartet werden: {updateResult.ErrorMessage}");
+                await RenderSplashStepAsync(splashWindow, "Update konnte nicht geladen werden. Installierte Version wird gestartet...");
+                await Task.Delay(900);
+            }
+
             await RenderSplashStepAsync(splashWindow, "Dateien und Einstellungen werden geladen...");
             var settingsPath = Path.Combine(dataRoot, "settings.json");
             var ordersJsonPath = Path.Combine(dataRoot, "orders.json");

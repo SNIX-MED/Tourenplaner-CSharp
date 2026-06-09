@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 
 namespace Tourenplaner.CSharp.App.Services;
@@ -36,8 +37,7 @@ internal static class AppUpdateStatusService
                 DateTime.UtcNow);
         }
 
-        await using var configStream = File.OpenRead(configPath);
-        var configuration = await JsonSerializer.DeserializeAsync<AppUpdateConfiguration>(configStream, cancellationToken: cancellationToken);
+        var configuration = await ReadJsonFileAsync<AppUpdateConfiguration>(configPath, cancellationToken);
         if (configuration is null || string.IsNullOrWhiteSpace(configuration.ManifestUrl))
         {
             return new AppUpdateCheckResult(
@@ -55,7 +55,7 @@ internal static class AppUpdateStatusService
         response.EnsureSuccessStatusCode();
 
         await using var manifestStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        var manifest = await JsonSerializer.DeserializeAsync<AppUpdateManifest>(manifestStream, cancellationToken: cancellationToken);
+        var manifest = await ReadJsonAsync<AppUpdateManifest>(manifestStream, cancellationToken);
         if (manifest is null || string.IsNullOrWhiteSpace(manifest.Version) || string.IsNullOrWhiteSpace(manifest.InstallerUrl))
         {
             return new AppUpdateCheckResult(
@@ -100,6 +100,22 @@ internal static class AppUpdateStatusService
             .FirstOrDefault(File.Exists);
     }
 
+    private static async Task<T?> ReadJsonFileAsync<T>(string path, CancellationToken cancellationToken)
+    {
+        await using var stream = File.OpenRead(path);
+        return await ReadJsonAsync<T>(stream, cancellationToken);
+    }
+
+    private static async Task<T?> ReadJsonAsync<T>(Stream stream, CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+        var content = await reader.ReadToEndAsync(cancellationToken);
+        var normalized = content.Trim().TrimStart('\uFEFF');
+        return string.IsNullOrWhiteSpace(normalized)
+            ? default
+            : JsonSerializer.Deserialize<T>(normalized);
+    }
+
     private static Version? ParseVersion(string? versionText)
     {
         if (string.IsNullOrWhiteSpace(versionText))
@@ -138,6 +154,8 @@ internal static class AppUpdateStatusService
         public string Version { get; set; } = string.Empty;
 
         public string InstallerUrl { get; set; } = string.Empty;
+
+        public string? Sha256 { get; set; }
 
         public string? PublishedAtUtc { get; set; }
     }

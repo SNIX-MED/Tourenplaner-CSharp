@@ -8,6 +8,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Write-Utf8NoBomJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [object]$Value
+    )
+
+    $json = $Value | ConvertTo-Json
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $json, $utf8NoBom)
+}
+
 function Get-InnoSetupCompilerPath {
     $candidates = @(
         (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
@@ -125,6 +138,7 @@ $publishedRoot = if ($PublishedFilesRoot) { (Resolve-Path $PublishedFilesRoot).P
 $installerRoot = Join-Path $projectRoot "artifacts\installer\$RuntimeIdentifier"
 $brandingRoot = Join-Path $installerRoot "branding"
 $issTemplatePath = Join-Path $PSScriptRoot "installer\TourenplanerInstaller.iss"
+$issCompilePath = Join-Path $installerRoot "TourenplanerInstaller.generated.iss"
 $launcherPath = Join-Path $publishedRoot "GAWELA.Tourenplaner.exe"
 $wizardImagePath = Join-Path $brandingRoot "wizard.bmp"
 $wizardSmallImagePath = Join-Path $brandingRoot "wizard-small.bmp"
@@ -166,6 +180,10 @@ New-Item -ItemType Directory -Force -Path $brandingRoot | Out-Null
 New-InstallerBitmap -DestinationPath $wizardImagePath -Width 164 -Height 314 -LogoPath $logoPath
 New-InstallerBitmap -DestinationPath $wizardSmallImagePath -Width 55 -Height 55 -LogoPath $logoPath
 
+$issContent = [System.IO.File]::ReadAllText($issTemplatePath)
+$utf8Bom = New-Object System.Text.UTF8Encoding($true)
+[System.IO.File]::WriteAllText($issCompilePath, $issContent, $utf8Bom)
+
 $isccArguments = @(
     "/Qp",
     "/DPublishedFilesRoot=$publishedRoot",
@@ -173,7 +191,7 @@ $isccArguments = @(
     "/DAppVersion=$resolvedAppVersion",
     "/DWizardImageFile=$wizardImagePath",
     "/DWizardSmallImageFile=$wizardSmallImagePath",
-    $issTemplatePath
+    $issCompilePath
 )
 
 Write-Host "Erzeuge Installer mit Inno Setup..."
@@ -186,12 +204,12 @@ if ($compilerProcess.ExitCode -ne 0) {
 $setupPath = Join-Path $installerRoot "GAWELA-Tourenplaner-Setup.exe"
 if ($ReleaseBaseUrl -and (Test-Path $setupPath)) {
     $hash = Get-FileHash -Path $setupPath -Algorithm SHA256
-    @{
+    Write-Utf8NoBomJson -Path $updateManifestPath -Value @{
         version = $resolvedAppVersion
         installerUrl = "$($ReleaseBaseUrl.TrimEnd('/'))/GAWELA-Tourenplaner-Setup.exe"
         sha256 = $hash.Hash.ToLowerInvariant()
         publishedAtUtc = [DateTime]::UtcNow.ToString("O")
-    } | ConvertTo-Json | Set-Content -Path $updateManifestPath -Encoding UTF8
+    }
 }
 
 Write-Host ""
