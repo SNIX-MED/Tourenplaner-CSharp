@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Reflection;
 using System.Globalization;
 using System.ComponentModel;
+using System.Diagnostics;
 using Microsoft.Win32;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
@@ -87,6 +88,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _lastBackupIso = string.Empty;
     private string _applicationVersion = string.Empty;
     private string _runtimeVersion = string.Empty;
+    private string _updateStatusText = "Noch nicht geprüft.";
+    private string _availableUpdateVersion = "Noch nicht geprüft";
+    private string _lastUpdateCheckText = "Noch nicht geprüft";
+    private string _updatePublishedAtText = "-";
+    private string _updateActionUrl = string.Empty;
+    private bool _isUpdateAvailable;
     private string _latestBackupFile = "n/a";
     private int _availableBackupsCount;
     private bool _showGpsTool = true;
@@ -142,6 +149,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         CreateBackupCommand = new AsyncCommand(CreateBackupAsync);
         RestoreLatestBackupCommand = new AsyncCommand(RestoreLatestBackupAsync);
         CleanupBackupsCommand = new DelegateCommand(CleanupBackups);
+        CheckForUpdatesCommand = new AsyncCommand(CheckForUpdatesAsync);
+        DownloadAvailableUpdateCommand = new DelegateCommand(DownloadAvailableUpdate, () => CanDownloadAvailableUpdate);
         
         // XML Import Commands
         BrowseXmlImportFileCommand = new DelegateCommand(BrowseXmlImportFile);
@@ -172,6 +181,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public ICommand RestoreLatestBackupCommand { get; }
 
     public ICommand CleanupBackupsCommand { get; }
+
+    public AsyncCommand CheckForUpdatesCommand { get; }
+
+    public DelegateCommand DownloadAvailableUpdateCommand { get; }
 
     public ICommand BrowseXmlImportFileCommand { get; }
 
@@ -450,6 +463,32 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _runtimeVersion, value);
     }
 
+    public string UpdateStatusText
+    {
+        get => _updateStatusText;
+        private set => SetProperty(ref _updateStatusText, value);
+    }
+
+    public string AvailableUpdateVersion
+    {
+        get => _availableUpdateVersion;
+        private set => SetProperty(ref _availableUpdateVersion, value);
+    }
+
+    public string LastUpdateCheckText
+    {
+        get => _lastUpdateCheckText;
+        private set => SetProperty(ref _lastUpdateCheckText, value);
+    }
+
+    public string UpdatePublishedAtText
+    {
+        get => _updatePublishedAtText;
+        private set => SetProperty(ref _updatePublishedAtText, value);
+    }
+
+    public bool CanDownloadAvailableUpdate => _isUpdateAvailable && !string.IsNullOrWhiteSpace(_updateActionUrl);
+
     public string LatestBackupFile
     {
         get => _latestBackupFile;
@@ -522,12 +561,14 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
                 ?? entryAssembly.GetName().Version?.ToString()
                 ?? "0.0.0";
             RuntimeVersion = Environment.Version.ToString();
+            ResetUpdateStatus();
 
             var settings = await _repository.LoadAsync();
             ApplyModel(settings);
             UpdateBackupStatus(settings.BackupDir);
             ValidationSummary = string.Empty;
             StatusText = "Settings loaded.";
+            await CheckForUpdatesCoreAsync(showToastWhenUpToDate: false);
         }
         finally
         {
@@ -724,6 +765,64 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         StatusText = "Backup cleanup executed.";
     }
 
+    private async Task CheckForUpdatesAsync()
+    {
+        await CheckForUpdatesCoreAsync(showToastWhenUpToDate: true);
+    }
+
+    private async Task CheckForUpdatesCoreAsync(bool showToastWhenUpToDate)
+    {
+        UpdateStatusText = "Suche nach Updates...";
+
+        try
+        {
+            var result = await AppUpdateStatusService.CheckAsync();
+            ApplicationVersion = result.CurrentVersion;
+            UpdateStatusText = result.StatusText;
+            AvailableUpdateVersion = result.IsUpdateAvailable
+                ? result.AvailableVersion ?? "-"
+                : "Kein Update verfügbar";
+            LastUpdateCheckText = result.CheckedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
+            UpdatePublishedAtText = TryFormatPublishedAt(result.PublishedAtUtc);
+            _updateActionUrl = result.InstallerUrl?.Trim() ?? string.Empty;
+            _isUpdateAvailable = result.IsUpdateAvailable;
+            DownloadAvailableUpdateCommand.RaiseCanExecuteChanged();
+
+            if (result.IsUpdateAvailable)
+            {
+                ToastNotificationService.ShowInfo($"Update {result.AvailableVersion} ist verfügbar.");
+            }
+            else if (showToastWhenUpToDate)
+            {
+                ToastNotificationService.ShowInfo("Es ist bereits die neueste Version installiert.");
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText = $"Update-Prüfung fehlgeschlagen: {ex.Message}";
+            AvailableUpdateVersion = "Nicht verfügbar";
+            LastUpdateCheckText = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss");
+            UpdatePublishedAtText = "-";
+            _updateActionUrl = string.Empty;
+            _isUpdateAvailable = false;
+            DownloadAvailableUpdateCommand.RaiseCanExecuteChanged();
+            ToastNotificationService.ShowInfo("Die Update-Prüfung konnte nicht abgeschlossen werden.");
+        }
+    }
+
+    private void DownloadAvailableUpdate()
+    {
+        if (string.IsNullOrWhiteSpace(_updateActionUrl))
+        {
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo(_updateActionUrl)
+        {
+            UseShellExecute = true
+        });
+    }
+
     private void ValidateCurrentSettings()
     {
         var validation = _validator.Validate(BuildModel());
@@ -741,6 +840,17 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         StatusColorInStock = AppSettings.DefaultStatusColorInStock;
         StatusColorPlanned = AppSettings.DefaultStatusColorPlanned;
         StatusText = "Statusfarben auf Standard zurückgesetzt.";
+    }
+
+    private void ResetUpdateStatus()
+    {
+        UpdateStatusText = "Noch nicht geprüft.";
+        AvailableUpdateVersion = "Noch nicht geprüft";
+        LastUpdateCheckText = "Noch nicht geprüft";
+        UpdatePublishedAtText = "-";
+        _updateActionUrl = string.Empty;
+        _isUpdateAvailable = false;
+        DownloadAvailableUpdateCommand.RaiseCanExecuteChanged();
     }
 
     private AppSettings BuildModel()
@@ -910,6 +1020,18 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         return SupportedTomTomRoutingModes.Contains(normalized)
             ? normalized
             : AppSettings.DefaultTomTomRoutingMode;
+    }
+
+    private static string TryFormatPublishedAt(string? publishedAtUtc)
+    {
+        if (string.IsNullOrWhiteSpace(publishedAtUtc))
+        {
+            return "-";
+        }
+
+        return DateTime.TryParse(publishedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var parsed)
+            ? parsed.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+            : publishedAtUtc;
     }
 
     private void UpdateBackupStatus(string? backupDir)
