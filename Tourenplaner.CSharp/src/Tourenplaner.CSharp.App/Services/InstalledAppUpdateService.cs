@@ -72,7 +72,12 @@ internal static class InstalledAppUpdateService
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
-        var targetDirectory = Path.Combine(Path.GetTempPath(), "GAWELA-Tourenplaner", "downloads", manifest.Version.Trim());
+        var targetDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "GAWELA-Tourenplaner",
+            "downloads",
+            manifest.Version.Trim(),
+            DateTime.UtcNow.ToString("yyyyMMddHHmmssfff"));
         Directory.CreateDirectory(targetDirectory);
 
         var fileName = Path.GetFileName(new Uri(manifest.InstallerUrl).AbsolutePath);
@@ -128,7 +133,7 @@ internal static class InstalledAppUpdateService
         var scriptDirectory = Path.Combine(Path.GetTempPath(), "GAWELA-Tourenplaner");
         Directory.CreateDirectory(scriptDirectory);
 
-        var scriptPath = Path.Combine(scriptDirectory, "apply-update-from-app.ps1");
+        var scriptPath = Path.Combine(scriptDirectory, $"apply-update-from-app-{Guid.NewGuid():N}.ps1");
         var launcherLine = string.IsNullOrWhiteSpace(launcherPath)
             ? string.Empty
             : "$launcher = '" + EscapePowerShell(launcherPath) + "'" + Environment.NewLine +

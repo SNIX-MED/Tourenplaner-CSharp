@@ -81,7 +81,9 @@ internal sealed class UpdateService
             fileName = "GAWELA-Tourenplaner-Setup.exe";
         }
 
-        var destinationPath = Path.Combine(targetDirectory, fileName);
+        var uniqueDirectory = Path.Combine(targetDirectory, DateTime.UtcNow.ToString("yyyyMMddHHmmssfff"));
+        Directory.CreateDirectory(uniqueDirectory);
+        var destinationPath = Path.Combine(uniqueDirectory, fileName);
 
         using var response = await Client.GetAsync(manifest.InstallerUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -121,7 +123,7 @@ internal sealed class UpdateService
 
     public static string CreateInstallerScript(string installerPath, string launcherPath, int launcherProcessId)
     {
-        var scriptPath = Path.Combine(Path.GetTempPath(), "GAWELA-Tourenplaner", "apply-update.ps1");
+        var scriptPath = Path.Combine(Path.GetTempPath(), "GAWELA-Tourenplaner", $"apply-update-{Guid.NewGuid():N}.ps1");
         Directory.CreateDirectory(Path.GetDirectoryName(scriptPath)!);
 
         var script = $$"""
