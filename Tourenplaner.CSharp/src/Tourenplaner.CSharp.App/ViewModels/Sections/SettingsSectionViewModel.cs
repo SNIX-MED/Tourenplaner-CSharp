@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Globalization;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Windows;
 using Microsoft.Win32;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
@@ -790,7 +791,24 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
             if (result.IsUpdateAvailable)
             {
-                ToastNotificationService.ShowInfo($"Update {result.AvailableVersion} ist verfügbar.");
+                UpdateStatusText = $"Update {result.AvailableVersion} wird vorbereitet...";
+
+                var progress = new Progress<string>(message => UpdateStatusText = message);
+                var installResult = await InstalledAppUpdateService.TryApplyUpdateAsync(progress);
+                if (installResult.UpdateWasStarted)
+                {
+                    System.Windows.Application.Current.Shutdown();
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(installResult.ErrorMessage))
+                {
+                    UpdateStatusText = $"Update konnte nicht gestartet werden: {installResult.ErrorMessage}";
+                    ToastNotificationService.ShowInfo("Das Update konnte nicht gestartet werden.");
+                    return;
+                }
+
+                UpdateStatusText = $"Update {result.AvailableVersion} ist verfügbar.";
             }
             else if (showToastWhenUpToDate)
             {

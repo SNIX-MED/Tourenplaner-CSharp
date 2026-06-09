@@ -567,8 +567,6 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Installierte Version" />
@@ -577,35 +575,12 @@
                         <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Update-Status" />
                         <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding UpdateStatusText, Mode=OneWay}" />
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Verfügbares Update" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding AvailableUpdateVersion, Mode=OneWay}" />
-
-                        <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzter Check" />
-                        <StackPanel Grid.Row="3" Grid.Column="1">
-                            <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding LastUpdateCheckText, Mode=OneWay}" />
-                            <TextBlock Margin="0,2,0,0" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding UpdatePublishedAtText, Mode=OneWay, StringFormat=Release veröffentlicht: {0}}" />
-                        </StackPanel>
                     </Grid>
 
                     <WrapPanel Margin="0,12,0,0">
                         <Button Width="210"
                                 Content="Jetzt nach Updates suchen"
                                 Command="{Binding CheckForUpdatesCommand}" />
-                        <Button Width="180"
-                                Margin="8,0,0,0"
-                                Content="Update herunterladen"
-                                Command="{Binding DownloadAvailableUpdateCommand}">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding CanDownloadAvailableUpdate}" Value="False">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
                     </WrapPanel>
                 </StackPanel>
             </Border>
