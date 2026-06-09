@@ -1,99 +1,205 @@
 param(
     [string]$Configuration = "Release",
     [string]$RuntimeIdentifier = "win-x64",
-    [string]$PublishedFilesRoot
+    [string]$PublishedFilesRoot,
+    [string]$AppVersion,
+    [string]$ReleaseBaseUrl
 )
 
 $ErrorActionPreference = "Stop"
 
+function Get-InnoSetupCompilerPath {
+    $candidates = @(
+        (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
+        (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe"),
+        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        "C:\Program Files\Inno Setup 6\ISCC.exe"
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    if ($candidates.Count -gt 0) {
+        return [string]$candidates[0]
+    }
+
+    $command = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+    if ($command -and $command.Source -and (Test-Path $command.Source)) {
+        return [string]$command.Source
+    }
+
+    throw "Inno Setup 6 wurde nicht gefunden. Bitte installieren Sie Inno Setup 6, damit der Installer gebaut werden kann."
+}
+
+function New-InstallerBitmap {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath,
+        [Parameter(Mandatory = $true)]
+        [int]$Width,
+        [Parameter(Mandatory = $true)]
+        [int]$Height,
+        [string]$BannerPath,
+        [string]$LogoPath,
+        [string]$BackgroundHex = "#F6F1E8"
+    )
+
+    Add-Type -AssemblyName System.Drawing
+
+    $bitmap = New-Object System.Drawing.Bitmap $Width, $Height
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $background = [System.Drawing.ColorTranslator]::FromHtml($BackgroundHex)
+    $graphics.Clear($background)
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+
+    try {
+        if ($BannerPath -and (Test-Path $BannerPath)) {
+            $banner = [System.Drawing.Image]::FromFile($BannerPath)
+            try {
+                $targetWidth = [Math]::Min($Width - 24, $banner.Width)
+                $scale = $targetWidth / $banner.Width
+                $targetHeight = [Math]::Max([int]($banner.Height * $scale), 1)
+                $x = [int](($Width - $targetWidth) / 2)
+                $y = if ($Height -ge 200) { 18 } else { 10 }
+                $graphics.DrawImage($banner, $x, $y, $targetWidth, $targetHeight)
+            }
+            finally {
+                $banner.Dispose()
+            }
+        }
+
+        if ($LogoPath -and (Test-Path $LogoPath)) {
+            $logo = [System.Drawing.Image]::FromFile($LogoPath)
+            try {
+                $maxWidth = if ($Height -ge 200) { [int]($Width * 0.72) } else { [int]($Width * 0.78) }
+                $maxHeight = if ($Height -ge 200) { [int]($Height * 0.34) } else { [int]($Height * 0.72) }
+                $scale = [Math]::Min($maxWidth / $logo.Width, $maxHeight / $logo.Height)
+                $targetWidth = [Math]::Max([int]($logo.Width * $scale), 1)
+                $targetHeight = [Math]::Max([int]($logo.Height * $scale), 1)
+                $x = [int](($Width - $targetWidth) / 2)
+                $y = if ($Height -ge 200) {
+                    [int](($Height - $targetHeight) * 0.58)
+                }
+                else {
+                    [int](($Height - $targetHeight) / 2)
+                }
+
+                $graphics.DrawImage($logo, $x, $y, $targetWidth, $targetHeight)
+            }
+            finally {
+                $logo.Dispose()
+            }
+        }
+
+        $bitmap.Save($DestinationPath, [System.Drawing.Imaging.ImageFormat]::Bmp)
+    }
+    finally {
+        $graphics.Dispose()
+        $bitmap.Dispose()
+    }
+}
+
+function Resolve-CleanVersion {
+    param(
+        [string]$VersionText
+    )
+
+    if ([string]::IsNullOrWhiteSpace($VersionText)) {
+        return $null
+    }
+
+    $normalizedVersion = $VersionText.Trim()
+    $plusIndex = $normalizedVersion.IndexOf('+')
+    if ($plusIndex -ge 0) {
+        $normalizedVersion = $normalizedVersion.Substring(0, $plusIndex)
+    }
+
+    if ($normalizedVersion -match '^\d+\.\d+\.\d+\.0$') {
+        $normalizedVersion = $normalizedVersion.Substring(0, $normalizedVersion.Length - 2)
+    }
+
+    return $normalizedVersion.Trim()
+}
+
 $projectRoot = (Resolve-Path "$PSScriptRoot\..").Path
-$publishedRoot = if ($PublishedFilesRoot) { $PublishedFilesRoot } else { Join-Path $projectRoot "artifacts\publish\$RuntimeIdentifier" }
+$publishedRoot = if ($PublishedFilesRoot) { (Resolve-Path $PublishedFilesRoot).Path } else { Join-Path $projectRoot "artifacts\publish\$RuntimeIdentifier" }
 $installerRoot = Join-Path $projectRoot "artifacts\installer\$RuntimeIdentifier"
-$packageRoot = Join-Path $installerRoot "package"
-$setupExePath = Join-Path $installerRoot "GAWELA-Tourenplaner-Setup.exe"
-$sedPath = Join-Path $installerRoot "TourenplanerInstaller.sed"
-$installCmdPath = Join-Path $packageRoot "Install-Tourenplaner.cmd"
-$installPs1Source = Join-Path $PSScriptRoot "installer\Install-Tourenplaner.ps1"
-$installPs1Target = Join-Path $packageRoot "Install-Tourenplaner.ps1"
-$iexpressPath = Join-Path $env:WINDIR "System32\iexpress.exe"
+$brandingRoot = Join-Path $installerRoot "branding"
+$issTemplatePath = Join-Path $PSScriptRoot "installer\TourenplanerInstaller.iss"
+$launcherPath = Join-Path $publishedRoot "GAWELA.Tourenplaner.exe"
+$wizardImagePath = Join-Path $brandingRoot "wizard.bmp"
+$wizardSmallImagePath = Join-Path $brandingRoot "wizard-small.bmp"
+$bannerPath = Join-Path $projectRoot "src\Tourenplaner.CSharp.App\Assets\Banner.png"
+$logoPath = Join-Path $projectRoot "src\Tourenplaner.CSharp.App\Assets\Applogo.png"
+$isccPath = Get-InnoSetupCompilerPath
+$updateManifestPath = Join-Path $installerRoot "update-manifest.json"
 
 if (-not (Test-Path $publishedRoot)) {
     throw "Die publizierten Dateien wurden nicht gefunden: $publishedRoot"
 }
 
-if (-not (Test-Path $installPs1Source)) {
-    throw "Das Installationsskript fehlt: $installPs1Source"
+if (-not (Test-Path $launcherPath)) {
+    throw "Die Startdatei fuer den Installer wurde nicht gefunden: $launcherPath"
 }
 
-if (-not (Test-Path $iexpressPath)) {
-    throw "IExpress wurde nicht gefunden: $iexpressPath"
+if (-not (Test-Path $issTemplatePath)) {
+    throw "Die Inno-Setup-Vorlage fehlt: $issTemplatePath"
+}
+
+$resolvedAppVersion = $AppVersion
+if (-not $resolvedAppVersion) {
+    $versionInfo = (Get-Item $launcherPath).VersionInfo
+    $resolvedAppVersion = if ([string]::IsNullOrWhiteSpace($versionInfo.ProductVersion)) {
+        if ([string]::IsNullOrWhiteSpace($versionInfo.FileVersion)) { "1.0.0" } else { $versionInfo.FileVersion }
+    }
+    else {
+        $versionInfo.ProductVersion
+    }
+}
+
+$resolvedAppVersion = Resolve-CleanVersion -VersionText $resolvedAppVersion
+if ([string]::IsNullOrWhiteSpace($resolvedAppVersion)) {
+    $resolvedAppVersion = "1.0.0"
 }
 
 Remove-Item -Recurse -Force $installerRoot -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $brandingRoot | Out-Null
 
-Copy-Item -LiteralPath $installPs1Source -Destination $installPs1Target
-New-Item -ItemType Directory -Force -Path (Join-Path $packageRoot "app") | Out-Null
-Copy-Item -Path (Join-Path $publishedRoot "*") -Destination (Join-Path $packageRoot "app") -Recurse -Force
+New-InstallerBitmap -DestinationPath $wizardImagePath -Width 164 -Height 314 -BannerPath $bannerPath -LogoPath $logoPath
+New-InstallerBitmap -DestinationPath $wizardSmallImagePath -Width 55 -Height 55 -LogoPath $logoPath
 
-@'
-@echo off
-powershell -ExecutionPolicy Bypass -File "%~dp0Install-Tourenplaner.ps1"
-exit /b %errorlevel%
-'@ | Set-Content -Path $installCmdPath -Encoding ASCII
+$isccArguments = @(
+    "/Qp",
+    "/DPublishedFilesRoot=$publishedRoot",
+    "/DInstallerRoot=$installerRoot",
+    "/DAppVersion=$resolvedAppVersion",
+    "/DWizardImageFile=$wizardImagePath",
+    "/DWizardSmallImageFile=$wizardSmallImagePath",
+    $issTemplatePath
+)
 
-$appFiles = Get-ChildItem -Path (Join-Path $packageRoot "app") -Recurse -File | Sort-Object FullName
-$sourceLines = New-Object System.Collections.Generic.List[string]
-$sourceLines.Add("%FILE0%= ")
-$sourceLines.Add("%FILE1%= ")
-$stringLines = New-Object System.Collections.Generic.List[string]
-$stringLines.Add("FILE0=Install-Tourenplaner.cmd")
-$stringLines.Add("FILE1=Install-Tourenplaner.ps1")
+Write-Host "Erzeuge Installer mit Inno Setup..."
+$compilerProcess = Start-Process -FilePath $isccPath -ArgumentList $isccArguments -Wait -PassThru -NoNewWindow
 
-$index = 2
-foreach ($file in $appFiles) {
-    $relativePath = $file.FullName.Substring($packageRoot.Length + 1)
-    $sourceLines.Add("%FILE$index%= ")
-    $stringLines.Add("FILE$index=$relativePath")
-    $index++
+if ($compilerProcess.ExitCode -ne 0) {
+    throw "Inno Setup konnte den Installer nicht erzeugen."
 }
 
-$sedContent = @"
-[Version]
-Class=IEXPRESS
-SEDVersion=3
-[Options]
-PackagePurpose=InstallApp
-ShowInstallProgramWindow=1
-HideExtractAnimation=0
-UseLongFileName=1
-InsideCompressed=0
-CAB_FixedSize=0
-CAB_ResvCodeSigning=0
-RebootMode=N
-InstallPrompt=
-DisplayLicense=
-FinishMessage=Die Installation wurde abgeschlossen.
-TargetName=$setupExePath
-FriendlyName=GAWELA Tourenplaner Setup
-AppLaunched=Install-Tourenplaner.cmd
-PostInstallCmd=<None>
-AdminQuietInstCmd=
-UserQuietInstCmd=
-SourceFiles=SourceFiles
-[SourceFiles]
-SourceFiles0=$packageRoot
-[SourceFiles0]
-$(($sourceLines -join [Environment]::NewLine))
-[Strings]
-$(($stringLines -join [Environment]::NewLine))
-"@
-
-Set-Content -Path $sedPath -Value $sedContent -Encoding ASCII
-
-Write-Host "Erzeuge Installer..."
-& $iexpressPath /N $sedPath | Out-Null
+$setupPath = Join-Path $installerRoot "GAWELA-Tourenplaner-Setup.exe"
+if ($ReleaseBaseUrl -and (Test-Path $setupPath)) {
+    $hash = Get-FileHash -Path $setupPath -Algorithm SHA256
+    @{
+        version = $resolvedAppVersion
+        installerUrl = "$($ReleaseBaseUrl.TrimEnd('/'))/GAWELA-Tourenplaner-Setup.exe"
+        sha256 = $hash.Hash.ToLowerInvariant()
+        publishedAtUtc = [DateTime]::UtcNow.ToString("O")
+    } | ConvertTo-Json | Set-Content -Path $updateManifestPath -Encoding UTF8
+}
 
 Write-Host ""
 Write-Host "Fertig. Installer:"
-Write-Host "  $setupExePath"
+Write-Host "  $setupPath"
+
+if (Test-Path $updateManifestPath) {
+    Write-Host "Update-Manifest:"
+    Write-Host "  $updateManifestPath"
+}

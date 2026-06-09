@@ -52,11 +52,26 @@
                            FontSize="15"
                            Foreground="#FF475569"
                            Text="Anwendung wird gestartet..." />
+                <TextBlock x:Name="DetailsTextBlock"
+                           Margin="0,8,0,0"
+                           FontSize="13"
+                           Foreground="#FF64748B"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed" />
+                <TextBlock x:Name="ProgressTextBlock"
+                           Margin="0,8,0,0"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="#FF0F766E"
+                           Visibility="Collapsed" />
             </StackPanel>
 
-            <ProgressBar Grid.Row="1"
+            <ProgressBar x:Name="ProgressBarControl"
+                         Grid.Row="1"
                          Height="8"
                          IsIndeterminate="True"
+                         Minimum="0"
+                         Maximum="100"
                          Foreground="#FF0F766E"
                          Background="#140F172A"
                          BorderThickness="0" />

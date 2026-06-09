@@ -8,9 +8,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>GAWELA.Tourenplaner</AssemblyName>
     <RootNamespace>Tourenplaner.CSharp.Launcher</RootNamespace>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Assets\AppIcon.ico" />
     <Resource Include="..\Tourenplaner.CSharp.App\Assets\Applogo.png" Link="Assets\Applogo.png" />
   </ItemGroup>
 

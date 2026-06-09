@@ -42,6 +42,31 @@ Installer-EXE erzeugen:
 
 Das Setup wird unter `artifacts/installer/win-x64/GAWELA-Tourenplaner-Setup.exe` abgelegt.
 
+Der Installer wird mit Inno Setup 6 gebaut und bietet:
+
+- frei waehlbaren Installationspfad
+- optionale Desktop-Verknuepfung
+- optionale Startmenue-Verknuepfung
+- Deinstallation ueber Windows
+- automatische Update-Pruefung beim Start ueber `update-config.json` und `update-manifest.json`
+
+Vor dem Build des Installers muss `Inno Setup 6` auf dem Build-Rechner installiert sein.
+
+Fuer automatische Updates wird beim Publish eine `update-config.json` erzeugt, sofern das Git-Remote auf GitHub zeigt oder `-ReleaseBaseUrl` gesetzt ist. Beim Installer-Build entsteht zusaetzlich `artifacts/installer/win-x64/update-manifest.json`.
+
+Fuer einen Release muessen mindestens diese Dateien in denselben GitHub-Release hochgeladen werden:
+
+- `GAWELA-Tourenplaner-Setup.exe`
+- `update-manifest.json`
+
+Optional kann die Release-Basis explizit gesetzt werden:
+
+```powershell
+./scripts/publish-windows.ps1 -BuildInstaller -ReleaseBaseUrl "https://github.com/<owner>/<repo>/releases/latest/download"
+```
+
+Bei einer neuen Version muss `Version` in `Directory.Build.props` erhoeht werden.
+
 ## SQL-Import
 
 Der SQL-Import läuft in zwei Phasen (wie im Python-Projekt):
