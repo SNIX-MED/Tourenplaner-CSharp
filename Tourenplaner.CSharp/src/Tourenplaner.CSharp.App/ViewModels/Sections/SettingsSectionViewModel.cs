@@ -6,12 +6,15 @@ using System.Reflection;
 using System.Globalization;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using Microsoft.Win32;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
+using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Application.Abstractions;
+using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 using Tourenplaner.CSharp.Infrastructure.Services;
@@ -20,16 +23,7 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class SettingsSectionViewModel : SectionViewModelBase
 {
-    private static readonly HashSet<string> SupportedTomTomMapStyles = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "main",
-        "night"
-    };
-    private static readonly HashSet<string> SupportedTomTomRoutingModes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "car",
-        "heightAware"
-    };
+    private const int MaxXmlImportPreviewItems = 100;
     private readonly Guid _instanceId = Guid.NewGuid();
     private readonly JsonAppSettingsRepository _repository;
     private readonly SettingsValidator _validator;
@@ -39,13 +33,21 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private readonly AppDataSyncService? _dataSyncService;
     private readonly string _dataRoot;
     private bool _isBackgroundGeocodingRunning;
+    private SettingsCategoryNavigationItem? _selectedSettingsCategory;
 
-    private string _statusText = "Loading settings...";
+    private string _statusText = string.Empty;
     
     // XML Import Settings
     private string _xmlImportFilePath = string.Empty;
     private bool _isImportingOrders = false;
     private string _importStatusMessage = "";
+    private bool _isPreviewingXmlImport;
+    private string _xmlImportPreviewSummary = string.Empty;
+    private int _xmlImportPreviewHiddenItemCount;
+    private bool _hasPendingXmlImportPreview;
+    private readonly List<SqlOrderImportData> _previewedXmlOrders = new();
+    private DateTime _xmlImportPreviewLastWriteUtc;
+    private long _xmlImportPreviewFileLength;
     
     private string _avisoEmailSubjectTemplate = AppSettings.DefaultAvisoEmailSubjectTemplate;
     private string _companyName = "Firma";
@@ -73,12 +75,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private double _pinInfoCardZoomBehaviorStrength = AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
     private int _mapRouteCapacityWarningThresholdPercent = AppSettings.DefaultMapRouteCapacityWarningThresholdPercent;
     private string _tomTomApiKey = "IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH";
-    private string _tomTomMapStyle = AppSettings.DefaultTomTomMapStyle;
-    private bool _tomTomShowTrafficFlow = true;
     private int _tomTomTrafficRefreshSeconds = AppSettings.DefaultTomTomTrafficRefreshSeconds;
     private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
-    private string _tomTomRoutingMode = AppSettings.DefaultTomTomRoutingMode;
-    private double _tomTomVehicleHeightMeters = AppSettings.DefaultTomTomVehicleHeightMeters;
     private bool _tomTomEnableTileCache = true;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
@@ -96,6 +94,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _updateActionUrl = string.Empty;
     private bool _isUpdateAvailable;
     private string _latestBackupFile = "n/a";
+    private string _latestBackupModifiedText = "n/a";
     private int _availableBackupsCount;
     private bool _showGpsTool = true;
     private string _gpsToolUrl = AppSettings.DefaultGpsToolUrl;
@@ -132,21 +131,65 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             "incremental"
         ];
 
-        TomTomMapStyles =
+        SettingsCategories =
         [
-            "main",
-            "night"
+            new SettingsCategoryNavigationItem("general", "Allgemein", "E-Mail, Startzeit und Standardverhalten.", "\uE713"),
+            new SettingsCategoryNavigationItem("map", "Karte & Kalender", "Farben, Kalenderwarnungen und Karteninfos.", "\uE787"),
+            new SettingsCategoryNavigationItem("tomtom", "TomTom Karte & Traffic", "Routing, Overlay und Verkehrslogik.", "\uE81E"),
+            new SettingsCategoryNavigationItem("tools", "Tools", "GPS- und Spediteur-Links und Sichtbarkeit.", "\uE90F"),
+            new SettingsCategoryNavigationItem("company", "Firma", "Absenderdaten, PDFs und Standortbasis.", "\uE80F"),
+            new SettingsCategoryNavigationItem("backup", "Backup & Restore", "Sicherungen, Aufbewahrung und Wiederherstellung.", "\uE72C"),
+            new SettingsCategoryNavigationItem("xml-import", "XML Import", "Import prüfen, Vorschau ansehen und sicher übernehmen.", "\uE9F9"),
+            new SettingsCategoryNavigationItem("updates", "Updates & Validierung", "Versionen, Prüfungen und Konfigurationsstatus.", "\uE895")
         ];
-        TomTomRoutingModes =
-        [
-            "car",
-            "heightAware"
-        ];
+        _selectedSettingsCategory = SettingsCategories.FirstOrDefault();
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SaveCommand = new AsyncCommand(SaveAsync);
         ValidateCommand = new DelegateCommand(ValidateCurrentSettings);
         ResetStatusColorsCommand = new DelegateCommand(ResetStatusColors);
+        PickStatusColorNotSpecifiedCommand = CreateColorPickerCommand(
+            "Nicht festgelegt",
+            "Statusfarbe für Aufträge ohne Lieferstatus.",
+            () => StatusColorNotSpecified,
+            AppSettings.DefaultStatusColorNotSpecified,
+            value => StatusColorNotSpecified = value);
+        PickStatusColorOrderedCommand = CreateColorPickerCommand(
+            "Bestellt",
+            "Statusfarbe für bestellte Aufträge.",
+            () => StatusColorOrdered,
+            AppSettings.DefaultStatusColorOrdered,
+            value => StatusColorOrdered = value);
+        PickStatusColorOnTheWayCommand = CreateColorPickerCommand(
+            "Unterwegs / Teilweise bereit",
+            "Statusfarbe für laufende oder teilweise bereite Aufträge.",
+            () => StatusColorOnTheWay,
+            AppSettings.DefaultStatusColorOnTheWay,
+            value => StatusColorOnTheWay = value);
+        PickStatusColorInStockCommand = CreateColorPickerCommand(
+            "Lieferbereit",
+            "Statusfarbe für voll lieferbereite Aufträge.",
+            () => StatusColorInStock,
+            AppSettings.DefaultStatusColorInStock,
+            value => StatusColorInStock = value);
+        PickStatusColorPlannedCommand = CreateColorPickerCommand(
+            "Eingeplant",
+            "Statusfarbe für bereits eingeplante Aufträge und Tourhinweise.",
+            () => StatusColorPlanned,
+            AppSettings.DefaultStatusColorPlanned,
+            value => StatusColorPlanned = value);
+        PickCalendarLoadWarningColorCommand = CreateColorPickerCommand(
+            "Kalender-Warnung",
+            "Akzentfarbe für stark ausgelastete Kalendertage.",
+            () => CalendarLoadWarningColor,
+            AppSettings.DefaultCalendarLoadWarningColor,
+            value => CalendarLoadWarningColor = value);
+        PickCalendarLoadCriticalColorCommand = CreateColorPickerCommand(
+            "Kalender-Kritisch",
+            "Akzentfarbe für kritische Kalendertage.",
+            () => CalendarLoadCriticalColor,
+            AppSettings.DefaultCalendarLoadCriticalColor,
+            value => CalendarLoadCriticalColor = value);
         CreateBackupCommand = new AsyncCommand(CreateBackupAsync);
         RestoreLatestBackupCommand = new AsyncCommand(RestoreLatestBackupAsync);
         CleanupBackupsCommand = new DelegateCommand(CleanupBackups);
@@ -156,9 +199,15 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         // XML Import Commands
         BrowseXmlImportFileCommand = new DelegateCommand(BrowseXmlImportFile);
         DownloadXmlTemplateCommand = new DelegateCommand(DownloadXmlTemplateFile);
+        PreviewXmlImportCommand = new AsyncCommand(
+            PreviewXmlImportAsync,
+            canExecute: () => !string.IsNullOrWhiteSpace(XmlImportFilePath) && !IsXmlImportBusy);
         ImportOrdersCommand = new AsyncCommand(
             ImportOrdersAsync,
-            canExecute: () => !string.IsNullOrWhiteSpace(XmlImportFilePath) && !IsImportingOrders);
+            canExecute: CanImportOrders);
+
+        XmlImportPreviewItems = [];
+        XmlImportPreviewErrors = [];
 
         PropertyChanged += OnSelfPropertyChanged;
 
@@ -166,8 +215,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     }
 
     public ObservableCollection<string> BackupModes { get; }
-    public ObservableCollection<string> TomTomMapStyles { get; }
-    public ObservableCollection<string> TomTomRoutingModes { get; }
+    public ObservableCollection<SettingsCategoryNavigationItem> SettingsCategories { get; }
 
     public ICommand RefreshCommand { get; }
 
@@ -176,6 +224,20 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public ICommand ValidateCommand { get; }
 
     public ICommand ResetStatusColorsCommand { get; }
+
+    public ICommand PickStatusColorNotSpecifiedCommand { get; }
+
+    public ICommand PickStatusColorOrderedCommand { get; }
+
+    public ICommand PickStatusColorOnTheWayCommand { get; }
+
+    public ICommand PickStatusColorInStockCommand { get; }
+
+    public ICommand PickStatusColorPlannedCommand { get; }
+
+    public ICommand PickCalendarLoadWarningColorCommand { get; }
+
+    public ICommand PickCalendarLoadCriticalColorCommand { get; }
 
     public ICommand CreateBackupCommand { get; }
 
@@ -191,13 +253,40 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     public ICommand DownloadXmlTemplateCommand { get; }
 
+    public AsyncCommand PreviewXmlImportCommand { get; }
+
     public AsyncCommand ImportOrdersCommand { get; }
+
+    public ObservableCollection<XmlImportPreviewListItemViewModel> XmlImportPreviewItems { get; }
+
+    public ObservableCollection<string> XmlImportPreviewErrors { get; }
 
     public string StatusText
     {
         get => _statusText;
         private set => SetProperty(ref _statusText, value);
     }
+
+    public SettingsCategoryNavigationItem? SelectedSettingsCategory
+    {
+        get => _selectedSettingsCategory;
+        set
+        {
+            var target = value ?? SettingsCategories.FirstOrDefault();
+            if (SetProperty(ref _selectedSettingsCategory, target))
+            {
+                OnPropertyChanged(nameof(SelectedSettingsCategoryKey));
+                OnPropertyChanged(nameof(SelectedSettingsCategoryTitle));
+                OnPropertyChanged(nameof(SelectedSettingsCategoryDescription));
+            }
+        }
+    }
+
+    public string SelectedSettingsCategoryKey => SelectedSettingsCategory?.Key ?? string.Empty;
+
+    public string SelectedSettingsCategoryTitle => SelectedSettingsCategory?.Title ?? "Allgemein";
+
+    public string SelectedSettingsCategoryDescription => SelectedSettingsCategory?.Description ?? "Verwalte die wichtigsten Standardwerte für den Tourenplaner.";
 
     public string ValidationSummary
     {
@@ -238,43 +327,43 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public string StatusColorNotSpecified
     {
         get => _statusColorNotSpecified;
-        set => SetProperty(ref _statusColorNotSpecified, value);
+        set => SetColorProperty(ref _statusColorNotSpecified, value, AppSettings.DefaultStatusColorNotSpecified);
     }
 
     public string StatusColorOrdered
     {
         get => _statusColorOrdered;
-        set => SetProperty(ref _statusColorOrdered, value);
+        set => SetColorProperty(ref _statusColorOrdered, value, AppSettings.DefaultStatusColorOrdered);
     }
 
     public string StatusColorOnTheWay
     {
         get => _statusColorOnTheWay;
-        set => SetProperty(ref _statusColorOnTheWay, value);
+        set => SetColorProperty(ref _statusColorOnTheWay, value, AppSettings.DefaultStatusColorOnTheWay);
     }
 
     public string StatusColorInStock
     {
         get => _statusColorInStock;
-        set => SetProperty(ref _statusColorInStock, value);
+        set => SetColorProperty(ref _statusColorInStock, value, AppSettings.DefaultStatusColorInStock);
     }
 
     public string StatusColorPlanned
     {
         get => _statusColorPlanned;
-        set => SetProperty(ref _statusColorPlanned, value);
+        set => SetColorProperty(ref _statusColorPlanned, value, AppSettings.DefaultStatusColorPlanned);
     }
 
     public string CalendarLoadWarningColor
     {
         get => _calendarLoadWarningColor;
-        set => SetProperty(ref _calendarLoadWarningColor, value);
+        set => SetColorProperty(ref _calendarLoadWarningColor, value, AppSettings.DefaultCalendarLoadWarningColor);
     }
 
     public string CalendarLoadCriticalColor
     {
         get => _calendarLoadCriticalColor;
-        set => SetProperty(ref _calendarLoadCriticalColor, value);
+        set => SetColorProperty(ref _calendarLoadCriticalColor, value, AppSettings.DefaultCalendarLoadCriticalColor);
     }
 
     public int CalendarLoadWarningPeopleThreshold
@@ -368,18 +457,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _tomTomApiKey, value);
     }
 
-    public string TomTomMapStyle
-    {
-        get => _tomTomMapStyle;
-        set => SetProperty(ref _tomTomMapStyle, value);
-    }
-
-    public bool TomTomShowTrafficFlow
-    {
-        get => _tomTomShowTrafficFlow;
-        set => SetProperty(ref _tomTomShowTrafficFlow, value);
-    }
-
     public int TomTomTrafficRefreshSeconds
     {
         get => _tomTomTrafficRefreshSeconds;
@@ -390,18 +467,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _tomTomRouteRecalcDebounceMs;
         set => SetProperty(ref _tomTomRouteRecalcDebounceMs, value);
-    }
-
-    public string TomTomRoutingMode
-    {
-        get => _tomTomRoutingMode;
-        set => SetProperty(ref _tomTomRoutingMode, NormalizeTomTomRoutingMode(value));
-    }
-
-    public double TomTomVehicleHeightMeters
-    {
-        get => _tomTomVehicleHeightMeters;
-        set => SetProperty(ref _tomTomVehicleHeightMeters, Math.Clamp(value, 0d, 20d));
     }
 
     public bool TomTomEnableTileCache
@@ -493,7 +558,25 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public string LatestBackupFile
     {
         get => _latestBackupFile;
-        private set => SetProperty(ref _latestBackupFile, value);
+        private set
+        {
+            if (SetProperty(ref _latestBackupFile, value))
+            {
+                OnPropertyChanged(nameof(LatestBackupSummaryText));
+            }
+        }
+    }
+
+    public string LatestBackupModifiedText
+    {
+        get => _latestBackupModifiedText;
+        private set
+        {
+            if (SetProperty(ref _latestBackupModifiedText, value))
+            {
+                OnPropertyChanged(nameof(LatestBackupSummaryText));
+            }
+        }
     }
 
     public int AvailableBackupsCount
@@ -501,6 +584,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         get => _availableBackupsCount;
         private set => SetProperty(ref _availableBackupsCount, value);
     }
+
+    public string LatestBackupSummaryText =>
+        string.Equals(LatestBackupFile, "n/a", StringComparison.OrdinalIgnoreCase)
+            ? "Keine Sicherung vorhanden"
+            : $"{LatestBackupModifiedText} | {LatestBackupFile}";
 
     public bool ShowGpsTool
     {
@@ -541,7 +629,25 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public bool IsImportingOrders
     {
         get => _isImportingOrders;
-        set => SetProperty(ref _isImportingOrders, value);
+        set
+        {
+            if (SetProperty(ref _isImportingOrders, value))
+            {
+                OnPropertyChanged(nameof(IsXmlImportBusy));
+            }
+        }
+    }
+
+    public bool IsPreviewingXmlImport
+    {
+        get => _isPreviewingXmlImport;
+        private set
+        {
+            if (SetProperty(ref _isPreviewingXmlImport, value))
+            {
+                OnPropertyChanged(nameof(IsXmlImportBusy));
+            }
+        }
     }
 
     public string ImportStatusMessage
@@ -549,6 +655,26 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         get => _importStatusMessage;
         set => SetProperty(ref _importStatusMessage, value);
     }
+
+    public string XmlImportPreviewSummary
+    {
+        get => _xmlImportPreviewSummary;
+        private set => SetProperty(ref _xmlImportPreviewSummary, value);
+    }
+
+    public bool IsXmlImportBusy => IsImportingOrders || IsPreviewingXmlImport;
+
+    public bool HasXmlImportPreview => !string.IsNullOrWhiteSpace(XmlImportPreviewSummary);
+
+    public bool HasXmlImportPreviewItems => XmlImportPreviewItems.Count > 0;
+
+    public bool HasXmlImportPreviewErrors => XmlImportPreviewErrors.Count > 0;
+
+    public bool HasXmlImportPreviewHiddenItems => _xmlImportPreviewHiddenItemCount > 0;
+
+    public string XmlImportPreviewHiddenItemsText => HasXmlImportPreviewHiddenItems
+        ? $"{_xmlImportPreviewHiddenItemCount} weitere Position(en) sind aus Performance-Gründen ausgeblendet."
+        : string.Empty;
 
     public async Task RefreshAsync()
     {
@@ -568,7 +694,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             ApplyModel(settings);
             UpdateBackupStatus(settings.BackupDir);
             ValidationSummary = string.Empty;
-            StatusText = "Settings loaded.";
+            StatusText = string.Empty;
             await CheckForUpdatesCoreAsync(showToastWhenUpToDate: false);
         }
         finally
@@ -599,7 +725,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         ValidationSummary = string.Empty;
         UpdateBackupStatus(model.BackupDir);
         _dataSyncService?.PublishSettings(_instanceId);
-        StatusText = showToast ? "Settings saved." : "Settings auto-saved.";
+        StatusText = showToast ? "Settings saved." : string.Empty;
         if (showToast)
         {
             ToastNotificationService.ShowInfo("Einstellungen gespeichert.");
@@ -608,9 +734,14 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     private void OnSelfPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(XmlImportFilePath) || e.PropertyName == nameof(IsImportingOrders))
+        if (e.PropertyName == nameof(XmlImportFilePath))
         {
-            ImportOrdersCommand.RaiseCanExecuteChanged();
+            ClearXmlImportPreview(clearStatus: false);
+            RaiseXmlImportCommandStates();
+        }
+        else if (e.PropertyName == nameof(IsImportingOrders) || e.PropertyName == nameof(IsPreviewingXmlImport))
+        {
+            RaiseXmlImportCommandStates();
         }
 
         if (_suppressAutoSave || _autoSaveInProgress)
@@ -681,12 +812,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(PinInfoCardZoomBehaviorStrength) or
             nameof(MapRouteCapacityWarningThresholdPercent) or
             nameof(TomTomApiKey) or
-            nameof(TomTomMapStyle) or
-            nameof(TomTomShowTrafficFlow) or
             nameof(TomTomTrafficRefreshSeconds) or
             nameof(TomTomRouteRecalcDebounceMs) or
-            nameof(TomTomRoutingMode) or
-            nameof(TomTomVehicleHeightMeters) or
             nameof(TomTomEnableTileCache) or
             nameof(BackupsEnabled) or
             nameof(BackupDir) or
@@ -857,6 +984,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         StatusColorOnTheWay = AppSettings.DefaultStatusColorOnTheWay;
         StatusColorInStock = AppSettings.DefaultStatusColorInStock;
         StatusColorPlanned = AppSettings.DefaultStatusColorPlanned;
+        CalendarLoadWarningColor = AppSettings.DefaultCalendarLoadWarningColor;
+        CalendarLoadCriticalColor = AppSettings.DefaultCalendarLoadCriticalColor;
         StatusText = "Statusfarben auf Standard zurückgesetzt.";
     }
 
@@ -883,13 +1012,13 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             CompanyStreet = (CompanyStreet ?? string.Empty).Trim(),
             CompanyPostalCode = (CompanyPostalCode ?? string.Empty).Trim(),
             CompanyCity = (CompanyCity ?? string.Empty).Trim(),
-            StatusColorNotSpecified = (StatusColorNotSpecified ?? string.Empty).Trim(),
-            StatusColorOrdered = (StatusColorOrdered ?? string.Empty).Trim(),
-            StatusColorOnTheWay = (StatusColorOnTheWay ?? string.Empty).Trim(),
-            StatusColorInStock = (StatusColorInStock ?? string.Empty).Trim(),
-            StatusColorPlanned = (StatusColorPlanned ?? string.Empty).Trim(),
-            CalendarLoadWarningColor = (CalendarLoadWarningColor ?? string.Empty).Trim(),
-            CalendarLoadCriticalColor = (CalendarLoadCriticalColor ?? string.Empty).Trim(),
+            StatusColorNotSpecified = NormalizeHexColor(StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified),
+            StatusColorOrdered = NormalizeHexColor(StatusColorOrdered, AppSettings.DefaultStatusColorOrdered),
+            StatusColorOnTheWay = NormalizeHexColor(StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay),
+            StatusColorInStock = NormalizeHexColor(StatusColorInStock, AppSettings.DefaultStatusColorInStock),
+            StatusColorPlanned = NormalizeHexColor(StatusColorPlanned, AppSettings.DefaultStatusColorPlanned),
+            CalendarLoadWarningColor = NormalizeHexColor(CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor),
+            CalendarLoadCriticalColor = NormalizeHexColor(CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor),
             CalendarLoadWarningPeopleThreshold = CalendarLoadWarningPeopleThreshold,
             CalendarLoadCriticalPeopleThreshold = CalendarLoadCriticalPeopleThreshold,
             MapDetailsPanelExpanded = MapDetailsPanelExpanded,
@@ -904,12 +1033,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             PinInfoCardZoomBehaviorStrength = Math.Clamp(PinInfoCardZoomBehaviorStrength, 0.2d, 4.0d),
             MapRouteCapacityWarningThresholdPercent = Math.Clamp(MapRouteCapacityWarningThresholdPercent, 0, 100),
             TomTomApiKey = (TomTomApiKey ?? string.Empty).Trim(),
-            TomTomMapStyle = NormalizeTomTomMapStyle(TomTomMapStyle),
-            TomTomShowTrafficFlow = TomTomShowTrafficFlow,
             TomTomTrafficRefreshSeconds = Math.Max(15, TomTomTrafficRefreshSeconds),
             TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000),
-            TomTomRoutingMode = NormalizeTomTomRoutingMode(TomTomRoutingMode),
-            TomTomVehicleHeightMeters = Math.Clamp(TomTomVehicleHeightMeters, 0d, 20d),
             TomTomEnableTileCache = TomTomEnableTileCache,
             CurrentUserName = (_currentUserName ?? string.Empty).Trim(),
             MapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
@@ -941,13 +1066,13 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         CompanyStreet = settings.CompanyStreet ?? string.Empty;
         CompanyPostalCode = settings.CompanyPostalCode ?? string.Empty;
         CompanyCity = settings.CompanyCity ?? string.Empty;
-        StatusColorNotSpecified = string.IsNullOrWhiteSpace(settings.StatusColorNotSpecified) ? AppSettings.DefaultStatusColorNotSpecified : settings.StatusColorNotSpecified;
-        StatusColorOrdered = string.IsNullOrWhiteSpace(settings.StatusColorOrdered) ? AppSettings.DefaultStatusColorOrdered : settings.StatusColorOrdered;
-        StatusColorOnTheWay = string.IsNullOrWhiteSpace(settings.StatusColorOnTheWay) ? AppSettings.DefaultStatusColorOnTheWay : settings.StatusColorOnTheWay;
-        StatusColorInStock = string.IsNullOrWhiteSpace(settings.StatusColorInStock) ? AppSettings.DefaultStatusColorInStock : settings.StatusColorInStock;
-        StatusColorPlanned = string.IsNullOrWhiteSpace(settings.StatusColorPlanned) ? AppSettings.DefaultStatusColorPlanned : settings.StatusColorPlanned;
-        CalendarLoadWarningColor = string.IsNullOrWhiteSpace(settings.CalendarLoadWarningColor) ? AppSettings.DefaultCalendarLoadWarningColor : settings.CalendarLoadWarningColor;
-        CalendarLoadCriticalColor = string.IsNullOrWhiteSpace(settings.CalendarLoadCriticalColor) ? AppSettings.DefaultCalendarLoadCriticalColor : settings.CalendarLoadCriticalColor;
+        StatusColorNotSpecified = NormalizeHexColor(settings.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
+        StatusColorOrdered = NormalizeHexColor(settings.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
+        StatusColorOnTheWay = NormalizeHexColor(settings.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+        StatusColorInStock = NormalizeHexColor(settings.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
+        StatusColorPlanned = NormalizeHexColor(settings.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
+        CalendarLoadWarningColor = NormalizeHexColor(settings.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
+        CalendarLoadCriticalColor = NormalizeHexColor(settings.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
         CalendarLoadWarningPeopleThreshold = settings.CalendarLoadWarningPeopleThreshold < 1 ? 1 : settings.CalendarLoadWarningPeopleThreshold;
         CalendarLoadCriticalPeopleThreshold = settings.CalendarLoadCriticalPeopleThreshold < 1 ? 2 : settings.CalendarLoadCriticalPeopleThreshold;
         MapDetailsPanelExpanded = settings.MapDetailsPanelExpanded;
@@ -966,12 +1091,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
             : settings.MapRouteCapacityWarningThresholdPercent;
         TomTomApiKey = settings.TomTomApiKey ?? string.Empty;
-        TomTomMapStyle = NormalizeTomTomMapStyle(settings.TomTomMapStyle);
-        TomTomShowTrafficFlow = settings.TomTomShowTrafficFlow;
         TomTomTrafficRefreshSeconds = settings.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : settings.TomTomTrafficRefreshSeconds;
         TomTomRouteRecalcDebounceMs = settings.TomTomRouteRecalcDebounceMs is < 100 or > 10000 ? AppSettings.DefaultTomTomRouteRecalcDebounceMs : settings.TomTomRouteRecalcDebounceMs;
-        TomTomRoutingMode = NormalizeTomTomRoutingMode(settings.TomTomRoutingMode);
-        TomTomVehicleHeightMeters = settings.TomTomVehicleHeightMeters is < 0d or > 20d ? AppSettings.DefaultTomTomVehicleHeightMeters : settings.TomTomVehicleHeightMeters;
         TomTomEnableTileCache = settings.TomTomEnableTileCache;
         _currentUserName = (settings.CurrentUserName ?? string.Empty).Trim();
         _mapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
@@ -1013,33 +1134,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
         return AppSettings.DefaultTourStartTime;
     }
-
-    private static string NormalizeTomTomMapStyle(string? value)
-    {
-        var normalized = (value ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return AppSettings.DefaultTomTomMapStyle;
-        }
-
-        return SupportedTomTomMapStyles.Contains(normalized)
-            ? normalized.ToLowerInvariant()
-            : AppSettings.DefaultTomTomMapStyle;
-    }
-
-    private static string NormalizeTomTomRoutingMode(string? value)
-    {
-        var normalized = (value ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return AppSettings.DefaultTomTomRoutingMode;
-        }
-
-        return SupportedTomTomRoutingModes.Contains(normalized)
-            ? normalized
-            : AppSettings.DefaultTomTomRoutingMode;
-    }
-
     private static string TryFormatPublishedAt(string? publishedAtUtc)
     {
         if (string.IsNullOrWhiteSpace(publishedAtUtc))
@@ -1061,12 +1155,22 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
                 .ToList();
 
             AvailableBackupsCount = files.Count;
-            LatestBackupFile = files.FirstOrDefault() is { } latest ? Path.GetFileName(latest) : "n/a";
+            if (files.FirstOrDefault() is { } latest)
+            {
+                LatestBackupFile = Path.GetFileName(latest);
+                LatestBackupModifiedText = File.GetLastWriteTime(latest).ToString("dd.MM.yyyy HH:mm");
+            }
+            else
+            {
+                LatestBackupFile = "n/a";
+                LatestBackupModifiedText = "n/a";
+            }
             return;
         }
 
         AvailableBackupsCount = 0;
         LatestBackupFile = "n/a";
+        LatestBackupModifiedText = "n/a";
     }
 
     private void BrowseXmlImportFile()
@@ -1147,22 +1251,109 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         ImportStatusMessage = $"Musterdatei gespeichert: {dialog.FileName}";
     }
 
+    private async Task PreviewXmlImportAsync()
+    {
+        if (_orderRepository == null)
+        {
+            ImportStatusMessage = "Fehler: Auftragsrepository ist nicht initialisiert.";
+            return;
+        }
+
+        IsPreviewingXmlImport = true;
+        ImportStatusMessage = "XML-Datei wird geprüft...";
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(XmlImportFilePath) || !File.Exists(XmlImportFilePath))
+            {
+                throw new FileNotFoundException("Bitte zuerst eine gültige XML-Datei auswählen.");
+            }
+
+            var fileInfo = new FileInfo(XmlImportFilePath);
+            var xmlService = new XmlOrderImportService();
+            var loadResult = xmlService.LoadOrdersFromFileDetailed(XmlImportFilePath);
+            var importService = new SqlOrderImportService();
+            var preview = await importService.PreviewImportAsync(loadResult.Orders, _orderRepository);
+
+            var previewErrors = loadResult.Errors
+                .Concat(preview.Errors)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            ApplyXmlImportPreview(loadResult.Orders, preview, previewErrors, fileInfo);
+
+            var invalidCount = previewErrors.Count;
+            ImportStatusMessage = BuildXmlImportPreviewStatusMessage(preview, invalidCount);
+            StatusText = preview.ValidOrders > 0
+                ? "XML Import Vorschau erstellt."
+                : "XML Import Vorschau: keine gültigen Aufträge gefunden.";
+        }
+        catch (Exception ex)
+        {
+            ClearXmlImportPreview(clearStatus: false);
+            ImportStatusMessage = $"Importvorschau fehlgeschlagen: {ex.Message}";
+            StatusText = $"XML Import Vorschau fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            IsPreviewingXmlImport = false;
+            RaiseXmlImportCommandStates();
+        }
+    }
+
     private async Task ImportOrdersAsync()
     {
         if (_orderRepository == null || _settingsRepository == null)
         {
-            ImportStatusMessage = "✗ Fehler: Repositories nicht initialisiert.";
+            ImportStatusMessage = "Fehler: Repositories sind nicht initialisiert.";
+            return;
+        }
+
+        if (!CanImportOrders())
+        {
+            ImportStatusMessage = "Bitte zuerst die XML-Datei prüfen. Wenn die Datei geändert wurde, erneut prüfen.";
             return;
         }
 
         IsImportingOrders = true;
-        ImportStatusMessage = "⏳ Importiere Aufträge aus XML...";
+        ImportStatusMessage = "Importiere geprüfte Aufträge aus XML...";
 
         try
         {
-                if (string.IsNullOrWhiteSpace(XmlImportFilePath) || !File.Exists(XmlImportFilePath))
+            if (!IsCurrentPreviewFile())
             {
-                throw new FileNotFoundException("Bitte zuerst eine gültige XML-Datei auswählen.");
+                throw new InvalidOperationException("Die XML-Datei wurde nach der Vorschau geändert. Bitte erneut prüfen.");
+            }
+
+            if (_previewedXmlOrders.Count == 0)
+            {
+                throw new InvalidOperationException("Es liegt keine gültige Importvorschau vor.");
+            }
+
+            var importService = new SqlOrderImportService();
+            var result = await importService.ImportOrdersAsync(
+                _previewedXmlOrders.ToList(),
+                _orderRepository,
+                _settingsRepository);
+
+            var parserErrorCount = XmlImportPreviewErrors.Count;
+            if (result.Errors.Any())
+            {
+                foreach (var error in result.Errors)
+                {
+                    if (!XmlImportPreviewErrors.Any(existing => string.Equals(existing, error, StringComparison.Ordinal)))
+                    {
+                        XmlImportPreviewErrors.Add(error);
+                    }
+                }
+
+                RaiseXmlImportPreviewStateChanged();
+            }
+
+            if (result.CreatedOrders > 0 || result.UpdatedOrders > 0)
+            {
+                _dataSyncService?.PublishOrders(_instanceId);
+                StartBackgroundPinGeocoding();
             }
 
             var appSettings = await _settingsRepository.GetAsync();
@@ -1170,47 +1361,210 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             appSettings.LastXmlImportDate = DateTime.Now;
             await _settingsRepository.SaveAsync(appSettings);
 
-            var xmlService = new XmlOrderImportService();
-            var sqlOrders = xmlService.LoadOrdersFromFile(XmlImportFilePath);
+            _hasPendingXmlImportPreview = false;
+            RaiseXmlImportPreviewStateChanged();
 
-            if (sqlOrders.Count == 0)
-            {
-                ImportStatusMessage = "ℹ Keine importierbaren Aufträge gefunden.";
-                StatusText = "XML Import: Keine Daten gefunden.";
-                return;
-            }
-
-            var importService = new SqlOrderImportService();
-            var result = await importService.ImportOrdersAsync(
-                sqlOrders,
-                _orderRepository,
-                _settingsRepository);
-            _dataSyncService?.PublishOrders(_instanceId);
-            StartBackgroundPinGeocoding();
-
-            var message = $"✓ Import abgeschlossen:\n" +
-                          $"  • Neue Aufträge: {result.CreatedOrders}\n" +
-                          $"  • Aktualisiert: {result.UpdatedOrders}\n" +
-                          $"  • Pin-Erstellung: läuft im Hintergrund";
-
-            if (result.Errors.Any())
-            {
-                message += $"\n\n⚠ Fehler bei {result.Errors.Count} Aufträgen";
-            }
-
-            ImportStatusMessage = message;
-            StatusText = $"XML Import erfolgreich: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert.";
+            var totalErrorCount = parserErrorCount + result.Errors.Count;
+            ImportStatusMessage = BuildXmlImportCompletionMessage(result, totalErrorCount);
+            StatusText = $"XML Import abgeschlossen: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert, {result.UnchangedOrders} unverändert.";
         }
         catch (Exception ex)
         {
-            ImportStatusMessage = $"✗ Importfehler: {ex.Message}";
+            ImportStatusMessage = $"Importfehler: {ex.Message}";
             StatusText = $"XML Import fehlgeschlagen: {ex.Message}";
         }
         finally
         {
             IsImportingOrders = false;
-            ImportOrdersCommand.RaiseCanExecuteChanged();
+            RaiseXmlImportCommandStates();
         }
+    }
+
+    private bool CanImportOrders()
+    {
+        return !IsXmlImportBusy &&
+               _hasPendingXmlImportPreview &&
+               _previewedXmlOrders.Count > 0 &&
+               IsCurrentPreviewFile();
+    }
+
+    private void ApplyXmlImportPreview(
+        IReadOnlyList<SqlOrderImportData> previewOrders,
+        ImportPreviewResult preview,
+        IReadOnlyList<string> previewErrors,
+        FileInfo fileInfo)
+    {
+        _previewedXmlOrders.Clear();
+        _previewedXmlOrders.AddRange(previewOrders ?? []);
+        _xmlImportPreviewLastWriteUtc = fileInfo.LastWriteTimeUtc;
+        _xmlImportPreviewFileLength = fileInfo.Length;
+        _hasPendingXmlImportPreview = _previewedXmlOrders.Count > 0;
+        _xmlImportPreviewHiddenItemCount = Math.Max(0, preview.Items.Count - MaxXmlImportPreviewItems);
+        XmlImportPreviewSummary = BuildXmlImportPreviewSummary(preview, previewErrors.Count);
+
+        XmlImportPreviewItems.Clear();
+        foreach (var item in preview.Items.Take(MaxXmlImportPreviewItems))
+        {
+            XmlImportPreviewItems.Add(XmlImportPreviewListItemViewModel.FromPreviewItem(item));
+        }
+
+        XmlImportPreviewErrors.Clear();
+        foreach (var error in previewErrors)
+        {
+            XmlImportPreviewErrors.Add(error);
+        }
+
+        RaiseXmlImportPreviewStateChanged();
+    }
+
+    private void ClearXmlImportPreview(bool clearStatus)
+    {
+        _previewedXmlOrders.Clear();
+        _xmlImportPreviewLastWriteUtc = DateTime.MinValue;
+        _xmlImportPreviewFileLength = 0;
+        _xmlImportPreviewHiddenItemCount = 0;
+        _hasPendingXmlImportPreview = false;
+        XmlImportPreviewSummary = string.Empty;
+        XmlImportPreviewItems.Clear();
+        XmlImportPreviewErrors.Clear();
+
+        if (clearStatus)
+        {
+            ImportStatusMessage = string.Empty;
+        }
+
+        RaiseXmlImportPreviewStateChanged();
+    }
+
+    private void RaiseXmlImportPreviewStateChanged()
+    {
+        OnPropertyChanged(nameof(HasXmlImportPreview));
+        OnPropertyChanged(nameof(HasXmlImportPreviewItems));
+        OnPropertyChanged(nameof(HasXmlImportPreviewErrors));
+        OnPropertyChanged(nameof(HasXmlImportPreviewHiddenItems));
+        OnPropertyChanged(nameof(XmlImportPreviewHiddenItemsText));
+        RaiseXmlImportCommandStates();
+    }
+
+    private void RaiseXmlImportCommandStates()
+    {
+        PreviewXmlImportCommand.RaiseCanExecuteChanged();
+        ImportOrdersCommand.RaiseCanExecuteChanged();
+    }
+
+    private bool IsCurrentPreviewFile()
+    {
+        if (string.IsNullOrWhiteSpace(XmlImportFilePath) || !File.Exists(XmlImportFilePath))
+        {
+            return false;
+        }
+
+        if (_xmlImportPreviewLastWriteUtc == DateTime.MinValue)
+        {
+            return false;
+        }
+
+        var fileInfo = new FileInfo(XmlImportFilePath);
+        return fileInfo.Length == _xmlImportPreviewFileLength &&
+               fileInfo.LastWriteTimeUtc == _xmlImportPreviewLastWriteUtc;
+    }
+
+    private static string BuildXmlImportPreviewSummary(ImportPreviewResult preview, int invalidCount)
+    {
+        return $"{preview.ValidOrders} gültige Aufträge geprüft | " +
+               $"{preview.CreatedOrders} neu | " +
+               $"{preview.UpdatedOrders} mit Änderungen | " +
+               $"{preview.UnchangedOrders} unverändert | " +
+               $"{invalidCount} fehlerhaft";
+    }
+
+    private static string BuildXmlImportPreviewStatusMessage(ImportPreviewResult preview, int invalidCount)
+    {
+        if (preview.ValidOrders == 0)
+        {
+            return invalidCount > 0
+                ? $"Keine gültigen Aufträge gefunden. {invalidCount} Eintrag/Einträge enthalten Fehler."
+                : "Keine importierbaren Aufträge gefunden.";
+        }
+
+        var message = $"Vorschau erstellt: {preview.CreatedOrders} neue, {preview.UpdatedOrders} geänderte und {preview.UnchangedOrders} unveränderte Aufträge.";
+        if (invalidCount > 0)
+        {
+            message += $" {invalidCount} Eintrag/Einträge werden wegen Fehlern übersprungen.";
+        }
+
+        return message;
+    }
+
+    private static string BuildXmlImportCompletionMessage(ImportResult result, int errorCount)
+    {
+        var message = $"Import abgeschlossen: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert, {result.UnchangedOrders} unverändert.";
+        if (result.CreatedOrders > 0 || result.UpdatedOrders > 0)
+        {
+            message += " Pins ohne Koordinaten werden im Hintergrund weiter geprüft.";
+        }
+
+        if (errorCount > 0)
+        {
+            message += $" {errorCount} Eintrag/Eintraege wurden wegen Fehlern nicht importiert.";
+        }
+
+        return message;
+    }
+
+    private DelegateCommand CreateColorPickerCommand(
+        string title,
+        string description,
+        Func<string> getCurrentValue,
+        string fallbackColor,
+        Action<string> applyColor)
+    {
+        return new DelegateCommand(() =>
+            OpenColorPicker(title, description, getCurrentValue(), fallbackColor, applyColor));
+    }
+
+    private void OpenColorPicker(
+        string title,
+        string description,
+        string currentColor,
+        string fallbackColor,
+        Action<string> applyColor)
+    {
+        var dialog = new ColorPickerDialogWindow(
+            title,
+            description,
+            currentColor,
+            fallbackColor)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            applyColor(dialog.SelectedColorHex);
+        }
+    }
+
+    private bool SetColorProperty(
+        ref string field,
+        string? value,
+        string fallback,
+        [CallerMemberName] string? propertyName = null)
+    {
+        return SetProperty(ref field, NormalizeHexColor(value, fallback), propertyName);
+    }
+
+    private static string NormalizeHexColor(string? value, string fallback)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (normalized.Length == 7 &&
+            normalized.StartsWith('#') &&
+            normalized.Skip(1).All(Uri.IsHexDigit))
+        {
+            return normalized.ToUpperInvariant();
+        }
+
+        return fallback;
     }
 
     private async Task<int> GeocodeMapOrdersAfterSqlImportAsync()

@@ -7,6 +7,7 @@ namespace Tourenplaner.CSharp.Infrastructure.Services;
 public interface IXmlOrderImportService
 {
     List<SqlOrderImportData> LoadOrdersFromFile(string xmlFilePath);
+    XmlOrderImportLoadResult LoadOrdersFromFileDetailed(string xmlFilePath);
     string CreateTemplateXml();
 }
 
@@ -14,75 +15,102 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
 {
     public List<SqlOrderImportData> LoadOrdersFromFile(string xmlFilePath)
     {
+        var result = LoadOrdersFromFileDetailed(xmlFilePath);
+        if (result.Errors.Count > 0)
+        {
+            throw new InvalidDataException(string.Join(Environment.NewLine, result.Errors));
+        }
+
+        return result.Orders;
+    }
+
+    public XmlOrderImportLoadResult LoadOrdersFromFileDetailed(string xmlFilePath)
+    {
         if (string.IsNullOrWhiteSpace(xmlFilePath) || !File.Exists(xmlFilePath))
         {
             throw new FileNotFoundException("XML-Datei wurde nicht gefunden.", xmlFilePath);
         }
 
         var document = XDocument.Load(xmlFilePath);
-        var orders = new List<SqlOrderImportData>();
+        var result = new XmlOrderImportLoadResult();
 
-        var orderElements = document.Root?.Elements("Order") ?? Enumerable.Empty<XElement>();
-        foreach (var orderElement in orderElements)
+        var orderElements = (document.Root?.Elements("Order") ?? Enumerable.Empty<XElement>()).ToList();
+        result.TotalOrderElements = orderElements.Count;
+        if (orderElements.Count == 0)
         {
-            var order = new SqlOrderImportData
-            {
-                AuftragNr = ReadString(orderElement, "AuftragNr"),
-                Typ = ReadString(orderElement, "Typ"),
-                AuftragsDatum = ReadDate(orderElement, "AuftragsDatum", DateTime.Today),
-                Archiviert = ReadBool(orderElement, "Archiviert"),
-                Gesperrt = ReadBool(orderElement, "Gesperrt"),
-                KundeFirma = ReadString(orderElement, "KundeFirma"),
-                KundeNachname = ReadString(orderElement, "KundeNachname"),
-                KundeVorname = ReadString(orderElement, "KundeVorname"),
-                KundeStrasse = ReadString(orderElement, "KundeStrasse"),
-                KundeHausnummer = ReadString(orderElement, "KundeHausnummer"),
-                KundePLZ = ReadString(orderElement, "KundePLZ"),
-                KundeOrt = ReadString(orderElement, "KundeOrt"),
-                KundeLand = ReadString(orderElement, "KundeLand"),
-                KundeEmail = ReadString(orderElement, "KundeEmail"),
-                KundeTelefon = ReadString(orderElement, "KundeTelefon"),
-                KundeKontaktperson = ReadString(orderElement, "KundeKontaktperson"),
-                LieferFirma = ReadString(orderElement, "LieferFirma"),
-                LieferNachname = ReadString(orderElement, "LieferNachname"),
-                LieferVorname = ReadString(orderElement, "LieferVorname"),
-                LieferStrasse = ReadString(orderElement, "LieferStrasse"),
-                LieferHausnummer = ReadString(orderElement, "LieferHausnummer"),
-                LieferPLZ = ReadString(orderElement, "LieferPLZ"),
-                LieferOrt = ReadString(orderElement, "LieferOrt"),
-                LieferLand = ReadString(orderElement, "LieferLand"),
-                LieferEmail = ReadString(orderElement, "LieferEmail"),
-                LieferTelefon = ReadString(orderElement, "LieferTelefon"),
-                LieferKontaktperson = ReadString(orderElement, "LieferKontaktperson"),
-                Lieferbedingung = ReadString(orderElement, "Lieferbedingung", "Selbstabholung"),
-                NettoTotal = ReadDecimal(orderElement, "NettoTotal"),
-                BruttoTotal = ReadDecimal(orderElement, "BruttoTotal"),
-                Lieferdatum = ReadNullableDate(orderElement, "Lieferdatum"),
-                Notiz = ReadString(orderElement, "Notiz")
-            };
-
-            var productElements = orderElement.Element("Produkte")?.Elements("Produkt") ?? Enumerable.Empty<XElement>();
-            foreach (var productElement in productElements)
-            {
-                order.Produkte.Add(new SqlOrderProductData
-                {
-                    PosNummer = ReadInt(productElement, "PosNummer"),
-                    Bezeichnung = ReadString(productElement, "Bezeichnung"),
-                    Menge = ReadDecimal(productElement, "Menge"),
-                    Gewicht = ReadDecimal(productElement, "Gewicht"),
-                    Bruttogewicht = 0m
-                });
-            }
-
-            if (string.IsNullOrWhiteSpace(order.AuftragNr))
-            {
-                throw new InvalidDataException("Mindestens ein Auftrag hat keine AuftragNr.");
-            }
-
-            orders.Add(order);
+            result.Errors.Add("Keine <Order>-Elemente in der XML-Datei gefunden.");
+            return result;
         }
 
-        return orders;
+        for (var index = 0; index < orderElements.Count; index++)
+        {
+            var orderElement = orderElements[index];
+            try
+            {
+                var order = new SqlOrderImportData
+                {
+                    AuftragNr = ReadString(orderElement, "AuftragNr"),
+                    Typ = ReadString(orderElement, "Typ"),
+                    AuftragsDatum = ReadDate(orderElement, "AuftragsDatum", DateTime.Today),
+                    Archiviert = ReadBool(orderElement, "Archiviert"),
+                    Gesperrt = ReadBool(orderElement, "Gesperrt"),
+                    KundeFirma = ReadString(orderElement, "KundeFirma"),
+                    KundeNachname = ReadString(orderElement, "KundeNachname"),
+                    KundeVorname = ReadString(orderElement, "KundeVorname"),
+                    KundeStrasse = ReadString(orderElement, "KundeStrasse"),
+                    KundeHausnummer = ReadString(orderElement, "KundeHausnummer"),
+                    KundePLZ = ReadString(orderElement, "KundePLZ"),
+                    KundeOrt = ReadString(orderElement, "KundeOrt"),
+                    KundeLand = ReadString(orderElement, "KundeLand"),
+                    KundeEmail = ReadString(orderElement, "KundeEmail"),
+                    KundeTelefon = ReadString(orderElement, "KundeTelefon"),
+                    KundeKontaktperson = ReadString(orderElement, "KundeKontaktperson"),
+                    LieferFirma = ReadString(orderElement, "LieferFirma"),
+                    LieferNachname = ReadString(orderElement, "LieferNachname"),
+                    LieferVorname = ReadString(orderElement, "LieferVorname"),
+                    LieferStrasse = ReadString(orderElement, "LieferStrasse"),
+                    LieferHausnummer = ReadString(orderElement, "LieferHausnummer"),
+                    LieferPLZ = ReadString(orderElement, "LieferPLZ"),
+                    LieferOrt = ReadString(orderElement, "LieferOrt"),
+                    LieferLand = ReadString(orderElement, "LieferLand"),
+                    LieferEmail = ReadString(orderElement, "LieferEmail"),
+                    LieferTelefon = ReadString(orderElement, "LieferTelefon"),
+                    LieferKontaktperson = ReadString(orderElement, "LieferKontaktperson"),
+                    Lieferbedingung = ReadString(orderElement, "Lieferbedingung", "Selbstabholung"),
+                    NettoTotal = ReadDecimal(orderElement, "NettoTotal"),
+                    BruttoTotal = ReadDecimal(orderElement, "BruttoTotal"),
+                    Lieferdatum = ReadNullableDate(orderElement, "Lieferdatum"),
+                    Notiz = ReadString(orderElement, "Notiz")
+                };
+
+                var productElements = orderElement.Element("Produkte")?.Elements("Produkt") ?? Enumerable.Empty<XElement>();
+                foreach (var productElement in productElements)
+                {
+                    order.Produkte.Add(new SqlOrderProductData
+                    {
+                        PosNummer = ReadInt(productElement, "PosNummer"),
+                        Bezeichnung = ReadString(productElement, "Bezeichnung"),
+                        Menge = ReadDecimal(productElement, "Menge"),
+                        Gewicht = ReadDecimal(productElement, "Gewicht"),
+                        Bruttogewicht = 0m
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(order.AuftragNr))
+                {
+                    result.Errors.Add($"Auftrag #{index + 1}: AuftragNr fehlt.");
+                    continue;
+                }
+
+                result.Orders.Add(order);
+            }
+            catch (Exception ex)
+            {
+                result.Errors.Add($"Auftrag #{index + 1}: {ex.Message}");
+            }
+        }
+
+        return result;
     }
 
     public string CreateTemplateXml()

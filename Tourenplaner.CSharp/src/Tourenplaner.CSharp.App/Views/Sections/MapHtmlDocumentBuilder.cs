@@ -4,7 +4,6 @@ internal static class MapHtmlDocumentBuilder
 {
     public static string Build(
         string? tomTomApiKey,
-        string? tomTomStyle,
         bool tomTomShowTrafficFlow,
         bool tomTomEnableTileCache,
         string? mapOverlayStyle,
@@ -146,7 +145,6 @@ internal static class MapHtmlDocumentBuilder
                  </aside>
                  <script>
                    const apiKey = '__TT_KEY__';
-                   const initialTomTomStyle = '__TT_STYLE__';
                    const initialOverlayStyle = '__TT_OVERLAY_STYLE__';
                    const showTraffic = __TT_TRAFFIC__;
                    const showTrafficIncidents = __TT_TRAFFIC_INCIDENTS__;
@@ -264,7 +262,7 @@ internal static class MapHtmlDocumentBuilder
                          const mapState = {
                            style: ['standard', 'light', 'dark', 'satellite'].includes((initialOverlayStyle || '').toLowerCase())
                              ? (initialOverlayStyle || '').toLowerCase()
-                             : ((initialTomTomStyle || '').toLowerCase() === 'night' ? 'dark' : 'standard'),
+                             : 'standard',
                            trafficFlow: !!showTraffic,
                            trafficIncidents: !!showTrafficIncidents,
                            showRoadLabels: !!showRoadLabels,
@@ -1708,7 +1706,6 @@ internal static class MapHtmlDocumentBuilder
 
         return template
             .Replace("__TT_KEY__", EscapeJsString((tomTomApiKey ?? string.Empty).Trim()))
-            .Replace("__TT_STYLE__", EscapeJsString(string.IsNullOrWhiteSpace(tomTomStyle) ? "main" : tomTomStyle.Trim()))
             .Replace("__TT_TRAFFIC__", tomTomShowTrafficFlow ? "true" : "false")
             .Replace("__TT_OVERLAY_STYLE__", EscapeJsString(string.IsNullOrWhiteSpace(mapOverlayStyle) ? "standard" : mapOverlayStyle.Trim()))
             .Replace("__TT_TRAFFIC_INCIDENTS__", mapOverlayShowTrafficIncidents ? "true" : "false")

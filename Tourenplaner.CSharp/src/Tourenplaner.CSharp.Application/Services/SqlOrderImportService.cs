@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Application.Abstractions;
+using Tourenplaner.CSharp.Application.Common;
+using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Application.Services;
 
@@ -11,6 +8,7 @@ public class ImportResult
 {
     public int CreatedOrders { get; set; }
     public int UpdatedOrders { get; set; }
+    public int UnchangedOrders { get; set; }
     public List<string> Errors { get; set; } = new();
     public DateTime ImportedAt { get; set; }
 }
@@ -21,10 +19,58 @@ public interface ISqlOrderImportService
         List<SqlOrderImportData> sqlOrders,
         IOrderRepository orderRepository,
         ISettingsRepository settingsRepository);
+
+    Task<ImportPreviewResult> PreviewImportAsync(
+        List<SqlOrderImportData> sqlOrders,
+        IOrderRepository orderRepository);
 }
 
 public class SqlOrderImportService : ISqlOrderImportService
 {
+    public async Task<ImportPreviewResult> PreviewImportAsync(
+        List<SqlOrderImportData> sqlOrders,
+        IOrderRepository orderRepository)
+    {
+        var preview = new ImportPreviewResult
+        {
+            InputOrderCount = sqlOrders?.Count ?? 0
+        };
+
+        var existingOrders = (await orderRepository.GetAllAsync()).ToList();
+        var existingById = existingOrders
+            .Where(x => !string.IsNullOrWhiteSpace(x.Id))
+            .GroupBy(x => x.Id.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sqlOrder in sqlOrders ?? [])
+        {
+            try
+            {
+                var previewItem = BuildPreviewItem(sqlOrder, existingById);
+                preview.Items.Add(previewItem);
+
+                switch (previewItem.Action)
+                {
+                    case ImportPreviewAction.Create:
+                        preview.CreatedOrders++;
+                        break;
+                    case ImportPreviewAction.Update:
+                        preview.UpdatedOrders++;
+                        break;
+                    default:
+                        preview.UnchangedOrders++;
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                preview.Errors.Add(BuildOrderErrorMessage(sqlOrder.AuftragNr, ex));
+            }
+        }
+
+        return preview;
+    }
+
     public async Task<ImportResult> ImportOrdersAsync(
         List<SqlOrderImportData> sqlOrders,
         IOrderRepository orderRepository,
@@ -34,40 +80,40 @@ public class SqlOrderImportService : ISqlOrderImportService
         var existingOrders = (await orderRepository.GetAllAsync()).ToList();
         var settings = await settingsRepository.GetAsync();
 
-        foreach (var sqlOrder in sqlOrders)
+        foreach (var sqlOrder in sqlOrders ?? [])
         {
             try
             {
-                // Liefermethode bestimmen
                 var deliveryMethod = DeliveryMethodExtensions.ParseDeliveryMethod(sqlOrder.Lieferbedingung);
                 var isMapOrder = deliveryMethod.IsMapOrder();
-                
-                // Bestehenden Auftrag suchen
-                var existingOrder = existingOrders
-                    .FirstOrDefault(o => o.Id == sqlOrder.AuftragNr);
 
-                if (existingOrder != null)
+                var existingOrder = existingOrders
+                    .FirstOrDefault(o => string.Equals(o.Id, sqlOrder.AuftragNr, StringComparison.OrdinalIgnoreCase));
+
+                if (existingOrder is null)
                 {
-                    // Auftrag aktualisieren
-                    UpdateOrder(existingOrder, sqlOrder, isMapOrder);
-                    result.UpdatedOrders++;
-                }
-                else
-                {
-                    // Neuen Auftrag erstellen
-                    var newOrder = CreateOrder(sqlOrder, isMapOrder);
-                    existingOrders.Add(newOrder);
+                    existingOrders.Add(CreateImportedOrder(sqlOrder, isMapOrder));
                     result.CreatedOrders++;
+                    continue;
                 }
+
+                var importedOrder = CreateImportedOrder(sqlOrder, isMapOrder, existingOrder);
+                var changes = DescribeDifferences(existingOrder, importedOrder);
+                if (changes.Count == 0)
+                {
+                    result.UnchangedOrders++;
+                    continue;
+                }
+
+                ApplyImportedData(existingOrder, importedOrder);
+                result.UpdatedOrders++;
             }
             catch (Exception ex)
             {
-                result.Errors.Add(
-                    $"Fehler bei Auftrag {sqlOrder.AuftragNr}: {ex.Message}");
+                result.Errors.Add(BuildOrderErrorMessage(sqlOrder.AuftragNr, ex));
             }
         }
 
-        // Alle Aufträge speichern
         if (result.CreatedOrders > 0 || result.UpdatedOrders > 0)
         {
             await orderRepository.SaveAllAsync(existingOrders);
@@ -78,89 +124,52 @@ public class SqlOrderImportService : ISqlOrderImportService
         return result;
     }
 
-    private Order CreateOrder(
+    private ImportPreviewItem BuildPreviewItem(
         SqlOrderImportData sqlOrder,
-        bool isMapOrder)
+        IReadOnlyDictionary<string, Order> existingById)
+    {
+        var deliveryMethod = DeliveryMethodExtensions.ParseDeliveryMethod(sqlOrder.Lieferbedingung);
+        var isMapOrder = deliveryMethod.IsMapOrder();
+        var normalizedOrderId = (sqlOrder.AuftragNr ?? string.Empty).Trim();
+
+        if (!existingById.TryGetValue(normalizedOrderId, out var existingOrder))
+        {
+            var newOrder = CreateImportedOrder(sqlOrder, isMapOrder);
+            return new ImportPreviewItem
+            {
+                OrderId = newOrder.Id,
+                CustomerName = newOrder.CustomerName,
+                Action = ImportPreviewAction.Create,
+                DeliveryType = newOrder.DeliveryType,
+                OrderTypeLabel = FormatOrderType(newOrder.Type),
+                Changes = new List<string>
+                {
+                    "Neuer Auftrag wird angelegt."
+                }
+            };
+        }
+
+        var importedOrder = CreateImportedOrder(sqlOrder, isMapOrder, existingOrder);
+        var changes = DescribeDifferences(existingOrder, importedOrder);
+        return new ImportPreviewItem
+        {
+            OrderId = existingOrder.Id,
+            CustomerName = string.IsNullOrWhiteSpace(importedOrder.CustomerName) ? existingOrder.CustomerName : importedOrder.CustomerName,
+            Action = changes.Count == 0 ? ImportPreviewAction.Unchanged : ImportPreviewAction.Update,
+            DeliveryType = importedOrder.DeliveryType,
+            OrderTypeLabel = FormatOrderType(importedOrder.Type),
+            Changes = changes
+        };
+    }
+
+    private Order CreateImportedOrder(
+        SqlOrderImportData sqlOrder,
+        bool isMapOrder,
+        Order? existingOrder = null)
     {
         var deliveryAddress = ResolveDeliveryAddress(sqlOrder);
         var resolvedEmail = ResolvePreferredContact(sqlOrder.LieferEmail, sqlOrder.KundeEmail);
         var resolvedPhone = ResolvePreferredContact(sqlOrder.LieferTelefon, sqlOrder.KundeTelefon);
-
-        var auftragsAdresse = BuildAddress(
-            sqlOrder.KundeStrasse, 
-            sqlOrder.KundeHausnummer,
-            sqlOrder.KundePLZ, 
-            sqlOrder.KundeOrt, 
-            sqlOrder.KundeLand);
-        var orderContactPerson = ResolvePreferredContact(
-            sqlOrder.KundeKontaktperson,
-            $"{sqlOrder.KundeVorname} {sqlOrder.KundeNachname}");
-
-        var order = new Order
-        {
-            Id = sqlOrder.AuftragNr,
-            CustomerName = BuildCustomerName(sqlOrder),
-            ScheduledDate = DateOnly.FromDateTime(sqlOrder.AuftragsDatum),
-            Type = isMapOrder ? OrderType.Map : OrderType.NonMap,
-            
-            // Auftragsadresse
-            OrderAddress = new OrderAddressInfo
-            {
-                Name = sqlOrder.KundeFirma,
-                ContactPerson = orderContactPerson,
-                Street = auftragsAdresse,
-                PostalCode = sqlOrder.KundePLZ,
-                City = sqlOrder.KundeOrt
-            },
-            
-            // Lieferadresse
-            DeliveryAddress = new DeliveryAddressInfo
-            {
-                Name = deliveryAddress.Name,
-                ContactPerson = deliveryAddress.ContactPerson,
-                Street = deliveryAddress.Street,
-                PostalCode = deliveryAddress.PostalCode,
-                City = deliveryAddress.City
-            },
-            Email = resolvedEmail,
-            Phone = resolvedPhone,
-            
-            // Produkte
-            Products = sqlOrder.Produkte.Select((p, idx) => new OrderProductInfo
-            {
-                Name = p.Bezeichnung,
-                Supplier = string.Empty,
-                Quantity = (int)p.Menge,
-                UnitWeightKg = (double)p.Gewicht,
-                WeightKg = (double)(p.Gewicht * p.Menge),
-                Dimensions = string.Empty,
-                DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus
-            }).ToList(),
-            
-            DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
-            OrderStatus = Order.DefaultOrderStatus,
-            Notes = sqlOrder.Notiz,
-            IsArchived = sqlOrder.Archiviert
-        };
-
-        order.OrderStatus = Order.ResolveOrderStatusFromProducts(order.Products);
-
-        return order;
-    }
-
-    private void UpdateOrder(
-        Order existingOrder,
-        SqlOrderImportData sqlOrder,
-        bool isMapOrder)
-    {
-        existingOrder.Type = isMapOrder ? OrderType.Map : OrderType.NonMap;
-        existingOrder.DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung);
-        existingOrder.Notes = sqlOrder.Notiz;
-        existingOrder.IsArchived = sqlOrder.Archiviert;
-        existingOrder.ScheduledDate = DateOnly.FromDateTime(sqlOrder.AuftragsDatum);
-        existingOrder.CustomerName = BuildCustomerName(sqlOrder);
-        existingOrder.Email = ResolvePreferredContact(sqlOrder.LieferEmail, sqlOrder.KundeEmail);
-        existingOrder.Phone = ResolvePreferredContact(sqlOrder.LieferTelefon, sqlOrder.KundeTelefon);
 
         var auftragsAdresse = BuildAddress(
             sqlOrder.KundeStrasse,
@@ -171,42 +180,144 @@ public class SqlOrderImportService : ISqlOrderImportService
         var orderContactPerson = ResolvePreferredContact(
             sqlOrder.KundeKontaktperson,
             $"{sqlOrder.KundeVorname} {sqlOrder.KundeNachname}");
-        existingOrder.OrderAddress = new OrderAddressInfo
+
+        var order = new Order
         {
-            Name = sqlOrder.KundeFirma,
-            ContactPerson = orderContactPerson,
-            Street = auftragsAdresse,
-            PostalCode = sqlOrder.KundePLZ,
-            City = sqlOrder.KundeOrt
+            Id = (sqlOrder.AuftragNr ?? string.Empty).Trim(),
+            CustomerName = BuildCustomerName(sqlOrder),
+            Address = $"{auftragsAdresse}, {sqlOrder.KundePLZ} {sqlOrder.KundeOrt}".Trim(' ', ','),
+            ScheduledDate = DateOnly.FromDateTime(sqlOrder.AuftragsDatum),
+            Type = isMapOrder ? OrderType.Map : OrderType.NonMap,
+            OrderAddress = new OrderAddressInfo
+            {
+                Name = sqlOrder.KundeFirma,
+                ContactPerson = orderContactPerson,
+                Street = auftragsAdresse,
+                PostalCode = sqlOrder.KundePLZ,
+                City = sqlOrder.KundeOrt
+            },
+            DeliveryAddress = new DeliveryAddressInfo
+            {
+                Name = deliveryAddress.Name,
+                ContactPerson = deliveryAddress.ContactPerson,
+                Street = deliveryAddress.Street,
+                PostalCode = deliveryAddress.PostalCode,
+                City = deliveryAddress.City
+            },
+            Email = resolvedEmail,
+            Phone = resolvedPhone,
+            Products = BuildProducts(sqlOrder.Produkte, existingOrder?.Products),
+            DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
+            OrderStatus = Order.DefaultOrderStatus,
+            Notes = sqlOrder.Notiz,
+            IsArchived = sqlOrder.Archiviert
         };
 
-        // Keep the legacy flat address string in sync for existing consumers.
-        existingOrder.Address = $"{auftragsAdresse}, {sqlOrder.KundePLZ} {sqlOrder.KundeOrt}".Trim(' ', ',');
+        order.OrderStatus = Order.ResolveOrderStatusFromProducts(order.Products);
+        return order;
+    }
 
-        var deliveryAddress = ResolveDeliveryAddress(sqlOrder);
+    private static List<OrderProductInfo> BuildProducts(
+        IReadOnlyList<SqlOrderProductData>? sqlProducts,
+        IReadOnlyList<OrderProductInfo>? existingProducts)
+    {
+        var existing = existingProducts ?? [];
+        var products = new List<OrderProductInfo>();
 
-        // Produkte aktualisieren
-        existingOrder.Products = sqlOrder.Produkte.Select((p, idx) => new OrderProductInfo
+        for (var i = 0; i < (sqlProducts ?? []).Count; i++)
         {
-            Name = p.Bezeichnung,
-            Supplier = string.Empty,
-            Quantity = (int)p.Menge,
-            UnitWeightKg = (double)p.Gewicht,
-            WeightKg = (double)(p.Gewicht * p.Menge),
-            Dimensions = string.Empty,
-            DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus
-        }).ToList();
-        existingOrder.OrderStatus = Order.ResolveOrderStatusFromProducts(existingOrder.Products);
+            var sqlProduct = sqlProducts![i];
+            var previousProduct = i < existing.Count ? existing[i] : null;
 
-        // Lieferadresse aktualisieren
-        existingOrder.DeliveryAddress = new DeliveryAddressInfo
+            products.Add(new OrderProductInfo
+            {
+                Name = (sqlProduct.Bezeichnung ?? string.Empty).Trim(),
+                Supplier = previousProduct?.Supplier ?? string.Empty,
+                Quantity = (int)sqlProduct.Menge,
+                UnitWeightKg = (double)sqlProduct.Gewicht,
+                WeightKg = (double)(sqlProduct.Gewicht * sqlProduct.Menge),
+                Dimensions = previousProduct?.Dimensions ?? string.Empty,
+                DeliveryStatus = previousProduct is null
+                    ? OrderProductInfo.DefaultDeliveryStatus
+                    : OrderProductInfo.NormalizeDeliveryStatus(previousProduct.DeliveryStatus)
+            });
+        }
+
+        return products;
+    }
+
+    private static void ApplyImportedData(Order existingOrder, Order importedOrder)
+    {
+        existingOrder.CustomerName = importedOrder.CustomerName;
+        existingOrder.Address = importedOrder.Address;
+        existingOrder.ScheduledDate = importedOrder.ScheduledDate;
+        existingOrder.Type = importedOrder.Type;
+        existingOrder.OrderAddress = importedOrder.OrderAddress;
+        existingOrder.DeliveryAddress = importedOrder.DeliveryAddress;
+        existingOrder.Email = importedOrder.Email;
+        existingOrder.Phone = importedOrder.Phone;
+        existingOrder.Products = importedOrder.Products;
+        existingOrder.DeliveryType = importedOrder.DeliveryType;
+        existingOrder.OrderStatus = importedOrder.OrderStatus;
+        existingOrder.Notes = importedOrder.Notes;
+        existingOrder.IsArchived = importedOrder.IsArchived;
+    }
+
+    private static List<string> DescribeDifferences(Order existingOrder, Order importedOrder)
+    {
+        var changes = new List<string>();
+
+        AddChange(changes, "Kunde", existingOrder.CustomerName, importedOrder.CustomerName);
+        AddChange(changes, "Termin", FormatDate(existingOrder.ScheduledDate), FormatDate(importedOrder.ScheduledDate));
+        AddChange(changes, "Typ", FormatOrderType(existingOrder.Type), FormatOrderType(importedOrder.Type));
+        AddChange(changes, "Lieferart", existingOrder.DeliveryType, importedOrder.DeliveryType);
+        AddChange(changes, "Auftragsadresse", FormatAddress(existingOrder.OrderAddress), FormatAddress(importedOrder.OrderAddress));
+        AddChange(changes, "Lieferadresse", FormatDeliveryAddress(existingOrder.DeliveryAddress), FormatDeliveryAddress(importedOrder.DeliveryAddress));
+        AddChange(changes, "E-Mail", existingOrder.Email, importedOrder.Email);
+        AddChange(changes, "Telefon", existingOrder.Phone, importedOrder.Phone);
+        AddChange(changes, "Notiz", existingOrder.Notes, importedOrder.Notes);
+        AddChange(changes, "Archiviert", FormatBool(existingOrder.IsArchived), FormatBool(importedOrder.IsArchived));
+        AddProductChange(changes, existingOrder.Products, importedOrder.Products);
+        AddChange(changes, "Status", Order.NormalizeOrderStatus(existingOrder.OrderStatus), Order.NormalizeOrderStatus(importedOrder.OrderStatus));
+
+        return changes;
+    }
+
+    private static void AddChange(List<string> changes, string label, string? oldValue, string? newValue)
+    {
+        var normalizedOld = NormalizeComparisonValue(oldValue);
+        var normalizedNew = NormalizeComparisonValue(newValue);
+        if (string.Equals(normalizedOld, normalizedNew, StringComparison.Ordinal))
         {
-            Name = deliveryAddress.Name,
-            ContactPerson = deliveryAddress.ContactPerson,
-            Street = deliveryAddress.Street,
-            PostalCode = deliveryAddress.PostalCode,
-            City = deliveryAddress.City
-        };
+            return;
+        }
+
+        changes.Add($"{label}: {DisplayValue(normalizedOld)} -> {DisplayValue(normalizedNew)}");
+    }
+
+    private static void AddProductChange(
+        List<string> changes,
+        IReadOnlyList<OrderProductInfo>? existingProducts,
+        IReadOnlyList<OrderProductInfo>? importedProducts)
+    {
+        var existing = existingProducts ?? [];
+        var imported = importedProducts ?? [];
+
+        if (existing.Count != imported.Count)
+        {
+            changes.Add($"Produkte: {existing.Count} -> {imported.Count} Position(en)");
+            return;
+        }
+
+        for (var i = 0; i < imported.Count; i++)
+        {
+            var oldLine = FormatProduct(existing[i]);
+            var newLine = FormatProduct(imported[i]);
+            if (!string.Equals(oldLine, newLine, StringComparison.Ordinal))
+            {
+                changes.Add($"Produkt {i + 1}: {DisplayValue(oldLine)} -> {DisplayValue(newLine)}");
+            }
+        }
     }
 
     private (string Name, string ContactPerson, string Street, string PostalCode, string City) ResolveDeliveryAddress(SqlOrderImportData sqlOrder)
@@ -273,13 +384,21 @@ public class SqlOrderImportService : ISqlOrderImportService
     private string BuildCustomerName(SqlOrderImportData sqlOrder)
     {
         var parts = new List<string>();
-        
+
         if (!string.IsNullOrWhiteSpace(sqlOrder.KundeFirma))
+        {
             parts.Add(sqlOrder.KundeFirma);
+        }
+
         if (!string.IsNullOrWhiteSpace(sqlOrder.KundeNachname))
+        {
             parts.Add(sqlOrder.KundeNachname);
+        }
+
         if (!string.IsNullOrWhiteSpace(sqlOrder.KundeVorname))
+        {
             parts.Add(sqlOrder.KundeVorname);
+        }
 
         return string.Join(" ", parts).Trim();
     }
@@ -287,20 +406,28 @@ public class SqlOrderImportService : ISqlOrderImportService
     private string BuildContactPersonName(SqlOrderImportData sqlOrder)
     {
         var parts = new List<string>();
-        
-        // Lieferadresse hat Vorrang
-        if (!string.IsNullOrWhiteSpace(sqlOrder.LieferVorname))
-            parts.Add(sqlOrder.LieferVorname);
-        if (!string.IsNullOrWhiteSpace(sqlOrder.LieferNachname))
-            parts.Add(sqlOrder.LieferNachname);
 
-        // Fallback auf Kundenadresse
+        if (!string.IsNullOrWhiteSpace(sqlOrder.LieferVorname))
+        {
+            parts.Add(sqlOrder.LieferVorname);
+        }
+
+        if (!string.IsNullOrWhiteSpace(sqlOrder.LieferNachname))
+        {
+            parts.Add(sqlOrder.LieferNachname);
+        }
+
         if (parts.Count == 0)
         {
             if (!string.IsNullOrWhiteSpace(sqlOrder.KundeVorname))
+            {
                 parts.Add(sqlOrder.KundeVorname);
+            }
+
             if (!string.IsNullOrWhiteSpace(sqlOrder.KundeNachname))
+            {
                 parts.Add(sqlOrder.KundeNachname);
+            }
         }
 
         return string.Join(" ", parts).Trim();
@@ -310,9 +437,14 @@ public class SqlOrderImportService : ISqlOrderImportService
     {
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(street))
+        {
             parts.Add(street);
+        }
+
         if (!string.IsNullOrWhiteSpace(number))
+        {
             parts.Add(number);
+        }
 
         return string.Join(" ", parts).Trim();
     }
@@ -326,5 +458,83 @@ public class SqlOrderImportService : ISqlOrderImportService
         }
 
         return (orderValue ?? string.Empty).Trim();
+    }
+
+    private static string BuildOrderErrorMessage(string? orderId, Exception ex)
+    {
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalizedOrderId)
+            ? $"Fehler bei einem Auftrag ohne AuftragNr: {ex.Message}"
+            : $"Fehler bei Auftrag {normalizedOrderId}: {ex.Message}";
+    }
+
+    private static string FormatOrderType(OrderType type)
+    {
+        return type == OrderType.Map ? "Karte" : "Nicht-Karte";
+    }
+
+    private static string FormatDate(DateOnly date)
+    {
+        return date.ToString("dd.MM.yyyy");
+    }
+
+    private static string FormatBool(bool value)
+    {
+        return value ? "Ja" : "Nein";
+    }
+
+    private static string FormatAddress(OrderAddressInfo? address)
+    {
+        if (address is null)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(", ", new[]
+        {
+            (address.Name ?? string.Empty).Trim(),
+            (address.ContactPerson ?? string.Empty).Trim(),
+            (address.Street ?? string.Empty).Trim(),
+            $"{(address.PostalCode ?? string.Empty).Trim()} {(address.City ?? string.Empty).Trim()}".Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string FormatDeliveryAddress(DeliveryAddressInfo? address)
+    {
+        if (address is null)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(", ", new[]
+        {
+            (address.Name ?? string.Empty).Trim(),
+            (address.ContactPerson ?? string.Empty).Trim(),
+            (address.Street ?? string.Empty).Trim(),
+            $"{(address.PostalCode ?? string.Empty).Trim()} {(address.City ?? string.Empty).Trim()}".Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string FormatProduct(OrderProductInfo product)
+    {
+        return string.Join(" | ", new[]
+        {
+            (product.Name ?? string.Empty).Trim(),
+            $"Menge {product.Quantity}",
+            $"Einzelgewicht {product.UnitWeightKg:0.##} kg",
+            $"Total {product.WeightKg:0.##} kg",
+            OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus)
+        });
+    }
+
+    private static string NormalizeComparisonValue(string? value)
+    {
+        return (value ?? string.Empty).Trim();
+    }
+
+    private static string DisplayValue(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? "-" : normalized;
     }
 }

@@ -254,11 +254,13 @@ public sealed class MainShellViewModel : ObservableObject
 
     public bool IsSidebarCollapsed => _isSidebarCollapsed;
 
-    public bool IsSidebarVisible => !IsSidebarCollapsed;
+    public bool IsSettingsSectionActive => CurrentSection is SettingsSectionViewModel;
+
+    public bool IsSidebarVisible => !IsSettingsSectionActive && !IsSidebarCollapsed;
 
     public GridLength SidebarColumnWidth => IsSidebarVisible ? new GridLength(280) : new GridLength(0);
 
-    public bool IsSidebarToggleVisible => true;
+    public bool IsSidebarToggleVisible => !IsSettingsSectionActive;
 
     public string SidebarToggleGlyph => IsSidebarCollapsed ? "\uE76C" : "\uE76B";
 
@@ -411,6 +413,7 @@ public sealed class MainShellViewModel : ObservableObject
     private void OnCurrentSectionChanged()
     {
         OnPropertyChanged(nameof(IsSidebarCollapsed));
+        OnPropertyChanged(nameof(IsSettingsSectionActive));
         OnPropertyChanged(nameof(IsSidebarVisible));
         OnPropertyChanged(nameof(SidebarColumnWidth));
         OnPropertyChanged(nameof(IsSidebarToggleVisible));

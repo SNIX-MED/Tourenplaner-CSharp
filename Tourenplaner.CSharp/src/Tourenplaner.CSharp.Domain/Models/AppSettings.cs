@@ -16,11 +16,8 @@ public sealed class AppSettings
     public const int DefaultMapRouteCapacityWarningThresholdPercent = 5;
     public const double DefaultPinInfoCardScale = 1.0d;
     public const double DefaultPinInfoCardZoomBehaviorStrength = 1.0d;
-    public const string DefaultTomTomMapStyle = "main";
     public const int DefaultTomTomTrafficRefreshSeconds = 60;
     public const int DefaultTomTomRouteRecalcDebounceMs = 900;
-    public const string DefaultTomTomRoutingMode = "car";
-    public const double DefaultTomTomVehicleHeightMeters = 0d;
     public const string DefaultMapOverlayStyle = "standard";
 
     public string AppearanceMode { get; set; } = "Light";
@@ -64,12 +61,8 @@ public sealed class AppSettings
     public string SpediteurToolUrl { get; set; } = DefaultSpediteurToolUrl;
     public string TourDefaultStartTime { get; set; } = DefaultTourStartTime;
     public string TomTomApiKey { get; set; } = "IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH";
-    public string TomTomMapStyle { get; set; } = DefaultTomTomMapStyle;
-    public bool TomTomShowTrafficFlow { get; set; } = true;
     public int TomTomTrafficRefreshSeconds { get; set; } = DefaultTomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs { get; set; } = DefaultTomTomRouteRecalcDebounceMs;
-    public string TomTomRoutingMode { get; set; } = DefaultTomTomRoutingMode;
-    public double TomTomVehicleHeightMeters { get; set; } = DefaultTomTomVehicleHeightMeters;
     public bool TomTomEnableTileCache { get; set; } = true;
     public string CurrentUserName { get; set; } = string.Empty;
     public Dictionary<string, MapOverlayUserPreference> MapOverlayPreferencesByUser { get; set; } = new(StringComparer.OrdinalIgnoreCase);

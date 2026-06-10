@@ -258,7 +258,6 @@ public partial class KarteSectionView : UserControl
             QueueMapRefresh(MapRefreshOperation.DetailsToggle, UiRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.TomTomApiKey) ||
-                 e.PropertyName == nameof(KarteSectionViewModel.TomTomMapStyle) ||
                  e.PropertyName == nameof(KarteSectionViewModel.TomTomEnableTileCache))
         {
             _ = ReloadMapDocumentAsync();
@@ -275,7 +274,6 @@ public partial class KarteSectionView : UserControl
         _mapScriptReady = false;
         var html = MapHtmlDocumentBuilder.Build(
             vm.TomTomApiKey,
-            vm.TomTomMapStyle,
             vm.TomTomShowTrafficFlow,
             vm.TomTomEnableTileCache,
             vm.TomTomMapOverlayStyle,
@@ -588,7 +586,6 @@ public partial class KarteSectionView : UserControl
             var vm = DataContext as KarteSectionViewModel;
             var html = MapHtmlDocumentBuilder.Build(
                 vm?.TomTomApiKey,
-                vm?.TomTomMapStyle,
                 vm?.TomTomShowTrafficFlow ?? true,
                 vm?.TomTomEnableTileCache ?? true,
                 vm?.TomTomMapOverlayStyle ?? AppSettings.DefaultMapOverlayStyle,

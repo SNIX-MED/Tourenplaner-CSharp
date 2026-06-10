@@ -112,9 +112,7 @@
                                 <GroupStyle.HeaderTemplate>
                                     <DataTemplate>
                                         <TextBlock Margin="6,12,6,4"
-                                                   FontSize="12"
-                                                   FontWeight="Medium"
-                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Style="{StaticResource SidebarSectionHeaderTextStyle}"
                                                    Text="{Binding Name}" />
                                     </DataTemplate>
                                 </GroupStyle.HeaderTemplate>
@@ -127,7 +125,7 @@
                         </ListBox.GroupStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding DisplayName}" />
+                                <TextBlock Style="{StaticResource SidebarNavigationTextStyle}" Text="{Binding DisplayName}" />
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
@@ -147,6 +145,14 @@
                         <Style TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
                             <Setter Property="Padding" Value="14" />
                             <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSettingsSectionActive}" Value="True">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="CornerRadius" Value="0" />
+                                    <Setter Property="Effect" Value="{x:Null}" />
+                                </DataTrigger>
                                 <DataTrigger Binding="{Binding IsMapSectionActive}" Value="True">
                                     <Setter Property="Padding" Value="0" />
                                     <Setter Property="Background" Value="Transparent" />
