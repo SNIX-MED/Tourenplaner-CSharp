@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Web.WebView2.Core;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 
 namespace Tourenplaner.CSharp.App.Views.Sections;
@@ -57,7 +58,8 @@ public partial class GpsSectionView : UserControl
 
         try
         {
-            await GpsWebView.EnsureCoreWebView2Async();
+            var environment = await WebView2EnvironmentFactory.CreateAsync("Gps");
+            await GpsWebView.EnsureCoreWebView2Async(environment);
             GpsWebView.CoreWebView2.Settings.IsZoomControlEnabled = true;
             GpsWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
             _webViewReady = true;

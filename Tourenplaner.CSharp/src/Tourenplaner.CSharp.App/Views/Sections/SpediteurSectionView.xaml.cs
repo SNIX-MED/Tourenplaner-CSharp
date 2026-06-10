@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Web.WebView2.Core;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 
 namespace Tourenplaner.CSharp.App.Views.Sections;
@@ -56,7 +57,8 @@ public partial class SpediteurSectionView : UserControl
 
         try
         {
-            await SpediteurWebView.EnsureCoreWebView2Async();
+            var environment = await WebView2EnvironmentFactory.CreateAsync("Spediteur");
+            await SpediteurWebView.EnsureCoreWebView2Async(environment);
             SpediteurWebView.CoreWebView2.Settings.IsZoomControlEnabled = true;
             SpediteurWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
             _webViewReady = true;

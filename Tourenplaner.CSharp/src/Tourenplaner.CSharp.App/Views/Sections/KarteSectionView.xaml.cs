@@ -579,7 +579,8 @@ public partial class KarteSectionView : UserControl
 
         try
         {
-            await MapWebView.EnsureCoreWebView2Async();
+            var environment = await WebView2EnvironmentFactory.CreateAsync("Map");
+            await MapWebView.EnsureCoreWebView2Async(environment);
             MapWebView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
             MapWebView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
             MapWebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;

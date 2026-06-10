@@ -117,7 +117,8 @@ public sealed class WebViewRouteExportService
         try
         {
             window.Show();
-            await webView.EnsureCoreWebView2Async();
+            var environment = await WebView2EnvironmentFactory.CreateAsync("Export");
+            await webView.EnsureCoreWebView2Async(environment);
             var navTcs = new TaskCompletionSource<bool>();
             void Handler(object? sender, CoreWebView2NavigationCompletedEventArgs e)
             {
