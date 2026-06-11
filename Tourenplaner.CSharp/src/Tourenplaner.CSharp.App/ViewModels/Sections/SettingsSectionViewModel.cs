@@ -61,9 +61,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _statusColorPlanned = AppSettings.DefaultStatusColorPlanned;
     private string _calendarLoadWarningColor = AppSettings.DefaultCalendarLoadWarningColor;
     private string _calendarLoadCriticalColor = AppSettings.DefaultCalendarLoadCriticalColor;
+    private bool _mapUseDistinctPlannedTourColors = true;
     private int _calendarLoadWarningPeopleThreshold = 1;
     private int _calendarLoadCriticalPeopleThreshold = 2;
-    private bool _mapDetailsPanelExpanded = true;
+    private bool _mapAutoOpenDetailsOnPinSelection = true;
     private bool _mapSearchDimNonMatchingPins;
     private bool _mapPinInfoCardShowName = true;
     private bool _mapPinInfoCardShowOrderNumber = true;
@@ -366,6 +367,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         set => SetColorProperty(ref _calendarLoadCriticalColor, value, AppSettings.DefaultCalendarLoadCriticalColor);
     }
 
+    public bool MapUseDistinctPlannedTourColors
+    {
+        get => _mapUseDistinctPlannedTourColors;
+        set => SetProperty(ref _mapUseDistinctPlannedTourColors, value);
+    }
+
     public int CalendarLoadWarningPeopleThreshold
     {
         get => _calendarLoadWarningPeopleThreshold;
@@ -378,10 +385,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _calendarLoadCriticalPeopleThreshold, value);
     }
 
-    public bool MapDetailsPanelExpanded
+    public bool MapAutoOpenDetailsOnPinSelection
     {
-        get => _mapDetailsPanelExpanded;
-        set => SetProperty(ref _mapDetailsPanelExpanded, value);
+        get => _mapAutoOpenDetailsOnPinSelection;
+        set => SetProperty(ref _mapAutoOpenDetailsOnPinSelection, value);
     }
 
     public bool MapSearchDimNonMatchingPins
@@ -798,9 +805,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(StatusColorPlanned) or
             nameof(CalendarLoadWarningColor) or
             nameof(CalendarLoadCriticalColor) or
+            nameof(MapUseDistinctPlannedTourColors) or
             nameof(CalendarLoadWarningPeopleThreshold) or
             nameof(CalendarLoadCriticalPeopleThreshold) or
-            nameof(MapDetailsPanelExpanded) or
+            nameof(MapAutoOpenDetailsOnPinSelection) or
             nameof(MapSearchDimNonMatchingPins) or
             nameof(MapPinInfoCardShowName) or
             nameof(MapPinInfoCardShowOrderNumber) or
@@ -986,7 +994,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         StatusColorPlanned = AppSettings.DefaultStatusColorPlanned;
         CalendarLoadWarningColor = AppSettings.DefaultCalendarLoadWarningColor;
         CalendarLoadCriticalColor = AppSettings.DefaultCalendarLoadCriticalColor;
-        StatusText = "Statusfarben auf Standard zurückgesetzt.";
+        MapUseDistinctPlannedTourColors = true;
+        StatusText = "Farben auf Standard zurückgesetzt.";
     }
 
     private void ResetUpdateStatus()
@@ -1019,9 +1028,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             StatusColorPlanned = NormalizeHexColor(StatusColorPlanned, AppSettings.DefaultStatusColorPlanned),
             CalendarLoadWarningColor = NormalizeHexColor(CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor),
             CalendarLoadCriticalColor = NormalizeHexColor(CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor),
+            MapUseDistinctPlannedTourColors = MapUseDistinctPlannedTourColors,
             CalendarLoadWarningPeopleThreshold = CalendarLoadWarningPeopleThreshold,
             CalendarLoadCriticalPeopleThreshold = CalendarLoadCriticalPeopleThreshold,
-            MapDetailsPanelExpanded = MapDetailsPanelExpanded,
+            MapAutoOpenDetailsOnPinSelection = MapAutoOpenDetailsOnPinSelection,
             MapSearchDimNonMatchingPins = MapSearchDimNonMatchingPins,
             MapPinInfoCardShowName = MapPinInfoCardShowName,
             MapPinInfoCardShowOrderNumber = MapPinInfoCardShowOrderNumber,
@@ -1073,9 +1083,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         StatusColorPlanned = NormalizeHexColor(settings.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
         CalendarLoadWarningColor = NormalizeHexColor(settings.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
         CalendarLoadCriticalColor = NormalizeHexColor(settings.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
+        MapUseDistinctPlannedTourColors = settings.MapUseDistinctPlannedTourColors;
         CalendarLoadWarningPeopleThreshold = settings.CalendarLoadWarningPeopleThreshold < 1 ? 1 : settings.CalendarLoadWarningPeopleThreshold;
         CalendarLoadCriticalPeopleThreshold = settings.CalendarLoadCriticalPeopleThreshold < 1 ? 2 : settings.CalendarLoadCriticalPeopleThreshold;
-        MapDetailsPanelExpanded = settings.MapDetailsPanelExpanded;
+        MapAutoOpenDetailsOnPinSelection = settings.MapAutoOpenDetailsOnPinSelection;
         MapSearchDimNonMatchingPins = settings.MapSearchDimNonMatchingPins;
         MapPinInfoCardShowName = settings.MapPinInfoCardShowName;
         MapPinInfoCardShowOrderNumber = settings.MapPinInfoCardShowOrderNumber;

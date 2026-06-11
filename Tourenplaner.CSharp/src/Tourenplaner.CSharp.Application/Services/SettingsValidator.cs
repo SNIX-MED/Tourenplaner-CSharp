@@ -88,7 +88,6 @@ public sealed class SettingsValidator
         ValidateHexColor(settings.StatusColorPlanned, "StatusColorPlanned", errors);
         ValidateHexColor(settings.CalendarLoadWarningColor, "CalendarLoadWarningColor", errors);
         ValidateHexColor(settings.CalendarLoadCriticalColor, "CalendarLoadCriticalColor", errors);
-
         if (settings.CalendarLoadWarningPeopleThreshold < 1)
         {
             errors.Add("CalendarLoadWarningPeopleThreshold must be greater than zero.");

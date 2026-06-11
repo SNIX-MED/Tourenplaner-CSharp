@@ -31,6 +31,17 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private const string AvisoBadgeColorNotAvisiert = "#64748B";
     private const string AvisoBadgeColorInformiert = "#F59E0B";
     private const string AvisoBadgeColorBestaetigt = "#16A34A";
+    private static readonly string[] PlannedTourOverlayPalette =
+    [
+        "#2563EB",
+        "#16A34A",
+        "#D97706",
+        "#7C3AED",
+        "#0891B2",
+        "#DB2777",
+        "#0F766E",
+        "#4F46E5"
+    ];
     private static readonly IReadOnlyList<string> _orderStatusOptions =
     [
         Order.DefaultOrderStatus,
@@ -93,6 +104,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _statusColorOnTheWay = AppSettings.DefaultStatusColorOnTheWay;
     private string _statusColorInStock = AppSettings.DefaultStatusColorInStock;
     private string _statusColorPlanned = AppSettings.DefaultStatusColorPlanned;
+    private bool _mapUseDistinctPlannedTourColors = true;
     private bool _mapSearchDimNonMatchingPins;
     private string _tomTomApiKey = string.Empty;
     private bool _tomTomShowTrafficFlow = true;
@@ -110,11 +122,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private GeoPoint? _companyLocation;
     private bool _isDetailsOpen;
     private bool _isDetailsPanelExpanded = true;
+    private bool _mapAutoOpenDetailsOnPinSelection = true;
     private bool _isRouteNameAutoManaged = true;
     private bool _suppressRouteNameAutoDetection;
     private bool _savedTourSelectionSync;
     private bool _suppressDetailStatusSave;
     private bool _suppressDetailAvisoStatusSave;
+    private bool _suppressAutoDetailsOpenForNextSelection;
     private bool _suppressRouteChangeTracking;
     private bool _suppressFilterRefresh;
     private bool _isUpdatingFilterOptions;
@@ -883,7 +897,14 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         {
             if (SetProperty(ref _selectedOrder, value))
             {
-                IsDetailsOpen = value is not null;
+                var wasDetailsOpen = IsDetailsOpen;
+                var shouldOpenDetails = value is not null &&
+                                        (!_suppressAutoDetailsOpenForNextSelection || wasDetailsOpen);
+                IsDetailsOpen = shouldOpenDetails;
+                if (shouldOpenDetails)
+                {
+                    IsDetailsPanelExpanded = true;
+                }
                 _suppressDetailStatusSave = true;
                 _suppressDetailAvisoStatusSave = true;
                 try
@@ -954,6 +975,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _statusColorOnTheWay = NormalizeStatusColor(settings.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
         _statusColorInStock = NormalizeStatusColor(settings.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         _statusColorPlanned = NormalizeStatusColor(settings.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
+        _mapUseDistinctPlannedTourColors = settings.MapUseDistinctPlannedTourColors;
+        _mapAutoOpenDetailsOnPinSelection = settings.MapAutoOpenDetailsOnPinSelection;
         _mapSearchDimNonMatchingPins = settings.MapSearchDimNonMatchingPins;
         _mapPinInfoCardShowName = settings.MapPinInfoCardShowName;
         _mapPinInfoCardShowOrderNumber = settings.MapPinInfoCardShowOrderNumber;
@@ -1317,6 +1340,20 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     public void SelectOrderDetailsByOrderId(string? orderId)
     {
         SelectOrderDetailsById(orderId);
+    }
+
+    public void SelectOrderFromMapPin(string? orderId)
+    {
+        var previousSuppress = _suppressAutoDetailsOpenForNextSelection;
+        _suppressAutoDetailsOpenForNextSelection = !_mapAutoOpenDetailsOnPinSelection;
+        try
+        {
+            SelectOrderDetailsById(orderId);
+        }
+        finally
+        {
+            _suppressAutoDetailsOpenForNextSelection = previousSuppress;
+        }
     }
 
     public async Task FocusTourAsync(int tourId)
@@ -4273,13 +4310,17 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                     .Where(x => !x.IsArchived && string.Equals((x.AssignedTourId ?? string.Empty).Trim(), tour.Id.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase))
                     .Select(x => FindOrderWeightKg(x.Id))
                     .Sum();
-                var colorHex = ResolveRoutePolylineColorHex(totalWeightKg, assignments);
+                var colorHex = ResolvePlannedTourOverlayColorHex(tour.Id);
+                var warningOutlineColorHex = HasRouteCapacityWarning(totalWeightKg, assignments)
+                    ? "#DC2626"
+                    : string.Empty;
                 var label = BuildTourLookupLabel(tour);
 
                 _plannedTourRouteOverlays.Add(new PlannedTourRouteOverlay(
                     tour.Id,
                     label,
                     colorHex,
+                    warningOutlineColorHex,
                     points));
             }
         }
@@ -4312,16 +4353,37 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
     private string ResolveRoutePolylineColorHex(int totalWeightKg, IReadOnlyList<(string VehicleId, string TrailerId)> assignments)
     {
+        return HasRouteCapacityWarning(totalWeightKg, assignments)
+            ? "#DC2626"
+            : "#2563EB";
+    }
+
+    private bool HasRouteCapacityWarning(int totalWeightKg, IReadOnlyList<(string VehicleId, string TrailerId)> assignments)
+    {
         var warning = TourCapacityWarningService.EvaluateFleet(_vehicleData, assignments, totalWeightKg);
         if (!warning.AllowedWeightKg.HasValue || warning.AllowedWeightKg.Value <= 0)
+        {
+            return false;
+        }
+
+        var remainingPercent = ((warning.AllowedWeightKg.Value - totalWeightKg) / (double)warning.AllowedWeightKg.Value) * 100d;
+        return remainingPercent <= _mapRouteCapacityWarningThresholdPercent;
+    }
+
+    private string ResolvePlannedTourOverlayColorHex(int tourId)
+    {
+        if (!_mapUseDistinctPlannedTourColors)
         {
             return "#2563EB";
         }
 
-        var remainingPercent = ((warning.AllowedWeightKg.Value - totalWeightKg) / (double)warning.AllowedWeightKg.Value) * 100d;
-        return remainingPercent <= _mapRouteCapacityWarningThresholdPercent
-            ? "#DC2626"
-            : "#2563EB";
+        if (PlannedTourOverlayPalette.Length == 0)
+        {
+            return "#2563EB";
+        }
+
+        var index = Math.Abs(tourId) % PlannedTourOverlayPalette.Length;
+        return PlannedTourOverlayPalette[index];
     }
 
     private bool ConfirmAssignmentConflictWarning(IEnumerable<TourRecord> tours, int targetTourId)
@@ -5645,14 +5707,14 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         if ((args.Kinds & AppDataKind.Settings) != 0 &&
             (args.Kinds & (AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees)) == AppDataKind.None)
         {
-            _ = ReloadPinInfoCardDisplaySettingsAsync();
+            _ = ReloadMapDisplaySettingsAsync();
             return;
         }
 
         _ = RefreshAsync();
     }
 
-    private async Task ReloadPinInfoCardDisplaySettingsAsync()
+    private async Task ReloadMapDisplaySettingsAsync()
     {
         try
         {
@@ -5663,6 +5725,16 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             var nextZoomBehaviorStrength = settings.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
                 ? settings.PinInfoCardZoomBehaviorStrength
                 : AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
+            var nextMapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
+                ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
+                : settings.MapRouteCapacityWarningThresholdPercent;
+            var nextStatusColorNotSpecified = NormalizeStatusColor(settings.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
+            var nextStatusColorOrdered = NormalizeStatusColor(settings.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
+            var nextStatusColorOnTheWay = NormalizeStatusColor(settings.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+            var nextStatusColorInStock = NormalizeStatusColor(settings.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
+            var nextStatusColorPlanned = NormalizeStatusColor(settings.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
+            var nextMapUseDistinctPlannedTourColors = settings.MapUseDistinctPlannedTourColors;
+            var nextMapAutoOpenDetailsOnPinSelection = settings.MapAutoOpenDetailsOnPinSelection;
             var changed = false;
 
             if (Math.Abs(_pinInfoCardScale - nextScale) > 0.0001d)
@@ -5679,6 +5751,40 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrength));
                 OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrengthText));
                 changed = true;
+            }
+
+            if (_mapRouteCapacityWarningThresholdPercent != nextMapRouteCapacityWarningThresholdPercent)
+            {
+                _mapRouteCapacityWarningThresholdPercent = nextMapRouteCapacityWarningThresholdPercent;
+                RebuildPlannedTourRouteOverlays();
+                changed = true;
+            }
+
+            if (_statusColorNotSpecified != nextStatusColorNotSpecified ||
+                _statusColorOrdered != nextStatusColorOrdered ||
+                _statusColorOnTheWay != nextStatusColorOnTheWay ||
+                _statusColorInStock != nextStatusColorInStock ||
+                _statusColorPlanned != nextStatusColorPlanned)
+            {
+                _statusColorNotSpecified = nextStatusColorNotSpecified;
+                _statusColorOrdered = nextStatusColorOrdered;
+                _statusColorOnTheWay = nextStatusColorOnTheWay;
+                _statusColorInStock = nextStatusColorInStock;
+                _statusColorPlanned = nextStatusColorPlanned;
+                NotifyLegendColorsChanged();
+                changed = true;
+            }
+
+            if (_mapUseDistinctPlannedTourColors != nextMapUseDistinctPlannedTourColors)
+            {
+                _mapUseDistinctPlannedTourColors = nextMapUseDistinctPlannedTourColors;
+                RebuildPlannedTourRouteOverlays();
+                changed = true;
+            }
+
+            if (_mapAutoOpenDetailsOnPinSelection != nextMapAutoOpenDetailsOnPinSelection)
+            {
+                _mapAutoOpenDetailsOnPinSelection = nextMapAutoOpenDetailsOnPinSelection;
             }
 
             if (changed)
@@ -7407,22 +7513,24 @@ public sealed record CompanyMarkerInfo(string Name, string Address, double Latit
 
 public sealed class PlannedTourRouteOverlay
 {
-    public PlannedTourRouteOverlay(int tourId, string label, string colorHex, IReadOnlyList<GeoPoint> points)
+    public PlannedTourRouteOverlay(int tourId, string label, string colorHex, string? warningOutlineColorHex, IReadOnlyList<GeoPoint> points)
     {
         TourId = tourId;
         Label = string.IsNullOrWhiteSpace(label) ? $"Tour {tourId}" : label.Trim();
         ColorHex = string.IsNullOrWhiteSpace(colorHex) ? "#2563EB" : colorHex.Trim();
+        WarningOutlineColorHex = string.IsNullOrWhiteSpace(warningOutlineColorHex) ? string.Empty : warningOutlineColorHex.Trim();
         Points = (points ?? []).Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
     }
 
     public int TourId { get; }
     public string Label { get; }
     public string ColorHex { get; }
+    public string WarningOutlineColorHex { get; }
     public IReadOnlyList<GeoPoint> Points { get; }
 
     public PlannedTourRouteOverlay Clone()
     {
-        return new PlannedTourRouteOverlay(TourId, Label, ColorHex, Points);
+        return new PlannedTourRouteOverlay(TourId, Label, ColorHex, WarningOutlineColorHex, Points);
     }
 }
 

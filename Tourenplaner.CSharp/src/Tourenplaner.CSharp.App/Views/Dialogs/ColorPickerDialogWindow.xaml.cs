@@ -26,7 +26,6 @@ public partial class ColorPickerDialogWindow : Window
             ? "Passe die Farbe fuer dieses Element an."
             : description.Trim();
         PreviewHeadingTextBlock.Text = Title;
-        PreviewLegendTextBlock.Text = Title;
 
         ApplySelectedColor(ParseHexColor(currentHex, _fallbackHex));
     }

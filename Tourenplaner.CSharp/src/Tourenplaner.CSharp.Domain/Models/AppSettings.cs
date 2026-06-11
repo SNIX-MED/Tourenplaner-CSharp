@@ -33,9 +33,11 @@ public sealed class AppSettings
     public string StatusColorPlanned { get; set; } = DefaultStatusColorPlanned;
     public string CalendarLoadWarningColor { get; set; } = DefaultCalendarLoadWarningColor;
     public string CalendarLoadCriticalColor { get; set; } = DefaultCalendarLoadCriticalColor;
+    public bool MapUseDistinctPlannedTourColors { get; set; } = true;
     public int CalendarLoadWarningPeopleThreshold { get; set; } = 1;
     public int CalendarLoadCriticalPeopleThreshold { get; set; } = 2;
     public bool MapDetailsPanelExpanded { get; set; } = true;
+    public bool MapAutoOpenDetailsOnPinSelection { get; set; } = true;
     public bool MapSearchDimNonMatchingPins { get; set; } = true;
     public bool MapPinInfoCardShowName { get; set; } = true;
     public bool MapPinInfoCardShowOrderNumber { get; set; } = true;

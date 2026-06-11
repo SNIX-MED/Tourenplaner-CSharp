@@ -788,6 +788,7 @@ public partial class KarteSectionView : UserControl
                 id = x.TourId,
                 label = x.Label,
                 color = x.ColorHex,
+                outlineColor = x.WarningOutlineColorHex,
                 path = x.Points.Select(p => new { lat = p.Latitude, lon = p.Longitude }).ToList()
             })
             .ToList();
@@ -1076,7 +1077,7 @@ public partial class KarteSectionView : UserControl
             try
             {
                 _suppressSelectionSync = true;
-                vm.SelectedOrder = match;
+                vm.SelectOrderFromMapPin(match.OrderId);
             }
             finally
             {
@@ -1086,7 +1087,7 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        vm.SelectOrderDetailsByOrderId(raw);
+        vm.SelectOrderFromMapPin(raw);
     }
 
     private async Task ApplyMapOptionsFromWebAsync(

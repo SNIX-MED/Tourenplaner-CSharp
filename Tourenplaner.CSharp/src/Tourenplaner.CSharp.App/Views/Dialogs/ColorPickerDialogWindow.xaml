@@ -159,12 +159,7 @@
                                             Width="18"
                                             Height="18"
                                             CornerRadius="9"
-                                            VerticalAlignment="Center"
-                                            Margin="0,0,8,0" />
-                                    <TextBlock x:Name="PreviewLegendTextBlock"
-                                               VerticalAlignment="Center"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource Brush.TextPrimary}" />
+                                            VerticalAlignment="Center" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>
