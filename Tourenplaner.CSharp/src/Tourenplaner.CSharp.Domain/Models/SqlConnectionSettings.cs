@@ -202,6 +202,7 @@ public class SqlOrderImportData
 public class SqlOrderProductData
 {
     public int PosNummer { get; set; }
+    public string ArtikelNummer { get; set; } = string.Empty;
     public string Bezeichnung { get; set; } = string.Empty;
     public decimal Menge { get; set; }
     public decimal Gewicht { get; set; }

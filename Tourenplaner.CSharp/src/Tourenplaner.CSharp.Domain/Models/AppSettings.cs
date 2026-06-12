@@ -75,6 +75,7 @@ public sealed class AppSettings
     public bool SqlImportEnabled { get; set; } = false;
     public string XmlImportFilePath { get; set; } = string.Empty;
     public DateTime? LastXmlImportDate { get; set; }
+    public XmlImportMappingSettings XmlImportMapping { get; set; } = XmlImportMappingSettings.CreateDefault();
 }
 
 public sealed class MapOverlayUserPreference

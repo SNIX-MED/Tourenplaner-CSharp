@@ -17,7 +17,7 @@ public static class AddressGeocodingService
 
     public static async Task<GeoPoint?> TryGeocodeOrderAsync(Order order, string? tomTomApiKey = null, string? cacheFilePath = null)
     {
-        var street = (order.DeliveryAddress?.Street ?? string.Empty).Trim();
+        var street = BuildStreetLine(order.DeliveryAddress?.Street, order.DeliveryAddress?.HouseNumber);
         var postalCode = (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim();
         var city = (order.DeliveryAddress?.City ?? string.Empty).Trim();
         var fallback = (order.Address ?? string.Empty).Trim();
@@ -129,6 +129,15 @@ public static class AddressGeocodingService
         }
 
         return result;
+    }
+
+    private static string BuildStreetLine(string? street, string? houseNumber)
+    {
+        return string.Join(" ", new[]
+        {
+            (street ?? string.Empty).Trim(),
+            (houseNumber ?? string.Empty).Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
     private static async Task<GeoPoint?> TryGeocodeQueryAsync(string query, string? tomTomApiKey)

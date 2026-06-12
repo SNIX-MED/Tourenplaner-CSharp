@@ -494,7 +494,7 @@ public class SqlOrderImportService : ISqlOrderImportService
         {
             (address.Name ?? string.Empty).Trim(),
             (address.ContactPerson ?? string.Empty).Trim(),
-            (address.Street ?? string.Empty).Trim(),
+            BuildStreetLine(address.Street, address.HouseNumber),
             $"{(address.PostalCode ?? string.Empty).Trim()} {(address.City ?? string.Empty).Trim()}".Trim()
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
@@ -510,8 +510,17 @@ public class SqlOrderImportService : ISqlOrderImportService
         {
             (address.Name ?? string.Empty).Trim(),
             (address.ContactPerson ?? string.Empty).Trim(),
-            (address.Street ?? string.Empty).Trim(),
+            BuildStreetLine(address.Street, address.HouseNumber),
             $"{(address.PostalCode ?? string.Empty).Trim()} {(address.City ?? string.Empty).Trim()}".Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string BuildStreetLine(string? street, string? houseNumber)
+    {
+        return string.Join(" ", new[]
+        {
+            (street ?? string.Empty).Trim(),
+            (houseNumber ?? string.Empty).Trim()
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 

@@ -1032,7 +1032,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             var line = string.Join(", ", new[]
             {
                 (order.OrderAddress?.Name ?? string.Empty).Trim(),
-                (order.OrderAddress?.Street ?? string.Empty).Trim(),
+                BuildStreetLine(order.OrderAddress?.Street, order.OrderAddress?.HouseNumber),
                 string.Join(" ", new[]
                 {
                     (order.OrderAddress?.PostalCode ?? string.Empty).Trim(),
@@ -1056,7 +1056,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             var line = string.Join(", ", new[]
             {
                 (order.DeliveryAddress?.Name ?? string.Empty).Trim(),
-                (order.DeliveryAddress?.Street ?? string.Empty).Trim(),
+                BuildStreetLine(order.DeliveryAddress?.Street, order.DeliveryAddress?.HouseNumber),
                 string.Join(" ", new[]
                 {
                     (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim(),
@@ -1071,6 +1071,15 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         }
 
         return (stop.Address ?? string.Empty).Trim();
+    }
+
+    private static string BuildStreetLine(string? street, string? houseNumber)
+    {
+        return string.Join(" ", new[]
+        {
+            (street ?? string.Empty).Trim(),
+            (houseNumber ?? string.Empty).Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
     private static List<string> BuildProductLines(Order? order, TourStopRecord stop)

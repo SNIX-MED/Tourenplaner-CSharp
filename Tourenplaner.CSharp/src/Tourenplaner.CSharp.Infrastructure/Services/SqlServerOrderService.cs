@@ -622,6 +622,7 @@ public class SqlServerOrderService : ISqlServerOrderService
             order.Produkte.Add(new SqlOrderProductData
             {
                 PosNummer = position,
+                ArtikelNummer = articleId ?? string.Empty,
                 Bezeichnung = bezeichnung,
                 Menge = menge,
                 Gewicht = gewicht,

@@ -166,14 +166,14 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _orderDateText = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     private string _orderAddressName = string.Empty;
     private string _orderAddressContactPerson = string.Empty;
-    private string _orderAddressAdditional = string.Empty;
     private string _orderAddressStreet = string.Empty;
+    private string _orderAddressHouseNumber = string.Empty;
     private string _orderAddressPostalCode = string.Empty;
     private string _orderAddressCity = string.Empty;
     private string _deliveryName = string.Empty;
     private string _deliveryContactPerson = string.Empty;
-    private string _deliveryAdditional = string.Empty;
     private string _deliveryStreet = string.Empty;
+    private string _deliveryHouseNumber = string.Empty;
     private string _deliveryPostalCode = string.Empty;
     private string _deliveryCity = string.Empty;
     private string _email = string.Empty;
@@ -264,10 +264,10 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         set => SetProperty(ref _orderAddressPostalCode, value);
     }
 
-    public string OrderAddressAdditional
+    public string OrderAddressHouseNumber
     {
-        get => _orderAddressAdditional;
-        set => SetProperty(ref _orderAddressAdditional, value);
+        get => _orderAddressHouseNumber;
+        set => SetProperty(ref _orderAddressHouseNumber, value);
     }
 
     public string OrderAddressCity
@@ -294,10 +294,10 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         set => SetProperty(ref _deliveryStreet, value);
     }
 
-    public string DeliveryAdditional
+    public string DeliveryHouseNumber
     {
-        get => _deliveryAdditional;
-        set => SetProperty(ref _deliveryAdditional, value);
+        get => _deliveryHouseNumber;
+        set => SetProperty(ref _deliveryHouseNumber, value);
     }
 
     public string DeliveryPostalCode
@@ -364,6 +364,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         var id = (OrderNumber ?? string.Empty).Trim();
         var deliveryName = (DeliveryName ?? string.Empty).Trim();
         var deliveryStreet = (DeliveryStreet ?? string.Empty).Trim();
+        var deliveryHouseNumber = (DeliveryHouseNumber ?? string.Empty).Trim();
         var deliveryPostalCode = (DeliveryPostalCode ?? string.Empty).Trim();
         var deliveryCity = (DeliveryCity ?? string.Empty).Trim();
         var normalizedOrderDateText = (OrderDateText ?? string.Empty).Trim();
@@ -389,6 +390,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             return false;
         }
 
+        var deliveryStreetLine = BuildStreetLine(deliveryStreet, deliveryHouseNumber);
+
         var products = ProductLines
             .Where(x => !string.IsNullOrWhiteSpace(x.Name))
             .Select(x => x.ToOrderProductInfo())
@@ -400,13 +403,13 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             ScheduledDate = DateOnly.FromDateTime(parsedOrderDate),
             Type = _defaultOrderType,
             CustomerName = deliveryName,
-            Address = $"{deliveryStreet}, {deliveryPostalCode} {deliveryCity}",
+            Address = $"{deliveryStreetLine}, {deliveryPostalCode} {deliveryCity}",
             OrderAddress = new OrderAddressInfo
             {
                 Name = (OrderAddressName ?? string.Empty).Trim(),
                 ContactPerson = (OrderAddressContactPerson ?? string.Empty).Trim(),
-                Additional = (OrderAddressAdditional ?? string.Empty).Trim(),
                 Street = (OrderAddressStreet ?? string.Empty).Trim(),
+                HouseNumber = (OrderAddressHouseNumber ?? string.Empty).Trim(),
                 PostalCode = (OrderAddressPostalCode ?? string.Empty).Trim(),
                 City = (OrderAddressCity ?? string.Empty).Trim()
             },
@@ -414,8 +417,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             {
                 Name = deliveryName,
                 ContactPerson = (DeliveryContactPerson ?? string.Empty).Trim(),
-                Additional = (DeliveryAdditional ?? string.Empty).Trim(),
                 Street = deliveryStreet,
+                HouseNumber = deliveryHouseNumber,
                 PostalCode = deliveryPostalCode,
                 City = deliveryCity
             },
@@ -476,8 +479,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     {
         DeliveryName = (OrderAddressName ?? string.Empty).Trim();
         DeliveryContactPerson = (OrderAddressContactPerson ?? string.Empty).Trim();
-        DeliveryAdditional = (OrderAddressAdditional ?? string.Empty).Trim();
         DeliveryStreet = (OrderAddressStreet ?? string.Empty).Trim();
+        DeliveryHouseNumber = (OrderAddressHouseNumber ?? string.Empty).Trim();
         DeliveryPostalCode = (OrderAddressPostalCode ?? string.Empty).Trim();
         DeliveryCity = (OrderAddressCity ?? string.Empty).Trim();
     }
@@ -495,14 +498,18 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         OrderDateText = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         OrderAddressName = existingOrder.OrderAddress?.Name ?? string.Empty;
         OrderAddressContactPerson = existingOrder.OrderAddress?.ContactPerson ?? string.Empty;
-        OrderAddressAdditional = existingOrder.OrderAddress?.Additional ?? string.Empty;
         OrderAddressStreet = existingOrder.OrderAddress?.Street ?? string.Empty;
+        OrderAddressHouseNumber = string.IsNullOrWhiteSpace(existingOrder.OrderAddress?.HouseNumber)
+            ? existingOrder.OrderAddress?.Additional ?? string.Empty
+            : existingOrder.OrderAddress.HouseNumber;
         OrderAddressPostalCode = existingOrder.OrderAddress?.PostalCode ?? string.Empty;
         OrderAddressCity = existingOrder.OrderAddress?.City ?? string.Empty;
         DeliveryName = existingOrder.DeliveryAddress?.Name ?? existingOrder.CustomerName ?? string.Empty;
         DeliveryContactPerson = existingOrder.DeliveryAddress?.ContactPerson ?? string.Empty;
-        DeliveryAdditional = existingOrder.DeliveryAddress?.Additional ?? string.Empty;
         DeliveryStreet = existingOrder.DeliveryAddress?.Street ?? string.Empty;
+        DeliveryHouseNumber = string.IsNullOrWhiteSpace(existingOrder.DeliveryAddress?.HouseNumber)
+            ? existingOrder.DeliveryAddress?.Additional ?? string.Empty
+            : existingOrder.DeliveryAddress.HouseNumber;
         DeliveryPostalCode = existingOrder.DeliveryAddress?.PostalCode ?? string.Empty;
         DeliveryCity = existingOrder.DeliveryAddress?.City ?? string.Empty;
         Email = existingOrder.Email ?? string.Empty;
@@ -548,6 +555,15 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private static string BuildStreetLine(string? street, string? houseNumber)
+    {
+        return string.Join(" ", new[]
+        {
+            (street ?? string.Empty).Trim(),
+            (houseNumber ?? string.Empty).Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 }
 

@@ -134,11 +134,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
         SettingsCategories =
         [
-            new SettingsCategoryNavigationItem("general", "Allgemein", "E-Mail, Startzeit und Standardverhalten.", "\uE713"),
+            new SettingsCategoryNavigationItem("general", "Allgemein", "E-Mail, Startzeit, Standardverhalten und Firmendaten.", "\uE713"),
             new SettingsCategoryNavigationItem("map", "Karte & Kalender", "Farben, Kalenderwarnungen und Karteninfos.", "\uE787"),
             new SettingsCategoryNavigationItem("tomtom", "TomTom Karte & Traffic", "Routing, Overlay und Verkehrslogik.", "\uE81E"),
             new SettingsCategoryNavigationItem("tools", "Tools", "GPS- und Spediteur-Links und Sichtbarkeit.", "\uE90F"),
-            new SettingsCategoryNavigationItem("company", "Firma", "Absenderdaten, PDFs und Standortbasis.", "\uE80F"),
             new SettingsCategoryNavigationItem("backup", "Backup & Restore", "Sicherungen, Aufbewahrung und Wiederherstellung.", "\uE72C"),
             new SettingsCategoryNavigationItem("xml-import", "XML Import", "Import prüfen, Vorschau ansehen und sicher übernehmen.", "\uE9F9"),
             new SettingsCategoryNavigationItem("updates", "Updates & Validierung", "Versionen, Prüfungen und Konfigurationsstatus.", "\uE895")
@@ -209,6 +208,15 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
         XmlImportPreviewItems = [];
         XmlImportPreviewErrors = [];
+        XmlImportStructureFields = CreateXmlImportStructureFields();
+        XmlImportAddressFields = CreateXmlImportAddressFields();
+        XmlImportOrderFields = CreateXmlImportOrderFields();
+        XmlImportProductFields = CreateXmlImportProductFields();
+
+        AttachXmlImportFieldHandlers(XmlImportStructureFields);
+        AttachXmlImportFieldHandlers(XmlImportAddressFields);
+        AttachXmlImportFieldHandlers(XmlImportOrderFields);
+        AttachXmlImportFieldHandlers(XmlImportProductFields);
 
         PropertyChanged += OnSelfPropertyChanged;
 
@@ -261,6 +269,14 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public ObservableCollection<XmlImportPreviewListItemViewModel> XmlImportPreviewItems { get; }
 
     public ObservableCollection<string> XmlImportPreviewErrors { get; }
+
+    public ObservableCollection<XmlImportMappingFieldViewModel> XmlImportStructureFields { get; }
+
+    public ObservableCollection<XmlImportMappingFieldViewModel> XmlImportAddressFields { get; }
+
+    public ObservableCollection<XmlImportMappingFieldViewModel> XmlImportOrderFields { get; }
+
+    public ObservableCollection<XmlImportMappingFieldViewModel> XmlImportProductFields { get; }
 
     public string StatusText
     {
@@ -1063,6 +1079,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             SpediteurToolUrl = string.IsNullOrWhiteSpace(SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : SpediteurToolUrl.Trim(),
             TourDefaultStartTime = NormalizeTourDefaultStartTime(TourDefaultStartTime),
             XmlImportFilePath = (XmlImportFilePath ?? string.Empty).Trim(),
+            XmlImportMapping = BuildXmlImportMapping().WithDefaults(),
             QuickAccessItems = new List<string>()
         };
     }
@@ -1123,6 +1140,173 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         TourDefaultStartTime = NormalizeTourDefaultStartTime(settings.TourDefaultStartTime);
         
         XmlImportFilePath = settings.XmlImportFilePath ?? string.Empty;
+        ApplyXmlImportMapping(settings.XmlImportMapping);
+    }
+
+    private ObservableCollection<XmlImportMappingFieldViewModel> CreateXmlImportStructureFields()
+    {
+        return
+        [
+            new XmlImportMappingFieldViewModel("Adress-Datensatz", XmlImportMappingSettings.DefaultAddressRecordElement, XmlImportMappingSettings.DefaultAddressRecordElement),
+            new XmlImportMappingFieldViewModel("Auftrags-Datensatz", XmlImportMappingSettings.DefaultOrderRecordElement, XmlImportMappingSettings.DefaultOrderRecordElement),
+            new XmlImportMappingFieldViewModel("Produkt-Datensatz", XmlImportMappingSettings.DefaultProductRecordElement, XmlImportMappingSettings.DefaultProductRecordElement)
+        ];
+    }
+
+    private ObservableCollection<XmlImportMappingFieldViewModel> CreateXmlImportAddressFields()
+    {
+        return
+        [
+            new XmlImportMappingFieldViewModel("Adress-ID", XmlImportMappingSettings.DefaultAddressId, XmlImportMappingSettings.DefaultAddressId),
+            new XmlImportMappingFieldViewModel("Firma", XmlImportMappingSettings.DefaultAddressCompany, XmlImportMappingSettings.DefaultAddressCompany),
+            new XmlImportMappingFieldViewModel("Nachname", XmlImportMappingSettings.DefaultAddressLastName, XmlImportMappingSettings.DefaultAddressLastName),
+            new XmlImportMappingFieldViewModel("Vorname", XmlImportMappingSettings.DefaultAddressFirstName, XmlImportMappingSettings.DefaultAddressFirstName),
+            new XmlImportMappingFieldViewModel("Strasse", XmlImportMappingSettings.DefaultAddressStreet, XmlImportMappingSettings.DefaultAddressStreet),
+            new XmlImportMappingFieldViewModel("PLZ", XmlImportMappingSettings.DefaultAddressPostalCode, XmlImportMappingSettings.DefaultAddressPostalCode),
+            new XmlImportMappingFieldViewModel("Ort", XmlImportMappingSettings.DefaultAddressCity, XmlImportMappingSettings.DefaultAddressCity),
+            new XmlImportMappingFieldViewModel("Land", XmlImportMappingSettings.DefaultAddressCountry, XmlImportMappingSettings.DefaultAddressCountry),
+            new XmlImportMappingFieldViewModel("E-Mail", XmlImportMappingSettings.DefaultAddressEmail, XmlImportMappingSettings.DefaultAddressEmail),
+            new XmlImportMappingFieldViewModel("Telefon", XmlImportMappingSettings.DefaultAddressPhone, XmlImportMappingSettings.DefaultAddressPhone),
+            new XmlImportMappingFieldViewModel("Kontaktperson", XmlImportMappingSettings.DefaultAddressContactPerson, XmlImportMappingSettings.DefaultAddressContactPerson)
+        ];
+    }
+
+    private ObservableCollection<XmlImportMappingFieldViewModel> CreateXmlImportOrderFields()
+    {
+        return
+        [
+            new XmlImportMappingFieldViewModel("Auftragsnummer", XmlImportMappingSettings.DefaultOrderNumber, XmlImportMappingSettings.DefaultOrderNumber),
+            new XmlImportMappingFieldViewModel("Typ", XmlImportMappingSettings.DefaultOrderType, XmlImportMappingSettings.DefaultOrderType),
+            new XmlImportMappingFieldViewModel("Auftragsdatum", XmlImportMappingSettings.DefaultOrderDate, XmlImportMappingSettings.DefaultOrderDate),
+            new XmlImportMappingFieldViewModel("Kunden-Adress-ID", XmlImportMappingSettings.DefaultOrderAddressId, XmlImportMappingSettings.DefaultOrderAddressId),
+            new XmlImportMappingFieldViewModel("Liefer-Adress-ID", XmlImportMappingSettings.DefaultOrderDeliveryAddressId, XmlImportMappingSettings.DefaultOrderDeliveryAddressId),
+            new XmlImportMappingFieldViewModel("Lieferbedingung", XmlImportMappingSettings.DefaultOrderDeliveryCondition, XmlImportMappingSettings.DefaultOrderDeliveryCondition),
+            new XmlImportMappingFieldViewModel("Lieferdatum", XmlImportMappingSettings.DefaultOrderDeliveryDate, XmlImportMappingSettings.DefaultOrderDeliveryDate),
+            new XmlImportMappingFieldViewModel("Archiviert", XmlImportMappingSettings.DefaultOrderArchived, XmlImportMappingSettings.DefaultOrderArchived),
+            new XmlImportMappingFieldViewModel("Gesperrt", "(kein Standardwert)", XmlImportMappingSettings.DefaultOrderLocked),
+            new XmlImportMappingFieldViewModel("Notiz", XmlImportMappingSettings.DefaultOrderNote, XmlImportMappingSettings.DefaultOrderNote)
+        ];
+    }
+
+    private ObservableCollection<XmlImportMappingFieldViewModel> CreateXmlImportProductFields()
+    {
+        return
+        [
+            new XmlImportMappingFieldViewModel("Produkt-Auftrags-ID", XmlImportMappingSettings.DefaultProductOrderId, XmlImportMappingSettings.DefaultProductOrderId),
+            new XmlImportMappingFieldViewModel("Artikelnummer", XmlImportMappingSettings.DefaultProductArticleNumber, XmlImportMappingSettings.DefaultProductArticleNumber),
+            new XmlImportMappingFieldViewModel("Bezeichnung", XmlImportMappingSettings.DefaultProductDescription, XmlImportMappingSettings.DefaultProductDescription),
+            new XmlImportMappingFieldViewModel("Menge", XmlImportMappingSettings.DefaultProductQuantity, XmlImportMappingSettings.DefaultProductQuantity),
+            new XmlImportMappingFieldViewModel("Gewicht", XmlImportMappingSettings.DefaultProductWeight, XmlImportMappingSettings.DefaultProductWeight)
+        ];
+    }
+
+    private void AttachXmlImportFieldHandlers(IEnumerable<XmlImportMappingFieldViewModel> fields)
+    {
+        foreach (var field in fields)
+        {
+            field.PropertyChanged += OnXmlImportFieldPropertyChanged;
+        }
+    }
+
+    private void OnXmlImportFieldPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(XmlImportMappingFieldViewModel.XmlName))
+        {
+            return;
+        }
+
+        ClearXmlImportPreview(clearStatus: false);
+
+        if (_suppressAutoSave || _autoSaveInProgress)
+        {
+            return;
+        }
+
+        ScheduleAutoSave();
+    }
+
+    private XmlImportMappingSettings BuildXmlImportMapping()
+    {
+        return new XmlImportMappingSettings
+        {
+            AddressRecordElement = XmlImportStructureFields[0].XmlName,
+            OrderRecordElement = XmlImportStructureFields[1].XmlName,
+            ProductRecordElement = XmlImportStructureFields[2].XmlName,
+            AddressId = XmlImportAddressFields[0].XmlName,
+            AddressCompany = XmlImportAddressFields[1].XmlName,
+            AddressLastName = XmlImportAddressFields[2].XmlName,
+            AddressFirstName = XmlImportAddressFields[3].XmlName,
+            AddressStreet = XmlImportAddressFields[4].XmlName,
+            AddressHouseNumber = string.Empty,
+            AddressPostalCode = XmlImportAddressFields[5].XmlName,
+            AddressCity = XmlImportAddressFields[6].XmlName,
+            AddressCountry = XmlImportAddressFields[7].XmlName,
+            AddressEmail = XmlImportAddressFields[8].XmlName,
+            AddressPhone = XmlImportAddressFields[9].XmlName,
+            AddressContactPerson = XmlImportAddressFields[10].XmlName,
+            OrderId = XmlImportMappingSettings.DefaultOrderId,
+            OrderNumber = XmlImportOrderFields[0].XmlName,
+            OrderType = XmlImportOrderFields[1].XmlName,
+            OrderDate = XmlImportOrderFields[2].XmlName,
+            OrderAddressId = XmlImportOrderFields[3].XmlName,
+            OrderDeliveryAddressId = XmlImportOrderFields[4].XmlName,
+            OrderDeliveryCondition = XmlImportOrderFields[5].XmlName,
+            OrderDeliveryDate = XmlImportOrderFields[6].XmlName,
+            OrderArchived = XmlImportOrderFields[7].XmlName,
+            OrderLocked = XmlImportOrderFields[8].XmlName,
+            OrderNote = XmlImportOrderFields[9].XmlName,
+            ProductOrderId = XmlImportProductFields[0].XmlName,
+            ProductArticleNumber = XmlImportProductFields[1].XmlName,
+            ProductDescription = XmlImportProductFields[2].XmlName,
+            ProductQuantity = XmlImportProductFields[3].XmlName,
+            ProductWeight = XmlImportProductFields[4].XmlName
+        };
+    }
+
+    private void ApplyXmlImportMapping(XmlImportMappingSettings? mapping)
+    {
+        var effective = (mapping ?? XmlImportMappingSettings.CreateDefault()).WithDefaults();
+
+        _suppressAutoSave = true;
+        try
+        {
+            XmlImportStructureFields[0].XmlName = effective.AddressRecordElement;
+            XmlImportStructureFields[1].XmlName = effective.OrderRecordElement;
+            XmlImportStructureFields[2].XmlName = effective.ProductRecordElement;
+
+            XmlImportAddressFields[0].XmlName = effective.AddressId;
+            XmlImportAddressFields[1].XmlName = effective.AddressCompany;
+            XmlImportAddressFields[2].XmlName = effective.AddressLastName;
+            XmlImportAddressFields[3].XmlName = effective.AddressFirstName;
+            XmlImportAddressFields[4].XmlName = effective.AddressStreet;
+            XmlImportAddressFields[5].XmlName = effective.AddressPostalCode;
+            XmlImportAddressFields[6].XmlName = effective.AddressCity;
+            XmlImportAddressFields[7].XmlName = effective.AddressCountry;
+            XmlImportAddressFields[8].XmlName = effective.AddressEmail;
+            XmlImportAddressFields[9].XmlName = effective.AddressPhone;
+            XmlImportAddressFields[10].XmlName = effective.AddressContactPerson;
+
+            XmlImportOrderFields[0].XmlName = effective.OrderNumber;
+            XmlImportOrderFields[1].XmlName = effective.OrderType;
+            XmlImportOrderFields[2].XmlName = effective.OrderDate;
+            XmlImportOrderFields[3].XmlName = effective.OrderAddressId;
+            XmlImportOrderFields[4].XmlName = effective.OrderDeliveryAddressId;
+            XmlImportOrderFields[5].XmlName = effective.OrderDeliveryCondition;
+            XmlImportOrderFields[6].XmlName = effective.OrderDeliveryDate;
+            XmlImportOrderFields[7].XmlName = effective.OrderArchived;
+            XmlImportOrderFields[8].XmlName = effective.OrderLocked;
+            XmlImportOrderFields[9].XmlName = effective.OrderNote;
+
+            XmlImportProductFields[0].XmlName = effective.ProductOrderId;
+            XmlImportProductFields[1].XmlName = effective.ProductArticleNumber;
+            XmlImportProductFields[2].XmlName = effective.ProductDescription;
+            XmlImportProductFields[3].XmlName = effective.ProductQuantity;
+            XmlImportProductFields[4].XmlName = effective.ProductWeight;
+        }
+        finally
+        {
+            _suppressAutoSave = false;
+        }
     }
 
     private static string NormalizeTourDefaultStartTime(string? value)
@@ -1282,7 +1466,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
             var fileInfo = new FileInfo(XmlImportFilePath);
             var xmlService = new XmlOrderImportService();
-            var loadResult = xmlService.LoadOrdersFromFileDetailed(XmlImportFilePath);
+            var loadResult = xmlService.LoadOrdersFromFileDetailed(XmlImportFilePath, BuildXmlImportMapping());
             var importService = new SqlOrderImportService();
             var preview = await importService.PreviewImportAsync(loadResult.Orders, _orderRepository);
 
@@ -1370,6 +1554,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             var appSettings = await _settingsRepository.GetAsync();
             appSettings.XmlImportFilePath = XmlImportFilePath;
             appSettings.LastXmlImportDate = DateTime.Now;
+            appSettings.XmlImportMapping = BuildXmlImportMapping().WithDefaults();
             await _settingsRepository.SaveAsync(appSettings);
 
             _hasPendingXmlImportPreview = false;

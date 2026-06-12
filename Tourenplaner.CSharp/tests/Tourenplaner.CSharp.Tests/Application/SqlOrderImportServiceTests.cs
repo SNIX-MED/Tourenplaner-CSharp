@@ -202,6 +202,7 @@ public class SqlOrderImportServiceTests
                 ContactPerson = order.OrderAddress.ContactPerson,
                 Additional = order.OrderAddress.Additional,
                 Street = order.OrderAddress.Street,
+                HouseNumber = order.OrderAddress.HouseNumber,
                 PostalCode = order.OrderAddress.PostalCode,
                 City = order.OrderAddress.City
             },
@@ -211,6 +212,7 @@ public class SqlOrderImportServiceTests
                 ContactPerson = order.DeliveryAddress.ContactPerson,
                 Additional = order.DeliveryAddress.Additional,
                 Street = order.DeliveryAddress.Street,
+                HouseNumber = order.DeliveryAddress.HouseNumber,
                 PostalCode = order.DeliveryAddress.PostalCode,
                 City = order.DeliveryAddress.City
             },

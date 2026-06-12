@@ -506,6 +506,54 @@
                                         </Border>
                                     </Grid>
 
+                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Firma" />
+                                            <TextBlock Margin="0,6,0,0"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       TextWrapping="Wrap"
+                                                       Text="Diese Angaben werden als zentrale Firmendaten für Absender, PDFs und die Standortbasis verwendet." />
+
+                                            <Grid Margin="0,16,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Firmenname" />
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Firmenstrasse" />
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyStreet, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Postleitzahl" />
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyPostalCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Ort" />
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyCity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
                                     <Border Style="{StaticResource SettingsInnerPanelStyle}" Margin="0,0,0,0" Visibility="Collapsed">
                                         <StackPanel>
                                             <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Hinweis" />
@@ -879,56 +927,6 @@
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="company">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
-                                            <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Firmenname" />
-                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
-                                            <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Firmenstrasse" />
-                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyStreet, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
-                                            <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Postleitzahl" />
-                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyPostalCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
-                                            <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Ort" />
-                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyCity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-                                </StackPanel>
-
-                                <StackPanel>
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
                                                 <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="backup">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
@@ -1004,7 +1002,93 @@
                                         <Button Width="170" Margin="0,0,0,10" Content="Import ausführen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ImportOrdersCommand}" />
                                     </WrapPanel>
 
-                                    <Border>
+                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="XML-Zuordnung" />
+                                            <TextBlock Margin="0,6,0,0"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       TextWrapping="Wrap"
+                                                       Text="Lege hier fest, welche XML-Bezeichnungen den Importfeldern entsprechen. Leere Werte fallen automatisch auf die Standardbezeichnungen der Musterdatei zurück." />
+
+                                            <TextBlock Margin="0,18,0,8" FontWeight="SemiBold" Text="Struktur" />
+                                            <ItemsControl ItemsSource="{Binding XmlImportStructureFields}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,10">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="220" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Margin="0,10,14,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="{Binding ProgramField}" />
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding XmlName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DefaultXmlName, StringFormat='{}Standard: {0}'}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Margin="0,12,0,8" FontWeight="SemiBold" Text="Adressfelder" />
+                                            <ItemsControl ItemsSource="{Binding XmlImportAddressFields}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,10">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="220" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Margin="0,10,14,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="{Binding ProgramField}" />
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding XmlName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DefaultXmlName, StringFormat='{}Standard: {0}'}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Margin="0,12,0,8" FontWeight="SemiBold" Text="Auftragsfelder" />
+                                            <ItemsControl ItemsSource="{Binding XmlImportOrderFields}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,10">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="220" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Margin="0,10,14,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="{Binding ProgramField}" />
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding XmlName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DefaultXmlName, StringFormat='{}Standard: {0}'}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Margin="0,12,0,8" FontWeight="SemiBold" Text="Produktfelder" />
+                                            <ItemsControl ItemsSource="{Binding XmlImportProductFields}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,10">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="220" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Margin="0,10,14,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="{Binding ProgramField}" />
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding XmlName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                                <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DefaultXmlName, StringFormat='{}Standard: {0}'}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Margin="0,0,0,16">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="150" />

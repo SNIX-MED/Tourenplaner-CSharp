@@ -652,7 +652,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             (x.Id ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
             (x.CustomerName ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
             (x.Address ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
-            (x.DeliveryAddress?.Street ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+            BuildStreetLine(x.DeliveryAddress?.Street, x.DeliveryAddress?.HouseNumber).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
             (x.DeliveryAddress?.PostalCode ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
             (x.DeliveryAddress?.City ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase));
         if (orderModel is null)
@@ -1169,7 +1169,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         var lines = new[]
         {
             (order.OrderAddress?.Name ?? string.Empty).Trim(),
-            (order.OrderAddress?.Street ?? string.Empty).Trim(),
+            BuildStreetLine(order.OrderAddress?.Street, order.OrderAddress?.HouseNumber),
             string.Join(' ', new[]
             {
                 (order.OrderAddress?.PostalCode ?? string.Empty).Trim(),
@@ -1195,7 +1195,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         {
             (order.DeliveryAddress?.Name ?? string.Empty).Trim(),
             (order.DeliveryAddress?.ContactPerson ?? string.Empty).Trim(),
-            (order.DeliveryAddress?.Street ?? string.Empty).Trim(),
+            BuildStreetLine(order.DeliveryAddress?.Street, order.DeliveryAddress?.HouseNumber),
             string.Join(' ', new[]
             {
                 (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim(),
@@ -6856,13 +6856,13 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
     private static string ResolveStreet(Order order)
     {
-        var street = (order.DeliveryAddress?.Street ?? string.Empty).Trim();
+        var street = BuildStreetLine(order.DeliveryAddress?.Street, order.DeliveryAddress?.HouseNumber);
         if (!string.IsNullOrWhiteSpace(street))
         {
             return NormalizeUiText(street);
         }
 
-        street = (order.OrderAddress?.Street ?? string.Empty).Trim();
+        street = BuildStreetLine(order.OrderAddress?.Street, order.OrderAddress?.HouseNumber);
         if (!string.IsNullOrWhiteSpace(street))
         {
             return NormalizeUiText(street);
@@ -6908,6 +6908,15 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
 
         return string.Empty;
+    }
+
+    private static string BuildStreetLine(string? street, string? houseNumber)
+    {
+        return string.Join(" ", new[]
+        {
+            (street ?? string.Empty).Trim(),
+            (houseNumber ?? string.Empty).Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
     private static List<string> BuildProductLineItems(IEnumerable<OrderProductInfo>? products)

@@ -766,11 +766,13 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             Longitude = order.Location?.Longitude.ToString("0.######") ?? string.Empty,
             OrderAddressName = order.OrderAddress?.Name ?? string.Empty,
             OrderAddressStreet = order.OrderAddress?.Street ?? string.Empty,
+            OrderAddressHouseNumber = order.OrderAddress?.HouseNumber ?? string.Empty,
             OrderAddressPostalCode = order.OrderAddress?.PostalCode ?? string.Empty,
             OrderAddressCity = order.OrderAddress?.City ?? string.Empty,
             DeliveryName = order.DeliveryAddress?.Name ?? order.CustomerName,
             DeliveryContactPerson = order.DeliveryAddress?.ContactPerson ?? string.Empty,
             DeliveryStreet = order.DeliveryAddress?.Street ?? string.Empty,
+            DeliveryHouseNumber = order.DeliveryAddress?.HouseNumber ?? string.Empty,
             DeliveryPostalCode = order.DeliveryAddress?.PostalCode ?? string.Empty,
             DeliveryCity = order.DeliveryAddress?.City ?? string.Empty,
             Email = order.Email ?? string.Empty,
@@ -825,6 +827,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 Name = source.OrderAddress?.Name ?? string.Empty,
                 ContactPerson = source.OrderAddress?.ContactPerson ?? string.Empty,
                 Street = source.OrderAddress?.Street ?? string.Empty,
+                HouseNumber = source.OrderAddress?.HouseNumber ?? string.Empty,
                 PostalCode = source.OrderAddress?.PostalCode ?? string.Empty,
                 City = source.OrderAddress?.City ?? string.Empty
             },
@@ -833,6 +836,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 Name = source.DeliveryAddress?.Name ?? string.Empty,
                 ContactPerson = source.DeliveryAddress?.ContactPerson ?? string.Empty,
                 Street = source.DeliveryAddress?.Street ?? string.Empty,
+                HouseNumber = source.DeliveryAddress?.HouseNumber ?? string.Empty,
                 PostalCode = source.DeliveryAddress?.PostalCode ?? string.Empty,
                 City = source.DeliveryAddress?.City ?? string.Empty
             },
@@ -867,11 +871,13 @@ public sealed class OrderItem : ObservableObject
     private string _longitude = string.Empty;
     private string _orderAddressName = string.Empty;
     private string _orderAddressStreet = string.Empty;
+    private string _orderAddressHouseNumber = string.Empty;
     private string _orderAddressPostalCode = string.Empty;
     private string _orderAddressCity = string.Empty;
     private string _deliveryName = string.Empty;
     private string _deliveryContactPerson = string.Empty;
     private string _deliveryStreet = string.Empty;
+    private string _deliveryHouseNumber = string.Empty;
     private string _deliveryPostalCode = string.Empty;
     private string _deliveryCity = string.Empty;
     private string _email = string.Empty;
@@ -910,7 +916,7 @@ public sealed class OrderItem : ObservableObject
     {
         get
         {
-            var street = (OrderAddressStreet ?? string.Empty).Trim();
+            var street = BuildStreetLine(OrderAddressStreet, OrderAddressHouseNumber);
             var postal = (OrderAddressPostalCode ?? string.Empty).Trim();
             var city = (OrderAddressCity ?? string.Empty).Trim();
             var postalCity = string.Join(' ', new[] { postal, city }.Where(x => !string.IsNullOrWhiteSpace(x)));
@@ -922,7 +928,7 @@ public sealed class OrderItem : ObservableObject
     {
         get
         {
-            var street = (DeliveryStreet ?? string.Empty).Trim();
+            var street = BuildStreetLine(DeliveryStreet, DeliveryHouseNumber);
             return string.IsNullOrWhiteSpace(street) ? (Address ?? string.Empty).Trim() : street;
         }
     }
@@ -996,6 +1002,12 @@ public sealed class OrderItem : ObservableObject
         set => SetProperty(ref _orderAddressStreet, value);
     }
 
+    public string OrderAddressHouseNumber
+    {
+        get => _orderAddressHouseNumber;
+        set => SetProperty(ref _orderAddressHouseNumber, value);
+    }
+
     public string OrderAddressPostalCode
     {
         get => _orderAddressPostalCode;
@@ -1024,6 +1036,12 @@ public sealed class OrderItem : ObservableObject
     {
         get => _deliveryStreet;
         set => SetProperty(ref _deliveryStreet, value);
+    }
+
+    public string DeliveryHouseNumber
+    {
+        get => _deliveryHouseNumber;
+        set => SetProperty(ref _deliveryHouseNumber, value);
     }
 
     public string DeliveryPostalCode
@@ -1078,6 +1096,15 @@ public sealed class OrderItem : ObservableObject
     {
         get => _isArchived;
         set => SetProperty(ref _isArchived, value);
+    }
+
+    private static string BuildStreetLine(string? street, string? houseNumber)
+    {
+        return string.Join(" ", new[]
+        {
+            (street ?? string.Empty).Trim(),
+            (houseNumber ?? string.Empty).Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 }
 
