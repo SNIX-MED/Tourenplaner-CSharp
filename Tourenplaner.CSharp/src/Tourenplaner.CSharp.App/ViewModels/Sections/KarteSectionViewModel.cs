@@ -5719,6 +5719,15 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         try
         {
             var settings = await _settingsRepository.LoadAsync();
+            var nextCompanyName = string.IsNullOrWhiteSpace(settings.CompanyName) ? "Firma" : settings.CompanyName.Trim();
+            var nextCompanyAddress = BuildCompanyAddressText(settings.CompanyStreet, settings.CompanyPostalCode, settings.CompanyCity);
+            var nextCompanyLocation = await AddressGeocodingService.TryGeocodeAddressAsync(
+                settings.CompanyStreet,
+                settings.CompanyPostalCode,
+                settings.CompanyCity,
+                nextCompanyAddress,
+                _tomTomApiKey,
+                _geocodeCachePath);
             var nextScale = settings.PinInfoCardScale is >= 0.7d and <= 1.8d
                 ? settings.PinInfoCardScale
                 : AppSettings.DefaultPinInfoCardScale;
@@ -5787,6 +5796,18 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 _mapAutoOpenDetailsOnPinSelection = nextMapAutoOpenDetailsOnPinSelection;
             }
 
+            if (!string.Equals(_companyName, nextCompanyName, StringComparison.Ordinal) ||
+                !string.Equals(_companyAddress, nextCompanyAddress, StringComparison.Ordinal) ||
+                !AreGeoPointsEqual(_companyLocation, nextCompanyLocation))
+            {
+                _companyName = nextCompanyName;
+                _companyAddress = nextCompanyAddress;
+                _companyLocation = nextCompanyLocation;
+                EnsureCompanyAnchors();
+                OnPropertyChanged(nameof(CompanyMarker));
+                changed = true;
+            }
+
             if (changed)
             {
                 OnPropertyChanged(nameof(RouteVisualRevision));
@@ -5821,6 +5842,17 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             s,
             string.Join(' ', new[] { p, c }.Where(x => !string.IsNullOrWhiteSpace(x))).Trim()
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static bool AreGeoPointsEqual(GeoPoint? left, GeoPoint? right)
+    {
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+
+        return Math.Abs(left.Latitude - right.Latitude) < 0.000001d &&
+               Math.Abs(left.Longitude - right.Longitude) < 0.000001d;
     }
 
     private void EnsureCompanyAnchors()
