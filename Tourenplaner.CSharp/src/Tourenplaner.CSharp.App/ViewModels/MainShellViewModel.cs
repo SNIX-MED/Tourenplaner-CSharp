@@ -63,6 +63,7 @@ public sealed class MainShellViewModel : ObservableObject
         _orderMutationRepository = repositories.OrderRepository as IOrderMutationRepository;
         _appSettingsRepository = repositories.AppSettingsStore;
         _employeesRepository = repositories.EmployeeDataStore;
+        LocalUserSessionService.Initialize(repositories.DataRootPath);
         var map = new KarteSectionViewModel(
             repositories.OrderRepository,
             repositories.TourRecordStore,
@@ -677,6 +678,7 @@ public sealed class MainShellViewModel : ObservableObject
         {
             var settingsTask = _appSettingsRepository.LoadAsync();
             var employeesTask = _employeesRepository.LoadAsync();
+            var localUserTask = LocalUserSessionService.LoadAsync();
             await Task.WhenAll(settingsTask, employeesTask);
 
             var settings = await settingsTask;
@@ -687,18 +689,19 @@ public sealed class MainShellViewModel : ObservableObject
                 .OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
-            var preferred = (settings.CurrentUserName ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(preferred))
-            {
-                preferred = (Environment.UserName ?? string.Empty).Trim();
-            }
+            var localUserName = (await localUserTask).Trim();
+            var preferred = string.IsNullOrWhiteSpace(localUserName)
+                ? ResolvePreferredStartupUserName((settings.CurrentUserName ?? string.Empty).Trim(), names)
+                : ResolvePreferredUserName(localUserName, names);
 
-            if (string.IsNullOrWhiteSpace(preferred))
+            if (string.IsNullOrWhiteSpace(localUserName) && names.Count > 0)
             {
-                preferred = "default";
+                var prompted = PromptForUserSelection(names, preferred);
+                if (!string.IsNullOrWhiteSpace(prompted))
+                {
+                    preferred = prompted;
+                }
             }
-
-            preferred = ResolvePreferredUserName(preferred, names);
 
             _suppressUserSelectionChange = true;
             AvailableUserNames.Clear();
@@ -710,12 +713,7 @@ public sealed class MainShellViewModel : ObservableObject
             SelectedUserName = preferred;
             _suppressUserSelectionChange = false;
             CurrentUserName = preferred;
-
-            if (!string.Equals(settings.CurrentUserName, preferred, StringComparison.OrdinalIgnoreCase))
-            {
-                settings.CurrentUserName = preferred;
-                await _appSettingsRepository.SaveAsync(settings);
-            }
+            await LocalUserSessionService.SaveAsync(preferred);
         }
         catch
         {
@@ -736,10 +734,7 @@ public sealed class MainShellViewModel : ObservableObject
             return;
         }
 
-        var settings = await _appSettingsRepository.LoadAsync();
-        settings.CurrentUserName = normalized;
-        await _appSettingsRepository.SaveAsync(settings);
-
+        await LocalUserSessionService.SaveAsync(normalized);
         CurrentUserName = normalized;
         if (!AvailableUserNames.Contains(normalized, StringComparer.OrdinalIgnoreCase))
         {
@@ -787,6 +782,7 @@ public sealed class MainShellViewModel : ObservableObject
             var resolvedCurrent = ResolvePreferredUserName(CurrentUserName, names);
             if (!string.Equals(resolvedCurrent, CurrentUserName, StringComparison.OrdinalIgnoreCase))
             {
+                await LocalUserSessionService.SaveAsync(resolvedCurrent);
                 CurrentUserName = resolvedCurrent;
                 _suppressUserSelectionChange = true;
                 SelectedUserName = resolvedCurrent;
@@ -839,5 +835,33 @@ public sealed class MainShellViewModel : ObservableObject
         }
 
         return employeeNames[0];
+    }
+
+    private static string ResolvePreferredStartupUserName(string sharedPreferred, IReadOnlyList<string> employeeNames)
+    {
+        if (!string.IsNullOrWhiteSpace(sharedPreferred))
+        {
+            return ResolvePreferredUserName(sharedPreferred, employeeNames);
+        }
+
+        var environmentUser = (Environment.UserName ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(environmentUser))
+        {
+            return ResolvePreferredUserName(environmentUser, employeeNames);
+        }
+
+        return ResolvePreferredUserName("default", employeeNames);
+    }
+
+    private static string PromptForUserSelection(IReadOnlyList<string> names, string preferred)
+    {
+        var dialog = new UserSelectionDialogWindow(names, preferred)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        return dialog.ShowDialog() == true
+            ? (dialog.SelectedUserName ?? string.Empty).Trim()
+            : (preferred ?? string.Empty).Trim();
     }
 }

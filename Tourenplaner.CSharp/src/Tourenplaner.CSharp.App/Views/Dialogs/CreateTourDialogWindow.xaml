@@ -4,7 +4,7 @@
         xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
         Title="Neue Tour erstellen"
         Width="700"
-        Height="860"
+        Height="820"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource Brush.WindowBackground}">
@@ -88,13 +88,81 @@
                 </StackPanel>
             </Border>
 
-            <StackPanel Grid.Row="7" Margin="0,12,0,0">
-                <TextBlock FontWeight="SemiBold" Text="{Binding SelectedEmployeesSummary}" />
-                <Button Margin="0,8,0,0" Height="34" Content="Mitarbeiter wählen" Style="{StaticResource SecondaryButtonStyle}" Click="OnSelectEmployeesClicked" />
-            </StackPanel>
+            <Grid Grid.Row="7" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           FontWeight="SemiBold"
+                           Text="Mitarbeiter" />
+                <Border Grid.Column="1"
+                        Padding="10,4"
+                        CornerRadius="999"
+                        Background="{DynamicResource Brush.SurfaceRaised}">
+                    <TextBlock FontSize="12"
+                               FontWeight="SemiBold"
+                               Text="{Binding SelectedEmployeesSummary}" />
+                </Border>
+            </Grid>
 
             <Border Grid.Row="8" Margin="0,12,0,0" Style="{StaticResource SoftCardStyle}" Padding="10">
-                <TextBlock Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" Text="Es müssen 1 bis 2 Mitarbeiter ausgewählt werden. Bei mehreren Fahrzeugen sind mindestens 2 Mitarbeiter erforderlich." />
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ScrollViewer Grid.Row="0"
+                                  MaxHeight="170"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Employees}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="3" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,6,6"
+                                            Padding="6,4"
+                                            MinHeight="28"
+                                            CornerRadius="8"
+                                            Background="{DynamicResource Brush.SurfaceRaised}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox Grid.Column="0"
+                                                      VerticalAlignment="Center"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Margin="4,0,4,0"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#D4A017"
+                                                       Text="★"
+                                                       Visibility="{Binding IsFavorite, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            <TextBlock Grid.Column="2"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Text="{Binding Label}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <TextBlock Grid.Row="1"
+                               Margin="0,4,0,0"
+                               Foreground="{DynamicResource Brush.TextMuted}"
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               Text="1 bis 2 Mitarbeiter wählen. Bei zwei Fahrzeugen sind mindestens 2 nötig." />
+                </Grid>
             </Border>
 
             <Grid Grid.Row="9" Margin="0,16,0,0">

@@ -1288,7 +1288,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     private void ApplyModel(AppSettings settings)
     {
-        var currentUserName = AppSettings.NormalizeUserName(settings.CurrentUserName);
+        var currentUserName = AppSettings.NormalizeUserName(LocalUserSessionService.CurrentUserName);
         var userPreference = settings.ResolveUserPreference(currentUserName);
 
         AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(userPreference.AvisoEmailSubjectTemplate)
@@ -1649,7 +1649,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         {
             await Task.Delay(150, cancellationToken);
             var settings = await _repository.LoadAsync(cancellationToken);
-            var currentUserName = AppSettings.NormalizeUserName(settings.CurrentUserName);
+            var currentUserName = AppSettings.NormalizeUserName(LocalUserSessionService.CurrentUserName);
             var userPreference = settings.ResolveUserPreference(currentUserName);
             var clamped = Math.Clamp(_pinInfoCardZoomBehaviorStrength, 0.2d, 4.0d);
             if (Math.Abs(userPreference.PinInfoCardZoomBehaviorStrength - clamped) < 0.0001d)

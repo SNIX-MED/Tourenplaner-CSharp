@@ -55,6 +55,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             ShortCode: string.Empty,
             Phone: string.Empty,
             HasProgramProfile: true,
+            IsFavorite: false,
             RegisterAbsence: false,
             AbsenceStartDate: string.Empty,
             AbsenceEndDate: string.Empty);
@@ -70,6 +71,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             ShortCode: entry.ShortCode,
             Phone: entry.Phone,
             HasProgramProfile: source?.HasProgramProfile ?? true,
+            IsFavorite: source?.IsFavorite ?? false,
             RegisterAbsence: editablePeriod is not null,
             AbsenceStartDate: editablePeriod?.StartDate.ToString("dd.MM.yyyy") ?? string.Empty,
             AbsenceEndDate: editablePeriod?.EndDate.ToString("dd.MM.yyyy") ?? string.Empty);
@@ -107,6 +109,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             ShortCode = result.ShortCode.Trim(),
             Phone = result.Phone.Trim(),
             HasProgramProfile = result.HasProgramProfile,
+            IsFavorite = result.IsFavorite,
             Role = result.ShortCode.Trim(),
             Active = existing?.Active ?? true,
             UnavailabilityPeriods = periods
@@ -151,7 +154,8 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         Entries.Clear();
         var today = DateOnly.FromDateTime(DateTime.Today);
         foreach (var employee in _employees
-                     .OrderByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
+                     .OrderByDescending(x => x.IsFavorite)
+                     .ThenByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
                      .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase))
         {
             var isUnavailableToday = ResourceAvailabilityService.IsUnavailableOnDate(employee.UnavailabilityPeriods, today);
@@ -161,6 +165,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
                 Name = employee.DisplayName,
                 ShortCode = employee.ShortCode,
                 Phone = employee.Phone,
+                IsFavorite = employee.IsFavorite,
                 IsUnavailableToday = isUnavailableToday,
                 NextUnavailabilityText = BuildNextUnavailabilityText(employee.UnavailabilityPeriods, today)
             });
@@ -261,6 +266,7 @@ public sealed class EmployeeCardItem : ObservableObject
     public string Name { get; set; } = string.Empty;
     public string ShortCode { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
+    public bool IsFavorite { get; set; }
     public bool IsUnavailableToday { get; set; }
     public string NextUnavailabilityText { get; set; } = string.Empty;
 
@@ -297,6 +303,7 @@ public sealed record EmployeeEditorSeed(
     string ShortCode,
     string Phone,
     bool HasProgramProfile,
+    bool IsFavorite,
     bool RegisterAbsence,
     string AbsenceStartDate,
     string AbsenceEndDate);
@@ -307,6 +314,7 @@ public sealed record EmployeeEditorResult(
     string ShortCode,
     string Phone,
     bool HasProgramProfile,
+    bool IsFavorite,
     bool RegisterAbsence,
     string AbsenceStartDate,
     string AbsenceEndDate);

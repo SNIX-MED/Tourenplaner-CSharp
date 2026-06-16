@@ -1462,7 +1462,8 @@
                         </ToggleButton>
                         <Popup x:Name="UserSelectionPopup"
                                PlacementTarget="{Binding ElementName=UserSelectionButton}"
-                               Placement="Bottom"
+                               Placement="Custom"
+                               CustomPopupPlacementCallback="CenterPopupUnderButton"
                                StaysOpen="False"
                                AllowsTransparency="True"
                                Closed="UserSelectionPopup_Closed">
@@ -1473,8 +1474,11 @@
                                 <StackPanel>
                                     <TextBlock FontWeight="SemiBold"
                                                Margin="0,0,0,8"
-                                               Text="Benutzerprofil" />
+                                               Text="Benutzerprofil"
+                                               HorizontalAlignment="Center" />
                                     <ComboBox Height="36"
+                                              Width="170"
+                                              HorizontalAlignment="Center"
                                               ItemsSource="{Binding AvailableUserNames}"
                                               SelectedItem="{Binding SelectedUserName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 </StackPanel>

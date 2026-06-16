@@ -20,6 +20,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -57,6 +58,11 @@
             </StackPanel>
 
             <StackPanel Grid.Row="5" Margin="0,10,0,0">
+                <CheckBox Content="Als Favorit markieren"
+                          IsChecked="{Binding IsFavorite}" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="6" Margin="0,10,0,0">
                 <CheckBox Content="Abwesenheit eintragen"
                           IsChecked="{Binding RegisterAbsence}" />
                 <Grid Margin="0,8,0,0"
@@ -80,7 +86,7 @@
                 </Grid>
             </StackPanel>
 
-            <Grid Grid.Row="6" Margin="0,18,0,0">
+            <Grid Grid.Row="7" Margin="0,18,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />

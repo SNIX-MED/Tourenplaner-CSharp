@@ -2801,8 +2801,9 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         var employees = (await employeeTask)
             .Where(x => x.Active &&
                         (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
-            .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(x => new TourEmployeeOption(x.Id, x.DisplayName))
+            .OrderByDescending(x => x.IsFavorite)
+            .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new TourEmployeeOption(x.Id, x.DisplayName, x.IsFavorite))
             .ToList();
         _employeeLabelsById.Clear();
         foreach (var employee in employees)
@@ -6237,6 +6238,12 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
     private static string ResolveCurrentSettingsUserName(AppSettings settings)
     {
+        var localUser = (LocalUserSessionService.CurrentUserName ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(localUser))
+        {
+            return localUser;
+        }
+
         var configured = (settings.CurrentUserName ?? string.Empty).Trim();
         if (!string.IsNullOrWhiteSpace(configured))
         {

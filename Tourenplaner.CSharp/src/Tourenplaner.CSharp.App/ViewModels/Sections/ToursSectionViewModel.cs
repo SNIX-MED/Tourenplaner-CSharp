@@ -1564,8 +1564,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var employees = (await employeesTask)
             .Where(x => x.Active &&
                         (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
-            .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(x => new TourEmployeeOption(x.Id, x.DisplayName))
+            .OrderByDescending(x => x.IsFavorite)
+            .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new TourEmployeeOption(x.Id, x.DisplayName, x.IsFavorite))
             .ToList();
 
         var vehicleData = await vehiclesTask;

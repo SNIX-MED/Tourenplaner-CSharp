@@ -55,21 +55,6 @@ public partial class CreateTourDialogWindow : Window
         Close();
     }
 
-    private void OnSelectEmployeesClicked(object sender, RoutedEventArgs e)
-    {
-        var picker = new SelectEmployeesDialogWindow(ViewModel.Employees.ToList())
-        {
-            Owner = this
-        };
-
-        if (picker.ShowDialog() != true || picker.SelectedEmployeeIds is null)
-        {
-            return;
-        }
-
-        ViewModel.ApplySelectedEmployees(picker.SelectedEmployeeIds);
-    }
-
     private void OnCreateClicked(object sender, RoutedEventArgs e)
     {
         if (!ViewModel.TryBuildResult(out var result, out var validationError))
@@ -167,10 +152,18 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         UseSecondaryVehicle = !string.IsNullOrWhiteSpace(normalizedSecondaryVehicleId) ||
                               !string.IsNullOrWhiteSpace(normalizedSecondaryTrailerId);
 
-        Employees = (employeeOptions ?? []).Select(x => new SelectableEmployee(x.Id, x.Label)).ToList();
+        Employees = (employeeOptions ?? [])
+            .Select(x => new SelectableEmployee(x.Id, x.Label, x.IsFavorite))
+            .OrderByDescending(x => x.IsFavorite)
+            .ThenBy(x => x.Label, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
         if (selectedEmployeeIds is not null)
         {
             ApplySelectedEmployees(selectedEmployeeIds);
+        }
+        foreach (var employee in Employees)
+        {
+            employee.PropertyChanged += OnEmployeePropertyChanged;
         }
         RefreshEmployeesSummary();
     }
@@ -379,6 +372,14 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             : $"{count} Mitarbeiter ausgew\u00E4hlt";
     }
 
+    private void OnEmployeePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SelectableEmployee.IsSelected))
+        {
+            RefreshEmployeesSummary();
+        }
+    }
+
     private void SetNameFromDate(string? dateText)
     {
         var autoName = BuildDefaultTourName(dateText);
@@ -409,14 +410,16 @@ public sealed class SelectableEmployee : ObservableObject
 {
     private bool _isSelected;
 
-    public SelectableEmployee(string id, string label)
+    public SelectableEmployee(string id, string label, bool isFavorite = false)
     {
         Id = id;
         Label = label;
+        IsFavorite = isFavorite;
     }
 
     public string Id { get; }
     public string Label { get; }
+    public bool IsFavorite { get; }
 
     public bool IsSelected
     {
@@ -432,7 +435,7 @@ public sealed record TourLookupOption(string Id, string Label)
         return Label;
     }
 }
-public sealed record TourEmployeeOption(string Id, string Label);
+public sealed record TourEmployeeOption(string Id, string Label, bool IsFavorite);
 public sealed record CreateTourDialogResult(
     string RouteName,
     string RouteDate,

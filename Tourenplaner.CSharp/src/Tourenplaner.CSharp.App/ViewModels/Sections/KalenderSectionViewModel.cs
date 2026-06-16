@@ -195,7 +195,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         await Task.WhenAll(settingsTask, toursTask, ordersTask, manualEntriesTask);
 
         var settings = await settingsTask;
-        var userPreference = settings.ResolveUserPreference(settings.CurrentUserName);
+        var userPreference = settings.ResolveUserPreference(LocalUserSessionService.CurrentUserName);
         _calendarLoadWarningColor = NormalizeHexColor(userPreference.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
         _calendarLoadCriticalColor = NormalizeHexColor(userPreference.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
         _calendarLoadWarningPeopleThreshold = userPreference.CalendarLoadWarningPeopleThreshold < 1 ? 1 : userPreference.CalendarLoadWarningPeopleThreshold;

@@ -90,7 +90,7 @@ public sealed class StartSectionViewModel : SectionViewModelBase
         await Task.WhenAll(settingsTask, toursTask, manualEntriesTask);
 
         var settings = await settingsTask;
-        var userPreference = settings.ResolveUserPreference(settings.CurrentUserName);
+        var userPreference = settings.ResolveUserPreference(LocalUserSessionService.CurrentUserName);
         var warningColor = NormalizeHexColor(userPreference.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
         var criticalColor = NormalizeHexColor(userPreference.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
         var warningThreshold = userPreference.CalendarLoadWarningPeopleThreshold < 1 ? 1 : userPreference.CalendarLoadWarningPeopleThreshold;

@@ -1,0 +1,50 @@
+<Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.UserSelectionDialogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Benutzer auswählen"
+        Width="420"
+        Height="240"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="{DynamicResource Brush.WindowBackground}">
+    <Border Margin="12" Style="{StaticResource FlatCardStyle}" Padding="16">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock FontSize="28"
+                       FontWeight="Bold"
+                       Text="Benutzer anmelden" />
+
+            <TextBlock Grid.Row="1"
+                       Margin="0,10,0,0"
+                       Foreground="{DynamicResource Brush.TextMuted}"
+                       TextWrapping="Wrap"
+                       Text="Bitte wählen Sie den Benutzer aus, mit dem diese App auf diesem PC gestartet werden soll." />
+
+            <TextBlock Grid.Row="2"
+                       Margin="0,16,0,0"
+                       FontWeight="SemiBold"
+                       Text="Benutzerprofil" />
+
+            <ComboBox Grid.Row="3"
+                      Margin="0,6,0,0"
+                      Height="38"
+                      ItemsSource="{Binding UserNames}"
+                      SelectedItem="{Binding SelectedUserName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+            <Button Grid.Row="4"
+                    Height="40"
+                    Margin="0,16,0,0"
+                    Content="Weiter"
+                    Style="{StaticResource SuccessButtonStyle}"
+                    IsDefault="True"
+                    Click="OnConfirmClicked" />
+        </Grid>
+    </Border>
+</Window>

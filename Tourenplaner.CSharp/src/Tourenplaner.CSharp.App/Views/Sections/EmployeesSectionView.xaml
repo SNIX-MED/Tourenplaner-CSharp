@@ -6,6 +6,9 @@
              mc:Ignorable="d"
              d:DesignHeight="760"
              d:DesignWidth="1200">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </UserControl.Resources>
     <Grid Margin="{StaticResource Spacing.PageMargin}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -33,7 +36,14 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0" FontWeight="SemiBold" FontSize="19" Text="{Binding Name}" />
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock FontWeight="SemiBold" FontSize="19" Text="{Binding Name}" />
+                                        <TextBlock Margin="8,0,0,0"
+                                                   FontSize="18"
+                                                   Foreground="#D4A017"
+                                                   Text="★"
+                                                   Visibility="{Binding IsFavorite, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                    </StackPanel>
 
                                     <Border Grid.Row="0"
                                             Grid.Column="1"
