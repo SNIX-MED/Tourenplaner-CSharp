@@ -15,4 +15,5 @@ public sealed class TourRecord
     public string? SecondaryTrailerId { get; set; }
     public bool IsArchived { get; set; }
     public Dictionary<string, int> TravelTimeCache { get; set; } = new();
+    public string? ConcurrencyToken { get; set; }
 }

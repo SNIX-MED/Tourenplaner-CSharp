@@ -2,8 +2,9 @@ using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.App.Views.Dialogs;
+using Tourenplaner.CSharp.Application.Abstractions;
+using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
-using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 using System.Threading;
 using System.Windows;
@@ -25,9 +26,10 @@ public sealed class MainShellViewModel : ObservableObject
     private readonly KarteSectionViewModel _mapSection;
     private readonly AppDataHistoryService _historyService;
     private readonly AppDataSyncService _dataSyncService;
-    private readonly string _ordersJsonPath;
-    private readonly JsonAppSettingsRepository _appSettingsRepository;
-    private readonly JsonEmployeesRepository _employeesRepository;
+    private readonly IOrderRepository _orderRepository;
+    private readonly IOrderMutationRepository? _orderMutationRepository;
+    private readonly IAppSettingsStore _appSettingsRepository;
+    private readonly IEmployeeDataStore _employeesRepository;
     private readonly Guid _instanceId = Guid.NewGuid();
     private NavigationItemViewModel? _selectedNavigationItem;
     private object? _currentSection;
@@ -51,38 +53,43 @@ public sealed class MainShellViewModel : ObservableObject
     public MainShellViewModel(
         AppDataHistoryService historyService,
         AppDataSyncService dataSyncService,
-        string ordersJsonPath,
-        string toursJsonPath,
-        string employeesJsonPath,
-        string vehiclesJsonPath,
-        string settingsJsonPath,
-        string dataRootPath)
+        StorageRepositoryBundle repositories)
     {
         _historyService = historyService;
         _dataSyncService = dataSyncService;
-        _ordersJsonPath = ordersJsonPath;
-        _appSettingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
-        _employeesRepository = new JsonEmployeesRepository(employeesJsonPath);
-        var map = new KarteSectionViewModel(ordersJsonPath, toursJsonPath, settingsJsonPath, dataSyncService);
+        _orderRepository = repositories.OrderRepository;
+        _orderMutationRepository = repositories.OrderRepository as IOrderMutationRepository;
+        _appSettingsRepository = repositories.AppSettingsStore;
+        _employeesRepository = repositories.EmployeeDataStore;
+        var map = new KarteSectionViewModel(
+            repositories.OrderRepository,
+            repositories.TourRecordStore,
+            repositories.EmployeeDataStore,
+            repositories.VehicleDataStore,
+            repositories.AppSettingsStore,
+            repositories.DataRootPath,
+            dataSyncService);
         _mapSection = map;
         var start = new StartSectionViewModel(
-            toursJsonPath,
-            settingsJsonPath,
+            repositories.TourRecordStore,
+            repositories.CalendarManualEntryStore,
+            repositories.AppSettingsStore,
             "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Banner.png",
             () => NavigateToMapAsync(map),
             dataSyncService);
         var tours = new ToursSectionViewModel(
-            toursJsonPath,
-            ordersJsonPath,
-            employeesJsonPath,
-            vehiclesJsonPath,
-            settingsJsonPath,
+            repositories.TourRecordStore,
+            repositories.OrderRepository,
+            repositories.EmployeeDataStore,
+            repositories.VehicleDataStore,
+            repositories.AppSettingsStore,
             tourId => NavigateToMapTourAsync(map, tourId),
             dataSyncService);
         var calendar = new KalenderSectionViewModel(
-            toursJsonPath,
-            ordersJsonPath,
-            settingsJsonPath,
+            repositories.TourRecordStore,
+            repositories.OrderRepository,
+            repositories.CalendarManualEntryStore,
+            repositories.AppSettingsStore,
             tourId => NavigateToTourAsync(tours, tourId),
             tourId => NavigateToTourAndEditAsync(tours, tourId),
             tourId => NavigateToMapTourAsync(map, tourId),
@@ -90,25 +97,26 @@ public sealed class MainShellViewModel : ObservableObject
             orderId => OpenOrderEditorFromCalendarAsync(orderId),
             dataSyncService: dataSyncService);
         var orders = new OrdersSectionViewModel(
-            ordersJsonPath,
+            repositories.OrderRepository,
+            repositories.TourRecordStore,
             dataSyncService,
             tourId => NavigateToTourAsync(tours, tourId));
         var nonMapOrders = new NonMapOrdersSectionViewModel(
-            ordersJsonPath,
+            repositories.OrderRepository,
+            repositories.TourRecordStore,
             dataSyncService,
             tourId => NavigateToTourAsync(tours, tourId));
-        var employees = new EmployeesSectionViewModel(employeesJsonPath, toursJsonPath, dataSyncService);
-        var vehicles = new VehiclesSectionViewModel(vehiclesJsonPath, toursJsonPath, dataSyncService);
+        var employees = new EmployeesSectionViewModel(repositories.EmployeeDataStore, repositories.TourRecordStore, dataSyncService);
+        var vehicles = new VehiclesSectionViewModel(repositories.VehicleDataStore, repositories.TourRecordStore, dataSyncService);
         
         // Repositories für SQL Import
-        var orderRepository = new JsonOrderRepository(ordersJsonPath);
-        var settingsRepository = new JsonSettingsRepository(settingsJsonPath);
         var settings = new SettingsSectionViewModel(
-            settingsJsonPath,
-            dataRootPath,
-            orderRepository,
-            settingsRepository,
-            dataSyncService);
+            repositories.AppSettingsStore,
+            repositories.DataRootPath,
+            repositories.OrderRepository,
+            repositories.SettingsRepository,
+            dataSyncService,
+            repositories.StorageMode);
         _settingsSection = settings;
         var gps = new GpsSectionViewModel();
         _gpsSection = gps;
@@ -530,8 +538,7 @@ public sealed class MainShellViewModel : ObservableObject
             return;
         }
 
-        var repository = new JsonOrderRepository(_ordersJsonPath);
-        var orders = (await repository.GetAllAsync()).ToList();
+        var orders = (await _orderRepository.GetAllAsync()).ToList();
         var existing = orders.FirstOrDefault(x => string.Equals(x.Id, normalizedId, StringComparison.OrdinalIgnoreCase));
         if (existing is null)
         {
@@ -557,6 +564,7 @@ public sealed class MainShellViewModel : ObservableObject
         updated.Type = existing.Type;
         updated.AssignedTourId = existing.AssignedTourId;
         updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated) ?? existing.Location;
+        updated.ConcurrencyToken = existing.ConcurrencyToken;
 
         var originalId = existing.Id;
         orders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
@@ -564,7 +572,33 @@ public sealed class MainShellViewModel : ObservableObject
                               string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
         orders.Add(updated);
 
-        await repository.SaveAllAsync(orders);
+        try
+        {
+            if (!string.Equals(originalId, updated.Id, StringComparison.OrdinalIgnoreCase) && _orderMutationRepository is not null)
+            {
+                await _orderMutationRepository.DeleteAsync(originalId, existing.ConcurrencyToken);
+                updated.ConcurrencyToken = null;
+                await _orderMutationRepository.UpsertAsync(updated);
+            }
+            else if (_orderMutationRepository is not null)
+            {
+                await _orderMutationRepository.UpsertAsync(updated);
+            }
+            else
+            {
+                await _orderRepository.SaveAllAsync(orders);
+            }
+        }
+        catch (ConcurrencyConflictException)
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Bitte oeffnen Sie den Auftrag erneut.",
+                "Mehrbenutzerkonflikt",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
         _dataSyncService.PublishOrders(_instanceId, originalId, updated.Id);
     }
 

@@ -4,9 +4,9 @@ using System.IO;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
+using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
-using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -18,10 +18,10 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private const int PreviewWeekCount = 4;
     private const int PreviewNavigationMonths = 6;
 
-    private readonly JsonToursRepository _repository;
-    private readonly JsonOrderRepository _orderRepository;
-    private readonly JsonCalendarManualEntryRepository _manualEntryRepository;
-    private readonly JsonAppSettingsRepository _settingsRepository;
+    private readonly ITourRecordStore _repository;
+    private readonly IOrderRepository _orderRepository;
+    private readonly ICalendarManualEntryStore _manualEntryRepository;
+    private readonly IAppSettingsStore _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly Func<int, Task>? _openTourAsync;
     private readonly Func<int, Task>? _editTourAsync;
@@ -50,9 +50,10 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private UpcomingDayCardItem? _selectedUpcomingDay;
 
     public KalenderSectionViewModel(
-        string toursJsonPath,
-        string ordersJsonPath,
-        string settingsJsonPath,
+        ITourRecordStore tourRepository,
+        IOrderRepository orderRepository,
+        ICalendarManualEntryStore manualEntryRepository,
+        IAppSettingsStore settingsRepository,
         Func<int, Task>? openTourAsync = null,
         Func<int, Task>? editTourAsync = null,
         Func<int, Task>? openTourOnMapAsync = null,
@@ -61,11 +62,10 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         AppDataSyncService? dataSyncService = null)
         : base("Kalender", "Übersicht aller geplanten Touren. Ein Doppelklick öffnet den Tag in den Liefertouren.")
     {
-        _repository = new JsonToursRepository(toursJsonPath);
-        _orderRepository = new JsonOrderRepository(ordersJsonPath);
-        var manualEntriesPath = Path.Combine(Path.GetDirectoryName(toursJsonPath) ?? string.Empty, "kalender-manuelle-eintraege.json");
-        _manualEntryRepository = new JsonCalendarManualEntryRepository(manualEntriesPath);
-        _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
+        _repository = tourRepository;
+        _orderRepository = orderRepository;
+        _manualEntryRepository = manualEntryRepository;
+        _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _openTourAsync = openTourAsync;
         _editTourAsync = editTourAsync;

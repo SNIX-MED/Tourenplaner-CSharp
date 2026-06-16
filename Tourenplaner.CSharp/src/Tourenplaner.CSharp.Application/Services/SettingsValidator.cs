@@ -72,6 +72,40 @@ public sealed class SettingsValidator
             errors.Add("Company address must include street, postal code and city when configured.");
         }
 
+        if (settings.StorageMode == AppStorageMode.PostgreSql)
+        {
+            var pg = settings.PostgreSqlStorage ?? new PostgreSqlStorageSettings();
+            if (string.IsNullOrWhiteSpace(pg.Host))
+            {
+                errors.Add("PostgreSqlStorage.Host must not be empty when PostgreSQL storage is enabled.");
+            }
+
+            if (pg.Port <= 0)
+            {
+                errors.Add("PostgreSqlStorage.Port must be greater than zero.");
+            }
+
+            if (string.IsNullOrWhiteSpace(pg.Database))
+            {
+                errors.Add("PostgreSqlStorage.Database must not be empty when PostgreSQL storage is enabled.");
+            }
+
+            if (string.IsNullOrWhiteSpace(pg.Schema))
+            {
+                errors.Add("PostgreSqlStorage.Schema must not be empty when PostgreSQL storage is enabled.");
+            }
+
+            if (string.IsNullOrWhiteSpace(pg.Username))
+            {
+                errors.Add("PostgreSqlStorage.Username must not be empty when PostgreSQL storage is enabled.");
+            }
+
+            if (pg.TimeoutSeconds < 1)
+            {
+                errors.Add("PostgreSqlStorage.TimeoutSeconds must be greater than zero.");
+            }
+        }
+
         if (settings.QuickAccessItems is null)
         {
             errors.Add("QuickAccessItems must not be null.");

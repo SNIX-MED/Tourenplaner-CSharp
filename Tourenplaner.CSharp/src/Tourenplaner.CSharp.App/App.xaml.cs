@@ -6,9 +6,9 @@ using System.Windows.Threading;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.App.Views.Dialogs;
+using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
-using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App;
@@ -17,6 +17,7 @@ public partial class App : System.Windows.Application
 {
     private string _logPath = string.Empty;
     private AppDataHistoryService? _historyService;
+    private PostgreSqlAppDataSyncBridge? _appDataSyncBridge;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -64,26 +65,30 @@ public partial class App : System.Windows.Application
             var toursJsonPath = Path.Combine(dataRoot, "tours.json");
             var employeesJsonPath = Path.Combine(dataRoot, "employees.json");
             var vehiclesJsonPath = Path.Combine(dataRoot, "vehicles.json");
-
-            var dataSyncService = new AppDataSyncService();
-            var historyService = new AppDataHistoryService(
-                dataSyncService,
+            var calendarManualEntriesPath = Path.Combine(dataRoot, "kalender-manuelle-eintraege.json");
+            var repositories = await new StorageRepositoryFactory().CreateAsync(
+                dataRoot,
+                settingsPath,
                 ordersJsonPath,
                 toursJsonPath,
                 employeesJsonPath,
                 vehiclesJsonPath,
-                settingsPath);
+                calendarManualEntriesPath);
+
+            _appDataSyncBridge = repositories.StorageMode == AppStorageMode.PostgreSql &&
+                                 repositories.PostgreSqlStorageSettings is not null
+                ? new PostgreSqlAppDataSyncBridge(repositories.PostgreSqlStorageSettings)
+                : null;
+            var dataSyncService = new AppDataSyncService(_appDataSyncBridge);
+            var historyService = new AppDataHistoryService(
+                dataSyncService,
+                repositories.GetHistoryTrackedPaths().ToArray());
             var mainWindow = new MainWindow
             {
                 DataContext = new MainShellViewModel(
                     historyService,
                     dataSyncService,
-                    ordersJsonPath,
-                    toursJsonPath,
-                    employeesJsonPath,
-                    vehiclesJsonPath,
-                    settingsPath,
-                    dataRoot)
+                    repositories)
             };
 
             await RenderSplashStepAsync(splashWindow, "Verlauf wird initialisiert...");
@@ -91,14 +96,14 @@ public partial class App : System.Windows.Application
             _historyService = historyService;
 
             await RenderSplashStepAsync(splashWindow, "Tourdaten werden geprueft...");
-            await RunTourIntegrityCheckOnStartup(toursJsonPath, settingsPath);
+            await RunTourIntegrityCheckOnStartup(repositories.TourRecordStore, repositories.AppSettingsStore, repositories.StorageMode == AppStorageMode.JsonFiles ? repositories.ToursJsonPath : null);
             await RenderSplashStepAsync(splashWindow, "Oberflaeche wird gestartet...");
 
             MainWindow = mainWindow;
             mainWindow.Show();
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             splashWindow.Close();
-            await PromptPastTourArchivingOnStartupAsync(mainWindow, toursJsonPath, ordersJsonPath);
+            await PromptPastTourArchivingOnStartupAsync(mainWindow, repositories.TourRecordStore, repositories.OrderRepository);
         }
         catch (Exception ex)
         {
@@ -131,16 +136,15 @@ public partial class App : System.Windows.Application
     {
         _historyService?.Dispose();
         _historyService = null;
+        _appDataSyncBridge?.Dispose();
+        _appDataSyncBridge = null;
         base.OnExit(e);
     }
 
-    private async Task PromptPastTourArchivingOnStartupAsync(Window owner, string toursJsonPath, string ordersJsonPath)
+    private async Task PromptPastTourArchivingOnStartupAsync(Window owner, ITourRecordStore toursRepository, IOrderRepository orderRepository)
     {
         try
         {
-            var toursRepository = new JsonToursRepository(toursJsonPath);
-            var orderRepository = new JsonOrderRepository(ordersJsonPath);
-
             var tours = (await toursRepository.LoadAsync()).ToList();
             var orders = (await orderRepository.GetAllAsync()).ToList();
 
@@ -253,12 +257,10 @@ public partial class App : System.Windows.Application
         }
     }
 
-    private async Task RunTourIntegrityCheckOnStartup(string toursJsonPath, string settingsJsonPath)
+    private async Task RunTourIntegrityCheckOnStartup(ITourRecordStore toursRepository, IAppSettingsStore settingsRepository, string? toursJsonPathForBackup)
     {
         try
         {
-            var toursRepository = new JsonToursRepository(toursJsonPath);
-            var settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
             var settings = await settingsRepository.LoadAsync();
             var tours = (await toursRepository.LoadAsync()).ToList();
 
@@ -379,7 +381,7 @@ public partial class App : System.Windows.Application
                 return;
             }
 
-            var backupPath = CreateStartupRepairBackup(toursJsonPath);
+            var backupPath = CreateStartupRepairBackup(toursJsonPathForBackup);
             await toursRepository.SaveAsync(tours);
             TryLogInfo(
                 "RunTourIntegrityCheckOnStartup",
@@ -446,8 +448,13 @@ public partial class App : System.Windows.Application
         return TryParseTourDate(value, out var parsed) ? parsed : DateTime.Today;
     }
 
-    private static string CreateStartupRepairBackup(string toursJsonPath)
+    private static string CreateStartupRepairBackup(string? toursJsonPath)
     {
+        if (string.IsNullOrWhiteSpace(toursJsonPath))
+        {
+            return "kein Dateibackup (nicht JSON-Modus)";
+        }
+
         if (!File.Exists(toursJsonPath))
         {
             throw new FileNotFoundException("Die Tourdatei für die Startup-Reparatur wurde nicht gefunden.", toursJsonPath);

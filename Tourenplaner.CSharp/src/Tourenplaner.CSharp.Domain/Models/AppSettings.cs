@@ -68,6 +68,8 @@ public sealed class AppSettings
     public bool TomTomEnableTileCache { get; set; } = true;
     public string CurrentUserName { get; set; } = string.Empty;
     public Dictionary<string, MapOverlayUserPreference> MapOverlayPreferencesByUser { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public AppStorageMode StorageMode { get; set; } = AppStorageMode.JsonFiles;
+    public PostgreSqlStorageSettings PostgreSqlStorage { get; set; } = new();
     
     // SQL Server Import Settings
     public SqlConnectionSettings SqlImportSettings { get; set; } = new();

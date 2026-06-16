@@ -230,6 +230,49 @@
                                 <Border Width="40"
                                         Height="40"
                                         CornerRadius="14"
+                                        Background="#E8F5FF">
+                                    <TextBlock FontFamily="Segoe Fluent Icons"
+                                               FontSize="17"
+                                               Foreground="#0F766E"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Text="&#xE9D9;" />
+                                </Border>
+                                <TextBlock Grid.Column="1"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                           Text="Aktiver Speicher" />
+                            </Grid>
+                            <TextBlock Grid.Row="1"
+                                       Margin="0,14,0,0"
+                                       FontSize="22"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding ActiveStorageModeDisplayName}" />
+                            <TextBlock Grid.Row="2"
+                                       Margin="0,4,0,0"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding ActiveStorageModeDetailText}" />
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingsMetricCardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="40"
+                                        Height="40"
+                                        CornerRadius="14"
                                         Background="#F2EAFE">
                                     <TextBlock FontFamily="Segoe Fluent Icons"
                                                FontSize="17"
@@ -551,6 +594,167 @@
                                                     </StackPanel>
                                                 </Border>
                                             </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Datenspeicher" />
+                                            <TextBlock Margin="0,6,0,0"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       TextWrapping="Wrap"
+                                                       Text="Wähle hier, ob die App lokal mit JSON-Dateien oder als Mehrbenutzerlösung mit PostgreSQL arbeitet." />
+
+                                            <Border Margin="0,16,0,0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                <StackPanel>
+                                                    <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Speicherart" />
+                                                    <ComboBox Style="{StaticResource SettingsComboBoxStyle}"
+                                                              ItemsSource="{Binding StorageModeOptions}"
+                                                              SelectedItem="{Binding SelectedStorageModeOption, Mode=TwoWay}">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Text="{Binding DisplayName}" />
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                    <TextBlock Margin="0,8,0,0"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                               TextWrapping="Wrap"
+                                                               Text="{Binding StorageModeChangeHintText}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <StackPanel Margin="0,14,0,0">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsPostgreSqlStorageMode}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Host" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding PostgreSqlHost, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Port" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding PostgreSqlPort, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Grid>
+
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Datenbank" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding PostgreSqlDatabase, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Schema" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding PostgreSqlSchema, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Grid>
+
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Benutzername" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding PostgreSqlUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Passwort" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding PostgreSqlPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Grid>
+
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Timeout (Sekunden)" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding PostgreSqlTimeoutSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Verbindungsschutz" />
+                                                            <CheckBox Margin="0,14,0,0"
+                                                                      Content="SSL für PostgreSQL verwenden"
+                                                                      IsChecked="{Binding PostgreSqlUseSsl, Mode=TwoWay}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Grid>
+
+                                                <Border Margin="0,4,0,0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                                                            <TextBlock FontWeight="SemiBold" Text="Verbindung prüfen" />
+                                                            <TextBlock Margin="0,4,0,0"
+                                                                       Style="{StaticResource SettingsFieldLabelStyle}"
+                                                                       Text="Prüft die eingegebenen PostgreSQL-Zugangsdaten direkt, ohne dass die App zuerst neu gestartet werden muss." />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1"
+                                                                Width="220"
+                                                                VerticalAlignment="Center"
+                                                                Content="PostgreSQL-Verbindung testen"
+                                                                Command="{Binding TestPostgreSqlConnectionCommand}" />
+                                                    </Grid>
+                                                </Border>
+
+                                                <Border Margin="0,4,0,0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                                                            <TextBlock FontWeight="SemiBold" Text="Umstellung abschließen" />
+                                                            <TextBlock Margin="0,4,0,0"
+                                                                       Style="{StaticResource SettingsFieldLabelStyle}"
+                                                                       Text="Speichert die PostgreSQL-Einstellungen, prüft die Verbindung und startet die App direkt im Mehrbenutzer-Modus neu." />
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1"
+                                                                Width="240"
+                                                                VerticalAlignment="Center"
+                                                                Content="PostgreSQL aktivieren und neu starten"
+                                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                                Command="{Binding ActivatePostgreSqlAndRestartCommand}" />
+                                                    </Grid>
+                                                </Border>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Border>
 

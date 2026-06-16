@@ -9,8 +9,8 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class VehiclesSectionViewModel : SectionViewModelBase
 {
-    private readonly JsonVehicleDataRepository _repository;
-    private readonly JsonToursRepository _tourRepository;
+    private readonly IVehicleDataStore _repository;
+    private readonly ITourRecordStore _tourRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly List<Vehicle> _vehicles = new();
     private readonly List<TrailerRecord> _trailers = new();
@@ -20,11 +20,11 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
     private string _statusText = "Lade Fahrzeuge...";
     private string _modeCountText = string.Empty;
 
-    public VehiclesSectionViewModel(string vehiclesJsonPath, string toursJsonPath, AppDataSyncService dataSyncService)
+    public VehiclesSectionViewModel(IVehicleDataStore repository, ITourRecordStore tourRepository, AppDataSyncService dataSyncService)
         : base("Fahrzeugverwaltung", "Zugfahrzeuge, Anhänger und Ausfälle verwalten.")
     {
-        _repository = new JsonVehicleDataRepository(vehiclesJsonPath);
-        _tourRepository = new JsonToursRepository(toursJsonPath);
+        _repository = repository;
+        _tourRepository = tourRepository;
         _dataSyncService = dataSyncService;
 
         RefreshCommand = new AsyncCommand(RefreshAsync);

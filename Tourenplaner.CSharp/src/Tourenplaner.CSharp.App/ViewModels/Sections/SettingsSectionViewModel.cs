@@ -25,7 +25,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 {
     private const int MaxXmlImportPreviewItems = 100;
     private readonly Guid _instanceId = Guid.NewGuid();
-    private readonly JsonAppSettingsRepository _repository;
+    private readonly IAppSettingsStore _repository;
     private readonly SettingsValidator _validator;
     private readonly BackupManager _backupManager;
     private readonly IOrderRepository? _orderRepository;
@@ -109,27 +109,45 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private CancellationTokenSource? _pinInfoCardZoomBehaviorSaveCts;
     private string _currentUserName = string.Empty;
     private Dictionary<string, MapOverlayUserPreference> _mapOverlayPreferencesByUser = new(StringComparer.OrdinalIgnoreCase);
+    private AppStorageMode _storageMode = AppStorageMode.JsonFiles;
+    private string _postgreSqlHost = "localhost";
+    private int _postgreSqlPort = 5432;
+    private string _postgreSqlDatabase = "tourenplaner";
+    private string _postgreSqlSchema = "app";
+    private string _postgreSqlUsername = "postgres";
+    private string _postgreSqlPassword = string.Empty;
+    private bool _postgreSqlUseSsl;
+    private int _postgreSqlTimeoutSeconds = 10;
+    private AppStorageMode _activeStorageMode = AppStorageMode.JsonFiles;
 
     public SettingsSectionViewModel(
-        string settingsJsonPath,
+        IAppSettingsStore settingsStore,
         string dataRoot,
         IOrderRepository? orderRepository = null,
         ISettingsRepository? settingsRepository = null,
-        AppDataSyncService? dataSyncService = null)
+        AppDataSyncService? dataSyncService = null,
+        AppStorageMode activeStorageMode = AppStorageMode.JsonFiles)
         : base("Settings", "Appearance, backup policy and restore operations.")
     {
-        _repository = new JsonAppSettingsRepository(settingsJsonPath);
+        _repository = settingsStore;
         _validator = new SettingsValidator();
         _backupManager = new BackupManager();
         _orderRepository = orderRepository;
         _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService;
         _dataRoot = dataRoot;
+        _activeStorageMode = activeStorageMode;
 
         BackupModes =
         [
             "full",
             "incremental"
+        ];
+
+        StorageModeOptions =
+        [
+            new StorageModeOption(AppStorageMode.JsonFiles, "Lokale JSON-Dateien"),
+            new StorageModeOption(AppStorageMode.PostgreSql, "PostgreSQL Mehrbenutzer")
         ];
 
         SettingsCategories =
@@ -195,6 +213,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         CleanupBackupsCommand = new DelegateCommand(CleanupBackups);
         CheckForUpdatesCommand = new AsyncCommand(CheckForUpdatesAsync);
         DownloadAvailableUpdateCommand = new DelegateCommand(DownloadAvailableUpdate, () => CanDownloadAvailableUpdate);
+        TestPostgreSqlConnectionCommand = new AsyncCommand(
+            TestPostgreSqlConnectionAsync,
+            () => IsPostgreSqlStorageMode);
+        ActivatePostgreSqlAndRestartCommand = new AsyncCommand(
+            ActivatePostgreSqlAndRestartAsync,
+            () => IsPostgreSqlStorageMode);
         
         // XML Import Commands
         BrowseXmlImportFileCommand = new DelegateCommand(BrowseXmlImportFile);
@@ -224,6 +248,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     }
 
     public ObservableCollection<string> BackupModes { get; }
+    public ObservableCollection<StorageModeOption> StorageModeOptions { get; }
     public ObservableCollection<SettingsCategoryNavigationItem> SettingsCategories { get; }
 
     public ICommand RefreshCommand { get; }
@@ -257,6 +282,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public AsyncCommand CheckForUpdatesCommand { get; }
 
     public DelegateCommand DownloadAvailableUpdateCommand { get; }
+
+    public AsyncCommand TestPostgreSqlConnectionCommand { get; }
+
+    public AsyncCommand ActivatePostgreSqlAndRestartCommand { get; }
 
     public ICommand BrowseXmlImportFileCommand { get; }
 
@@ -339,6 +368,96 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _companyCity;
         set => SetProperty(ref _companyCity, value);
+    }
+
+    public AppStorageMode StorageMode
+    {
+        get => _storageMode;
+        set
+        {
+            if (SetProperty(ref _storageMode, value))
+            {
+                OnPropertyChanged(nameof(SelectedStorageModeOption));
+                OnPropertyChanged(nameof(IsPostgreSqlStorageMode));
+                OnPropertyChanged(nameof(StorageModeChangeHintText));
+                TestPostgreSqlConnectionCommand.RaiseCanExecuteChanged();
+                ActivatePostgreSqlAndRestartCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public StorageModeOption? SelectedStorageModeOption
+    {
+        get => StorageModeOptions.FirstOrDefault(x => x.Value == StorageMode);
+        set
+        {
+            if (value is not null)
+            {
+                StorageMode = value.Value;
+            }
+        }
+    }
+
+    public bool IsPostgreSqlStorageMode => StorageMode == AppStorageMode.PostgreSql;
+
+    public string ActiveStorageModeDisplayName => _activeStorageMode == AppStorageMode.PostgreSql
+        ? "PostgreSQL Mehrbenutzer"
+        : "Lokale JSON-Dateien";
+
+    public string ActiveStorageModeDetailText => _activeStorageMode == AppStorageMode.PostgreSql
+        ? "Mehrbenutzerbetrieb mit zentraler Datenbank aktiv"
+        : "Lokaler Dateibetrieb aktiv";
+
+    public string StorageModeChangeHintText => IsPostgreSqlStorageMode
+        ? "PostgreSQL ist aktiv. Die Umstellung wird nach dem Speichern beim nächsten App-Start verwendet."
+        : "JSON-Dateien sind aktiv. Die Umstellung wird nach dem Speichern beim nächsten App-Start verwendet.";
+
+    public string PostgreSqlHost
+    {
+        get => _postgreSqlHost;
+        set => SetProperty(ref _postgreSqlHost, value);
+    }
+
+    public int PostgreSqlPort
+    {
+        get => _postgreSqlPort;
+        set => SetProperty(ref _postgreSqlPort, value);
+    }
+
+    public string PostgreSqlDatabase
+    {
+        get => _postgreSqlDatabase;
+        set => SetProperty(ref _postgreSqlDatabase, value);
+    }
+
+    public string PostgreSqlSchema
+    {
+        get => _postgreSqlSchema;
+        set => SetProperty(ref _postgreSqlSchema, value);
+    }
+
+    public string PostgreSqlUsername
+    {
+        get => _postgreSqlUsername;
+        set => SetProperty(ref _postgreSqlUsername, value);
+    }
+
+    public string PostgreSqlPassword
+    {
+        get => _postgreSqlPassword;
+        set => SetProperty(ref _postgreSqlPassword, value);
+    }
+
+    public bool PostgreSqlUseSsl
+    {
+        get => _postgreSqlUseSsl;
+        set => SetProperty(ref _postgreSqlUseSsl, value);
+    }
+
+    public int PostgreSqlTimeoutSeconds
+    {
+        get => _postgreSqlTimeoutSeconds;
+        set => SetProperty(ref _postgreSqlTimeoutSeconds, value);
     }
 
     public string StatusColorNotSpecified
@@ -714,7 +833,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             ResetUpdateStatus();
 
             var settings = await _repository.LoadAsync();
+            _activeStorageMode = settings.StorageMode;
             ApplyModel(settings);
+            OnPropertyChanged(nameof(ActiveStorageModeDisplayName));
+            OnPropertyChanged(nameof(ActiveStorageModeDetailText));
             UpdateBackupStatus(settings.BackupDir);
             ValidationSummary = string.Empty;
             StatusText = string.Empty;
@@ -814,6 +936,15 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(CompanyStreet) or
             nameof(CompanyPostalCode) or
             nameof(CompanyCity) or
+            nameof(StorageMode) or
+            nameof(PostgreSqlHost) or
+            nameof(PostgreSqlPort) or
+            nameof(PostgreSqlDatabase) or
+            nameof(PostgreSqlSchema) or
+            nameof(PostgreSqlUsername) or
+            nameof(PostgreSqlPassword) or
+            nameof(PostgreSqlUseSsl) or
+            nameof(PostgreSqlTimeoutSeconds) or
             nameof(StatusColorNotSpecified) or
             nameof(StatusColorOrdered) or
             nameof(StatusColorOnTheWay) or
@@ -920,6 +1051,68 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private async Task CheckForUpdatesAsync()
     {
         await CheckForUpdatesCoreAsync(showToastWhenUpToDate: true);
+    }
+
+    private async Task TestPostgreSqlConnectionAsync()
+    {
+        try
+        {
+            var databaseName = await VerifyPostgreSqlConnectionAsync();
+
+            ValidationSummary = string.Empty;
+            StatusText = $"PostgreSQL-Verbindung erfolgreich. Datenbank: {databaseName ?? PostgreSqlDatabase}, Schema: {BuildPostgreSqlStorageSettings().Schema}.";
+            ToastNotificationService.ShowInfo("PostgreSQL-Verbindung erfolgreich getestet.");
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"PostgreSQL-Verbindung fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    private async Task ActivatePostgreSqlAndRestartAsync()
+    {
+        try
+        {
+            await VerifyPostgreSqlConnectionAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"PostgreSQL-Aktivierung abgebrochen: {ex.Message}";
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Die PostgreSQL-Verbindung konnte nicht geprüft werden.{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                "PostgreSQL aktivieren",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        var model = BuildModel();
+        var validation = _validator.Validate(model);
+        if (!validation.IsValid)
+        {
+            ValidationSummary = string.Join(Environment.NewLine, validation.Errors);
+            StatusText = "PostgreSQL-Aktivierung abgebrochen: Einstellungen sind noch ungueltig.";
+            return;
+        }
+
+        await _repository.SaveAsync(model);
+        ValidationSummary = string.Empty;
+        StatusText = "PostgreSQL wird aktiviert. Die App startet neu...";
+
+        var executablePath = Environment.ProcessPath;
+        if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
+        {
+            StatusText = "Neustart fehlgeschlagen: Programmdatei wurde nicht gefunden.";
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo(executablePath)
+        {
+            UseShellExecute = true,
+            WorkingDirectory = Path.GetDirectoryName(executablePath) ?? string.Empty
+        });
+
+        System.Windows.Application.Current.Shutdown();
     }
 
     private async Task CheckForUpdatesCoreAsync(bool showToastWhenUpToDate)
@@ -1037,6 +1230,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             CompanyStreet = (CompanyStreet ?? string.Empty).Trim(),
             CompanyPostalCode = (CompanyPostalCode ?? string.Empty).Trim(),
             CompanyCity = (CompanyCity ?? string.Empty).Trim(),
+            StorageMode = StorageMode,
+            PostgreSqlStorage = BuildPostgreSqlStorageSettings(),
             StatusColorNotSpecified = NormalizeHexColor(StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified),
             StatusColorOrdered = NormalizeHexColor(StatusColorOrdered, AppSettings.DefaultStatusColorOrdered),
             StatusColorOnTheWay = NormalizeHexColor(StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay),
@@ -1093,6 +1288,15 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         CompanyStreet = settings.CompanyStreet ?? string.Empty;
         CompanyPostalCode = settings.CompanyPostalCode ?? string.Empty;
         CompanyCity = settings.CompanyCity ?? string.Empty;
+        StorageMode = settings.StorageMode;
+        PostgreSqlHost = string.IsNullOrWhiteSpace(settings.PostgreSqlStorage?.Host) ? "localhost" : settings.PostgreSqlStorage.Host;
+        PostgreSqlPort = settings.PostgreSqlStorage?.Port > 0 ? settings.PostgreSqlStorage.Port : 5432;
+        PostgreSqlDatabase = string.IsNullOrWhiteSpace(settings.PostgreSqlStorage?.Database) ? "tourenplaner" : settings.PostgreSqlStorage.Database;
+        PostgreSqlSchema = string.IsNullOrWhiteSpace(settings.PostgreSqlStorage?.Schema) ? "app" : settings.PostgreSqlStorage.Schema;
+        PostgreSqlUsername = string.IsNullOrWhiteSpace(settings.PostgreSqlStorage?.Username) ? "postgres" : settings.PostgreSqlStorage.Username;
+        PostgreSqlPassword = settings.PostgreSqlStorage?.Password ?? string.Empty;
+        PostgreSqlUseSsl = settings.PostgreSqlStorage?.UseSsl ?? false;
+        PostgreSqlTimeoutSeconds = settings.PostgreSqlStorage?.TimeoutSeconds > 0 ? settings.PostgreSqlStorage.TimeoutSeconds : 10;
         StatusColorNotSpecified = NormalizeHexColor(settings.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
         StatusColorOrdered = NormalizeHexColor(settings.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
         StatusColorOnTheWay = NormalizeHexColor(settings.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
@@ -1141,6 +1345,36 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         
         XmlImportFilePath = settings.XmlImportFilePath ?? string.Empty;
         ApplyXmlImportMapping(settings.XmlImportMapping);
+    }
+
+    private PostgreSqlStorageSettings BuildPostgreSqlStorageSettings()
+    {
+        return new PostgreSqlStorageSettings
+        {
+            Host = (PostgreSqlHost ?? string.Empty).Trim(),
+            Port = PostgreSqlPort,
+            Database = (PostgreSqlDatabase ?? string.Empty).Trim(),
+            Schema = string.IsNullOrWhiteSpace(PostgreSqlSchema) ? "app" : PostgreSqlSchema.Trim(),
+            Username = (PostgreSqlUsername ?? string.Empty).Trim(),
+            Password = PostgreSqlPassword ?? string.Empty,
+            UseSsl = PostgreSqlUseSsl,
+            TimeoutSeconds = Math.Max(1, PostgreSqlTimeoutSeconds)
+        };
+    }
+
+    private async Task<string?> VerifyPostgreSqlConnectionAsync()
+    {
+        var settings = BuildPostgreSqlStorageSettings();
+        var connectionFactory = new PostgreSqlConnectionFactory();
+        var schemaInitializer = new PostgreSqlSchemaInitializer();
+
+        await using var connection = connectionFactory.CreateConnection(settings);
+        await connection.OpenAsync();
+        await schemaInitializer.EnsureSchemaAsync(connection, settings);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT current_database();";
+        return (await command.ExecuteScalarAsync()) as string;
     }
 
     private ObservableCollection<XmlImportMappingFieldViewModel> CreateXmlImportStructureFields()
@@ -1823,5 +2057,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             }
         });
     }
+
+    public sealed record StorageModeOption(AppStorageMode Value, string DisplayName);
 
 }

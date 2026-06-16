@@ -3,7 +3,7 @@ using Tourenplaner.CSharp.Infrastructure.Storage;
 
 namespace Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
-public sealed class JsonEmployeesRepository
+public sealed class JsonEmployeesRepository : IEmployeeDataStore
 {
     private readonly JsonFileStore _store;
     private readonly string _path;

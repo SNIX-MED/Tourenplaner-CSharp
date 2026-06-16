@@ -5,6 +5,8 @@ using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.App.Views.Dialogs;
+using Tourenplaner.CSharp.Application.Abstractions;
+using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
@@ -27,8 +29,9 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         Order.ReadyToDeliverStatus
     ];
 
-    private readonly JsonOrderRepository _repository;
-    private readonly JsonToursRepository _tourRepository;
+    private readonly IOrderRepository _repository;
+    private readonly ITourRecordStore _tourRepository;
+    private readonly IOrderMutationRepository? _mutationRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly Func<int, Task>? _openTourAsync;
     private readonly List<Order> _allOrders = new();
@@ -46,12 +49,12 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private bool _isDeliveryPersonColumnVisible = true;
     private bool _showArchivedOrders;
 
-    public OrdersSectionViewModel(string ordersJsonPath, AppDataSyncService dataSyncService, Func<int, Task>? openTourAsync = null)
+    public OrdersSectionViewModel(IOrderRepository repository, ITourRecordStore tourRepository, AppDataSyncService dataSyncService, Func<int, Task>? openTourAsync = null)
         : base("Aufträge", "Aufträge mit Adresse, Zuordnung und Filterung.")
     {
-        _repository = new JsonOrderRepository(ordersJsonPath);
-        var dataRoot = Path.GetDirectoryName(ordersJsonPath) ?? string.Empty;
-        _tourRepository = new JsonToursRepository(Path.Combine(dataRoot, "tours.json"));
+        _repository = repository;
+        _tourRepository = tourRepository;
+        _mutationRepository = repository as IOrderMutationRepository;
         _dataSyncService = dataSyncService;
         _openTourAsync = openTourAsync;
 
@@ -269,7 +272,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         _allOrders.RemoveAll(x => string.Equals(x.Id, createdOrder.Id, StringComparison.OrdinalIgnoreCase));
         _allOrders.Add(createdOrder);
 
-        await _repository.SaveAllAsync(_allOrders);
+        if (!await SaveOrderAsync(createdOrder))
+        {
+            return;
+        }
         await RefreshFromRepositoryAsync(createdOrder.Id);
         SelectOrderById(createdOrder.Id);
         PublishOrderChange(null, createdOrder.Id);
@@ -309,6 +315,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         var updated = dialog.CreatedOrder;
         updated.Type = OrderType.Map;
         updated.AssignedTourId = existing.AssignedTourId;
+        updated.ConcurrencyToken = existing.ConcurrencyToken;
 
         if (!await ConfirmManualArchiveForAssignedActiveTourAsync(existing, updated.IsArchived))
         {
@@ -322,7 +329,20 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                                   string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
         _allOrders.Add(updated);
 
-        await _repository.SaveAllAsync(_allOrders);
+        if (!string.Equals(originalId, updated.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!await DeleteOrderAsync(originalId, existing.ConcurrencyToken))
+            {
+                return;
+            }
+
+            updated.ConcurrencyToken = null;
+        }
+
+        if (!await SaveOrderAsync(updated))
+        {
+            return;
+        }
         await RefreshFromRepositoryAsync(updated.Id);
         SelectOrderById(updated.Id);
         PublishOrderChange(originalId, updated.Id);
@@ -382,7 +402,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
 
         target.IsArchived = nextIsArchived;
-        await _repository.SaveAllAsync(_allOrders);
+        if (!await SaveOrderAsync(target))
+        {
+            return;
+        }
         await RefreshFromRepositoryAsync(target.Id);
         SelectOrderById(target.Id);
         PublishOrderChange(target.Id, target.Id);
@@ -466,7 +489,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
 
         target.OrderStatus = normalizedStatus;
-        await _repository.SaveAllAsync(_allOrders);
+        if (!await SaveOrderAsync(target))
+        {
+            return;
+        }
         RebuildGrid(target.Id);
         SelectOrderById(target.Id);
         PublishOrderChange(target.Id, target.Id);
@@ -504,7 +530,13 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         _lastDeletedIndex = index;
         _allOrders.RemoveAt(index);
 
-        await _repository.SaveAllAsync(_allOrders);
+        if (!await DeleteOrderAsync(removedOrderId, _lastDeletedOrder?.ConcurrencyToken))
+        {
+            _lastDeletedOrder = null;
+            _lastDeletedIndex = -1;
+            RaiseCommandStates();
+            return;
+        }
         await RefreshFromRepositoryAsync();
         PublishOrderChange(removedOrderId, null);
         StatusText = $"Auftrag {removedOrderId} wurde gelöscht. Mit 'Zurück' wiederherstellen.";
@@ -585,7 +617,11 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
         _lastDeletedOrder = null;
         _lastDeletedIndex = -1;
-        await _repository.SaveAllAsync(_allOrders);
+        restoreOrder.ConcurrencyToken = null;
+        if (!await SaveOrderAsync(restoreOrder))
+        {
+            return;
+        }
         await RefreshFromRepositoryAsync(restoreOrder.Id);
         SelectOrderById(restoreOrder.Id);
         PublishOrderChange(null, restoreOrder.Id);
@@ -604,6 +640,61 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
         UpdateFilterOptions();
         RebuildGrid(preferredSelectedId);
+    }
+
+    private async Task<bool> SaveOrderAsync(Order order, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (_mutationRepository is not null)
+            {
+                await _mutationRepository.UpsertAsync(order, cancellationToken);
+            }
+            else
+            {
+                await _repository.SaveAllAsync(_allOrders, cancellationToken);
+            }
+
+            return true;
+        }
+        catch (ConcurrencyConflictException)
+        {
+            await HandleConcurrencyConflictAsync(order.Id);
+            return false;
+        }
+    }
+
+    private async Task<bool> DeleteOrderAsync(string orderId, string? concurrencyToken = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (_mutationRepository is not null)
+            {
+                await _mutationRepository.DeleteAsync(orderId, concurrencyToken, cancellationToken);
+            }
+            else
+            {
+                await _repository.SaveAllAsync(_allOrders, cancellationToken);
+            }
+
+            return true;
+        }
+        catch (ConcurrencyConflictException)
+        {
+            await HandleConcurrencyConflictAsync(orderId);
+            return false;
+        }
+    }
+
+    private async Task HandleConcurrencyConflictAsync(string? preferredSelectedId)
+    {
+        await RefreshFromRepositoryAsync(preferredSelectedId);
+        Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+            "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Die Liste wurde neu geladen.",
+            "Mehrbenutzerkonflikt",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
+        StatusText = "Auftragsdaten wurden nach einem Mehrbenutzerkonflikt neu geladen.";
     }
 
     private void UpdateFilterOptions()
@@ -855,7 +946,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             DeliveryType = source.DeliveryType,
             OrderStatus = source.OrderStatus,
             Notes = source.Notes,
-            IsArchived = source.IsArchived
+            IsArchived = source.IsArchived,
+            ConcurrencyToken = source.ConcurrencyToken
         };
     }
 }

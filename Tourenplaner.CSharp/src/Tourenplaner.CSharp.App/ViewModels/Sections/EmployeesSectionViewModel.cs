@@ -9,19 +9,19 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class EmployeesSectionViewModel : SectionViewModelBase
 {
-    private readonly JsonEmployeesRepository _repository;
-    private readonly JsonToursRepository _tourRepository;
+    private readonly IEmployeeDataStore _repository;
+    private readonly ITourRecordStore _tourRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly List<Employee> _employees = new();
     private readonly Guid _instanceId = Guid.NewGuid();
     private string _statusText = "Lade Mitarbeiter...";
     private string _countText = string.Empty;
 
-    public EmployeesSectionViewModel(string employeesJsonPath, string toursJsonPath, AppDataSyncService dataSyncService)
+    public EmployeesSectionViewModel(IEmployeeDataStore repository, ITourRecordStore tourRepository, AppDataSyncService dataSyncService)
         : base("Mitarbeiterverwaltung", "Mitarbeiter anlegen, bearbeiten und Abwesenheiten planen.")
     {
-        _repository = new JsonEmployeesRepository(employeesJsonPath);
-        _tourRepository = new JsonToursRepository(toursJsonPath);
+        _repository = repository;
+        _tourRepository = tourRepository;
         _dataSyncService = dataSyncService;
         RefreshCommand = new AsyncCommand(RefreshAsync);
         RequestAddEntryCommand = new DelegateCommand(() => AddEntryRequested?.Invoke(this, EventArgs.Empty));

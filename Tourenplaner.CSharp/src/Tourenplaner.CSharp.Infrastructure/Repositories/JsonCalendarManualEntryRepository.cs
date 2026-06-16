@@ -1,8 +1,9 @@
 using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.Infrastructure.Repositories;
 
-public sealed class JsonCalendarManualEntryRepository : JsonRepositoryBase<CalendarManualEntry>
+public sealed class JsonCalendarManualEntryRepository : JsonRepositoryBase<CalendarManualEntry>, ICalendarManualEntryStore
 {
     public JsonCalendarManualEntryRepository(string filePath)
         : base(filePath)

@@ -11,10 +11,10 @@ using System.Windows.Input;
 using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
+using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
-using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -57,11 +57,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         "informiert",
         "Best\u00E4tigt"
     ];
-    private readonly JsonOrderRepository _orderRepository;
-    private readonly JsonToursRepository _tourRepository;
-    private readonly JsonEmployeesRepository _employeeRepository;
-    private readonly JsonVehicleDataRepository _vehicleRepository;
-    private readonly JsonAppSettingsRepository _settingsRepository;
+    private readonly IOrderRepository _orderRepository;
+    private readonly ITourRecordStore _tourRepository;
+    private readonly IEmployeeDataStore _employeeRepository;
+    private readonly IVehicleDataStore _vehicleRepository;
+    private readonly IAppSettingsStore _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly RouteOptimizationService _optimizationService;
     private readonly MapRouteService _mapRouteService;
@@ -184,18 +184,20 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private readonly Guid _instanceId = Guid.NewGuid();
 
     public KarteSectionViewModel(
-        string ordersJsonPath,
-        string toursJsonPath,
-        string settingsJsonPath,
+        IOrderRepository orderRepository,
+        ITourRecordStore tourRepository,
+        IEmployeeDataStore employeeRepository,
+        IVehicleDataStore vehicleRepository,
+        IAppSettingsStore settingsRepository,
+        string dataRoot,
         AppDataSyncService dataSyncService)
         : base("Karte", "Map order review, marker filters, route panel and save-to-tour workflow.")
     {
-        _orderRepository = new JsonOrderRepository(ordersJsonPath);
-        _tourRepository = new JsonToursRepository(toursJsonPath);
-        var dataRoot = Path.GetDirectoryName(settingsJsonPath) ?? string.Empty;
-        _employeeRepository = new JsonEmployeesRepository(Path.Combine(dataRoot, "employees.json"));
-        _vehicleRepository = new JsonVehicleDataRepository(Path.Combine(dataRoot, "vehicles.json"));
-        _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
+        _orderRepository = orderRepository;
+        _tourRepository = tourRepository;
+        _employeeRepository = employeeRepository;
+        _vehicleRepository = vehicleRepository;
+        _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService;
         _optimizationService = new RouteOptimizationService();
         _mapRouteService = new MapRouteService();
@@ -3199,6 +3201,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             SecondaryVehicleId = string.IsNullOrWhiteSpace(source.SecondaryVehicleId) ? null : source.SecondaryVehicleId.Trim(),
             SecondaryTrailerId = string.IsNullOrWhiteSpace(source.SecondaryTrailerId) ? null : source.SecondaryTrailerId.Trim(),
             IsArchived = source.IsArchived,
+            ConcurrencyToken = source.ConcurrencyToken,
             TravelTimeCache = (source.TravelTimeCache ?? new Dictionary<string, int>())
                 .ToDictionary(x => (x.Key ?? string.Empty).Trim(), x => x.Value, StringComparer.OrdinalIgnoreCase)
         };

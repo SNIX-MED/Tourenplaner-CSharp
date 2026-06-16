@@ -6,7 +6,6 @@ using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
-using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -17,9 +16,9 @@ public sealed class StartSectionViewModel : SectionViewModelBase
     private static readonly string[] SupportedDateFormats = ["dd.MM.yyyy", "yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy"];
     private const int PreviewDayCount = 14;
 
-    private readonly JsonToursRepository _tourRepository;
-    private readonly JsonCalendarManualEntryRepository _manualEntryRepository;
-    private readonly JsonAppSettingsRepository _settingsRepository;
+    private readonly ITourRecordStore _tourRepository;
+    private readonly ICalendarManualEntryStore _manualEntryRepository;
+    private readonly IAppSettingsStore _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly Func<Task>? _openMapAsync;
     private readonly string _bannerImagePath;
@@ -31,17 +30,17 @@ public sealed class StartSectionViewModel : SectionViewModelBase
     private string _nextPlannedDayText = "Noch kein Eintragstag geplant";
 
     public StartSectionViewModel(
-        string toursJsonPath,
-        string settingsJsonPath,
+        ITourRecordStore tourRepository,
+        ICalendarManualEntryStore manualEntryRepository,
+        IAppSettingsStore settingsRepository,
         string bannerImagePath,
         Func<Task>? openMapAsync = null,
         AppDataSyncService? dataSyncService = null)
         : base("Start", "Schneller Einstieg in die Tourenplanung.")
     {
-        _tourRepository = new JsonToursRepository(toursJsonPath);
-        var manualEntriesPath = Path.Combine(Path.GetDirectoryName(toursJsonPath) ?? string.Empty, "kalender-manuelle-eintraege.json");
-        _manualEntryRepository = new JsonCalendarManualEntryRepository(manualEntriesPath);
-        _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
+        _tourRepository = tourRepository;
+        _manualEntryRepository = manualEntryRepository;
+        _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _openMapAsync = openMapAsync;
         _bannerImagePath = bannerImagePath;

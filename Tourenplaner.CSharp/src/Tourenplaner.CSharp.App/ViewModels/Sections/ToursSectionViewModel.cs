@@ -5,10 +5,10 @@ using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
+using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
-using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -19,11 +19,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private const string PauseStopIdPrefix = "pause:";
     private const int DefaultPauseMinutes = 15;
     private static readonly CultureInfo UiCulture = CultureInfo.GetCultureInfo("de-CH");
-    private readonly JsonToursRepository _tourRepository;
-    private readonly JsonOrderRepository _orderRepository;
-    private readonly JsonEmployeesRepository _employeeRepository;
-    private readonly JsonVehicleDataRepository _vehicleRepository;
-    private readonly JsonAppSettingsRepository _settingsRepository;
+    private readonly ITourRecordStore _tourRepository;
+    private readonly IOrderRepository _orderRepository;
+    private readonly IOrderMutationRepository? _orderMutationRepository;
+    private readonly IEmployeeDataStore _employeeRepository;
+    private readonly IVehicleDataStore _vehicleRepository;
+    private readonly IAppSettingsStore _settingsRepository;
+    private readonly ITourRecordMutationStore? _tourMutationStore;
     private readonly AppDataSyncService _dataSyncService;
     private readonly TourScheduleService _scheduleService;
     private readonly TourConflictService _conflictService;
@@ -70,20 +72,22 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private bool _showArchivedTours;
 
     public ToursSectionViewModel(
-        string toursJsonPath,
-        string ordersJsonPath,
-        string employeesJsonPath,
-        string vehiclesJsonPath,
-        string settingsJsonPath,
+        ITourRecordStore tourRepository,
+        IOrderRepository orderRepository,
+        IEmployeeDataStore employeeRepository,
+        IVehicleDataStore vehicleRepository,
+        IAppSettingsStore settingsRepository,
         Func<int, Task>? openTourOnMapAsync = null,
         AppDataSyncService? dataSyncService = null)
         : base("Tours", "Tour creation, stop sequencing, ETA/ETD and assignment conflict checks.")
     {
-        _tourRepository = new JsonToursRepository(toursJsonPath);
-        _orderRepository = new JsonOrderRepository(ordersJsonPath);
-        _employeeRepository = new JsonEmployeesRepository(employeesJsonPath);
-        _vehicleRepository = new JsonVehicleDataRepository(vehiclesJsonPath);
-        _settingsRepository = new JsonAppSettingsRepository(settingsJsonPath);
+        _tourRepository = tourRepository;
+        _orderRepository = orderRepository;
+        _orderMutationRepository = orderRepository as IOrderMutationRepository;
+        _employeeRepository = employeeRepository;
+        _vehicleRepository = vehicleRepository;
+        _settingsRepository = settingsRepository;
+        _tourMutationStore = tourRepository as ITourRecordMutationStore;
         _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _scheduleService = new TourScheduleService();
         _conflictService = new TourConflictService(_scheduleService);
@@ -644,7 +648,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         _scheduleService.ApplySchedule(target);
-        await _tourRepository.SaveAsync(_loadedTours);
+        if (!await SaveTourAsync(target))
+        {
+            return;
+        }
         _dataSyncService.PublishTours(_instanceId, target.Id.ToString(CultureInfo.InvariantCulture), target.Id.ToString(CultureInfo.InvariantCulture));
         await RefreshAsync();
     }
@@ -777,7 +784,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         tour.Stops = reorderedStops;
         _scheduleService.ApplySchedule(tour);
 
-        await _tourRepository.SaveAsync(_loadedTours);
+        if (!await SaveTourAsync(tour))
+        {
+            return false;
+        }
         _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
 
         RebuildTourRowsWithCurrentFilter(keepSelectionTourId: tour.Id);
@@ -886,12 +896,18 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             if (order is not null)
             {
                 order.AssignedTourId = targetTour.Id.ToString(CultureInfo.InvariantCulture);
-                await _orderRepository.SaveAllAsync(orders);
+                if (!await SaveOrderAsync(order, orders))
+                {
+                    return false;
+                }
                 updatedOrder = true;
             }
         }
 
-        await _tourRepository.SaveAsync(_loadedTours);
+        if (!await SaveTourAsync(sourceTour) || !await SaveTourAsync(targetTour))
+        {
+            return false;
+        }
         _dataSyncService.PublishTours(
             _instanceId,
             sourceTour.Id.ToString(CultureInfo.InvariantCulture),
@@ -941,7 +957,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         stop.ServiceMinutes = Math.Max(0, dialog.StayMinutes.Value);
         _scheduleService.ApplySchedule(sourceTour);
-        await _tourRepository.SaveAsync(_loadedTours);
+        if (!await SaveTourAsync(sourceTour))
+        {
+            return;
+        }
         _dataSyncService.PublishTours(_instanceId, sourceTour.Id.ToString(CultureInfo.InvariantCulture), sourceTour.Id.ToString(CultureInfo.InvariantCulture));
         RebuildTourRowsWithCurrentFilter(keepSelectionTourId: sourceTour.Id);
         StatusText = $"Zeit für {BuildStopDisplayLabel(stop)} gesetzt: {stop.ServiceMinutes} min.";
@@ -1024,12 +1043,18 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             if (order is not null)
             {
                 order.AssignedTourId = string.Empty;
-                await _orderRepository.SaveAllAsync(orders);
+                if (!await SaveOrderAsync(order, orders))
+                {
+                    return;
+                }
                 updatedOrderAssignment = true;
             }
         }
 
-        await _tourRepository.SaveAsync(_loadedTours);
+        if (!await SaveTourAsync(sourceTour))
+        {
+            return;
+        }
         _dataSyncService.PublishTours(_instanceId, sourceTour.Id.ToString(CultureInfo.InvariantCulture), sourceTour.Id.ToString(CultureInfo.InvariantCulture));
         if (updatedOrderAssignment)
         {
@@ -1079,13 +1104,38 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         updated.Type = existing.Type;
         updated.AssignedTourId = existing.AssignedTourId;
         updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated) ?? existing.Location;
+        updated.ConcurrencyToken = existing.ConcurrencyToken;
 
         orders.RemoveAll(x => string.Equals(x.Id, existing.Id, StringComparison.OrdinalIgnoreCase));
         orders.RemoveAll(x => !string.Equals(x.Id, existing.Id, StringComparison.OrdinalIgnoreCase) &&
                               string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
         orders.Add(updated);
 
-        await _orderRepository.SaveAllAsync(orders);
+        if (!string.Equals(existing.Id, updated.Id, StringComparison.OrdinalIgnoreCase) && _orderMutationRepository is not null)
+        {
+            try
+            {
+                await _orderMutationRepository.DeleteAsync(existing.Id, existing.ConcurrencyToken);
+                updated.ConcurrencyToken = null;
+                await _orderMutationRepository.UpsertAsync(updated);
+            }
+            catch (ConcurrencyConflictException)
+            {
+                await HandleConcurrencyConflictAsync(SelectedTour?.TourId);
+                return;
+            }
+        }
+        else if (_orderMutationRepository is not null)
+        {
+            if (!await SaveOrderAsync(updated, orders))
+            {
+                return;
+            }
+        }
+        else
+        {
+            await _orderRepository.SaveAllAsync(orders);
+        }
         _dataSyncService.PublishOrders(_instanceId);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
     }
@@ -1225,14 +1275,27 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                     order.IsArchived = nextTourArchivedState;
                 }
 
-                await _orderRepository.SaveAllAsync(orders);
+                if (_orderMutationRepository is null)
+                {
+                    await _orderRepository.SaveAllAsync(orders);
+                }
+                else
+                {
+                    foreach (var order in affectedOrders)
+                    {
+                        await _orderMutationRepository.UpsertAsync(order);
+                    }
+                }
                 _dataSyncService.PublishOrders(_instanceId);
                 changedOrderCount = affectedOrders.Count;
             }
         }
 
         target.IsArchived = nextTourArchivedState;
-        await _tourRepository.SaveAsync(_loadedTours);
+        if (!await SaveTourAsync(target))
+        {
+            return;
+        }
         _dataSyncService.PublishTours(_instanceId, target.Id.ToString(CultureInfo.InvariantCulture), target.Id.ToString(CultureInfo.InvariantCulture));
         RebuildTourRowsWithCurrentFilter(keepSelectionTourId: target.Id);
         OnPropertyChanged(nameof(ToggleArchiveTourButtonText));
@@ -1274,7 +1337,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         _loadedTours.Remove(target);
-        await _tourRepository.SaveAsync(_loadedTours);
+        if (!await DeleteTourAsync(target.Id, target.ConcurrencyToken))
+        {
+            return;
+        }
         await ClearAssignedTourReferencesAsync(target.Id);
         _dataSyncService.PublishTours(_instanceId, target.Id.ToString(CultureInfo.InvariantCulture), null);
         _dataSyncService.PublishOrders(_instanceId);
@@ -1396,11 +1462,96 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         _scheduleService.ApplySchedule(tour);
-        await _tourRepository.SaveAsync(_loadedTours);
+        if (!await SaveTourAsync(tour))
+        {
+            return;
+        }
         _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
         await RefreshAsync();
         await FocusTourAsync(tour.Id);
         StatusText = $"Tour {tour.Id} wurde aktualisiert.";
+    }
+
+    private async Task<bool> SaveTourAsync(TourRecord tour, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (_tourMutationStore is not null)
+            {
+                await _tourMutationStore.UpsertAsync(tour, cancellationToken);
+            }
+            else
+            {
+                await _tourRepository.SaveAsync(_loadedTours, cancellationToken);
+            }
+
+            return true;
+        }
+        catch (ConcurrencyConflictException)
+        {
+            await HandleConcurrencyConflictAsync(tour.Id);
+            return false;
+        }
+    }
+
+    private async Task<bool> DeleteTourAsync(int tourId, string? concurrencyToken = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (_tourMutationStore is not null)
+            {
+                await _tourMutationStore.DeleteAsync(tourId, concurrencyToken, cancellationToken);
+            }
+            else
+            {
+                await _tourRepository.SaveAsync(_loadedTours, cancellationToken);
+            }
+
+            return true;
+        }
+        catch (ConcurrencyConflictException)
+        {
+            await HandleConcurrencyConflictAsync(tourId);
+            return false;
+        }
+    }
+
+    private async Task<bool> SaveOrderAsync(Order order, IReadOnlyList<Order>? fallbackSnapshot = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (_orderMutationRepository is not null)
+            {
+                await _orderMutationRepository.UpsertAsync(order, cancellationToken);
+            }
+            else
+            {
+                await _orderRepository.SaveAllAsync(fallbackSnapshot ?? Array.Empty<Order>(), cancellationToken);
+            }
+
+            return true;
+        }
+        catch (ConcurrencyConflictException)
+        {
+            await HandleConcurrencyConflictAsync(null);
+            return false;
+        }
+    }
+
+    private async Task HandleConcurrencyConflictAsync(int? preferredTourId)
+    {
+        await RefreshAsync();
+        if (preferredTourId.HasValue)
+        {
+            await FocusTourAsync(preferredTourId.Value);
+        }
+
+        Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+            "Die Tour- oder Auftragsdaten wurden zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Die Ansicht wurde neu geladen.",
+            "Mehrbenutzerkonflikt",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
+        StatusText = "Tourdaten wurden nach einem Mehrbenutzerkonflikt neu geladen.";
     }
 
     private async Task<(List<TourEmployeeOption> Employees, List<TourLookupOption> Vehicles, List<TourLookupOption> Trailers)> LoadTourDialogOptionsAsync(string? routeDate)
@@ -2115,6 +2266,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             SecondaryVehicleId = source.SecondaryVehicleId,
             SecondaryTrailerId = source.SecondaryTrailerId,
             IsArchived = source.IsArchived,
+            ConcurrencyToken = source.ConcurrencyToken,
             EmployeeIds = source.EmployeeIds.ToList(),
             TravelTimeCache = source.TravelTimeCache.ToDictionary(kv => kv.Key, kv => kv.Value),
             Stops = source.Stops.Select(stop => new TourStopRecord
