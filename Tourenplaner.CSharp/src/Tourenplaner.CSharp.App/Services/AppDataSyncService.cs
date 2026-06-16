@@ -61,6 +61,13 @@ public sealed class AppDataSyncService
 
     private void PublishCore(AppDataChangedEventArgs args)
     {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(() => PublishCore(args));
+            return;
+        }
+
         DataChanged?.Invoke(this, args);
 
         if (args.Kinds.HasFlag(AppDataKind.Orders))
