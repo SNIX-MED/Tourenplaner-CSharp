@@ -139,7 +139,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
                 throw new ConcurrencyConflictException("Auftrag", normalizedId);
             }
 
-            order.ConcurrencyToken = FormatConcurrencyToken((DateTimeOffset)insertedAt);
+            order.ConcurrencyToken = FormatConcurrencyToken(ReadTimestamp(insertedAt));
             return;
         }
 
@@ -160,7 +160,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
             throw new ConcurrencyConflictException("Auftrag", normalizedId);
         }
 
-        order.ConcurrencyToken = FormatConcurrencyToken((DateTimeOffset)updatedAt);
+        order.ConcurrencyToken = FormatConcurrencyToken(ReadTimestamp(updatedAt));
     }
 
     public async Task DeleteAsync(string orderId, string? concurrencyToken = null, CancellationToken cancellationToken = default)
@@ -218,5 +218,17 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
         }
 
         return DateTimeOffset.Parse(token.Trim());
+    }
+
+    private static DateTimeOffset ReadTimestamp(object value)
+    {
+        return value switch
+        {
+            DateTimeOffset dto => dto,
+            DateTime dt => dt.Kind == DateTimeKind.Unspecified
+                ? new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc))
+                : new DateTimeOffset(dt.ToUniversalTime(), TimeSpan.Zero),
+            _ => throw new InvalidOperationException($"Unerwarteter PostgreSQL-Zeitstempeltyp: {value.GetType().FullName}")
+        };
     }
 }

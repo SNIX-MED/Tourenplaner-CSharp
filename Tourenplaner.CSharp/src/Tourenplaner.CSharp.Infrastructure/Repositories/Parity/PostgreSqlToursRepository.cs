@@ -134,7 +134,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
                 throw new ConcurrencyConflictException("Tour", normalized.Id.ToString());
             }
 
-            normalized.ConcurrencyToken = FormatConcurrencyToken((DateTimeOffset)insertedAt);
+            normalized.ConcurrencyToken = FormatConcurrencyToken(ReadTimestamp(insertedAt));
             tour.ConcurrencyToken = normalized.ConcurrencyToken;
             return;
         }
@@ -156,7 +156,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
             throw new ConcurrencyConflictException("Tour", normalized.Id.ToString());
         }
 
-        normalized.ConcurrencyToken = FormatConcurrencyToken((DateTimeOffset)updatedAt);
+        normalized.ConcurrencyToken = FormatConcurrencyToken(ReadTimestamp(updatedAt));
         tour.ConcurrencyToken = normalized.ConcurrencyToken;
     }
 
@@ -209,5 +209,17 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
         }
 
         return DateTimeOffset.Parse(token.Trim());
+    }
+
+    private static DateTimeOffset ReadTimestamp(object value)
+    {
+        return value switch
+        {
+            DateTimeOffset dto => dto,
+            DateTime dt => dt.Kind == DateTimeKind.Unspecified
+                ? new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc))
+                : new DateTimeOffset(dt.ToUniversalTime(), TimeSpan.Zero),
+            _ => throw new InvalidOperationException($"Unerwarteter PostgreSQL-Zeitstempeltyp: {value.GetType().FullName}")
+        };
     }
 }
