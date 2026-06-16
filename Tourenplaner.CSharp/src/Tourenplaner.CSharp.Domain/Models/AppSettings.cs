@@ -68,6 +68,7 @@ public sealed class AppSettings
     public bool TomTomEnableTileCache { get; set; } = true;
     public string CurrentUserName { get; set; } = string.Empty;
     public Dictionary<string, MapOverlayUserPreference> MapOverlayPreferencesByUser { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, UserAppPreference> UserPreferencesByUser { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public AppStorageMode StorageMode { get; set; } = AppStorageMode.JsonFiles;
     public PostgreSqlStorageSettings PostgreSqlStorage { get; set; } = new();
     
@@ -78,6 +79,149 @@ public sealed class AppSettings
     public string XmlImportFilePath { get; set; } = string.Empty;
     public DateTime? LastXmlImportDate { get; set; }
     public XmlImportMappingSettings XmlImportMapping { get; set; } = XmlImportMappingSettings.CreateDefault();
+
+    public UserAppPreference ResolveUserPreference(string? userName)
+    {
+        var normalizedUserName = NormalizeUserName(userName);
+        if (UserPreferencesByUser.TryGetValue(normalizedUserName, out var existing) && existing is not null)
+        {
+            return existing.Clone();
+        }
+
+        return BuildLegacyUserPreference();
+    }
+
+    public void SetUserPreference(string? userName, UserAppPreference preference)
+    {
+        var normalizedUserName = NormalizeUserName(userName);
+        UserPreferencesByUser[normalizedUserName] = (preference ?? BuildLegacyUserPreference()).Clone();
+    }
+
+    public static string NormalizeUserName(string? userName)
+    {
+        var normalized = (userName ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? "default" : normalized;
+    }
+
+    private UserAppPreference BuildLegacyUserPreference()
+    {
+        return new UserAppPreference
+        {
+            AppearanceMode = string.IsNullOrWhiteSpace(AppearanceMode) ? "Light" : AppearanceMode,
+            AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(AvisoEmailSubjectTemplate) ? DefaultAvisoEmailSubjectTemplate : AvisoEmailSubjectTemplate,
+            StatusColorNotSpecified = StatusColorNotSpecified,
+            StatusColorOrdered = StatusColorOrdered,
+            StatusColorOnTheWay = StatusColorOnTheWay,
+            StatusColorInStock = StatusColorInStock,
+            StatusColorPlanned = StatusColorPlanned,
+            CalendarLoadWarningColor = CalendarLoadWarningColor,
+            CalendarLoadCriticalColor = CalendarLoadCriticalColor,
+            MapUseDistinctPlannedTourColors = MapUseDistinctPlannedTourColors,
+            CalendarLoadWarningPeopleThreshold = CalendarLoadWarningPeopleThreshold,
+            CalendarLoadCriticalPeopleThreshold = CalendarLoadCriticalPeopleThreshold,
+            MapDetailsPanelExpanded = MapDetailsPanelExpanded,
+            MapAutoOpenDetailsOnPinSelection = MapAutoOpenDetailsOnPinSelection,
+            MapSearchDimNonMatchingPins = MapSearchDimNonMatchingPins,
+            MapPinInfoCardShowName = MapPinInfoCardShowName,
+            MapPinInfoCardShowOrderNumber = MapPinInfoCardShowOrderNumber,
+            MapPinInfoCardShowStreet = MapPinInfoCardShowStreet,
+            MapPinInfoCardShowPostalCodeCity = MapPinInfoCardShowPostalCodeCity,
+            MapPinInfoCardShowNotes = MapPinInfoCardShowNotes,
+            MapPinInfoCardShowProducts = MapPinInfoCardShowProducts,
+            MapPinInfoCardShowTotalWeight = MapPinInfoCardShowTotalWeight,
+            PinInfoCardScale = PinInfoCardScale,
+            PinInfoCardZoomBehaviorStrength = PinInfoCardZoomBehaviorStrength,
+            MapRouteCapacityWarningThresholdPercent = MapRouteCapacityWarningThresholdPercent,
+            QuickAccessItems = new List<string>(QuickAccessItems ?? []),
+            ShowGpsTool = ShowGpsTool,
+            GpsToolUrl = string.IsNullOrWhiteSpace(GpsToolUrl) ? DefaultGpsToolUrl : GpsToolUrl,
+            ShowSpediteurTool = ShowSpediteurTool,
+            SpediteurToolUrl = string.IsNullOrWhiteSpace(SpediteurToolUrl) ? DefaultSpediteurToolUrl : SpediteurToolUrl,
+            TourDefaultStartTime = string.IsNullOrWhiteSpace(TourDefaultStartTime) ? DefaultTourStartTime : TourDefaultStartTime,
+            TomTomTrafficRefreshSeconds = TomTomTrafficRefreshSeconds,
+            TomTomRouteRecalcDebounceMs = TomTomRouteRecalcDebounceMs,
+            TomTomEnableTileCache = TomTomEnableTileCache
+        };
+    }
+}
+
+public sealed class UserAppPreference
+{
+    public string AppearanceMode { get; set; } = "Light";
+    public string AvisoEmailSubjectTemplate { get; set; } = AppSettings.DefaultAvisoEmailSubjectTemplate;
+    public string StatusColorNotSpecified { get; set; } = AppSettings.DefaultStatusColorNotSpecified;
+    public string StatusColorOrdered { get; set; } = AppSettings.DefaultStatusColorOrdered;
+    public string StatusColorOnTheWay { get; set; } = AppSettings.DefaultStatusColorOnTheWay;
+    public string StatusColorInStock { get; set; } = AppSettings.DefaultStatusColorInStock;
+    public string StatusColorPlanned { get; set; } = AppSettings.DefaultStatusColorPlanned;
+    public string CalendarLoadWarningColor { get; set; } = AppSettings.DefaultCalendarLoadWarningColor;
+    public string CalendarLoadCriticalColor { get; set; } = AppSettings.DefaultCalendarLoadCriticalColor;
+    public bool MapUseDistinctPlannedTourColors { get; set; } = true;
+    public int CalendarLoadWarningPeopleThreshold { get; set; } = 1;
+    public int CalendarLoadCriticalPeopleThreshold { get; set; } = 2;
+    public bool MapDetailsPanelExpanded { get; set; } = true;
+    public bool MapAutoOpenDetailsOnPinSelection { get; set; } = true;
+    public bool MapSearchDimNonMatchingPins { get; set; } = true;
+    public bool MapPinInfoCardShowName { get; set; } = true;
+    public bool MapPinInfoCardShowOrderNumber { get; set; } = true;
+    public bool MapPinInfoCardShowStreet { get; set; } = true;
+    public bool MapPinInfoCardShowPostalCodeCity { get; set; } = true;
+    public bool MapPinInfoCardShowNotes { get; set; } = true;
+    public bool MapPinInfoCardShowProducts { get; set; } = true;
+    public bool MapPinInfoCardShowTotalWeight { get; set; } = true;
+    public double PinInfoCardScale { get; set; } = AppSettings.DefaultPinInfoCardScale;
+    public double PinInfoCardZoomBehaviorStrength { get; set; } = AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
+    public int MapRouteCapacityWarningThresholdPercent { get; set; } = AppSettings.DefaultMapRouteCapacityWarningThresholdPercent;
+    public List<string> QuickAccessItems { get; set; } = new() { "action:export_route", string.Empty, string.Empty, string.Empty };
+    public bool ShowGpsTool { get; set; } = true;
+    public string GpsToolUrl { get; set; } = AppSettings.DefaultGpsToolUrl;
+    public bool ShowSpediteurTool { get; set; } = true;
+    public string SpediteurToolUrl { get; set; } = AppSettings.DefaultSpediteurToolUrl;
+    public string TourDefaultStartTime { get; set; } = AppSettings.DefaultTourStartTime;
+    public int TomTomTrafficRefreshSeconds { get; set; } = AppSettings.DefaultTomTomTrafficRefreshSeconds;
+    public int TomTomRouteRecalcDebounceMs { get; set; } = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
+    public bool TomTomEnableTileCache { get; set; } = true;
+
+    public UserAppPreference Clone()
+    {
+        return new UserAppPreference
+        {
+            AppearanceMode = AppearanceMode,
+            AvisoEmailSubjectTemplate = AvisoEmailSubjectTemplate,
+            StatusColorNotSpecified = StatusColorNotSpecified,
+            StatusColorOrdered = StatusColorOrdered,
+            StatusColorOnTheWay = StatusColorOnTheWay,
+            StatusColorInStock = StatusColorInStock,
+            StatusColorPlanned = StatusColorPlanned,
+            CalendarLoadWarningColor = CalendarLoadWarningColor,
+            CalendarLoadCriticalColor = CalendarLoadCriticalColor,
+            MapUseDistinctPlannedTourColors = MapUseDistinctPlannedTourColors,
+            CalendarLoadWarningPeopleThreshold = CalendarLoadWarningPeopleThreshold,
+            CalendarLoadCriticalPeopleThreshold = CalendarLoadCriticalPeopleThreshold,
+            MapDetailsPanelExpanded = MapDetailsPanelExpanded,
+            MapAutoOpenDetailsOnPinSelection = MapAutoOpenDetailsOnPinSelection,
+            MapSearchDimNonMatchingPins = MapSearchDimNonMatchingPins,
+            MapPinInfoCardShowName = MapPinInfoCardShowName,
+            MapPinInfoCardShowOrderNumber = MapPinInfoCardShowOrderNumber,
+            MapPinInfoCardShowStreet = MapPinInfoCardShowStreet,
+            MapPinInfoCardShowPostalCodeCity = MapPinInfoCardShowPostalCodeCity,
+            MapPinInfoCardShowNotes = MapPinInfoCardShowNotes,
+            MapPinInfoCardShowProducts = MapPinInfoCardShowProducts,
+            MapPinInfoCardShowTotalWeight = MapPinInfoCardShowTotalWeight,
+            PinInfoCardScale = PinInfoCardScale,
+            PinInfoCardZoomBehaviorStrength = PinInfoCardZoomBehaviorStrength,
+            MapRouteCapacityWarningThresholdPercent = MapRouteCapacityWarningThresholdPercent,
+            QuickAccessItems = new List<string>(QuickAccessItems ?? []),
+            ShowGpsTool = ShowGpsTool,
+            GpsToolUrl = GpsToolUrl,
+            ShowSpediteurTool = ShowSpediteurTool,
+            SpediteurToolUrl = SpediteurToolUrl,
+            TourDefaultStartTime = TourDefaultStartTime,
+            TomTomTrafficRefreshSeconds = TomTomTrafficRefreshSeconds,
+            TomTomRouteRecalcDebounceMs = TomTomRouteRecalcDebounceMs,
+            TomTomEnableTileCache = TomTomEnableTileCache
+        };
+    }
 }
 
 public sealed class MapOverlayUserPreference

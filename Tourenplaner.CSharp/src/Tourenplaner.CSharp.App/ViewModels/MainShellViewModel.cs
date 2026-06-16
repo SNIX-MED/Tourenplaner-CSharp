@@ -44,6 +44,8 @@ public sealed class MainShellViewModel : ObservableObject
     private readonly GpsSectionViewModel _gpsSection;
     private readonly SpediteurSectionViewModel _spediteurSection;
     private readonly SettingsSectionViewModel _settingsSection;
+    private readonly StartSectionViewModel _startSection;
+    private readonly KalenderSectionViewModel _calendarSection;
     private readonly NavigationItemViewModel _gpsNavigationItem;
     private readonly NavigationItemViewModel _spediteurNavigationItem;
     private NavigationItemViewModel? _lastNonSettingsNavigationItem;
@@ -77,6 +79,7 @@ public sealed class MainShellViewModel : ObservableObject
             "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Banner.png",
             () => NavigateToMapAsync(map),
             dataSyncService);
+        _startSection = start;
         var tours = new ToursSectionViewModel(
             repositories.TourRecordStore,
             repositories.OrderRepository,
@@ -96,6 +99,7 @@ public sealed class MainShellViewModel : ObservableObject
             date => NavigateToTourDateAsync(tours, date),
             orderId => OpenOrderEditorFromCalendarAsync(orderId),
             dataSyncService: dataSyncService);
+        _calendarSection = calendar;
         var orders = new OrdersSectionViewModel(
             repositories.OrderRepository,
             repositories.TourRecordStore,
@@ -750,7 +754,11 @@ public sealed class MainShellViewModel : ObservableObject
         }
 
         await _mapSection.RefreshAsync();
+        await _startSection.RefreshAsync();
+        await _calendarSection.RefreshAsync();
         await _settingsSection.RefreshAsync();
+        ApplyToolSettingsFromSettingsSection();
+        RebuildSidebarNavigation();
         ToastNotificationService.ShowInfo($"Aktiver Benutzer: {normalized}");
     }
 

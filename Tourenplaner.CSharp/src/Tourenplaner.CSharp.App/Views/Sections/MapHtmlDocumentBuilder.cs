@@ -64,7 +64,7 @@ internal static class MapHtmlDocumentBuilder
                    .details-toggle:active { opacity: .82; }
                    .map-options-toggle img { display: block; width: 20px; height: 20px; object-fit: contain; }
                    .map-options-toggle svg { display: block; width: 20px; height: 20px; fill: #0f172a; }
-                   .map-options-overlay { position: absolute; right: 8px; top: 8px; bottom: 8px; width: min(340px, calc(84vw - 8px)); z-index: 1200; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 18px; transform: translateX(calc(100% + 10px)); transition: transform .22s ease; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: flex; flex-direction: column; overflow: hidden; }
+                   .map-options-overlay { position: absolute; right: 8px; top: 8px; bottom: 8px; width: min(340px, calc(84vw - 8px)); z-index: 1500; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 18px; transform: translateX(calc(100% + 10px)); transition: transform .22s ease; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: flex; flex-direction: column; overflow: hidden; }
                    .map-options-overlay.open { transform: translateX(0); }
                    .map-options-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 10px; border-bottom: 1px solid #e2e8f0; }
                    .map-options-title { font-size: 25px; font-weight: 700; color: #0f172a; margin: 0; }
@@ -1411,6 +1411,11 @@ internal static class MapHtmlDocumentBuilder
                              return;
                            }
 
+                           const syncRoutingOptionToggles = () => {
+                             vehicleDimensionsToggle.checked = mapState.useVehicleDimensions;
+                             vehicleWeightRestrictionsToggle.checked = mapState.useVehicleWeightRestrictions;
+                           };
+
                            const postMapOptions = () => {
                              if (!(window.chrome && window.chrome.webview)) {
                                return;
@@ -1445,9 +1450,14 @@ internal static class MapHtmlDocumentBuilder
                            trafficIncidentsToggle.checked = mapState.trafficIncidents;
                            roadLabelsToggle.checked = mapState.showRoadLabels;
                            poiToggle.checked = mapState.showPoi;
-                           vehicleDimensionsToggle.checked = mapState.useVehicleDimensions;
-                           vehicleWeightRestrictionsToggle.checked = mapState.useVehicleWeightRestrictions;
+                           syncRoutingOptionToggles();
                            departAtTrafficToggle.checked = mapState.useDepartAtTraffic;
+
+                           window.gawelaSetVehicleRoutingOptions = function(useDimensions, useWeightRestrictions) {
+                             mapState.useVehicleDimensions = !!useDimensions;
+                             mapState.useVehicleWeightRestrictions = !!useWeightRestrictions;
+                             syncRoutingOptionToggles();
+                           };
 
                            trafficFlowToggle.addEventListener('change', () => {
                              mapState.trafficFlow = !!trafficFlowToggle.checked;

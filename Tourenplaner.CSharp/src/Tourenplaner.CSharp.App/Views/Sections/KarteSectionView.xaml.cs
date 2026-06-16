@@ -1108,7 +1108,7 @@ public partial class KarteSectionView : UserControl
             if (MapWebView.CoreWebView2 is not null)
             {
                 await MapWebView.CoreWebView2.ExecuteScriptAsync(
-                    "var d=document.getElementById('toggleVehicleDimensions'); if (d) { d.checked = false; } var w=document.getElementById('toggleVehicleWeightRestrictions'); if (w) { w.checked = false; }");
+                    $"if (window.gawelaSetVehicleRoutingOptions) {{ window.gawelaSetVehicleRoutingOptions({(vm.TomTomUseVehicleDimensions ? "true" : "false")}, {(vm.TomTomUseVehicleWeightRestrictions ? "true" : "false")}); }}");
             }
         }
     }

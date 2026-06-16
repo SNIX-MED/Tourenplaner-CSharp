@@ -855,7 +855,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     private async Task SaveCoreAsync(bool showToast)
     {
-        var model = BuildModel();
+        var existingSettings = await _repository.LoadAsync();
+        var model = BuildModel(existingSettings);
         var validation = _validator.Validate(model);
         if (!validation.IsValid)
         {
@@ -986,7 +987,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     public async Task CreateBackupAsync()
     {
-        var model = BuildModel();
+        var model = BuildModel(await _repository.LoadAsync());
         var validation = _validator.Validate(model);
         if (!validation.IsValid)
         {
@@ -1013,7 +1014,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     public async Task RestoreLatestBackupAsync()
     {
-        var model = BuildModel();
+        var model = BuildModel(await _repository.LoadAsync());
         if (string.IsNullOrWhiteSpace(model.BackupDir) || !Directory.Exists(model.BackupDir))
         {
             StatusText = "Restore failed: backup directory not found.";
@@ -1218,72 +1219,81 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         DownloadAvailableUpdateCommand.RaiseCanExecuteChanged();
     }
 
-    private AppSettings BuildModel()
+    private AppSettings BuildModel(AppSettings? existingSettings = null)
     {
-        return new AppSettings
-        {
-            AppearanceMode = "Light",
-            AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(AvisoEmailSubjectTemplate)
-                ? AppSettings.DefaultAvisoEmailSubjectTemplate
-                : AvisoEmailSubjectTemplate.Trim(),
-            CompanyName = string.IsNullOrWhiteSpace(CompanyName) ? "Firma" : CompanyName.Trim(),
-            CompanyStreet = (CompanyStreet ?? string.Empty).Trim(),
-            CompanyPostalCode = (CompanyPostalCode ?? string.Empty).Trim(),
-            CompanyCity = (CompanyCity ?? string.Empty).Trim(),
-            StorageMode = StorageMode,
-            PostgreSqlStorage = BuildPostgreSqlStorageSettings(),
-            StatusColorNotSpecified = NormalizeHexColor(StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified),
-            StatusColorOrdered = NormalizeHexColor(StatusColorOrdered, AppSettings.DefaultStatusColorOrdered),
-            StatusColorOnTheWay = NormalizeHexColor(StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay),
-            StatusColorInStock = NormalizeHexColor(StatusColorInStock, AppSettings.DefaultStatusColorInStock),
-            StatusColorPlanned = NormalizeHexColor(StatusColorPlanned, AppSettings.DefaultStatusColorPlanned),
-            CalendarLoadWarningColor = NormalizeHexColor(CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor),
-            CalendarLoadCriticalColor = NormalizeHexColor(CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor),
-            MapUseDistinctPlannedTourColors = MapUseDistinctPlannedTourColors,
-            CalendarLoadWarningPeopleThreshold = CalendarLoadWarningPeopleThreshold,
-            CalendarLoadCriticalPeopleThreshold = CalendarLoadCriticalPeopleThreshold,
-            MapAutoOpenDetailsOnPinSelection = MapAutoOpenDetailsOnPinSelection,
-            MapSearchDimNonMatchingPins = MapSearchDimNonMatchingPins,
-            MapPinInfoCardShowName = MapPinInfoCardShowName,
-            MapPinInfoCardShowOrderNumber = MapPinInfoCardShowOrderNumber,
-            MapPinInfoCardShowStreet = MapPinInfoCardShowStreet,
-            MapPinInfoCardShowPostalCodeCity = MapPinInfoCardShowPostalCodeCity,
-            MapPinInfoCardShowNotes = MapPinInfoCardShowNotes,
-            MapPinInfoCardShowProducts = MapPinInfoCardShowProducts,
-            MapPinInfoCardShowTotalWeight = MapPinInfoCardShowTotalWeight,
-            PinInfoCardZoomBehaviorStrength = Math.Clamp(PinInfoCardZoomBehaviorStrength, 0.2d, 4.0d),
-            MapRouteCapacityWarningThresholdPercent = Math.Clamp(MapRouteCapacityWarningThresholdPercent, 0, 100),
-            TomTomApiKey = (TomTomApiKey ?? string.Empty).Trim(),
-            TomTomTrafficRefreshSeconds = Math.Max(15, TomTomTrafficRefreshSeconds),
-            TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000),
-            TomTomEnableTileCache = TomTomEnableTileCache,
-            CurrentUserName = (_currentUserName ?? string.Empty).Trim(),
-            MapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
-                _mapOverlayPreferencesByUser ?? new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase),
-                StringComparer.OrdinalIgnoreCase),
-            BackupsEnabled = BackupsEnabled,
-            BackupDir = (BackupDir ?? string.Empty).Trim(),
-            BackupModeDefault = (BackupModeDefault ?? string.Empty).Trim(),
-            BackupRetentionDays = BackupRetentionDays,
-            AutoBackupEnabled = AutoBackupEnabled,
-            AutoBackupIntervalDays = AutoBackupIntervalDays,
-            LastBackupIso = LastBackupIso,
-            ShowGpsTool = ShowGpsTool,
-            GpsToolUrl = string.IsNullOrWhiteSpace(GpsToolUrl) ? AppSettings.DefaultGpsToolUrl : GpsToolUrl.Trim(),
-            ShowSpediteurTool = ShowSpediteurTool,
-            SpediteurToolUrl = string.IsNullOrWhiteSpace(SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : SpediteurToolUrl.Trim(),
-            TourDefaultStartTime = NormalizeTourDefaultStartTime(TourDefaultStartTime),
-            XmlImportFilePath = (XmlImportFilePath ?? string.Empty).Trim(),
-            XmlImportMapping = BuildXmlImportMapping().WithDefaults(),
-            QuickAccessItems = new List<string>()
-        };
+        var model = existingSettings ?? new AppSettings();
+        var currentUserName = AppSettings.NormalizeUserName(_currentUserName);
+        var userPreference = model.ResolveUserPreference(currentUserName);
+
+        userPreference.AppearanceMode = "Light";
+        userPreference.AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(AvisoEmailSubjectTemplate)
+            ? AppSettings.DefaultAvisoEmailSubjectTemplate
+            : AvisoEmailSubjectTemplate.Trim();
+        userPreference.StatusColorNotSpecified = NormalizeHexColor(StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
+        userPreference.StatusColorOrdered = NormalizeHexColor(StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
+        userPreference.StatusColorOnTheWay = NormalizeHexColor(StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+        userPreference.StatusColorInStock = NormalizeHexColor(StatusColorInStock, AppSettings.DefaultStatusColorInStock);
+        userPreference.StatusColorPlanned = NormalizeHexColor(StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
+        userPreference.CalendarLoadWarningColor = NormalizeHexColor(CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
+        userPreference.CalendarLoadCriticalColor = NormalizeHexColor(CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
+        userPreference.MapUseDistinctPlannedTourColors = MapUseDistinctPlannedTourColors;
+        userPreference.CalendarLoadWarningPeopleThreshold = CalendarLoadWarningPeopleThreshold;
+        userPreference.CalendarLoadCriticalPeopleThreshold = CalendarLoadCriticalPeopleThreshold;
+        userPreference.MapAutoOpenDetailsOnPinSelection = MapAutoOpenDetailsOnPinSelection;
+        userPreference.MapSearchDimNonMatchingPins = MapSearchDimNonMatchingPins;
+        userPreference.MapPinInfoCardShowName = MapPinInfoCardShowName;
+        userPreference.MapPinInfoCardShowOrderNumber = MapPinInfoCardShowOrderNumber;
+        userPreference.MapPinInfoCardShowStreet = MapPinInfoCardShowStreet;
+        userPreference.MapPinInfoCardShowPostalCodeCity = MapPinInfoCardShowPostalCodeCity;
+        userPreference.MapPinInfoCardShowNotes = MapPinInfoCardShowNotes;
+        userPreference.MapPinInfoCardShowProducts = MapPinInfoCardShowProducts;
+        userPreference.MapPinInfoCardShowTotalWeight = MapPinInfoCardShowTotalWeight;
+        userPreference.PinInfoCardZoomBehaviorStrength = Math.Clamp(PinInfoCardZoomBehaviorStrength, 0.2d, 4.0d);
+        userPreference.MapRouteCapacityWarningThresholdPercent = Math.Clamp(MapRouteCapacityWarningThresholdPercent, 0, 100);
+        userPreference.ShowGpsTool = ShowGpsTool;
+        userPreference.GpsToolUrl = string.IsNullOrWhiteSpace(GpsToolUrl) ? AppSettings.DefaultGpsToolUrl : GpsToolUrl.Trim();
+        userPreference.ShowSpediteurTool = ShowSpediteurTool;
+        userPreference.SpediteurToolUrl = string.IsNullOrWhiteSpace(SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : SpediteurToolUrl.Trim();
+        userPreference.TourDefaultStartTime = NormalizeTourDefaultStartTime(TourDefaultStartTime);
+        userPreference.TomTomTrafficRefreshSeconds = Math.Max(15, TomTomTrafficRefreshSeconds);
+        userPreference.TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000);
+        userPreference.TomTomEnableTileCache = TomTomEnableTileCache;
+
+        model.AppearanceMode = "Light";
+        model.CompanyName = string.IsNullOrWhiteSpace(CompanyName) ? "Firma" : CompanyName.Trim();
+        model.CompanyStreet = (CompanyStreet ?? string.Empty).Trim();
+        model.CompanyPostalCode = (CompanyPostalCode ?? string.Empty).Trim();
+        model.CompanyCity = (CompanyCity ?? string.Empty).Trim();
+        model.StorageMode = StorageMode;
+        model.PostgreSqlStorage = BuildPostgreSqlStorageSettings();
+        model.TomTomApiKey = (TomTomApiKey ?? string.Empty).Trim();
+        model.CurrentUserName = currentUserName;
+        model.MapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
+            model.MapOverlayPreferencesByUser ?? _mapOverlayPreferencesByUser ?? new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase),
+            StringComparer.OrdinalIgnoreCase);
+        model.BackupsEnabled = BackupsEnabled;
+        model.BackupDir = (BackupDir ?? string.Empty).Trim();
+        model.BackupModeDefault = (BackupModeDefault ?? string.Empty).Trim();
+        model.BackupRetentionDays = BackupRetentionDays;
+        model.AutoBackupEnabled = AutoBackupEnabled;
+        model.AutoBackupIntervalDays = AutoBackupIntervalDays;
+        model.LastBackupIso = LastBackupIso;
+        model.XmlImportFilePath = (XmlImportFilePath ?? string.Empty).Trim();
+        model.XmlImportMapping = BuildXmlImportMapping().WithDefaults();
+        model.QuickAccessItems = new List<string>();
+        model.SetUserPreference(currentUserName, userPreference);
+
+        return model;
     }
 
     private void ApplyModel(AppSettings settings)
     {
-        AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(settings.AvisoEmailSubjectTemplate)
+        var currentUserName = AppSettings.NormalizeUserName(settings.CurrentUserName);
+        var userPreference = settings.ResolveUserPreference(currentUserName);
+
+        AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(userPreference.AvisoEmailSubjectTemplate)
             ? AppSettings.DefaultAvisoEmailSubjectTemplate
-            : settings.AvisoEmailSubjectTemplate;
+            : userPreference.AvisoEmailSubjectTemplate;
         CompanyName = string.IsNullOrWhiteSpace(settings.CompanyName) ? "Firma" : settings.CompanyName;
         CompanyStreet = settings.CompanyStreet ?? string.Empty;
         CompanyPostalCode = settings.CompanyPostalCode ?? string.Empty;
@@ -1297,36 +1307,36 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         PostgreSqlPassword = settings.PostgreSqlStorage?.Password ?? string.Empty;
         PostgreSqlUseSsl = settings.PostgreSqlStorage?.UseSsl ?? false;
         PostgreSqlTimeoutSeconds = settings.PostgreSqlStorage?.TimeoutSeconds > 0 ? settings.PostgreSqlStorage.TimeoutSeconds : 10;
-        StatusColorNotSpecified = NormalizeHexColor(settings.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
-        StatusColorOrdered = NormalizeHexColor(settings.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
-        StatusColorOnTheWay = NormalizeHexColor(settings.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
-        StatusColorInStock = NormalizeHexColor(settings.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
-        StatusColorPlanned = NormalizeHexColor(settings.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
-        CalendarLoadWarningColor = NormalizeHexColor(settings.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
-        CalendarLoadCriticalColor = NormalizeHexColor(settings.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
-        MapUseDistinctPlannedTourColors = settings.MapUseDistinctPlannedTourColors;
-        CalendarLoadWarningPeopleThreshold = settings.CalendarLoadWarningPeopleThreshold < 1 ? 1 : settings.CalendarLoadWarningPeopleThreshold;
-        CalendarLoadCriticalPeopleThreshold = settings.CalendarLoadCriticalPeopleThreshold < 1 ? 2 : settings.CalendarLoadCriticalPeopleThreshold;
-        MapAutoOpenDetailsOnPinSelection = settings.MapAutoOpenDetailsOnPinSelection;
-        MapSearchDimNonMatchingPins = settings.MapSearchDimNonMatchingPins;
-        MapPinInfoCardShowName = settings.MapPinInfoCardShowName;
-        MapPinInfoCardShowOrderNumber = settings.MapPinInfoCardShowOrderNumber;
-        MapPinInfoCardShowStreet = settings.MapPinInfoCardShowStreet;
-        MapPinInfoCardShowPostalCodeCity = settings.MapPinInfoCardShowPostalCodeCity;
-        MapPinInfoCardShowNotes = settings.MapPinInfoCardShowNotes;
-        MapPinInfoCardShowProducts = settings.MapPinInfoCardShowProducts;
-        MapPinInfoCardShowTotalWeight = settings.MapPinInfoCardShowTotalWeight;
-        PinInfoCardZoomBehaviorStrength = settings.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
-            ? settings.PinInfoCardZoomBehaviorStrength
+        StatusColorNotSpecified = NormalizeHexColor(userPreference.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
+        StatusColorOrdered = NormalizeHexColor(userPreference.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
+        StatusColorOnTheWay = NormalizeHexColor(userPreference.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+        StatusColorInStock = NormalizeHexColor(userPreference.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
+        StatusColorPlanned = NormalizeHexColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
+        CalendarLoadWarningColor = NormalizeHexColor(userPreference.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
+        CalendarLoadCriticalColor = NormalizeHexColor(userPreference.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
+        MapUseDistinctPlannedTourColors = userPreference.MapUseDistinctPlannedTourColors;
+        CalendarLoadWarningPeopleThreshold = userPreference.CalendarLoadWarningPeopleThreshold < 1 ? 1 : userPreference.CalendarLoadWarningPeopleThreshold;
+        CalendarLoadCriticalPeopleThreshold = userPreference.CalendarLoadCriticalPeopleThreshold < 1 ? 2 : userPreference.CalendarLoadCriticalPeopleThreshold;
+        MapAutoOpenDetailsOnPinSelection = userPreference.MapAutoOpenDetailsOnPinSelection;
+        MapSearchDimNonMatchingPins = userPreference.MapSearchDimNonMatchingPins;
+        MapPinInfoCardShowName = userPreference.MapPinInfoCardShowName;
+        MapPinInfoCardShowOrderNumber = userPreference.MapPinInfoCardShowOrderNumber;
+        MapPinInfoCardShowStreet = userPreference.MapPinInfoCardShowStreet;
+        MapPinInfoCardShowPostalCodeCity = userPreference.MapPinInfoCardShowPostalCodeCity;
+        MapPinInfoCardShowNotes = userPreference.MapPinInfoCardShowNotes;
+        MapPinInfoCardShowProducts = userPreference.MapPinInfoCardShowProducts;
+        MapPinInfoCardShowTotalWeight = userPreference.MapPinInfoCardShowTotalWeight;
+        PinInfoCardZoomBehaviorStrength = userPreference.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
+            ? userPreference.PinInfoCardZoomBehaviorStrength
             : AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
-        MapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
+        MapRouteCapacityWarningThresholdPercent = userPreference.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
-            : settings.MapRouteCapacityWarningThresholdPercent;
+            : userPreference.MapRouteCapacityWarningThresholdPercent;
         TomTomApiKey = settings.TomTomApiKey ?? string.Empty;
-        TomTomTrafficRefreshSeconds = settings.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : settings.TomTomTrafficRefreshSeconds;
-        TomTomRouteRecalcDebounceMs = settings.TomTomRouteRecalcDebounceMs is < 100 or > 10000 ? AppSettings.DefaultTomTomRouteRecalcDebounceMs : settings.TomTomRouteRecalcDebounceMs;
-        TomTomEnableTileCache = settings.TomTomEnableTileCache;
-        _currentUserName = (settings.CurrentUserName ?? string.Empty).Trim();
+        TomTomTrafficRefreshSeconds = userPreference.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : userPreference.TomTomTrafficRefreshSeconds;
+        TomTomRouteRecalcDebounceMs = userPreference.TomTomRouteRecalcDebounceMs is < 100 or > 10000 ? AppSettings.DefaultTomTomRouteRecalcDebounceMs : userPreference.TomTomRouteRecalcDebounceMs;
+        TomTomEnableTileCache = userPreference.TomTomEnableTileCache;
+        _currentUserName = currentUserName;
         _mapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
             settings.MapOverlayPreferencesByUser ?? new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase),
             StringComparer.OrdinalIgnoreCase);
@@ -1337,11 +1347,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         AutoBackupEnabled = settings.AutoBackupEnabled;
         AutoBackupIntervalDays = settings.AutoBackupIntervalDays;
         LastBackupIso = settings.LastBackupIso;
-        ShowGpsTool = settings.ShowGpsTool;
-        GpsToolUrl = string.IsNullOrWhiteSpace(settings.GpsToolUrl) ? AppSettings.DefaultGpsToolUrl : settings.GpsToolUrl;
-        ShowSpediteurTool = settings.ShowSpediteurTool;
-        SpediteurToolUrl = string.IsNullOrWhiteSpace(settings.SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : settings.SpediteurToolUrl;
-        TourDefaultStartTime = NormalizeTourDefaultStartTime(settings.TourDefaultStartTime);
+        ShowGpsTool = userPreference.ShowGpsTool;
+        GpsToolUrl = string.IsNullOrWhiteSpace(userPreference.GpsToolUrl) ? AppSettings.DefaultGpsToolUrl : userPreference.GpsToolUrl;
+        ShowSpediteurTool = userPreference.ShowSpediteurTool;
+        SpediteurToolUrl = string.IsNullOrWhiteSpace(userPreference.SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : userPreference.SpediteurToolUrl;
+        TourDefaultStartTime = NormalizeTourDefaultStartTime(userPreference.TourDefaultStartTime);
         
         XmlImportFilePath = settings.XmlImportFilePath ?? string.Empty;
         ApplyXmlImportMapping(settings.XmlImportMapping);
@@ -1639,13 +1649,16 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         {
             await Task.Delay(150, cancellationToken);
             var settings = await _repository.LoadAsync(cancellationToken);
+            var currentUserName = AppSettings.NormalizeUserName(settings.CurrentUserName);
+            var userPreference = settings.ResolveUserPreference(currentUserName);
             var clamped = Math.Clamp(_pinInfoCardZoomBehaviorStrength, 0.2d, 4.0d);
-            if (Math.Abs(settings.PinInfoCardZoomBehaviorStrength - clamped) < 0.0001d)
+            if (Math.Abs(userPreference.PinInfoCardZoomBehaviorStrength - clamped) < 0.0001d)
             {
                 return;
             }
 
-            settings.PinInfoCardZoomBehaviorStrength = clamped;
+            userPreference.PinInfoCardZoomBehaviorStrength = clamped;
+            settings.SetUserPreference(currentUserName, userPreference);
             await _repository.SaveAsync(settings, cancellationToken);
             _dataSyncService?.PublishSettings(_instanceId);
         }

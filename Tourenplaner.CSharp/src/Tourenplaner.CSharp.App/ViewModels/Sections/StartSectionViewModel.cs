@@ -90,12 +90,13 @@ public sealed class StartSectionViewModel : SectionViewModelBase
         await Task.WhenAll(settingsTask, toursTask, manualEntriesTask);
 
         var settings = await settingsTask;
-        var warningColor = NormalizeHexColor(settings.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
-        var criticalColor = NormalizeHexColor(settings.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
-        var warningThreshold = settings.CalendarLoadWarningPeopleThreshold < 1 ? 1 : settings.CalendarLoadWarningPeopleThreshold;
-        var criticalThreshold = settings.CalendarLoadCriticalPeopleThreshold < warningThreshold
+        var userPreference = settings.ResolveUserPreference(settings.CurrentUserName);
+        var warningColor = NormalizeHexColor(userPreference.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
+        var criticalColor = NormalizeHexColor(userPreference.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
+        var warningThreshold = userPreference.CalendarLoadWarningPeopleThreshold < 1 ? 1 : userPreference.CalendarLoadWarningPeopleThreshold;
+        var criticalThreshold = userPreference.CalendarLoadCriticalPeopleThreshold < warningThreshold
             ? warningThreshold
-            : settings.CalendarLoadCriticalPeopleThreshold;
+            : userPreference.CalendarLoadCriticalPeopleThreshold;
 
         var tours = await toursTask;
         _manualEntries.Clear();

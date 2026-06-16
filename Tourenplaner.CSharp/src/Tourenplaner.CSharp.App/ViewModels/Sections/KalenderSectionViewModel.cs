@@ -195,12 +195,13 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         await Task.WhenAll(settingsTask, toursTask, ordersTask, manualEntriesTask);
 
         var settings = await settingsTask;
-        _calendarLoadWarningColor = NormalizeHexColor(settings.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
-        _calendarLoadCriticalColor = NormalizeHexColor(settings.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
-        _calendarLoadWarningPeopleThreshold = settings.CalendarLoadWarningPeopleThreshold < 1 ? 1 : settings.CalendarLoadWarningPeopleThreshold;
-        _calendarLoadCriticalPeopleThreshold = settings.CalendarLoadCriticalPeopleThreshold < _calendarLoadWarningPeopleThreshold
+        var userPreference = settings.ResolveUserPreference(settings.CurrentUserName);
+        _calendarLoadWarningColor = NormalizeHexColor(userPreference.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
+        _calendarLoadCriticalColor = NormalizeHexColor(userPreference.CalendarLoadCriticalColor, AppSettings.DefaultCalendarLoadCriticalColor);
+        _calendarLoadWarningPeopleThreshold = userPreference.CalendarLoadWarningPeopleThreshold < 1 ? 1 : userPreference.CalendarLoadWarningPeopleThreshold;
+        _calendarLoadCriticalPeopleThreshold = userPreference.CalendarLoadCriticalPeopleThreshold < _calendarLoadWarningPeopleThreshold
             ? _calendarLoadWarningPeopleThreshold
-            : settings.CalendarLoadCriticalPeopleThreshold;
+            : userPreference.CalendarLoadCriticalPeopleThreshold;
 
         _allTours.Clear();
         _allTours.AddRange(await toursTask);

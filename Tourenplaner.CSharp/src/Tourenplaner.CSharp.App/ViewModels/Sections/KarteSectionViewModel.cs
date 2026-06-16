@@ -966,55 +966,56 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         await Task.WhenAll(settingsTask, ordersTask, vehiclesTask, employeesTask);
 
         var settings = await settingsTask;
+        var currentUserName = ResolveCurrentSettingsUserName(settings);
+        var userPreference = settings.ResolveUserPreference(currentUserName);
         _vehicleData = await vehiclesTask;
-        _avisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(settings.AvisoEmailSubjectTemplate)
+        _avisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(userPreference.AvisoEmailSubjectTemplate)
             ? AppSettings.DefaultAvisoEmailSubjectTemplate
-            : settings.AvisoEmailSubjectTemplate.Trim();
+            : userPreference.AvisoEmailSubjectTemplate.Trim();
         _companyName = string.IsNullOrWhiteSpace(settings.CompanyName) ? "Firma" : settings.CompanyName.Trim();
         _companyAddress = BuildCompanyAddressText(settings.CompanyStreet, settings.CompanyPostalCode, settings.CompanyCity);
-        _statusColorNotSpecified = NormalizeStatusColor(settings.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
-        _statusColorOrdered = NormalizeStatusColor(settings.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
-        _statusColorOnTheWay = NormalizeStatusColor(settings.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
-        _statusColorInStock = NormalizeStatusColor(settings.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
-        _statusColorPlanned = NormalizeStatusColor(settings.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
-        _mapUseDistinctPlannedTourColors = settings.MapUseDistinctPlannedTourColors;
-        _mapAutoOpenDetailsOnPinSelection = settings.MapAutoOpenDetailsOnPinSelection;
-        _mapSearchDimNonMatchingPins = settings.MapSearchDimNonMatchingPins;
-        _mapPinInfoCardShowName = settings.MapPinInfoCardShowName;
-        _mapPinInfoCardShowOrderNumber = settings.MapPinInfoCardShowOrderNumber;
-        _mapPinInfoCardShowStreet = settings.MapPinInfoCardShowStreet;
-        _mapPinInfoCardShowPostalCodeCity = settings.MapPinInfoCardShowPostalCodeCity;
-        _mapPinInfoCardShowNotes = settings.MapPinInfoCardShowNotes;
-        _mapPinInfoCardShowProducts = settings.MapPinInfoCardShowProducts;
-        _mapPinInfoCardShowTotalWeight = settings.MapPinInfoCardShowTotalWeight;
-        _pinInfoCardScale = settings.PinInfoCardScale is >= 0.7d and <= 1.8d
-            ? settings.PinInfoCardScale
+        _statusColorNotSpecified = NormalizeStatusColor(userPreference.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
+        _statusColorOrdered = NormalizeStatusColor(userPreference.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
+        _statusColorOnTheWay = NormalizeStatusColor(userPreference.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+        _statusColorInStock = NormalizeStatusColor(userPreference.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
+        _statusColorPlanned = NormalizeStatusColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
+        _mapUseDistinctPlannedTourColors = userPreference.MapUseDistinctPlannedTourColors;
+        _mapAutoOpenDetailsOnPinSelection = userPreference.MapAutoOpenDetailsOnPinSelection;
+        _mapSearchDimNonMatchingPins = userPreference.MapSearchDimNonMatchingPins;
+        _mapPinInfoCardShowName = userPreference.MapPinInfoCardShowName;
+        _mapPinInfoCardShowOrderNumber = userPreference.MapPinInfoCardShowOrderNumber;
+        _mapPinInfoCardShowStreet = userPreference.MapPinInfoCardShowStreet;
+        _mapPinInfoCardShowPostalCodeCity = userPreference.MapPinInfoCardShowPostalCodeCity;
+        _mapPinInfoCardShowNotes = userPreference.MapPinInfoCardShowNotes;
+        _mapPinInfoCardShowProducts = userPreference.MapPinInfoCardShowProducts;
+        _mapPinInfoCardShowTotalWeight = userPreference.MapPinInfoCardShowTotalWeight;
+        _pinInfoCardScale = userPreference.PinInfoCardScale is >= 0.7d and <= 1.8d
+            ? userPreference.PinInfoCardScale
             : AppSettings.DefaultPinInfoCardScale;
-        _pinInfoCardZoomBehaviorStrength = settings.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
-            ? settings.PinInfoCardZoomBehaviorStrength
+        _pinInfoCardZoomBehaviorStrength = userPreference.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
+            ? userPreference.PinInfoCardZoomBehaviorStrength
             : AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
-        _mapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
+        _mapRouteCapacityWarningThresholdPercent = userPreference.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
-            : settings.MapRouteCapacityWarningThresholdPercent;
+            : userPreference.MapRouteCapacityWarningThresholdPercent;
         _tomTomApiKey = (settings.TomTomApiKey ?? string.Empty).Trim();
         _tomTomShowTrafficFlow = true;
-        _tomTomTrafficRefreshSeconds = settings.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : settings.TomTomTrafficRefreshSeconds;
-        _tomTomRouteRecalcDebounceMs = settings.TomTomRouteRecalcDebounceMs is < 100 or > 10000
+        _tomTomTrafficRefreshSeconds = userPreference.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : userPreference.TomTomTrafficRefreshSeconds;
+        _tomTomRouteRecalcDebounceMs = userPreference.TomTomRouteRecalcDebounceMs is < 100 or > 10000
             ? AppSettings.DefaultTomTomRouteRecalcDebounceMs
-            : settings.TomTomRouteRecalcDebounceMs;
-        _tomTomEnableTileCache = settings.TomTomEnableTileCache;
-        var currentUserName = ResolveCurrentSettingsUserName(settings);
+            : userPreference.TomTomRouteRecalcDebounceMs;
+        _tomTomEnableTileCache = userPreference.TomTomEnableTileCache;
         settings.MapOverlayPreferencesByUser ??= new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase);
-        if (settings.MapOverlayPreferencesByUser.TryGetValue(currentUserName, out var userPreference) && userPreference is not null)
+        if (settings.MapOverlayPreferencesByUser.TryGetValue(currentUserName, out var overlayPreference) && overlayPreference is not null)
         {
-            _tomTomMapOverlayStyle = NormalizeMapOverlayStyle(userPreference.Style);
-            _tomTomShowTrafficFlow = userPreference.ShowTrafficFlow;
-            _tomTomShowTrafficIncidents = userPreference.ShowTrafficIncidents;
-            _tomTomShowRoadLabels = userPreference.ShowRoadLabels;
-            _tomTomShowPoi = userPreference.ShowPoi;
-            _tomTomUseVehicleDimensions = userPreference.UseVehicleDimensions;
-            _tomTomUseVehicleWeightRestrictions = userPreference.UseVehicleWeightRestrictions;
-            _tomTomUseDepartAtTraffic = userPreference.UseDepartAtTraffic;
+            _tomTomMapOverlayStyle = NormalizeMapOverlayStyle(overlayPreference.Style);
+            _tomTomShowTrafficFlow = overlayPreference.ShowTrafficFlow;
+            _tomTomShowTrafficIncidents = overlayPreference.ShowTrafficIncidents;
+            _tomTomShowRoadLabels = overlayPreference.ShowRoadLabels;
+            _tomTomShowPoi = overlayPreference.ShowPoi;
+            _tomTomUseVehicleDimensions = overlayPreference.UseVehicleDimensions;
+            _tomTomUseVehicleWeightRestrictions = overlayPreference.UseVehicleWeightRestrictions;
+            _tomTomUseDepartAtTraffic = overlayPreference.UseDepartAtTraffic;
         }
         else
         {
@@ -1050,11 +1051,11 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(PinInfoCardScalePercentText));
         OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrength));
         OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrengthText));
-        var (defaultHour, defaultMinute) = ParseStartTimePartsOrDefault(settings.TourDefaultStartTime);
+        var (defaultHour, defaultMinute) = ParseStartTimePartsOrDefault(userPreference.TourDefaultStartTime);
         _defaultRouteStartHour = defaultHour;
         _defaultRouteStartMinute = defaultMinute;
         NotifyLegendColorsChanged();
-        IsDetailsPanelExpanded = settings.MapDetailsPanelExpanded;
+        IsDetailsPanelExpanded = userPreference.MapDetailsPanelExpanded;
         _companyLocation = await AddressGeocodingService.TryGeocodeAddressAsync(
             settings.CompanyStreet,
             settings.CompanyPostalCode,
@@ -5722,6 +5723,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         try
         {
             var settings = await _settingsRepository.LoadAsync();
+            var userPreference = settings.ResolveUserPreference(ResolveCurrentSettingsUserName(settings));
             var nextCompanyName = string.IsNullOrWhiteSpace(settings.CompanyName) ? "Firma" : settings.CompanyName.Trim();
             var nextCompanyAddress = BuildCompanyAddressText(settings.CompanyStreet, settings.CompanyPostalCode, settings.CompanyCity);
             var nextCompanyLocation = await AddressGeocodingService.TryGeocodeAddressAsync(
@@ -5731,23 +5733,28 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 nextCompanyAddress,
                 _tomTomApiKey,
                 _geocodeCachePath);
-            var nextScale = settings.PinInfoCardScale is >= 0.7d and <= 1.8d
-                ? settings.PinInfoCardScale
+            var nextScale = userPreference.PinInfoCardScale is >= 0.7d and <= 1.8d
+                ? userPreference.PinInfoCardScale
                 : AppSettings.DefaultPinInfoCardScale;
-            var nextZoomBehaviorStrength = settings.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
-                ? settings.PinInfoCardZoomBehaviorStrength
+            var nextZoomBehaviorStrength = userPreference.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
+                ? userPreference.PinInfoCardZoomBehaviorStrength
                 : AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
-            var nextMapRouteCapacityWarningThresholdPercent = settings.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
+            var nextMapRouteCapacityWarningThresholdPercent = userPreference.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
                 ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
-                : settings.MapRouteCapacityWarningThresholdPercent;
-            var nextStatusColorNotSpecified = NormalizeStatusColor(settings.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
-            var nextStatusColorOrdered = NormalizeStatusColor(settings.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
-            var nextStatusColorOnTheWay = NormalizeStatusColor(settings.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
-            var nextStatusColorInStock = NormalizeStatusColor(settings.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
-            var nextStatusColorPlanned = NormalizeStatusColor(settings.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
-            var nextMapUseDistinctPlannedTourColors = settings.MapUseDistinctPlannedTourColors;
-            var nextMapAutoOpenDetailsOnPinSelection = settings.MapAutoOpenDetailsOnPinSelection;
+                : userPreference.MapRouteCapacityWarningThresholdPercent;
+            var nextStatusColorNotSpecified = NormalizeStatusColor(userPreference.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
+            var nextStatusColorOrdered = NormalizeStatusColor(userPreference.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
+            var nextStatusColorOnTheWay = NormalizeStatusColor(userPreference.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+            var nextStatusColorInStock = NormalizeStatusColor(userPreference.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
+            var nextStatusColorPlanned = NormalizeStatusColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
+            var nextMapUseDistinctPlannedTourColors = userPreference.MapUseDistinctPlannedTourColors;
+            var nextMapAutoOpenDetailsOnPinSelection = userPreference.MapAutoOpenDetailsOnPinSelection;
+            var nextAvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(userPreference.AvisoEmailSubjectTemplate)
+                ? AppSettings.DefaultAvisoEmailSubjectTemplate
+                : userPreference.AvisoEmailSubjectTemplate.Trim();
             var changed = false;
+
+            _avisoEmailSubjectTemplate = nextAvisoEmailSubjectTemplate;
 
             if (Math.Abs(_pinInfoCardScale - nextScale) > 0.0001d)
             {
@@ -6203,16 +6210,19 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         {
             await Task.Delay(250, cancellationToken);
             var settings = await _settingsRepository.LoadAsync(cancellationToken);
+            var currentUserName = ResolveCurrentSettingsUserName(settings);
+            var userPreference = settings.ResolveUserPreference(currentUserName);
             var clampedScale = Math.Clamp(_pinInfoCardScale, 0.7d, 1.8d);
             var clampedZoomBehaviorStrength = Math.Clamp(_pinInfoCardZoomBehaviorStrength, 0.2d, 4.0d);
-            if (Math.Abs(settings.PinInfoCardScale - clampedScale) < 0.0001d &&
-                Math.Abs(settings.PinInfoCardZoomBehaviorStrength - clampedZoomBehaviorStrength) < 0.0001d)
+            if (Math.Abs(userPreference.PinInfoCardScale - clampedScale) < 0.0001d &&
+                Math.Abs(userPreference.PinInfoCardZoomBehaviorStrength - clampedZoomBehaviorStrength) < 0.0001d)
             {
                 return;
             }
 
-            settings.PinInfoCardScale = clampedScale;
-            settings.PinInfoCardZoomBehaviorStrength = clampedZoomBehaviorStrength;
+            userPreference.PinInfoCardScale = clampedScale;
+            userPreference.PinInfoCardZoomBehaviorStrength = clampedZoomBehaviorStrength;
+            settings.SetUserPreference(currentUserName, userPreference);
             await _settingsRepository.SaveAsync(settings, cancellationToken);
         }
         catch (OperationCanceledException)
@@ -6847,7 +6857,10 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     private async Task SaveDetailsPanelStateAsync()
     {
         var settings = await _settingsRepository.LoadAsync();
-        settings.MapDetailsPanelExpanded = IsDetailsPanelExpanded;
+        var currentUserName = ResolveCurrentSettingsUserName(settings);
+        var userPreference = settings.ResolveUserPreference(currentUserName);
+        userPreference.MapDetailsPanelExpanded = IsDetailsPanelExpanded;
+        settings.SetUserPreference(currentUserName, userPreference);
         await _settingsRepository.SaveAsync(settings);
     }
 
