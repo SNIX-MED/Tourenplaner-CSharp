@@ -33,6 +33,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private VehicleDataRecord _vehicleData = new();
 
     private readonly List<TourRecord> _loadedTours = new();
+    private readonly Dictionary<string, Order> _ordersById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _vehicleLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _trailerLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _employeeLabelsById = new(StringComparer.OrdinalIgnoreCase);
@@ -70,6 +71,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private TourOverviewItem? _selectedTour;
     private TourStopOverviewItem? _selectedTourStop;
     private bool _showArchivedTours;
+    private bool _showCalendarLayout;
+    private bool _isToursFilterPanelVisible;
 
     public ToursSectionViewModel(
         ITourRecordStore tourRepository,
@@ -114,6 +117,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         ToggleArchiveTourCommand = new AsyncCommand(ToggleArchiveSelectedTourAsync, () => SelectedTour is not null);
         ShowActiveToursCommand = new DelegateCommand(() => ShowArchivedTours = false);
         ShowArchivedToursCommand = new DelegateCommand(() => ShowArchivedTours = true);
+        ShowListLayoutCommand = new DelegateCommand(() => ShowCalendarLayout = false);
+        ShowCalendarLayoutCommand = new DelegateCommand(() => ShowCalendarLayout = true);
+        ToggleLayoutCommand = new DelegateCommand(() => ShowCalendarLayout = !ShowCalendarLayout);
         EditSelectedTourStopStayMinutesCommand = new AsyncCommand(EditSelectedTourStopStayMinutesAsync, () => SelectedTourStop is not null && !SelectedTourStop.IsCompanyStop);
         RemoveSelectedTourStopCommand = new AsyncCommand(RemoveSelectedTourStopAsync, () => SelectedTourStop is not null && !SelectedTourStop.IsCompanyStop);
         EditSelectedTourStopOrderCommand = new AsyncCommand(EditSelectedTourStopOrderAsync, () => SelectedTourStop is not null && !SelectedTourStop.IsCompanyStop);
@@ -126,6 +132,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     public ObservableCollection<TourOverviewItem> Tours { get; } = new();
 
     public ObservableCollection<TourStopOverviewItem> SelectedTourStops { get; } = new();
+
+    public ObservableCollection<TourCalendarDayGroupItem> CalendarDayGroups { get; } = new();
 
     public ObservableCollection<LookupItem> AvailableVehicles { get; } = new();
 
@@ -156,6 +164,12 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     public ICommand ShowActiveToursCommand { get; }
 
     public ICommand ShowArchivedToursCommand { get; }
+
+    public ICommand ShowListLayoutCommand { get; }
+
+    public ICommand ShowCalendarLayoutCommand { get; }
+
+    public ICommand ToggleLayoutCommand { get; }
 
     public ICommand EditSelectedTourStopStayMinutesCommand { get; }
 
@@ -201,6 +215,31 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     }
 
     public bool ShowActiveTours => !ShowArchivedTours;
+
+    public bool ShowCalendarLayout
+    {
+        get => _showCalendarLayout;
+        set
+        {
+            if (!SetProperty(ref _showCalendarLayout, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(ShowListLayout));
+            OnPropertyChanged(nameof(LayoutToggleButtonText));
+        }
+    }
+
+    public bool ShowListLayout => !ShowCalendarLayout;
+
+    public string LayoutToggleButtonText => ShowCalendarLayout ? "Listenansicht" : "Tourenansicht";
+
+    public bool IsToursFilterPanelVisible
+    {
+        get => _isToursFilterPanelVisible;
+        set => SetProperty(ref _isToursFilterPanelVisible, value);
+    }
 
     public string ToggleArchiveTourButtonText => SelectedTour?.Source.IsArchived == true ? "Tour reaktivieren" : "Tour archivieren";
 
@@ -577,6 +616,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     {
         await LoadReferenceDataAsync();
         var settings = await _settingsRepository.LoadAsync();
+        var orders = await _orderRepository.GetAllAsync();
+        _ordersById.Clear();
+        foreach (var order in orders.Where(x => !string.IsNullOrWhiteSpace(x.Id)))
+        {
+            _ordersById[order.Id.Trim()] = order;
+        }
+
         _loadedTours.Clear();
         _loadedTours.AddRange(await _tourRepository.LoadAsync());
         if (NormalizeCompanyStops(_loadedTours, settings))
@@ -1740,10 +1786,15 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 StopConflicts = schedule.Stops.Count(s => s.HasConflict),
                 AssignmentConflicts = conflicts.TryGetValue(tour.Id, out var count) ? count : 0,
                 IsArchived = tour.IsArchived,
+                TourDateValue = ParseDate(tour.Date),
+                CalendarSummary = BuildCalendarSummaryText(schedule.Start, tour),
+                CalendarWeightText = BuildCalendarWeightText(tour),
+                CalendarStops = BuildCalendarStops(tour),
                 Source = tour
             });
         }
 
+        RebuildCalendarDayGroups();
         SelectedTour = Tours.FirstOrDefault(t => keepSelectionTourId.HasValue && t.TourId == keepSelectionTourId.Value) ?? Tours.FirstOrDefault();
         var modeLabel = ShowArchivedTours ? "Archiviert" : "Aktiv";
         StatusText = $"Tours ({modeLabel}): {Tours.Count} | Stop conflicts: {Tours.Sum(t => t.StopConflicts)} | Assignment conflicts: {Tours.Sum(t => t.AssignmentConflicts)}";
@@ -1758,6 +1809,163 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         return _vehicleLabelsById.TryGetValue(id, out var label) ? label : id;
+    }
+
+    private void RebuildCalendarDayGroups()
+    {
+        CalendarDayGroups.Clear();
+        foreach (var group in Tours
+                     .OrderBy(t => t.TourDateValue ?? DateTime.MaxValue)
+                     .ThenBy(t => t.Start, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                     .GroupBy(t => t.TourDateValue?.Date))
+        {
+            var date = group.Key;
+            var items = group.ToList();
+            CalendarDayGroups.Add(new TourCalendarDayGroupItem
+            {
+                Date = date,
+                Headline = date.HasValue
+                    ? $"Einträge am {date.Value.ToString("dddd, dd.MM.yyyy", UiCulture)}"
+                    : "Einträge ohne Datum",
+                Tours = new ObservableCollection<TourOverviewItem>(items)
+            });
+        }
+    }
+
+    private string BuildCalendarSummaryText(DateTime scheduleStart, TourRecord tour)
+    {
+        var customerStopCount = (tour.Stops ?? []).Count(IsCustomerStop);
+        return $"{scheduleStart:HH:mm} ({customerStopCount} {(customerStopCount == 1 ? "Stopp" : "Stopps")})";
+    }
+
+    private string BuildCalendarWeightText(TourRecord tour)
+    {
+        var totalWeight = (tour.Stops ?? [])
+            .Where(IsCustomerStop)
+            .Sum(s => ParseWeightKg(s.Gewicht));
+        return totalWeight > 0 ? $"Total: {totalWeight} kg" : string.Empty;
+    }
+
+    private ObservableCollection<TourCalendarCardStopItem> BuildCalendarStops(TourRecord tour)
+    {
+        var customerStops = (tour.Stops ?? [])
+            .Where(IsCustomerStop)
+            .OrderBy(s => s.Order > 0 ? s.Order : int.MaxValue)
+            .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var items = new ObservableCollection<TourCalendarCardStopItem>();
+        for (var index = 0; index < customerStops.Count; index++)
+        {
+            var stop = customerStops[index];
+            _ordersById.TryGetValue((stop.Auftragsnummer ?? string.Empty).Trim(), out var order);
+
+            items.Add(new TourCalendarCardStopItem
+            {
+                StopLetter = BuildStopMarker(index),
+                OrderAddress = (stop.Address ?? string.Empty).Trim(),
+                DeliveryAddress = BuildCalendarStopDisplayName(order, stop),
+                WindowText = BuildCalendarWindowText(stop),
+                DepartureText = BuildCalendarDepartureText(stop),
+                DisplayTime = BuildCalendarDisplayTime(stop),
+                TimeLabel = "Ankunft",
+                ProductLines = BuildCalendarProductLines(order, stop),
+                WeightText = BuildCalendarStopWeightText(order, stop)
+            });
+        }
+
+        return items;
+    }
+
+    private static string BuildStopMarker(int index)
+    {
+        const string letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        if (index >= 0 && index < letters.Length)
+        {
+            return letters[index].ToString();
+        }
+
+        return (index + 1).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string BuildCalendarStopDisplayName(Order? order, TourStopRecord stop)
+    {
+        var orderName = (order?.CustomerName ?? string.Empty).Trim();
+        var stopName = (stop.Name ?? string.Empty).Trim();
+        var displayName = !string.IsNullOrWhiteSpace(orderName) ? orderName : stopName;
+        var orderNumber = (stop.Auftragsnummer ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(displayName) && !string.IsNullOrWhiteSpace(orderNumber))
+        {
+            return $"{displayName} ({orderNumber})";
+        }
+
+        return displayName;
+    }
+
+    private static string BuildCalendarWindowText(TourStopRecord stop)
+    {
+        var start = (stop.TimeWindowStart ?? string.Empty).Trim();
+        var end = (stop.TimeWindowEnd ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(start) && string.IsNullOrWhiteSpace(end))
+        {
+            return string.Empty;
+        }
+
+        return $"{start} - {end}".Trim(' ', '-');
+    }
+
+    private static string BuildCalendarDepartureText(TourStopRecord stop)
+    {
+        var departure = (stop.PlannedDeparture ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(departure) ? string.Empty : departure;
+    }
+
+    private static string BuildCalendarDisplayTime(TourStopRecord stop)
+    {
+        var arrival = (stop.PlannedArrival ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(arrival))
+        {
+            return arrival;
+        }
+
+        return (stop.PlannedDeparture ?? string.Empty).Trim();
+    }
+
+    private static IReadOnlyList<string> BuildCalendarProductLines(Order? order, TourStopRecord stop)
+    {
+        if (order?.Products is not null && order.Products.Count > 0)
+        {
+            return order.Products
+                .Select(p =>
+                {
+                    var name = (p.Name ?? string.Empty).Trim();
+                    var supplier = (p.Supplier ?? string.Empty).Trim();
+                    var quantity = Math.Max(1, p.Quantity);
+                    var weight = Math.Max(0d, p.WeightKg);
+                    var supplierSuffix = string.IsNullOrWhiteSpace(supplier) ? string.Empty : $" [{supplier}]";
+                    return string.IsNullOrWhiteSpace(name)
+                        ? $"{quantity}x ({weight:0.##} kg)"
+                        : $"{quantity}x {name}{supplierSuffix} ({weight:0.##} kg)";
+                })
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+        }
+
+        var fallbackWeight = ParseWeightKg(stop.Gewicht);
+        return fallbackWeight > 0 ? [$"Gewicht: {fallbackWeight} kg"] : [];
+    }
+
+    private static string BuildCalendarStopWeightText(Order? order, TourStopRecord stop)
+    {
+        if (order?.Products is not null && order.Products.Count > 0)
+        {
+            var total = order.Products.Sum(p => Math.Max(0d, p.WeightKg));
+            return total > 0 ? $"Total: {total:0.##} kg" : string.Empty;
+        }
+
+        var fallbackWeight = ParseWeightKg(stop.Gewicht);
+        return fallbackWeight > 0 ? $"Total: {fallbackWeight:0.##} kg" : string.Empty;
     }
 
     private bool TryBuildReorderedStops(
@@ -2047,12 +2255,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .OrderBy(GetStopDisplayOrderGroup)
             .ThenBy(s => s.Order)
             .ToList();
+        var customerStopIndex = 0;
 
         for (var index = 0; index < orderedStops.Count; index++)
         {
             var stop = orderedStops[index];
             var isCompanyStop = IsCompanyStop(stop);
             var isPauseStop = IsPauseStop(stop);
+            var stopMarker = isCompanyStop || isPauseStop ? string.Empty : BuildStopMarker(customerStopIndex++);
             var isRouteStart = index == 0;
             var isRouteEnd = index == orderedStops.Count - 1;
             var arrival = stop.PlannedArrival ?? string.Empty;
@@ -2066,7 +2276,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 IsPauseStop = isPauseStop,
                 IsRouteStart = isRouteStart,
                 IsRouteEnd = isRouteEnd,
-                Order = isCompanyStop || isPauseStop ? string.Empty : stop.Order.ToString(CultureInfo.InvariantCulture),
+                Order = stopMarker,
                 OrderNumber = isCompanyStop || isPauseStop ? string.Empty : stop.Auftragsnummer,
                 Name = isCompanyStop ? NormalizeCompanyStopName(stop.Name) : (isPauseStop ? "Pause" : stop.Name),
                 Address = isCompanyStop || isPauseStop ? string.Empty : stop.Address,
@@ -2849,6 +3059,7 @@ public sealed class TourOverviewItem
     public int TourId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Date { get; set; } = string.Empty;
+    public DateTime? TourDateValue { get; set; }
     public string Start { get; set; } = string.Empty;
     public string End { get; set; } = string.Empty;
     public string VehicleId { get; set; } = string.Empty;
@@ -2859,7 +3070,30 @@ public sealed class TourOverviewItem
     public int StopConflicts { get; set; }
     public int AssignmentConflicts { get; set; }
     public bool IsArchived { get; set; }
+    public string CalendarSummary { get; set; } = string.Empty;
+    public string CalendarWeightText { get; set; } = string.Empty;
+    public ObservableCollection<TourCalendarCardStopItem> CalendarStops { get; set; } = [];
     public TourRecord Source { get; set; } = new();
+}
+
+public sealed class TourCalendarDayGroupItem
+{
+    public DateTime? Date { get; set; }
+    public string Headline { get; set; } = string.Empty;
+    public ObservableCollection<TourOverviewItem> Tours { get; set; } = [];
+}
+
+public sealed class TourCalendarCardStopItem
+{
+    public string StopLetter { get; set; } = string.Empty;
+    public string OrderAddress { get; set; } = string.Empty;
+    public string DeliveryAddress { get; set; } = string.Empty;
+    public string WindowText { get; set; } = string.Empty;
+    public string DepartureText { get; set; } = string.Empty;
+    public string DisplayTime { get; set; } = string.Empty;
+    public string TimeLabel { get; set; } = string.Empty;
+    public IReadOnlyList<string> ProductLines { get; set; } = [];
+    public string WeightText { get; set; } = string.Empty;
 }
 
 public sealed class TourStopOverviewItem

@@ -28,6 +28,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private const int DefaultPauseMinutes = 15;
     private const int MaxDraftRouteUndoEntries = 30;
     private const string PlannedTourStatus = "Eingeplant";
+    private const string UnspecifiedSupplierFilterOption = "nicht Festgelegt";
     private const string AvisoBadgeColorNotAvisiert = "#64748B";
     private const string AvisoBadgeColorInformiert = "#F59E0B";
     private const string AvisoBadgeColorBestaetigt = "#16A34A";
@@ -323,6 +324,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public ObservableCollection<MapOrderFilterOption> DeliveryTypeFilters { get; } = new();
 
     public ObservableCollection<MapOrderFilterOption> AvisoStatusFilters { get; } = new();
+
+    public ObservableCollection<MapOrderFilterOption> SupplierFilters { get; } = new();
 
     public string FilterSummaryText => BuildFilterSummaryText();
     public int SelectedBatchOrderCount => _selectedBatchOrderIds.Count;
@@ -1722,6 +1725,14 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             filtered = filtered.Where(o => selectedAvisoStatuses.Contains(NormalizeAvisoStatus(o.AvisoStatus)));
         }
 
+        var selectedSuppliers = GetSelectedFilterLabels(SupplierFilters)
+            .Select(NormalizeSupplier)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (selectedSuppliers.Count > 0 && selectedSuppliers.Count != SupplierFilters.Count)
+        {
+            filtered = filtered.Where(o => OrderContainsAnySupplier(o, selectedSuppliers));
+        }
+
         var filteredList = filtered.ToList();
         var hasSearch = !string.IsNullOrWhiteSpace(query);
         var matching = hasSearch
@@ -1791,6 +1802,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             SetAllFilterOptions(OrderStatusFilters, true);
             SetAllFilterOptions(DeliveryTypeFilters, true);
             SetAllFilterOptions(AvisoStatusFilters, true);
+            SetAllFilterOptions(SupplierFilters, true);
         }
         finally
         {
@@ -1842,9 +1854,16 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+            var suppliers = mapOrders
+                .SelectMany(o => o.Products ?? [])
+                .Select(p => NormalizeSupplier(p.Supplier))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
             UpdateFilterOptions(OrderStatusFilters, statuses);
             UpdateFilterOptions(DeliveryTypeFilters, deliveryTypes);
             UpdateFilterOptions(AvisoStatusFilters, avisoStatuses);
+            UpdateFilterOptions(SupplierFilters, suppliers);
         }
         finally
         {
@@ -1919,6 +1938,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             SetAllFilterOptions(OrderStatusFilters, selectAll);
             SetAllFilterOptions(DeliveryTypeFilters, selectAll);
             SetAllFilterOptions(AvisoStatusFilters, selectAll);
+            SetAllFilterOptions(SupplierFilters, selectAll);
         }
         finally
         {
@@ -1939,7 +1959,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                IncludePlannedOrders &&
                OrderStatusFilters.All(x => x.IsSelected) &&
                DeliveryTypeFilters.All(x => x.IsSelected) &&
-               AvisoStatusFilters.All(x => x.IsSelected);
+               AvisoStatusFilters.All(x => x.IsSelected) &&
+               SupplierFilters.All(x => x.IsSelected);
     }
 
     private string BuildFilterSummaryText()
@@ -1961,6 +1982,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         AddPartialSummary(parts, "Status", OrderStatusFilters);
         AddPartialSummary(parts, "Lieferart", DeliveryTypeFilters);
         AddPartialSummary(parts, "Aviso", AvisoStatusFilters);
+        AddPartialSummary(parts, "Lieferant", SupplierFilters);
 
         return parts.Count == 0
             ? "Filter (alle Aufträge)"
@@ -1984,6 +2006,26 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
 
         parts.Add($"{label}: {selectedCount}/{options.Count}");
+    }
+
+    private static bool OrderContainsAnySupplier(Order order, IReadOnlySet<string> suppliers)
+    {
+        if (suppliers.Count == 0)
+        {
+            return true;
+        }
+
+        return (order.Products ?? [])
+            .Select(p => NormalizeSupplier(p.Supplier))
+            .Any(suppliers.Contains);
+    }
+
+    private static string NormalizeSupplier(string? supplier)
+    {
+        var normalized = (supplier ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized)
+            ? UnspecifiedSupplierFilterOption
+            : normalized;
     }
 
     private void NotifyLegendColorsChanged()

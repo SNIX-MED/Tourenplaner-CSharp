@@ -1554,7 +1554,6 @@ internal static class MapHtmlDocumentBuilder
                          window.gawelaSetMarkers = function(markers) {
                            window.__gawelaLastMarkers = Array.isArray(markers) ? markers : [];
                            clearMarkers(mapMarkers);
-                           clearMarkers(companyMarkers);
                            markerMap = new Map();
 
                            if (!Array.isArray(markers) || markers.length === 0) {
@@ -1619,7 +1618,11 @@ internal static class MapHtmlDocumentBuilder
                          };
 
                          window.gawelaSetCompanyMarker = function(company) {
-                           if (!company || typeof company.lat !== 'number' || typeof company.lon !== 'number') return;
+                           clearMarkers(companyMarkers);
+                           if (!company || typeof company.lat !== 'number' || typeof company.lon !== 'number') {
+                             companyMarkerLocation = null;
+                             return;
+                           }
                              companyMarkerLocation = {
                                lat: Number(company.lat),
                                lon: Number(company.lon)

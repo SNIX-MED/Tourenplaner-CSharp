@@ -61,6 +61,7 @@ public partial class KarteSectionView : UserControl
     private CancellationTokenSource? _pinInfoCardScaleThrottleCts;
     private double _pendingPinInfoCardScale = 1.0d;
     private double _lastAppliedPinInfoCardScale = double.NaN;
+    private string? _lastCompanyMarkerPayloadJson;
     private readonly WebViewRouteExportService _routeExportService = new();
 
     public KarteSectionView()
@@ -272,6 +273,7 @@ public partial class KarteSectionView : UserControl
         }
 
         _mapScriptReady = false;
+        _lastCompanyMarkerPayloadJson = null;
         var html = MapHtmlDocumentBuilder.Build(
             vm.TomTomApiKey,
             vm.TomTomShowTrafficFlow,
@@ -739,7 +741,13 @@ public partial class KarteSectionView : UserControl
                 lat = vm.CompanyMarker.Latitude,
                 lon = vm.CompanyMarker.Longitude
             };
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetCompanyMarker === 'function') window.gawelaSetCompanyMarker({JsonSerializer.Serialize(company)});");
+        var companyJson = JsonSerializer.Serialize(company);
+        if (!string.Equals(_lastCompanyMarkerPayloadJson, companyJson, StringComparison.Ordinal))
+        {
+            await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetCompanyMarker === 'function') window.gawelaSetCompanyMarker({companyJson});");
+            _lastCompanyMarkerPayloadJson = companyJson;
+        }
+
         await ApplyPinInfoCardsVisibilityAsync();
         await ApplyPinInfoCardScaleAsync();
         await ApplyPinInfoCardZoomBehaviorAsync();

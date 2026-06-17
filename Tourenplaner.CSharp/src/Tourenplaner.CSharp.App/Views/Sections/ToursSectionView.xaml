@@ -8,6 +8,7 @@
              d:DesignHeight="900"
              d:DesignWidth="1450">
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <Style x:Key="MultiLineGridTextStyle" TargetType="TextBlock">
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
@@ -191,26 +192,71 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="CalendarTourCardItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="0"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="{StaticResource Spacing.PageMargin}">
         <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.35*" MinWidth="560" />
-                <ColumnDefinition Width="10" />
-                <ColumnDefinition Width="2.05*" MinWidth="720" />
-            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-            <Border Grid.Column="0" Style="{StaticResource FlatCardStyle}" Padding="12">
+            <Border Grid.Row="0"
+                    Margin="0,0,0,12"
+                    Padding="10">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+                        <Setter Property="Effect" Value="{x:Null}" />
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsToursFilterPanelVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <DockPanel Grid.Row="0" Margin="0,0,0,10">
-                        <TextBlock DockPanel.Dock="Left" FontSize="14" FontWeight="SemiBold" Text="Tourenübersicht" />
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <TextBlock VerticalAlignment="Center"
+                                       Margin="0,0,12,0"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       FontWeight="SemiBold"
+                                       Text="Ansicht" />
                             <Button Width="94"
                                     Margin="0,0,8,0"
                                     Content="Aktiv"
@@ -228,7 +274,6 @@
                                 </Button.Style>
                             </Button>
                             <Button Width="110"
-                                    Margin="0,0,8,0"
                                     Content="Archiviert"
                                     Command="{Binding ShowArchivedToursCommand}">
                                 <Button.Style>
@@ -244,7 +289,314 @@
                                 </Button.Style>
                             </Button>
                         </StackPanel>
-                        <Border DockPanel.Dock="Right"
+
+                        <Button Grid.Column="1"
+                                Width="84"
+                                Height="36"
+                                Content="Reset"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding ResetDateFilterCommand}" />
+                    </Grid>
+
+                    <Grid Grid.Row="1" Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                   Text="Von" />
+                        <Grid Grid.Column="1" Margin="0,0,12,0">
+                            <Button x:Name="InlineFromDateButton"
+                                    Width="154"
+                                    Height="36"
+                                    Padding="10,0"
+                                    HorizontalContentAlignment="Left"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding ToggleFromDatePopupCommand}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock VerticalAlignment="Center"
+                                               Text="{Binding FromDateDisplayText}" />
+                                    <TextBlock Grid.Column="1"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontFamily="Segoe Fluent Icons"
+                                               Text="&#xE787;" />
+                                </Grid>
+                            </Button>
+                            <Popup IsOpen="{Binding IsFromDatePopupOpen, Mode=TwoWay}"
+                                   PlacementTarget="{Binding ElementName=InlineFromDateButton}"
+                                   Placement="Bottom"
+                                   StaysOpen="False"
+                                   AllowsTransparency="True"
+                                   PopupAnimation="Fade">
+                                <Border Margin="0,6,0,0"
+                                        Padding="10"
+                                        CornerRadius="14"
+                                        Background="{DynamicResource Brush.Card}"
+                                        BorderBrush="{DynamicResource Brush.InputBorder}"
+                                        BorderThickness="1">
+                                    <StackPanel Width="244">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="36" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="36" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0" Width="30" Height="30" Padding="0"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    FontFamily="Segoe Fluent Icons"
+                                                    Content="&#xE76B;"
+                                                    Command="{Binding PreviousFromMonthCommand}" />
+                                            <Border Grid.Column="1" Margin="8,0" CornerRadius="10"
+                                                    Background="{DynamicResource Brush.CardMuted}"
+                                                    BorderBrush="{DynamicResource Brush.InputBorder}"
+                                                    BorderThickness="1">
+                                                <TextBlock HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding FromMonthDisplayText}" />
+                                            </Border>
+                                            <Button Grid.Column="2" Width="30" Height="30" Padding="0"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    FontFamily="Segoe Fluent Icons"
+                                                    Content="&#xE76C;"
+                                                    Command="{Binding NextFromMonthCommand}" />
+                                        </Grid>
+                                        <UniformGrid Columns="7" Margin="0,0,0,6">
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="M" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="D" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="M" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="D" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="F" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="S" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="S" />
+                                        </UniformGrid>
+                                        <ListBox ItemsSource="{Binding FromCalendarDays}" SelectedItem="{Binding SelectedFromCalendarDay, Mode=TwoWay}"
+                                                 BorderThickness="0" Background="Transparent"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemsPanel>
+                                                <ItemsPanelTemplate><UniformGrid Columns="7" Rows="6" /></ItemsPanelTemplate>
+                                            </ListBox.ItemsPanel>
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Padding" Value="0" />
+                                                    <Setter Property="Margin" Value="2" />
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border x:Name="FromDayRoot" Width="30" Height="30" CornerRadius="10"
+                                                            Background="Transparent" BorderBrush="Transparent" BorderThickness="1">
+                                                        <TextBlock x:Name="FromDayText" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding DayText}" />
+                                                    </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False"><Setter TargetName="FromDayText" Property="Opacity" Value="0.45" /></DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                            <Setter TargetName="FromDayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter TargetName="FromDayRoot" Property="BorderThickness" Value="1" />
+                                                            <Setter TargetName="FromDayText" Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter TargetName="FromDayText" Property="FontWeight" Value="Bold" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter TargetName="FromDayRoot" Property="Background" Value="#D6ECFF" />
+                                                            <Setter TargetName="FromDayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter TargetName="FromDayRoot" Property="BorderThickness" Value="2" />
+                                                            <Setter TargetName="FromDayText" Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
+
+                        <TextBlock Grid.Column="2"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                   Text="Bis" />
+                        <Grid Grid.Column="3">
+                            <Button x:Name="InlineToDateButton"
+                                    Width="154"
+                                    Height="36"
+                                    Padding="10,0"
+                                    HorizontalContentAlignment="Left"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding ToggleToDatePopupCommand}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock VerticalAlignment="Center"
+                                               Text="{Binding ToDateDisplayText}" />
+                                    <TextBlock Grid.Column="1"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontFamily="Segoe Fluent Icons"
+                                               Text="&#xE787;" />
+                                </Grid>
+                            </Button>
+                            <Popup IsOpen="{Binding IsToDatePopupOpen, Mode=TwoWay}"
+                                   PlacementTarget="{Binding ElementName=InlineToDateButton}"
+                                   Placement="Bottom"
+                                   StaysOpen="False"
+                                   AllowsTransparency="True"
+                                   PopupAnimation="Fade">
+                                <Border Margin="0,6,0,0"
+                                        Padding="10"
+                                        CornerRadius="14"
+                                        Background="{DynamicResource Brush.Card}"
+                                        BorderBrush="{DynamicResource Brush.InputBorder}"
+                                        BorderThickness="1">
+                                    <StackPanel Width="244">
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="36" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="36" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0" Width="30" Height="30" Padding="0"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    FontFamily="Segoe Fluent Icons"
+                                                    Content="&#xE76B;"
+                                                    Command="{Binding PreviousToMonthCommand}" />
+                                            <Border Grid.Column="1" Margin="8,0" CornerRadius="10"
+                                                    Background="{DynamicResource Brush.CardMuted}"
+                                                    BorderBrush="{DynamicResource Brush.InputBorder}"
+                                                    BorderThickness="1">
+                                                <TextBlock HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding ToMonthDisplayText}" />
+                                            </Border>
+                                            <Button Grid.Column="2" Width="30" Height="30" Padding="0"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    FontFamily="Segoe Fluent Icons"
+                                                    Content="&#xE76C;"
+                                                    Command="{Binding NextToMonthCommand}" />
+                                        </Grid>
+                                        <UniformGrid Columns="7" Margin="0,0,0,6">
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="M" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="D" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="M" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="D" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="F" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="S" />
+                                            <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="S" />
+                                        </UniformGrid>
+                                        <ListBox ItemsSource="{Binding ToCalendarDays}" SelectedItem="{Binding SelectedToCalendarDay, Mode=TwoWay}"
+                                                 BorderThickness="0" Background="Transparent"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemsPanel>
+                                                <ItemsPanelTemplate><UniformGrid Columns="7" Rows="6" /></ItemsPanelTemplate>
+                                            </ListBox.ItemsPanel>
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Padding" Value="0" />
+                                                    <Setter Property="Margin" Value="2" />
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border x:Name="ToDayRoot" Width="30" Height="30" CornerRadius="10"
+                                                            Background="Transparent" BorderBrush="Transparent" BorderThickness="1">
+                                                        <TextBlock x:Name="ToDayText" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding DayText}" />
+                                                    </Border>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False"><Setter TargetName="ToDayText" Property="Opacity" Value="0.45" /></DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                            <Setter TargetName="ToDayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter TargetName="ToDayRoot" Property="BorderThickness" Value="1" />
+                                                            <Setter TargetName="ToDayText" Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter TargetName="ToDayText" Property="FontWeight" Value="Bold" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter TargetName="ToDayRoot" Property="Background" Value="#D6ECFF" />
+                                                            <Setter TargetName="ToDayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter TargetName="ToDayRoot" Property="BorderThickness" Value="2" />
+                                                            <Setter TargetName="ToDayText" Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" x:Name="ListLayoutRoot">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowCalendarLayout}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.35*" MinWidth="560" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="2.05*" MinWidth="720" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource FlatCardStyle}" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button
+                                    Padding="14,6"
+                                    Content="{Binding LayoutToggleButtonText}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding ToggleLayoutCommand}" />
+                        </StackPanel>
+
+                        <Border Grid.Row="1"
+                                Grid.ColumnSpan="2"
+                                Margin="0,8,0,0"
+                                HorizontalAlignment="Left"
                                 Padding="8,3"
                                 CornerRadius="10"
                                 Background="{DynamicResource Brush.SurfaceAlt}">
@@ -253,7 +605,7 @@
                                        Foreground="{DynamicResource Brush.TextMuted}"
                                        Text="{Binding FilterInfoText}" />
                         </Border>
-                    </DockPanel>
+                    </Grid>
 
                     <Border Grid.Row="1"
                             BorderBrush="{DynamicResource Brush.BorderSoft}"
@@ -764,6 +1116,221 @@
                     </Grid>
                 </Grid>
             </Border>
+        </Grid>
+
+        <Border Padding="16">
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowCalendarLayout}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button
+                                Padding="14,6"
+                                Content="{Binding LayoutToggleButtonText}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding ToggleLayoutCommand}" />
+                        <Border Margin="14,0,0,0"
+                                Padding="8,3"
+                                CornerRadius="10"
+                                Background="{DynamicResource Brush.SurfaceAlt}">
+                            <TextBlock FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="{Binding FilterInfoText}" />
+                        </Border>
+                    </StackPanel>
+
+                </Grid>
+
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ListBox ItemsSource="{Binding Tours}"
+                             SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ItemContainerStyle="{StaticResource CalendarTourCardItemStyle}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="360"
+                                        Padding="10"
+                                        MouseLeftButtonDown="OnTourCalendarCardMouseLeftButtonDown">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True">
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock FontSize="11"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                           Text="{Binding Date}" />
+                                                <TextBlock FontWeight="SemiBold"
+                                                           FontSize="16"
+                                                           Text="{Binding Name}" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1"
+                                                    Width="36"
+                                                    Height="36"
+                                                    Margin="8,0,6,0"
+                                                    Padding="0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip="Tour auf Karte anzeigen"
+                                                    Click="OnOpenCalendarTourOnMapClicked">
+                                                <Image Width="24"
+                                                       Height="24"
+                                                       Stretch="Uniform"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                                       SnapsToDevicePixels="True"
+                                                       Source="pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Pin.png" />
+                                            </Button>
+                                            <TextBlock Grid.Column="2"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="18"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource Brush.TextPrimary}"
+                                                       Text="{Binding Start}" />
+                                        </Grid>
+
+                                        <TextBlock Grid.Row="1"
+                                                   Margin="0,6,0,8"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="{Binding CalendarSummary}" />
+
+                                        <ItemsControl Grid.Row="2" ItemsSource="{Binding CalendarStops}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,0,0,8"
+                                                            Style="{StaticResource SoftCardStyle}"
+                                                            Padding="10">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="42" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <Border Width="36"
+                                                                    Height="36"
+                                                                    CornerRadius="18"
+                                                                    Background="#4EBA74"
+                                                                    VerticalAlignment="Top"
+                                                                    HorizontalAlignment="Left">
+                                                                <TextBlock HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center"
+                                                                           FontSize="16"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="White"
+                                                                           Text="{Binding StopLetter}" />
+                                                            </Border>
+
+                                                            <StackPanel Grid.Column="1" Margin="8,0,8,0">
+                                                                <TextBlock FontSize="17"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                                                           TextWrapping="Wrap"
+                                                                           Text="{Binding DeliveryAddress}" />
+                                                                <TextBlock FontSize="11"
+                                                                           Margin="0,2,0,0"
+                                                                           Foreground="{DynamicResource Brush.TextSecondary}"
+                                                                           TextWrapping="Wrap"
+                                                                           Text="{Binding OrderAddress}" />
+                                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                    <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
+                                                                               Text="{Binding WindowText, StringFormat=Zeitfenster: {0}}" />
+                                                                    <TextBlock Margin="8,0,0,0"
+                                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                                               Text="|" />
+                                                                    <TextBlock Margin="8,0,0,0"
+                                                                               Foreground="{DynamicResource Brush.TextSecondary}"
+                                                                               Text="{Binding DepartureText, StringFormat=Abfahrt: {0}}" />
+                                                                </StackPanel>
+                                                                <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding ProductLines}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <TextBlock FontSize="12"
+                                                                                       Foreground="{DynamicResource Brush.TextPrimary}"
+                                                                                       TextWrapping="Wrap"
+                                                                                       Text="{Binding}" />
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                                <TextBlock Margin="0,6,0,0"
+                                                                           FontSize="11"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                                           Text="{Binding WeightText}" />
+                                                            </StackPanel>
+
+                                                            <StackPanel Grid.Column="2"
+                                                                        HorizontalAlignment="Right"
+                                                                        VerticalAlignment="Center">
+                                                                <TextBlock HorizontalAlignment="Right"
+                                                                           FontWeight="SemiBold"
+                                                                           FontSize="18"
+                                                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                                                           Text="{Binding DisplayTime}" />
+                                                                <TextBlock HorizontalAlignment="Right"
+                                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                                           Text="{Binding TimeLabel}" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </ScrollViewer>
+            </Grid>
+        </Border>
         </Grid>
     </Grid>
 </UserControl>

@@ -33,6 +33,34 @@ public partial class ToursSectionView : UserControl
         }
     }
 
+    private void OnTourCalendarCardMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement element ||
+            element.DataContext is not TourOverviewItem item ||
+            DataContext is not ToursSectionViewModel vm)
+        {
+            return;
+        }
+
+        vm.SelectedTour = item;
+    }
+
+    private void OnOpenCalendarTourOnMapClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element ||
+            element.DataContext is not TourOverviewItem item ||
+            DataContext is not ToursSectionViewModel vm)
+        {
+            return;
+        }
+
+        vm.SelectedTour = item;
+        if (vm.OpenTourOnMapCommand.CanExecute(null))
+        {
+            vm.OpenTourOnMapCommand.Execute(null);
+        }
+    }
+
     private void ToursGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         var row = VisualTreeUtilities.FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);

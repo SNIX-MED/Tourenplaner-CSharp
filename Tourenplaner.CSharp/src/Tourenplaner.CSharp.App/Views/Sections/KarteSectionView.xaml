@@ -292,6 +292,7 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Grid Grid.Column="0"
                                           Margin="0,0,12,0">
@@ -343,7 +344,8 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                     </Grid>
-                                    <Grid Grid.Column="2">
+                                    <Grid Grid.Column="2"
+                                          Margin="0,0,12,0">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
@@ -353,6 +355,30 @@
                                         <ItemsControl Grid.Row="1"
                                                       Margin="0,6,0,0"
                                                       ItemsSource="{Binding AvisoStatusFilters}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox Margin="0,0,10,6"
+                                                              Content="{Binding Label}"
+                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Grid>
+                                    <Grid Grid.Column="3">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock FontWeight="SemiBold"
+                                                   Text="Lieferant" />
+                                        <ItemsControl Grid.Row="1"
+                                                      Margin="0,6,0,0"
+                                                      ItemsSource="{Binding SupplierFilters}">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
                                                     <WrapPanel />
