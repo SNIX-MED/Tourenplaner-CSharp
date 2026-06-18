@@ -154,6 +154,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         SettingsCategories =
         [
             new SettingsCategoryNavigationItem("general", "Allgemein", "E-Mail, Startzeit, Standardverhalten und Firmendaten.", "\uE713"),
+            new SettingsCategoryNavigationItem("storage", "Datenspeicher", "Lokale JSON-Dateien oder PostgreSQL-Mehrbenutzerbetrieb.", "\uE8D4"),
             new SettingsCategoryNavigationItem("map", "Karte & Kalender", "Farben, Kalenderwarnungen und Karteninfos.", "\uE787"),
             new SettingsCategoryNavigationItem("tomtom", "TomTom Karte & Traffic", "Routing, Overlay und Verkehrslogik.", "\uE81E"),
             new SettingsCategoryNavigationItem("tools", "Tools", "GPS- und Spediteur-Links und Sichtbarkeit.", "\uE90F"),

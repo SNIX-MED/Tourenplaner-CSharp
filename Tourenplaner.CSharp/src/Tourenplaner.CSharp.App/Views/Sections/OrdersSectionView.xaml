@@ -238,10 +238,17 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button x:Name="FilterPopupButton"
-                            Width="92"
+                            Width="44"
                             Margin="8,0,0,0"
-                            Content="Filter"
-                            Style="{StaticResource SecondaryButtonStyle}" />
+                            Padding="0"
+                            ToolTip="Filter"
+                            Style="{StaticResource SecondaryButtonStyle}">
+                        <Viewbox Style="{StaticResource FilterIconViewboxStyle}">
+                            <Canvas Width="24" Height="24">
+                                <Path Style="{StaticResource FilterIconPathStyle}" />
+                            </Canvas>
+                        </Viewbox>
+                    </Button>
                     <Popup x:Name="FilterPopup"
                            PlacementTarget="{Binding ElementName=FilterPopupButton}"
                            Placement="Bottom"

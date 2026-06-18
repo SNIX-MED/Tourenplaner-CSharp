@@ -30,6 +30,7 @@
     <Resource Include="Assets\Applogo.png" Condition="Exists('Assets\Applogo.png')" />
     <Resource Include="Assets\Banner.png" />
     <Resource Include="Assets\Einstellungen.png" />
+    <Resource Include="Assets\Export.svg" />
     <Resource Include="Assets\MapOptions.png" />
     <Resource Include="Assets\MapOptions.svg" />
     <Resource Include="Assets\Pause.png" />

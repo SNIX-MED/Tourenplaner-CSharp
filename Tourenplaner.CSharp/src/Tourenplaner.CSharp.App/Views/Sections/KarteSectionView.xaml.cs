@@ -284,7 +284,8 @@ public partial class KarteSectionView : UserControl
             vm.TomTomShowPoi,
             vm.TomTomUseVehicleDimensions,
             vm.TomTomUseVehicleWeightRestrictions,
-            vm.TomTomUseDepartAtTraffic);
+            vm.TomTomUseDepartAtTraffic,
+            vm.PinInfoCardScale);
         MapWebView.NavigateToString(html);
         await Task.CompletedTask;
     }
@@ -596,7 +597,8 @@ public partial class KarteSectionView : UserControl
                 vm?.TomTomShowPoi ?? true,
                 vm?.TomTomUseVehicleDimensions ?? false,
                 vm?.TomTomUseVehicleWeightRestrictions ?? false,
-                vm?.TomTomUseDepartAtTraffic ?? true);
+                vm?.TomTomUseDepartAtTraffic ?? true,
+                vm?.PinInfoCardScale ?? AppSettings.DefaultPinInfoCardScale);
             MapWebView.NavigateToString(html);
             _mapReady = true;
             MapWebView.Visibility = Visibility.Visible;
@@ -901,7 +903,8 @@ public partial class KarteSectionView : UserControl
         _lastAppliedPinInfoCardScale = targetScale;
         var scaleJson = JsonSerializer.Serialize(targetScale);
         await MapWebView.CoreWebView2.ExecuteScriptAsync(
-            $"if (typeof window.gawelaSetPopupSizeMultiplier === 'function') window.gawelaSetPopupSizeMultiplier({scaleJson});");
+            $"if (typeof window.gawelaSetPopupSizeMultiplier === 'function') window.gawelaSetPopupSizeMultiplier({scaleJson});" +
+            $"if (typeof window.gawelaSetMapOptionsPinInfoCardScale === 'function') window.gawelaSetMapOptionsPinInfoCardScale({scaleJson});");
     }
 
     private async Task ApplyPinInfoCardZoomBehaviorAsync()
@@ -1026,6 +1029,17 @@ public partial class KarteSectionView : UserControl
                 var useVehicleWeightRestrictions = parts.Length >= 7 && string.Equals(parts[6], "1", StringComparison.Ordinal);
                 var useDepartAtTraffic = parts.Length >= 8 ? string.Equals(parts[7], "1", StringComparison.Ordinal) : true;
                 _ = ApplyMapOptionsFromWebAsync(vm, style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions, useDepartAtTraffic);
+            }
+
+            return;
+        }
+
+        if (raw.StartsWith("pinInfoCardScale:", StringComparison.OrdinalIgnoreCase))
+        {
+            var valueText = raw["pinInfoCardScale:".Length..];
+            if (double.TryParse(valueText, NumberStyles.Float, CultureInfo.InvariantCulture, out var scale))
+            {
+                vm.PinInfoCardScale = Math.Clamp(scale, 0.7d, 1.8d);
             }
 
             return;

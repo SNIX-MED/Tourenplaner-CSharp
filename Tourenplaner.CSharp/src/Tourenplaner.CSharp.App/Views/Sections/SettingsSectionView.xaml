@@ -596,6 +596,19 @@
                                             </Grid>
                                         </StackPanel>
                                     </Border>
+                                </StackPanel>
+
+                                <StackPanel>
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="storage">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
 
                                     <Border Style="{StaticResource SettingsInnerPanelStyle}">
                                         <StackPanel>
@@ -755,16 +768,6 @@
                                                     </Grid>
                                                 </Border>
                                             </StackPanel>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Style="{StaticResource SettingsInnerPanelStyle}" Margin="0,0,0,0" Visibility="Collapsed">
-                                        <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Hinweis" />
-                                            <TextBlock Margin="0,8,0,0"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       TextWrapping="Wrap"
-                                                       Text="Diese Kategorie sammelt die globalen Start- und Kommunikationsstandards. Änderungen wirken sich auf neue Prozesse aus, bestehende Daten bleiben unberührt." />
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>

@@ -52,6 +52,38 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="TopbarStatusTextStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="TopbarCompactButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+            <Setter Property="FontSize" Value="15" />
+        </Style>
+
+        <Style x:Key="TopbarCompactPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+            <Setter Property="FontSize" Value="15" />
+        </Style>
+
+        <Style x:Key="TopbarCompactSuccessButtonStyle" TargetType="Button" BasedOn="{StaticResource SuccessButtonStyle}">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+            <Setter Property="FontSize" Value="15" />
+        </Style>
     </UserControl.Resources>
 
     <Border Padding="14">
@@ -66,11 +98,11 @@
         </Border.Style>
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="270" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Grid Grid.Column="0" VerticalAlignment="Center" Margin="0,0,18,0">
+            <Grid Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -104,8 +136,9 @@
                                Text="{Binding SidebarToggleGlyph}" />
                 </Button>
                 <StackPanel Grid.Column="1">
-                    <TextBlock FontSize="28"
+                    <TextBlock FontSize="24"
                                FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
                                Text="{Binding SelectedNavigationItem.DisplayName}" />
                     <TextBlock Margin="0,2,0,0"
                                Foreground="{DynamicResource Brush.TextMuted}"
@@ -121,6 +154,8 @@
                 </Grid.ColumnDefinitions>
 
                 <ContentControl Grid.Column="0"
+                                MaxWidth="980"
+                                HorizontalAlignment="Stretch"
                                 Content="{Binding CurrentSection}"
                                 Visibility="{Binding IsTopBarSectionControlsVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                     <ContentControl.Resources>
@@ -139,8 +174,8 @@
                             <Grid Grid.Column="0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="130" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="44" />
+                                    <ColumnDefinition Width="220" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Column="0"
                                          Height="40"
@@ -154,10 +189,12 @@
                                 </TextBox>
                                 <Button Grid.Column="1"
                                         Height="40"
+                                        Width="44"
                                         Margin="0,0,10,0"
-                                        Content="Suchen"
-                                        Style="{StaticResource PrimaryButtonStyle}"
-                                        Command="{Binding SearchCommand}" />
+                                        ToolTip="Ort suchen"
+                                        Style="{StaticResource TopbarCompactPrimaryButtonStyle}"
+                                        Command="{Binding SearchCommand}"
+                                        Content="&#xE721;" />
                                 <TextBlock Grid.Column="2"
                                            VerticalAlignment="Center"
                                            Margin="0,0,10,0"
@@ -168,10 +205,18 @@
 
                             <Grid Grid.Column="1" Margin="0,0,8,0">
                                 <ToggleButton x:Name="MapFilterPopupButton"
+                                              Width="44"
+                                              Padding="0"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
+                                              ToolTip="Filter"
                                               IsChecked="{Binding IsMapFilterPanelVisible, Mode=TwoWay}"
-                                              PreviewMouseLeftButtonDown="TogglePopupButton_PreviewMouseLeftButtonDown"
-                                              Content="Filter" />
+                                              PreviewMouseLeftButtonDown="TogglePopupButton_PreviewMouseLeftButtonDown">
+                                    <Viewbox Style="{StaticResource FilterIconViewboxStyle}">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Style="{StaticResource FilterIconPathStyle}" />
+                                        </Canvas>
+                                    </Viewbox>
+                                </ToggleButton>
                                 <Popup PlacementTarget="{Binding ElementName=MapTopBarControlsRoot}"
                                        Placement="Custom"
                                        CustomPopupPlacementCallback="CenterPopupUnderButton"
@@ -296,10 +341,44 @@
                             </Grid>
                             <Grid Grid.Column="2" Margin="0,0,8,0">
                                 <ToggleButton x:Name="MapLegendPopupButton"
+                                              Width="44"
+                                              Padding="0"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
+                                              ToolTip="Legende"
                                               IsChecked="{Binding IsMapLegendPanelVisible, Mode=TwoWay}"
-                                              PreviewMouseLeftButtonDown="TogglePopupButton_PreviewMouseLeftButtonDown"
-                                              Content="Legende" />
+                                              PreviewMouseLeftButtonDown="TogglePopupButton_PreviewMouseLeftButtonDown">
+                                    <Viewbox Style="{StaticResource FilterIconViewboxStyle}">
+                                        <Canvas Width="24" Height="24">
+                                            <Ellipse Canvas.Left="4.7"
+                                                     Canvas.Top="4.8"
+                                                     Width="3.8"
+                                                     Height="3.8"
+                                                     Fill="Transparent"
+                                                     Stroke="{DynamicResource Brush.ButtonForeground}"
+                                                     StrokeThickness="1.45" />
+                                            <Rectangle Canvas.Left="4.9"
+                                                       Canvas.Top="10.4"
+                                                       Width="3.5"
+                                                       Height="3.5"
+                                                       RadiusX="0.8"
+                                                       RadiusY="0.8"
+                                                       Fill="Transparent"
+                                                       Stroke="{DynamicResource Brush.ButtonForeground}"
+                                                       StrokeThickness="1.45" />
+                                            <Polygon Points="6.7,16.2 4.5,19.4 8.9,19.4"
+                                                     Fill="Transparent"
+                                                     Stroke="{DynamicResource Brush.ButtonForeground}"
+                                                     StrokeThickness="1.45"
+                                                     StrokeLineJoin="Round" />
+                                            <Path Data="M11,6.7 L19.2,6.7 M11,12.2 L19.2,12.2 M11,18 L19.2,18"
+                                                  Fill="Transparent"
+                                                  Stroke="{DynamicResource Brush.ButtonForeground}"
+                                                  StrokeThickness="1.45"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round" />
+                                        </Canvas>
+                                    </Viewbox>
+                                </ToggleButton>
                                 <Popup PlacementTarget="{Binding ElementName=MapTopBarControlsRoot}"
                                        Placement="Custom"
                                        CustomPopupPlacementCallback="CenterPopupUnderButton"
@@ -442,7 +521,7 @@
                                 </Popup>
                             </Grid>
                             <Button Grid.Column="3"
-                                    Width="64"
+                                    Width="44"
                                     Height="40"
                                     Padding="0"
                                     Margin="0,0,8,0"
@@ -461,7 +540,7 @@
                                        Source="{Binding ToggleAllPlannedToursImagePath}" />
                             </Button>
                             <Button Grid.Column="4"
-                                    Width="64"
+                                    Width="44"
                                     Height="40"
                                     Padding="0"
                                     Margin="0,0,8,0"
@@ -472,51 +551,39 @@
                                     ToolTipService.ShowDuration="8000"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Command="{Binding TogglePinInfoCardsCommand}">
-                                <Image Width="36"
-                                       Height="36"
-                                       Stretch="Uniform"
-                                       RenderOptions.BitmapScalingMode="HighQuality"
-                                       SnapsToDevicePixels="True"
-                                       Source="{Binding PinInfoCardsImagePath}" />
+                                    <Image Width="36"
+                                           Height="36"
+                                           Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           SnapsToDevicePixels="True"
+                                           Source="{Binding PinInfoCardsImagePath}" />
                             </Button>
-                            <Border Grid.Column="5"
-                                    Height="40"
-                                    Margin="0,0,8,0"
-                                    Padding="10,6"
-                                    CornerRadius="12"
-                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
-                                    BorderThickness="1"
-                                    Background="{DynamicResource Brush.CardSoft}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="120" />
-                                        <ColumnDefinition Width="40" />
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0"
-                                            Minimum="0.7"
-                                            Maximum="1.8"
-                                            TickFrequency="0.01"
-                                            IsSnapToTickEnabled="False"
-                                            IsMoveToPointEnabled="True"
-                                            VerticalAlignment="Center"
-                                            ToolTip="Groesse der Infokarten (Doppelklick = Standardgroesse)"
-                                            PreviewMouseDoubleClick="PinInfoCardScaleSlider_PreviewMouseDoubleClick"
-                                            Value="{Binding PinInfoCardScale, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Grid.Column="1"
-                                               Margin="8,0,0,0"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"
-                                               FontSize="12"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource Brush.TextMuted}"
-                                               Text="{Binding PinInfoCardScalePercentText}" />
-                                </Grid>
-                            </Border>
                             <Button Grid.Column="6"
+                                    Width="44"
                                     Height="40"
-                                    Content="Route exportieren"
-                                    Style="{StaticResource SuccessButtonStyle}"
-                                    Command="{Binding ExportRouteCommand}" />
+                                    Padding="0"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    ToolTip="Route exportieren"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding ExportRouteCommand}">
+                                <Viewbox Width="29"
+                                         Height="29"
+                                         Stretch="Uniform"
+                                         SnapsToDevicePixels="True">
+                                    <Canvas Width="514" Height="436">
+                                        <Path Fill="{DynamicResource Brush.ButtonForeground}"
+                                              Data="M3227 4169 c-92 -22 -175 -88 -218 -175 l-24 -49 0 -755 0 -755 24 -53 c32 -71 115 -147 183 -167 44 -13 160 -15 804 -15 747 0 754 0 811 22 86 32 155 105 182 193 20 62 21 91 21 402 l0 334 -25 24 c-29 30 -64 32 -96 6 l-24 -19 -5 -354 c-4 -252 -8 -359 -17 -374 -20 -34 -70 -72 -111 -84 -54 -15 -1418 -14 -1479 1 -56 15 -104 61 -121 116 -18 62 -16 1394 2 1446 18 50 42 76 91 98 36 17 72 19 388 19 226 0 355 4 368 11 48 25 43 110 -8 130 -31 12 -695 10 -746 -2z M4299 4165 c-46 -25 -46 -100 0 -124 12 -7 106 -11 248 -11 l228 0 -432 -432 c-458 -459 -466 -468 -426 -515 10 -12 31 -25 46 -29 27 -6 53 17 463 427 l434 434 0 -208 c0 -207 0 -208 25 -232 31 -32 69 -32 100 0 l25 24 0 316 0 316 -25 24 -24 25 -318 0 c-256 -1 -323 -4 -344 -15z M835 3746 c-335 -84 -620 -158 -633 -165 -13 -7 -32 -27 -42 -44 -20 -31 -20 -65 -20 -1590 0 -1721 -5 -1596 63 -1637 18 -11 46 -20 64 -20 17 0 300 68 628 150 l597 150 522 -156 c861 -258 763 -235 871 -205 39 11 214 58 390 106 176 47 352 94 390 105 39 10 142 37 230 60 88 23 178 50 200 60 79 38 75 -5 75 749 l0 671 -70 0 -70 0 -2 -647 -3 -646 -70 -19 c-38 -10 -297 -79 -574 -153 -278 -73 -508 -132 -513 -129 -4 3 -8 171 -8 375 l0 369 -70 0 -70 0 0 -376 c0 -353 -1 -375 -17 -370 -140 40 -964 286 -1038 309 l-100 32 -3 270 -3 270 -67 53 -67 54 -3 -321 -2 -322 -23 -8 c-17 -7 -524 -136 -1027 -262 -41 -10 -77 -16 -80 -13 -7 7 -7 3001 0 3008 6 5 1102 276 1120 276 7 0 10 -241 10 -768 l0 -767 35 -80 c23 -55 45 -89 70 -108 l35 -29 0 876 c0 482 4 876 9 876 4 0 21 -4 37 -9 16 -6 281 -85 588 -176 308 -92 566 -169 573 -172 10 -4 13 13 13 71 0 71 -2 77 -23 85 -24 9 -597 182 -1014 305 -122 36 -239 66 -260 65 -21 -1 -312 -69 -648 -153z M773 3024 c-53 -19 -119 -83 -144 -137 -25 -56 -25 -151 0 -210 37 -87 121 -147 217 -155 l52 -4 132 -292 c229 -502 176 -422 395 -601 105 -86 254 -208 333 -272 141 -114 143 -116 135 -147 -15 -58 -8 -148 15 -192 78 -152 273 -191 398 -81 63 55 87 106 89 191 l3 70 201 112 202 112 57 -31 c47 -26 68 -31 122 -31 36 1 81 8 101 16 52 23 119 86 140 133 23 50 25 164 4 209 -63 133 -218 196 -346 139 -96 -43 -168 -166 -157 -267 l5 -42 -203 -112 -203 -113 -54 31 c-69 39 -137 48 -197 25 -25 -9 -52 -19 -61 -21 -10 -4 -53 26 -115 78 -55 46 -201 167 -325 270 l-224 186 -42 94 c-23 51 -94 205 -157 343 l-114 249 30 35 c109 124 77 312 -68 397 -57 33 -157 42 -221 18z m155 -150 c26 -18 52 -65 52 -94 0 -34 -28 -78 -60 -95 -49 -25 -88 -19 -126 19 -28 28 -34 41 -34 78 1 66 42 107 110 108 20 0 46 -7 58 -16z m2119 -1170 c58 -36 65 -115 16 -166 -73 -77 -206 -14 -189 90 13 82 101 121 173 76z m-863 -478 c60 -25 83 -88 54 -151 -32 -71 -151 -74 -191 -5 -32 53 -13 125 41 154 34 19 54 19 96 2z">
+                                            <Path.RenderTransform>
+                                                <TransformGroup>
+                                                    <ScaleTransform ScaleX="0.1" ScaleY="-0.1" />
+                                                    <TranslateTransform Y="436" />
+                                                </TransformGroup>
+                                            </Path.RenderTransform>
+                                        </Path>
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
                         </Grid>
                     </DataTemplate>
                     <DataTemplate DataType="{x:Type sections:KalenderSectionViewModel}">
@@ -527,17 +594,13 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,10,0"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       FontWeight="SemiBold"
+                                       Style="{StaticResource TopbarStatusTextStyle}"
                                        Text="Manuelle Einträge und Touren zentral verwalten." />
 
                             <Button Grid.Column="1"
-                                    Width="170"
-                                    Height="40"
-                                    Content="Manuell hinzufügen"
-                                    Style="{StaticResource SuccessButtonStyle}"
+                                    Content="&#xE710;"
+                                    ToolTip="Manuell hinzufügen"
+                                    Style="{StaticResource TopbarCompactSuccessButtonStyle}"
                                     Click="OnAddCalendarManualEntryClicked" />
                         </Grid>
                     </DataTemplate>
@@ -549,17 +612,21 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,10,0"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       FontWeight="SemiBold"
+                                       Style="{StaticResource TopbarStatusTextStyle}"
                                        Text="{Binding FilterInfoText}" />
 
                             <ToggleButton Grid.Column="1"
-                                          Width="92"
+                                          Width="44"
+                                          Padding="0"
                                           Style="{StaticResource TopbarToggleButtonStyle}"
-                                          Content="Filter"
-                                          IsChecked="{Binding IsToursFilterPanelVisible, Mode=TwoWay}" />
+                                          ToolTip="Filter"
+                                          IsChecked="{Binding IsToursFilterPanelVisible, Mode=TwoWay}">
+                                <Viewbox Style="{StaticResource FilterIconViewboxStyle}">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Style="{StaticResource FilterIconPathStyle}" />
+                                    </Canvas>
+                                </Viewbox>
+                            </ToggleButton>
                         </Grid>
                     </DataTemplate>
 
@@ -576,7 +643,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Border Grid.Column="0"
-                                    Width="340"
+                                    Width="300"
                                     Height="40"
                                     Margin="0,0,8,0"
                                     CornerRadius="12"
@@ -621,9 +688,16 @@
 
                             <Grid Grid.Column="2" Margin="0,0,8,0">
                                 <ToggleButton x:Name="OrdersFilterPopupButton"
-                                              Width="92"
+                                              Width="44"
+                                              Padding="0"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
-                                              Content="Filter" />
+                                              ToolTip="Filter">
+                                    <Viewbox Style="{StaticResource FilterIconViewboxStyle}">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Style="{StaticResource FilterIconPathStyle}" />
+                                        </Canvas>
+                                    </Viewbox>
+                                </ToggleButton>
                                 <Popup PlacementTarget="{Binding ElementName=OrdersFilterPopupButton}"
                                        Placement="Bottom"
                                        StaysOpen="False"
@@ -703,9 +777,14 @@
 
                             <Grid Grid.Column="3" Margin="0,0,8,0">
                                 <ToggleButton x:Name="OrdersColumnsPopupButton"
-                                              Width="92"
+                                              Width="44"
+                                              Padding="0"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
-                                              Content="Spalten" />
+                                              ToolTip="Spalten">
+                                    <TextBlock FontFamily="Segoe Fluent Icons"
+                                               FontSize="15"
+                                               Text="&#xE8A5;" />
+                                </ToggleButton>
                                 <Popup PlacementTarget="{Binding ElementName=OrdersColumnsPopupButton}"
                                        Placement="Bottom"
                                        StaysOpen="False"
@@ -730,18 +809,16 @@
                             </Grid>
 
                             <Button Grid.Column="4"
-                                    Width="92"
-                                    Height="40"
                                     Margin="0,0,8,0"
-                                    Content="Zurück"
-                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="&#xE7A7;"
+                                    ToolTip="Gelöschten Auftrag wiederherstellen"
+                                    Style="{StaticResource TopbarCompactButtonStyle}"
                                     Command="{Binding UndoDeleteCommand}" />
                             <Button Grid.Column="5"
-                                    Width="152"
-                                    Height="40"
                                     Margin="0,0,8,0"
-                                    Content="Manuell hinzufügen"
-                                    Style="{StaticResource SuccessButtonStyle}"
+                                    Content="&#xE710;"
+                                    ToolTip="Manuell hinzufügen"
+                                    Style="{StaticResource TopbarCompactSuccessButtonStyle}"
                                     Command="{Binding AddManualOrderCommand}" />
                         </Grid>
                     </DataTemplate>
@@ -759,7 +836,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Border Grid.Column="0"
-                                    Width="340"
+                                    Width="300"
                                     Height="40"
                                     Margin="0,0,8,0"
                                     CornerRadius="12"
@@ -804,9 +881,16 @@
 
                             <Grid Grid.Column="2" Margin="0,0,8,0">
                                 <ToggleButton x:Name="NonMapOrdersFilterPopupButton"
-                                              Width="92"
+                                              Width="44"
+                                              Padding="0"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
-                                              Content="Filter" />
+                                              ToolTip="Filter">
+                                    <Viewbox Style="{StaticResource FilterIconViewboxStyle}">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Style="{StaticResource FilterIconPathStyle}" />
+                                        </Canvas>
+                                    </Viewbox>
+                                </ToggleButton>
                                 <Popup PlacementTarget="{Binding ElementName=NonMapOrdersFilterPopupButton}"
                                        Placement="Bottom"
                                        StaysOpen="False"
@@ -886,9 +970,14 @@
 
                             <Grid Grid.Column="3" Margin="0,0,8,0">
                                 <ToggleButton x:Name="NonMapOrdersColumnsPopupButton"
-                                              Width="92"
+                                              Width="44"
+                                              Padding="0"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
-                                              Content="Spalten" />
+                                              ToolTip="Spalten">
+                                    <TextBlock FontFamily="Segoe Fluent Icons"
+                                               FontSize="15"
+                                               Text="&#xE8A5;" />
+                                </ToggleButton>
                                 <Popup PlacementTarget="{Binding ElementName=NonMapOrdersColumnsPopupButton}"
                                        Placement="Bottom"
                                        StaysOpen="False"
@@ -913,18 +1002,16 @@
                             </Grid>
 
                             <Button Grid.Column="4"
-                                    Width="92"
-                                    Height="40"
                                     Margin="0,0,8,0"
-                                    Content="Zurück"
-                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="&#xE7A7;"
+                                    ToolTip="Gelöschten Auftrag wiederherstellen"
+                                    Style="{StaticResource TopbarCompactButtonStyle}"
                                     Command="{Binding UndoDeleteCommand}" />
                             <Button Grid.Column="5"
-                                    Width="152"
-                                    Height="40"
                                     Margin="0,0,8,0"
-                                    Content="Manuell hinzufügen"
-                                    Style="{StaticResource SuccessButtonStyle}"
+                                    Content="&#xE710;"
+                                    ToolTip="Manuell hinzufügen"
+                                    Style="{StaticResource TopbarCompactSuccessButtonStyle}"
                                     Command="{Binding AddManualOrderCommand}" />
                         </Grid>
                     </DataTemplate>
@@ -933,19 +1020,17 @@
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       FontWeight="SemiBold"
+                                       Style="{StaticResource TopbarStatusTextStyle}"
                                        Text="{Binding StatusText}" />
 
                             <Button Grid.Column="1"
-                                    Height="38"
-                                    Content="+ Mitarbeiter"
-                                    Style="{StaticResource SuccessButtonStyle}"
+                                    Content="&#xE710;"
+                                    ToolTip="Mitarbeiter hinzufügen"
+                                    Style="{StaticResource TopbarCompactSuccessButtonStyle}"
                                     Command="{Binding RequestAddEntryCommand}" />
                         </Grid>
                     </DataTemplate>
@@ -955,14 +1040,11 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="420" />
-                                <ColumnDefinition Width="190" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,10,0"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       FontWeight="SemiBold"
+                                       Style="{StaticResource TopbarStatusTextStyle}"
                                        Text="{Binding StatusText}" />
 
                             <Border Grid.Column="1"
@@ -1038,9 +1120,9 @@
                             </Border>
 
                             <Button Grid.Column="2"
-                                    Height="38"
-                                    Content="{Binding AddButtonText}"
-                                    Style="{StaticResource SuccessButtonStyle}"
+                                    Content="&#xE710;"
+                                    ToolTip="{Binding AddButtonText}"
+                                    Style="{StaticResource TopbarCompactSuccessButtonStyle}"
                                     Command="{Binding RequestAddEntryCommand}" />
                         </Grid>
                     </DataTemplate>
@@ -1049,27 +1131,24 @@
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="110" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,10,0"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       FontWeight="SemiBold"
+                                       Style="{StaticResource TopbarStatusTextStyle}"
                                        Text="{Binding StatusText}" />
 
                             <Button Grid.Column="1"
-                                    Height="38"
-                                    Content="Reload"
-                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="&#xE72C;"
+                                    ToolTip="Neu laden"
+                                    Style="{StaticResource TopbarCompactButtonStyle}"
                                     Command="{Binding RefreshCommand}" />
                             <Button Grid.Column="2"
-                                    Height="38"
                                     Margin="8,0,0,0"
-                                    Content="Open in Browser"
-                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="&#xE774;"
+                                    ToolTip="Im Browser öffnen"
+                                    Style="{StaticResource TopbarCompactButtonStyle}"
                                     Command="{Binding OpenInBrowserCommand}" />
                         </Grid>
                     </DataTemplate>
@@ -1078,27 +1157,24 @@
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="110" />
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,10,0"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       FontWeight="SemiBold"
+                                       Style="{StaticResource TopbarStatusTextStyle}"
                                        Text="{Binding StatusText}" />
 
                             <Button Grid.Column="1"
-                                    Height="38"
-                                    Content="Reload"
-                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="&#xE72C;"
+                                    ToolTip="Neu laden"
+                                    Style="{StaticResource TopbarCompactButtonStyle}"
                                     Command="{Binding RefreshCommand}" />
                             <Button Grid.Column="2"
-                                    Height="38"
                                     Margin="8,0,0,0"
-                                    Content="Open in Browser"
-                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Content="&#xE774;"
+                                    ToolTip="Im Browser öffnen"
+                                    Style="{StaticResource TopbarCompactButtonStyle}"
                                     Command="{Binding OpenInBrowserCommand}" />
                         </Grid>
                     </DataTemplate>
@@ -1111,17 +1187,13 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,10,0"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       FontWeight="SemiBold"
+                                       Style="{StaticResource TopbarStatusTextStyle}"
                                        Text="Einstellungen bearbeiten und speichern." />
 
                             <Button Grid.Column="1"
-                                    Width="148"
-                                    Height="40"
-                                    Content="Speichern"
-                                    Style="{StaticResource SuccessButtonStyle}"
+                                    Content="&#xE74E;"
+                                    ToolTip="Speichern"
+                                    Style="{StaticResource TopbarCompactSuccessButtonStyle}"
                                     Command="{Binding SaveCommand}" />
                         </Grid>
                     </DataTemplate>
@@ -1131,8 +1203,8 @@
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             VerticalAlignment="Center"
-                            Margin="12,0,0,0">
-                    <Grid Margin="0,0,12,0"
+                            Margin="8,0,0,0">
+                    <Grid Margin="0,0,8,0"
                           VerticalAlignment="Center">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />

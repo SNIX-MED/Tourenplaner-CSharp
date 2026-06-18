@@ -12,8 +12,13 @@ internal static class MapHtmlDocumentBuilder
         bool mapOverlayShowPoi,
         bool mapOverlayUseVehicleDimensions,
         bool mapOverlayUseVehicleWeightRestrictions,
-        bool mapOverlayUseDepartAtTraffic)
+        bool mapOverlayUseDepartAtTraffic,
+        double pinInfoCardScale)
     {
+        var normalizedPinInfoCardScale = pinInfoCardScale is >= 0.7d and <= 1.8d
+            ? pinInfoCardScale
+            : 1.0d;
+        var pinInfoCardScaleToken = normalizedPinInfoCardScale.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var mapOptionsButtonContent = BuildMapOptionsButtonContent();
         var infoIconLocation = BuildInfoCardIconDataUri(
             "1.svg",
@@ -81,6 +86,10 @@ internal static class MapHtmlDocumentBuilder
                    .style-label { font-size: 16px; font-weight: 500; color: #0f172a; display: block; }
                    .switch-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 14px; color: #1e293b; }
                    .switch-row input { width: 20px; height: 20px; }
+                   .range-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; }
+                   .range-row input[type=range] { width: 100%; accent-color: #800080; }
+                   .range-value { min-width: 44px; text-align: right; font-size: 13px; font-weight: 700; color: #475569; }
+                   .option-help { margin: 6px 0 0; font-size: 12px; color: #64748b; line-height: 1.35; }
                    .tour-hover-tooltip { position: absolute; z-index: 1400; pointer-events: none; transform: translate(-50%, calc(-100% - 10px)); background: rgba(15,23,42,.94); color: #f8fafc; border: 1px solid rgba(148,163,184,.45); border-radius: 8px; padding: 4px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; box-shadow: 0 6px 16px rgba(2,6,23,.32); opacity: 0; transition: opacity .08s linear; }
                    .tt-popup-content, .mapboxgl-popup-content { transform: scale(var(--gawela-pin-scale, 1)); transform-origin: center bottom; display: inline-block; padding: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
                    .tt-popup-tip, .mapboxgl-popup-tip { display: none !important; }
@@ -138,6 +147,14 @@ internal static class MapHtmlDocumentBuilder
                        </div>
                      </div>
                      <div class="map-option-section">
+                       <h4>Infokarten</h4>
+                       <div class="range-row">
+                         <input type="range" id="pinInfoCardScale" min="0.7" max="1.8" step="0.01" />
+                         <span id="pinInfoCardScaleValue" class="range-value">100%</span>
+                       </div>
+                       <p class="option-help">Doppelklick auf den Regler setzt die Standardgröße zurück.</p>
+                     </div>
+                     <div class="map-option-section">
                        <h4>Traffic</h4>
                        <label class="switch-row"><input type="checkbox" id="toggleTrafficIncidents" /> Traffic incidents</label>
                        <label class="switch-row"><input type="checkbox" id="toggleTrafficFlow" /> Traffic flow</label>
@@ -165,6 +182,7 @@ internal static class MapHtmlDocumentBuilder
                    const useVehicleDimensions = __TT_USE_VEHICLE_DIMENSIONS__;
                    const useVehicleWeightRestrictions = __TT_USE_VEHICLE_WEIGHT_RESTRICTIONS__;
                    const useDepartAtTraffic = __TT_USE_DEPART_AT_TRAFFIC__;
+                   const initialPinInfoCardScale = __PIN_INFO_CARD_SCALE__;
                    const useTileCache = __TT_TILE_CACHE__;
                    window.gawelaMapReady = false;
                    const tourHoverTooltipEl = document.getElementById('tourHoverTooltip');
@@ -1424,10 +1442,31 @@ internal static class MapHtmlDocumentBuilder
                            const vehicleDimensionsToggle = document.getElementById('toggleVehicleDimensions');
                            const vehicleWeightRestrictionsToggle = document.getElementById('toggleVehicleWeightRestrictions');
                            const departAtTrafficToggle = document.getElementById('toggleDepartAtTraffic');
+                           const pinInfoCardScaleInput = document.getElementById('pinInfoCardScale');
+                           const pinInfoCardScaleValue = document.getElementById('pinInfoCardScaleValue');
 
-                           if (!overlay || !toggleBtn || !closeBtn || !trafficFlowToggle || !trafficIncidentsToggle || !roadLabelsToggle || !poiToggle || !vehicleDimensionsToggle || !vehicleWeightRestrictionsToggle || !departAtTrafficToggle) {
+                           if (!overlay || !toggleBtn || !closeBtn || !trafficFlowToggle || !trafficIncidentsToggle || !roadLabelsToggle || !poiToggle || !vehicleDimensionsToggle || !vehicleWeightRestrictionsToggle || !departAtTrafficToggle || !pinInfoCardScaleInput || !pinInfoCardScaleValue) {
                              return;
                            }
+
+                           const formatScalePercent = (scale) => `${Math.round(scale * 100)}%`;
+                           const clampPinInfoCardScale = (value) => {
+                             const parsed = Number(value);
+                             if (!Number.isFinite(parsed)) return 1;
+                             return Math.min(1.8, Math.max(0.7, parsed));
+                           };
+                           const syncPinInfoCardScaleControl = (scale) => {
+                             const clamped = clampPinInfoCardScale(scale);
+                             pinInfoCardScaleInput.value = clamped.toFixed(2);
+                             pinInfoCardScaleValue.textContent = formatScalePercent(clamped);
+                           };
+                           const postPinInfoCardScale = (scale) => {
+                             if (!(window.chrome && window.chrome.webview)) {
+                               return;
+                             }
+
+                             window.chrome.webview.postMessage(`pinInfoCardScale:${clampPinInfoCardScale(scale).toFixed(2)}`);
+                           };
 
                            const syncRoutingOptionToggles = () => {
                              vehicleDimensionsToggle.checked = mapState.useVehicleDimensions;
@@ -1470,11 +1509,16 @@ internal static class MapHtmlDocumentBuilder
                            poiToggle.checked = mapState.showPoi;
                            syncRoutingOptionToggles();
                            departAtTrafficToggle.checked = mapState.useDepartAtTraffic;
+                           syncPinInfoCardScaleControl(initialPinInfoCardScale);
 
                            window.gawelaSetVehicleRoutingOptions = function(useDimensions, useWeightRestrictions) {
                              mapState.useVehicleDimensions = !!useDimensions;
                              mapState.useVehicleWeightRestrictions = !!useWeightRestrictions;
                              syncRoutingOptionToggles();
+                           };
+
+                           window.gawelaSetMapOptionsPinInfoCardScale = function(scale) {
+                             syncPinInfoCardScaleControl(scale);
                            };
 
                            trafficFlowToggle.addEventListener('change', () => {
@@ -1516,6 +1560,23 @@ internal static class MapHtmlDocumentBuilder
                            departAtTrafficToggle.addEventListener('change', () => {
                              mapState.useDepartAtTraffic = !!departAtTrafficToggle.checked;
                              postMapOptions();
+                           });
+
+                           pinInfoCardScaleInput.addEventListener('input', () => {
+                             const scale = clampPinInfoCardScale(pinInfoCardScaleInput.value);
+                             pinInfoCardScaleValue.textContent = formatScalePercent(scale);
+                             if (typeof window.gawelaSetPopupSizeMultiplier === 'function') {
+                               window.gawelaSetPopupSizeMultiplier(scale);
+                             }
+                             postPinInfoCardScale(scale);
+                           });
+
+                           pinInfoCardScaleInput.addEventListener('dblclick', () => {
+                             syncPinInfoCardScaleControl(1);
+                             if (typeof window.gawelaSetPopupSizeMultiplier === 'function') {
+                               window.gawelaSetPopupSizeMultiplier(1);
+                             }
+                             postPinInfoCardScale(1);
                            });
 
                            document.querySelectorAll('.style-btn').forEach(btn => {
@@ -2015,6 +2076,7 @@ internal static class MapHtmlDocumentBuilder
             .Replace("__TT_USE_VEHICLE_DIMENSIONS__", mapOverlayUseVehicleDimensions ? "true" : "false")
             .Replace("__TT_USE_VEHICLE_WEIGHT_RESTRICTIONS__", mapOverlayUseVehicleWeightRestrictions ? "true" : "false")
             .Replace("__TT_USE_DEPART_AT_TRAFFIC__", mapOverlayUseDepartAtTraffic ? "true" : "false")
+            .Replace("__PIN_INFO_CARD_SCALE__", pinInfoCardScaleToken)
             .Replace("__TT_TILE_CACHE__", tomTomEnableTileCache ? "true" : "false")
             .Replace("__MAP_OPTIONS_BUTTON_CONTENT__", mapOptionsButtonContent)
             .Replace("__INFO_ICON_LOCATION__", infoIconLocation)

@@ -23,6 +23,25 @@
         <Setter Property="UseLayoutRounding" Value="True" />
     </Style>
 
+    <Style x:Key="FilterIconViewboxStyle" TargetType="Viewbox">
+        <Setter Property="Width" Value="26" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Stretch" Value="Uniform" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="UseLayoutRounding" Value="True" />
+    </Style>
+
+    <Style x:Key="FilterIconPathStyle" TargetType="Path">
+        <Setter Property="Data" Value="M4.3,5.8 L19.7,5.8 L13.5,12.9 L13.5,17.9 L10.5,19.5 L10.5,12.9 Z" />
+        <Setter Property="Fill" Value="Transparent" />
+        <Setter Property="Stroke" Value="{DynamicResource Brush.ButtonForeground}" />
+        <Setter Property="StrokeThickness" Value="1.45" />
+        <Setter Property="StrokeStartLineCap" Value="Round" />
+        <Setter Property="StrokeEndLineCap" Value="Round" />
+        <Setter Property="StrokeLineJoin" Value="Round" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
     <Style TargetType="Label">
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
     </Style>
