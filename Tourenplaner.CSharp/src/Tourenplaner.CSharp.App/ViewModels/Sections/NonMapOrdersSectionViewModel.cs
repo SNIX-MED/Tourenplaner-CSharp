@@ -25,6 +25,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         Order.OrderedStatus,
         Order.InTransitStatus,
         Order.PartiallyInTransitStatus,
+        Order.PendingPreparationStatus,
+        Order.PartiallyPendingPreparationStatus,
         Order.PartiallyReadyStatus,
         Order.ReadyToDeliverStatus
     ];
@@ -844,6 +846,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     private static OrderItem ToOrderItem(Order order)
     {
+        var palette = OrderStatusDisplayPalette.Resolve(order);
         return new OrderItem
         {
             Id = order.Id,
@@ -868,6 +871,9 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             Phone = order.Phone ?? string.Empty,
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
             OrderStatus = NormalizeOrderStatus(order.OrderStatus),
+            OrderStatusBadgeBackground = palette.BackgroundHex,
+            OrderStatusBadgeBorderBrush = palette.BorderHex,
+            OrderStatusBadgeForeground = palette.ForegroundHex,
             ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
             Notes = order.Notes ?? string.Empty,
             IsArchived = order.IsArchived

@@ -724,7 +724,8 @@ public partial class KarteSectionView : UserControl
             isAssigned = x.IsAssigned,
             isDimmed = x.IsDimmed,
             isBatchSelected = x.IsBatchSelected,
-            color = vm.ResolveOrderStatusColor(x.StatusLabel, x.IsAssigned),
+            hasPendingPreparation = x.HasPendingPreparation,
+            color = x.StatusColorHex,
             shape = ResolveDeliveryShape(x.DeliveryLabel),
             lat = x.Latitude,
             lon = x.Longitude
@@ -772,7 +773,8 @@ public partial class KarteSectionView : UserControl
                     label = r.DisplayPosition,
                     avisoStatus = visual.AvisoStatusLabel,
                     isAssigned = visual.IsAssigned,
-                    color = vm.ResolveOrderStatusColor(visual.StatusLabel, visual.IsAssigned),
+                    hasPendingPreparation = visual.HasPendingPreparation,
+                    color = visual.StatusColorHex,
                     shape = ResolveDeliveryShape(visual.DeliveryLabel),
                     lat = r.Latitude,
                     lon = r.Longitude

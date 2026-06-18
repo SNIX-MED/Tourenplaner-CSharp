@@ -37,14 +37,17 @@ internal static class MapHtmlDocumentBuilder
                    body { font-family: Segoe UI, sans-serif; background: transparent; }
                    #map { background: #f8fafc; }
                    .status { position: absolute; left: auto !important; top: auto !important; right: 10px !important; bottom: 10px !important; z-index: 1000; background: rgba(255,255,255,.9); border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 8px; font-size: 12px; color: #334155; }
-                   .gawela-pin-wrap { position: relative; width: 28px; height: 28px; transform-origin: center bottom; transform: scale(var(--gawela-pin-scale, 1)); }
-                   .gawela-pin { width: 20px; height: 20px; position: absolute; left: 4px; top: 4px; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
-                   .gawela-pin-circle { border-radius: 50%; }
-                   .gawela-pin-square { border-radius: 4px; }
-                   .gawela-pin-triangle { width: 0; height: 0; left: 2px; top: 2px; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 22px solid #2563EB; border-top: 0; background: transparent; border-radius: 0; box-shadow: none; }
-                   .gawela-pin-triangle-outline { position: absolute; width: 0; height: 0; left: 0; top: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 26px solid #ffffff; }
-                   .gawela-pin-badges { position: absolute; right: -2px; top: -2px; display: flex; }
-                   .gawela-pin-badge { width: 9px; height: 9px; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 0 1px rgba(30,41,59,0.55); }
+                   .gawela-pin-wrap { position: relative; width: 28px; height: 28px; transform-origin: center bottom; transform: scale(var(--gawela-pin-scale, 1.1)); }
+                  .gawela-pin { width: 20px; height: 20px; position: absolute; left: 4px; top: 4px; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.35); overflow: hidden; box-sizing: border-box; }
+                  .gawela-pin-circle { border-radius: 50%; }
+                  .gawela-pin-square { border-radius: 4px; }
+                  .gawela-pin-triangle { width: 0; height: 0; left: 2px; top: 2px; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 22px solid #2563EB; border-top: 0; background: transparent; border-radius: 0; box-shadow: none; }
+                  .gawela-pin-triangle-outline { position: absolute; width: 0; height: 0; left: 0; top: 0; border-left: 14px solid transparent; border-right: 14px solid transparent; border-bottom: 26px solid #ffffff; }
+                  .gawela-pin-pattern { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: inherit; z-index: 1; }
+                  .gawela-pin-pattern-triangle { position: absolute; left: 4px; top: 4px; width: 20px; height: 18px; pointer-events: none; overflow: hidden; z-index: 1; clip-path: polygon(50% 0, 0 100%, 100% 100%); }
+                  .gawela-pin-pattern-fill { width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(135deg, rgba(255,255,255,0) 0 37%, rgba(255,255,255,0.98) 37% 43%, rgba(255,255,255,0) 43% 57%, rgba(255,255,255,0.98) 57% 63%, rgba(255,255,255,0) 63% 100%); background-position: center; background-repeat: no-repeat; }
+                  .gawela-pin-badges { position: absolute; right: -2px; top: -2px; display: flex; }
+                  .gawela-pin-badge { width: 9px; height: 9px; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 0 1px rgba(30,41,59,0.55); }
                    .gawela-pin-badge-aviso-none { background: #64748b; color: #ffffff; }
                    .gawela-pin-badge-aviso-partial { background: #f59e0b; color: #ffffff; }
                    .gawela-pin-badge-aviso-full { background: #16a34a; color: #ffffff; }
@@ -605,6 +608,21 @@ internal static class MapHtmlDocumentBuilder
                              pin.style.background = color;
                            }
                            wrap.appendChild(pin);
+
+                           if (m && m.hasPendingPreparation) {
+                             const pattern = document.createElement('div');
+                             pattern.className = shape === 'triangle'
+                               ? 'gawela-pin-pattern-triangle'
+                               : 'gawela-pin-pattern';
+                             const fill = document.createElement('div');
+                             fill.className = 'gawela-pin-pattern-fill';
+                             pattern.appendChild(fill);
+                             if (shape === 'triangle') {
+                               wrap.appendChild(pattern);
+                             } else {
+                               pin.appendChild(pattern);
+                             }
+                           }
 
                            const badges = document.createElement('div');
                            badges.className = 'gawela-pin-badges';

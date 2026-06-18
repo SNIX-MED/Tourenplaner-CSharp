@@ -34,6 +34,10 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Root" Property="Opacity" Value="0.82" />
                             </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#FFF7F0FF" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Focus}" />
+                            </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Focus}" />
                             </Trigger>
@@ -367,6 +371,8 @@
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
                                                         </Grid.RowDefinitions>
                                                         <TextBlock FontWeight="SemiBold" Text="Auftragsstatus (Farbe)" />
 
@@ -380,9 +386,17 @@
                                                         </StackPanel>
                                                         <StackPanel Grid.Row="3" Margin="0,6,0,0" Orientation="Horizontal">
                                                             <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorOnTheWay}" Stroke="White" StrokeThickness="2" />
-                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Unterwegs / Teilweise bereit" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Unterwegs" />
                                                         </StackPanel>
                                                         <StackPanel Grid.Row="4" Margin="0,6,0,0" Orientation="Horizontal">
+                                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorPendingPreparation}" Stroke="White" StrokeThickness="2" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Zu richten / Teilweise zu richten" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Row="5" Margin="0,6,0,0" Orientation="Horizontal">
+                                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorOnTheWay}" Stroke="White" StrokeThickness="2" />
+                                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Teilweise bereit" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Row="6" Margin="0,6,0,0" Orientation="Horizontal">
                                                             <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorInStock}" Stroke="White" StrokeThickness="2" />
                                                             <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Lieferbereit" />
                                                         </StackPanel>

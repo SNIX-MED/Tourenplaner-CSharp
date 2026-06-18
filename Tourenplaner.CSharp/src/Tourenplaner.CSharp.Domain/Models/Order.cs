@@ -8,6 +8,8 @@ public sealed class Order
         "Bestellt",
         "Unterwegs",
         "Teilweise Unterwegs",
+        "Zu richten",
+        "Teilweise zu richten",
         "Teilweise bereit",
         "Lieferbereit"
     ];
@@ -18,6 +20,8 @@ public sealed class Order
     public const string PartiallyInTransitStatus = "Teilweise Unterwegs";
     public const string PartiallyReadyStatus = "Teilweise bereit";
     public const string ReadyToDeliverStatus = "Lieferbereit";
+    public const string PendingPreparationStatus = "Zu richten";
+    public const string PartiallyPendingPreparationStatus = "Teilweise zu richten";
 
     public static IReadOnlyList<string> OrderStatusOptions => OrderStatusValues;
 
@@ -58,6 +62,16 @@ public sealed class Order
             return ReadyToDeliverStatus;
         }
 
+        if (string.Equals(normalized, OrderProductInfo.PendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return PendingPreparationStatus;
+        }
+
+        if (string.Equals(normalized, PartiallyPendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return PartiallyPendingPreparationStatus;
+        }
+
         var match = OrderStatusValues.FirstOrDefault(x => string.Equals(x, normalized, StringComparison.OrdinalIgnoreCase));
         return match ?? DefaultOrderStatus;
     }
@@ -75,38 +89,83 @@ public sealed class Order
         }
 
         var allInStock = normalizedStatuses.All(x =>
-            string.Equals(x, "An Lager", StringComparison.OrdinalIgnoreCase));
+            string.Equals(x, OrderProductInfo.InStockStatus, StringComparison.OrdinalIgnoreCase));
         if (allInStock)
         {
             return ReadyToDeliverStatus;
         }
 
-        var hasInStock = normalizedStatuses.Any(x =>
-            string.Equals(x, "An Lager", StringComparison.OrdinalIgnoreCase));
-        if (hasInStock)
+        var allPendingPreparation = normalizedStatuses.All(x =>
+            string.Equals(x, OrderProductInfo.PendingPreparationStatus, StringComparison.OrdinalIgnoreCase));
+        if (allPendingPreparation)
         {
-            return PartiallyReadyStatus;
+            return PendingPreparationStatus;
+        }
+
+        var hasPendingPreparation = normalizedStatuses.Any(x =>
+            string.Equals(x, OrderProductInfo.PendingPreparationStatus, StringComparison.OrdinalIgnoreCase));
+        var hasInStock = normalizedStatuses.Any(x =>
+            string.Equals(x, OrderProductInfo.InStockStatus, StringComparison.OrdinalIgnoreCase));
+        var hasReadyFamily = hasPendingPreparation || hasInStock;
+        if (hasReadyFamily)
+        {
+            return hasPendingPreparation
+                ? PartiallyPendingPreparationStatus
+                : PartiallyReadyStatus;
         }
 
         var hasOnTheWay = normalizedStatuses.Any(x =>
-            string.Equals(x, "Auf dem Weg", StringComparison.OrdinalIgnoreCase));
+            string.Equals(x, OrderProductInfo.InTransitStatus, StringComparison.OrdinalIgnoreCase));
         if (hasOnTheWay)
         {
             var hasNotOnTheWay = normalizedStatuses.Any(x =>
-                !string.Equals(x, "Auf dem Weg", StringComparison.OrdinalIgnoreCase));
+                !string.Equals(x, OrderProductInfo.InTransitStatus, StringComparison.OrdinalIgnoreCase));
             return hasNotOnTheWay
                 ? PartiallyInTransitStatus
                 : InTransitStatus;
         }
 
         if (normalizedStatuses.All(x =>
-                string.Equals(x, "Bestellt", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(x, "nicht festgelegt", StringComparison.OrdinalIgnoreCase)))
+                string.Equals(x, OrderProductInfo.OrderedStatus, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x, OrderProductInfo.DefaultDeliveryStatus, StringComparison.OrdinalIgnoreCase)))
         {
             return OrderedStatus;
         }
 
         return OrderedStatus;
+    }
+
+    public static string ResolvePartiallyPendingPreparationBaseStatus(IEnumerable<OrderProductInfo>? products)
+    {
+        var normalizedStatuses = (products ?? [])
+            .Where(x => x is not null)
+            .Select(x => OrderProductInfo.NormalizeDeliveryStatus(x.DeliveryStatus))
+            .ToList();
+
+        var nonPendingPreparationStatuses = normalizedStatuses
+            .Where(x => !string.Equals(x, OrderProductInfo.PendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (nonPendingPreparationStatuses.Any(x =>
+                string.Equals(x, OrderProductInfo.InStockStatus, StringComparison.OrdinalIgnoreCase)))
+        {
+            return ReadyToDeliverStatus;
+        }
+
+        if (nonPendingPreparationStatuses.Any(x =>
+                string.Equals(x, OrderProductInfo.InTransitStatus, StringComparison.OrdinalIgnoreCase)))
+        {
+            return InTransitStatus;
+        }
+
+        if (nonPendingPreparationStatuses.Any(x =>
+                string.Equals(x, OrderProductInfo.OrderedStatus, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(x, OrderProductInfo.DefaultDeliveryStatus, StringComparison.OrdinalIgnoreCase)))
+        {
+            return OrderedStatus;
+        }
+
+        return PendingPreparationStatus;
     }
 }
 
@@ -139,10 +198,15 @@ public sealed class OrderProductInfo
         "nicht festgelegt",
         "Bestellt",
         "Auf dem Weg",
+        "Zu richten",
         "An Lager"
     ];
 
     public const string DefaultDeliveryStatus = "nicht festgelegt";
+    public const string OrderedStatus = "Bestellt";
+    public const string InTransitStatus = "Auf dem Weg";
+    public const string PendingPreparationStatus = "Zu richten";
+    public const string InStockStatus = "An Lager";
 
     public static IReadOnlyList<string> DeliveryStatusOptions => DeliveryStatusValues;
 
@@ -164,5 +228,12 @@ public sealed class OrderProductInfo
 
         var match = DeliveryStatusValues.FirstOrDefault(x => string.Equals(x, normalized, StringComparison.OrdinalIgnoreCase));
         return match ?? DefaultDeliveryStatus;
+    }
+
+    public static bool IsReadyFamilyStatus(string? value)
+    {
+        var normalized = NormalizeDeliveryStatus(value);
+        return string.Equals(normalized, InStockStatus, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(normalized, PendingPreparationStatus, StringComparison.OrdinalIgnoreCase);
     }
 }

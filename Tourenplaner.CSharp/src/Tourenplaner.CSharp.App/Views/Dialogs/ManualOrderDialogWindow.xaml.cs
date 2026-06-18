@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
+using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Views.Dialogs;
@@ -155,6 +156,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         Order.OrderedStatus,
         Order.InTransitStatus,
         Order.PartiallyInTransitStatus,
+        Order.PendingPreparationStatus,
+        Order.PartiallyPendingPreparationStatus,
         Order.PartiallyReadyStatus,
         Order.ReadyToDeliverStatus
     ];
@@ -333,8 +336,22 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     public string SelectedStatus
     {
         get => _selectedStatus;
-        set => SetProperty(ref _selectedStatus, value);
+        set
+        {
+            if (SetProperty(ref _selectedStatus, value))
+            {
+                OnPropertyChanged(nameof(SelectedStatusBadgeBackground));
+                OnPropertyChanged(nameof(SelectedStatusBadgeBorderBrush));
+                OnPropertyChanged(nameof(SelectedStatusBadgeForeground));
+            }
+        }
     }
+
+    public string SelectedStatusBadgeBackground => ResolveSelectedStatusPalette().BackgroundHex;
+
+    public string SelectedStatusBadgeBorderBrush => ResolveSelectedStatusPalette().BorderHex;
+
+    public string SelectedStatusBadgeForeground => ResolveSelectedStatusPalette().ForegroundHex;
 
     public string Notes
     {
@@ -538,6 +555,22 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             .Select(x => x.ToOrderProductInfo());
 
         SelectedStatus = Order.ResolveOrderStatusFromProducts(products);
+    }
+
+    private OrderStatusPalette ResolveSelectedStatusPalette()
+    {
+        var products = ProductLines
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .Select(x => x.ToOrderProductInfo())
+            .ToList();
+
+        var order = new Order
+        {
+            OrderStatus = SelectedStatus,
+            Products = products
+        };
+
+        return OrderStatusDisplayPalette.Resolve(order);
     }
 
     private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

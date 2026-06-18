@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              mc:Ignorable="d"
              d:DesignHeight="860"
@@ -104,7 +105,7 @@
             <Setter Property="Effect" Value="{x:Null}" />
             <Setter Property="Padding" Value="16" />
             <Setter Property="Margin" Value="0,0,14,14" />
-            <Setter Property="Width" Value="235" />
+            <Setter Property="Width" Value="215" />
             <Setter Property="MinHeight" Value="210" />
             <Setter Property="VerticalAlignment" Value="Top" />
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
@@ -165,6 +166,31 @@
             </Border>
         </DataTemplate>
 
+        <DataTemplate x:Key="SupplierFilterPanelOptionTemplate">
+            <Border Width="183"
+                    HorizontalAlignment="Left"
+                    Margin="6,0,6,8">
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource FilterPanelOptionBorderStyle}">
+                        <Setter Property="Width" Value="183" />
+                        <Setter Property="HorizontalAlignment" Value="Left" />
+                        <Setter Property="Margin" Value="6,0,6,8" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <CheckBox Style="{StaticResource FilterPanelOptionCheckBoxStyle}"
+                          IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                    <TextBlock Text="{Binding Label}"
+                               TextWrapping="Wrap" />
+                </CheckBox>
+            </Border>
+        </DataTemplate>
+
         <Style x:Key="RouteStopsListStyle" TargetType="ListBox">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -191,33 +217,9 @@
         </Style>
 
         <Style x:Key="DetailOrderStatusBadgeStyle" TargetType="Border">
-            <Setter Property="Background" Value="#FFFFFFFF" />
-            <Setter Property="BorderBrush" Value="#D7E0EC" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Padding" Value="10,6" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding DetailOrderStatus}" Value="Bestellt">
-                    <Setter Property="Background" Value="#FFE0F2FE" />
-                    <Setter Property="BorderBrush" Value="#FF0EA5E9" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding DetailOrderStatus}" Value="Unterwegs">
-                    <Setter Property="Background" Value="#FFFEF3C7" />
-                    <Setter Property="BorderBrush" Value="#FFF59E0B" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding DetailOrderStatus}" Value="Teilweise Unterwegs">
-                    <Setter Property="Background" Value="#FFE0F2FE" />
-                    <Setter Property="BorderBrush" Value="#FF0EA5E9" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding DetailOrderStatus}" Value="Teilweise bereit">
-                    <Setter Property="Background" Value="#FFFDE68A" />
-                    <Setter Property="BorderBrush" Value="#FFEAB308" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding DetailOrderStatus}" Value="Lieferbereit">
-                    <Setter Property="Background" Value="#FFDCFCE7" />
-                    <Setter Property="BorderBrush" Value="#FF16A34A" />
-                </DataTrigger>
-            </Style.Triggers>
         </Style>
 
         <Style x:Key="RouteStopContextMenuStyle" TargetType="ContextMenu">
@@ -319,12 +321,18 @@
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <WrapPanel Grid.Row="0"
-                                           Margin="0,0,0,10"
-                                           Orientation="Horizontal">
-                                    <Border Style="{StaticResource FilterPanelCardStyle}">
+                                <Grid Grid.Row="0"
+                                      Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0"
+                                            Style="{StaticResource FilterPanelCardStyle}">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
@@ -388,7 +396,8 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Style="{StaticResource FilterPanelCardStyle}">
+                                    <Border Grid.Column="1"
+                                            Style="{StaticResource FilterPanelCardStyle}">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
@@ -421,7 +430,8 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Style="{StaticResource FilterPanelCardStyle}">
+                                    <Border Grid.Column="2"
+                                            Style="{StaticResource FilterPanelCardStyle}">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
@@ -454,7 +464,8 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Style="{StaticResource FilterPanelCardStyle}">
+                                    <Border Grid.Column="3"
+                                            Style="{StaticResource FilterPanelCardStyle}">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
@@ -487,7 +498,10 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Style="{StaticResource FilterPanelCardStyle}"
+                                    <Border Grid.Column="4"
+                                            Style="{StaticResource FilterPanelCardStyle}"
+                                            Width="{x:Static sys:Double.NaN}"
+                                            HorizontalAlignment="Stretch"
                                             Margin="0,0,0,14">
                                         <Grid>
                                             <Grid.RowDefinitions>
@@ -498,6 +512,7 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <Border Style="{StaticResource FilterPanelIconBadgeStyle}">
                                                     <TextBlock Style="{StaticResource FilterPanelIconGlyphStyle}"
@@ -513,28 +528,30 @@
                                                                Text="Auswahl des Lieferanten"
                                                                TextWrapping="Wrap" />
                                                 </StackPanel>
+                                                <Button Grid.Column="2"
+                                                        MinWidth="150"
+                                                        Margin="16,0,0,0"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Top"
+                                                        Content="{Binding ToggleAllFiltersButtonText}"
+                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                        Command="{Binding ToggleAllOrderFiltersCommand}"
+                                                        AutomationProperties.Name="Alle Filter auswählen oder abwählen" />
                                             </Grid>
                                             <ItemsControl Grid.Row="1"
                                                           Margin="0,16,0,0"
-                                                          ItemTemplate="{StaticResource FilterPanelOptionTemplate}"
-                                                          ItemsSource="{Binding SupplierFilters}" />
+                                                          ItemTemplate="{StaticResource SupplierFilterPanelOptionTemplate}"
+                                                          ItemsSource="{Binding SupplierFilters}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel Orientation="Horizontal"
+                                                                   ItemWidth="195" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                            </ItemsControl>
                                         </Grid>
                                     </Border>
-                                </WrapPanel>
-
-                                <Border Grid.Row="1"
-                                        Margin="0,-4,0,0"
-                                        Padding="0,0,0,0">
-                                    <Grid>
-                                        <Button MinWidth="150"
-                                                HorizontalAlignment="Right"
-                                                VerticalAlignment="Top"
-                                                Content="{Binding ToggleAllFiltersButtonText}"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Command="{Binding ToggleAllOrderFiltersCommand}"
-                                                AutomationProperties.Name="Alle Filter auswählen oder abwählen" />
-                                    </Grid>
-                                </Border>
+                                </Grid>
                             </Grid>
                         </ScrollViewer>
                     </Border>
@@ -617,6 +634,8 @@
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
                                         <TextBlock FontWeight="SemiBold"
                                                    Text="Auftragsstatus (Farbe)" />
@@ -654,7 +673,19 @@
                                                     Margin="0,6,0,0"
                                                     Orientation="Horizontal">
                                             <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorOnTheWay}" Stroke="White" StrokeThickness="2" />
-                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Unterwegs / Teilweise bereit" />
+                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Unterwegs" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="4"
+                                                    Margin="0,6,0,0"
+                                                    Orientation="Horizontal">
+                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorPendingPreparation}" Stroke="White" StrokeThickness="2" />
+                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Zu richten / Teilweise zu richten" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="5"
+                                                    Margin="0,6,0,0"
+                                                    Orientation="Horizontal">
+                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorOnTheWay}" Stroke="White" StrokeThickness="2" />
+                                            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Teilweise bereit" />
                                         </StackPanel>
                                     </Grid>
 
@@ -1700,6 +1731,8 @@
                                         MinHeight="38"
                                         Margin="0,6,0,0"
                                         VerticalAlignment="Top"
+                                        Background="{Binding DetailOrderStatusBadgeBackgroundColor, Mode=OneWay}"
+                                        BorderBrush="{Binding DetailOrderStatusColor, Mode=OneWay}"
                                         Style="{StaticResource DetailOrderStatusBadgeStyle}">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                                         <Ellipse Width="8"

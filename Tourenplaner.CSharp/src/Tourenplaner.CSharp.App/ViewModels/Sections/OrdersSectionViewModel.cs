@@ -25,6 +25,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         Order.OrderedStatus,
         Order.InTransitStatus,
         Order.PartiallyInTransitStatus,
+        Order.PendingPreparationStatus,
+        Order.PartiallyPendingPreparationStatus,
         Order.PartiallyReadyStatus,
         Order.ReadyToDeliverStatus
     ];
@@ -846,6 +848,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private static OrderItem ToOrderItem(Order order)
     {
+        var palette = OrderStatusDisplayPalette.Resolve(order);
         return new OrderItem
         {
             Id = order.Id,
@@ -870,6 +873,9 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             Phone = order.Phone ?? string.Empty,
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
             OrderStatus = NormalizeOrderStatus(order.OrderStatus),
+            OrderStatusBadgeBackground = palette.BackgroundHex,
+            OrderStatusBadgeBorderBrush = palette.BorderHex,
+            OrderStatusBadgeForeground = palette.ForegroundHex,
             ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
             Notes = order.Notes ?? string.Empty,
             IsArchived = order.IsArchived
@@ -976,6 +982,9 @@ public sealed class OrderItem : ObservableObject
     private string _phone = string.Empty;
     private string _deliveryType = string.Empty;
     private string _orderStatus = string.Empty;
+    private string _orderStatusBadgeBackground = "#E8F1FF";
+    private string _orderStatusBadgeBorderBrush = "#BFDBFE";
+    private string _orderStatusBadgeForeground = "#2563EB";
     private string _productsSummary = string.Empty;
     private string _notes = string.Empty;
     private bool _isArchived;
@@ -1172,6 +1181,24 @@ public sealed class OrderItem : ObservableObject
         set => SetProperty(ref _orderStatus, value);
     }
 
+    public string OrderStatusBadgeBackground
+    {
+        get => _orderStatusBadgeBackground;
+        set => SetProperty(ref _orderStatusBadgeBackground, value);
+    }
+
+    public string OrderStatusBadgeBorderBrush
+    {
+        get => _orderStatusBadgeBorderBrush;
+        set => SetProperty(ref _orderStatusBadgeBorderBrush, value);
+    }
+
+    public string OrderStatusBadgeForeground
+    {
+        get => _orderStatusBadgeForeground;
+        set => SetProperty(ref _orderStatusBadgeForeground, value);
+    }
+
     public string ProductsSummary
     {
         get => _productsSummary;
@@ -1197,6 +1224,60 @@ public sealed class OrderItem : ObservableObject
             (street ?? string.Empty).Trim(),
             (houseNumber ?? string.Empty).Trim()
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+}
+
+internal readonly record struct OrderStatusPalette(string BackgroundHex, string BorderHex, string ForegroundHex);
+
+internal static class OrderStatusDisplayPalette
+{
+    private static readonly OrderStatusPalette BluePalette = new("#E8F1FF", "#BFDBFE", "#2563EB");
+    private static readonly OrderStatusPalette GreenPalette = new("#ECFDF3", "#BBF7D0", "#16A34A");
+    private static readonly OrderStatusPalette PurplePalette = new("#F3E8FF", "#D8B4FE", "#9333EA");
+    private static readonly OrderStatusPalette OrangePalette = new("#FFF3E6", "#FDBA74", "#EA580C");
+    private static readonly OrderStatusPalette AmberPalette = new("#FFF7ED", "#FCD34D", "#D97706");
+
+    public static OrderStatusPalette Resolve(Order order)
+    {
+        var normalizedStatus = Order.NormalizeOrderStatus(order.OrderStatus);
+        if (string.Equals(normalizedStatus, Order.PartiallyPendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            var baseStatus = Order.ResolvePartiallyPendingPreparationBaseStatus(order.Products);
+            return Resolve(baseStatus);
+        }
+
+        return Resolve(normalizedStatus);
+    }
+
+    public static OrderStatusPalette Resolve(string? orderStatus)
+    {
+        var normalizedStatus = Order.NormalizeOrderStatus(orderStatus);
+        if (string.Equals(normalizedStatus, Order.PartiallyReadyStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return GreenPalette;
+        }
+
+        if (string.Equals(normalizedStatus, Order.ReadyToDeliverStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return PurplePalette;
+        }
+
+        if (string.Equals(normalizedStatus, Order.InTransitStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return OrangePalette;
+        }
+
+        if (string.Equals(normalizedStatus, Order.PendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return GreenPalette;
+        }
+
+        if (string.Equals(normalizedStatus, Order.PartiallyInTransitStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return AmberPalette;
+        }
+
+        return BluePalette;
     }
 }
 

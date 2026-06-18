@@ -93,54 +93,12 @@
         </Style>
 
         <Style x:Key="DialogOrderStatusBadgeStyle" TargetType="Border">
-            <Setter Property="Background" Value="#FFFFFFFF" />
-            <Setter Property="BorderBrush" Value="#D7E0EC" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Padding" Value="10,6" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding SelectedStatus}" Value="Bestellt">
-                    <Setter Property="Background" Value="#FFE0F2FE" />
-                    <Setter Property="BorderBrush" Value="#FF0EA5E9" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding SelectedStatus}" Value="Unterwegs">
-                    <Setter Property="Background" Value="#FFFEF3C7" />
-                    <Setter Property="BorderBrush" Value="#FFF59E0B" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding SelectedStatus}" Value="Teilweise Unterwegs">
-                    <Setter Property="Background" Value="#FFE0F2FE" />
-                    <Setter Property="BorderBrush" Value="#FF0EA5E9" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding SelectedStatus}" Value="Teilweise bereit">
-                    <Setter Property="Background" Value="#FFFDE68A" />
-                    <Setter Property="BorderBrush" Value="#FFEAB308" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding SelectedStatus}" Value="Lieferbereit">
-                    <Setter Property="Background" Value="#FFDCFCE7" />
-                    <Setter Property="BorderBrush" Value="#FF16A34A" />
-                </DataTrigger>
-            </Style.Triggers>
         </Style>
 
         <Style x:Key="DialogOrderStatusDotStyle" TargetType="Ellipse">
-            <Setter Property="Fill" Value="#94A3B8" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding SelectedStatus}" Value="Bestellt">
-                    <Setter Property="Fill" Value="#FF0EA5E9" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding SelectedStatus}" Value="Unterwegs">
-                    <Setter Property="Fill" Value="#FFF59E0B" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding SelectedStatus}" Value="Teilweise Unterwegs">
-                    <Setter Property="Fill" Value="#FF0EA5E9" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding SelectedStatus}" Value="Teilweise bereit">
-                    <Setter Property="Fill" Value="#FFEAB308" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding SelectedStatus}" Value="Lieferbereit">
-                    <Setter Property="Fill" Value="#FF16A34A" />
-                </DataTrigger>
-            </Style.Triggers>
         </Style>
 
         <Style x:Key="ManualOrderTabControlStyle" TargetType="TabControl">
@@ -284,12 +242,15 @@
                             <Border MinHeight="38"
                                     Margin="0,4,0,0"
                                     VerticalAlignment="Top"
+                                    Background="{Binding SelectedStatusBadgeBackground}"
+                                    BorderBrush="{Binding SelectedStatusBadgeBorderBrush}"
                                     Style="{StaticResource DialogOrderStatusBadgeStyle}">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                                     <Ellipse Width="8"
                                              Height="8"
                                              Margin="0,0,8,0"
                                              VerticalAlignment="Center"
+                                             Fill="{Binding SelectedStatusBadgeForeground}"
                                              Style="{StaticResource DialogOrderStatusDotStyle}" />
                                     <TextBlock VerticalAlignment="Center"
                                                FontWeight="SemiBold"

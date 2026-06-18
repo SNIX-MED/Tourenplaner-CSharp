@@ -1,4 +1,4 @@
-<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.SettingsSectionView"
+﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.SettingsSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:Tourenplaner.CSharp.App.Converters"
@@ -824,6 +824,13 @@
                                         </Border>
                                         <Border Style="{StaticResource ColorPreviewCardStyle}">
                                             <StackPanel>
+                                                <Border Height="46" CornerRadius="14" Background="{Binding StatusColorPendingPreparation}" />
+                                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Zu richten / Teilweise zu richten" />
+                                                <Button Margin="0,8,0,0" Style="{StaticResource ColorPreviewActionButtonStyle}" Content="Farbe ändern" Command="{Binding PickStatusColorPendingPreparationCommand}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource ColorPreviewCardStyle}">
+                                            <StackPanel>
                                                 <Border Height="46" CornerRadius="14" Background="{Binding StatusColorInStock}" />
                                                 <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Lieferbereit" />
                                                 <Button Margin="0,8,0,0" Style="{StaticResource ColorPreviewActionButtonStyle}" Content="Farbe ändern" Command="{Binding PickStatusColorInStockCommand}" />
@@ -1567,3 +1574,5 @@
         </ScrollViewer>
     </Grid>
 </UserControl>
+
+

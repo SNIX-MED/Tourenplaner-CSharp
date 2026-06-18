@@ -57,6 +57,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _statusColorNotSpecified = AppSettings.DefaultStatusColorNotSpecified;
     private string _statusColorOrdered = AppSettings.DefaultStatusColorOrdered;
     private string _statusColorOnTheWay = AppSettings.DefaultStatusColorOnTheWay;
+    private string _statusColorPendingPreparation = AppSettings.DefaultStatusColorPendingPreparation;
     private string _statusColorInStock = AppSettings.DefaultStatusColorInStock;
     private string _statusColorPlanned = AppSettings.DefaultStatusColorPlanned;
     private string _calendarLoadWarningColor = AppSettings.DefaultCalendarLoadWarningColor;
@@ -184,6 +185,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             () => StatusColorOnTheWay,
             AppSettings.DefaultStatusColorOnTheWay,
             value => StatusColorOnTheWay = value);
+        PickStatusColorPendingPreparationCommand = CreateColorPickerCommand(
+            "Zu richten / Teilweise zu richten",
+            "Statusfarbe für zu richtende oder teilweise zu richtende Aufträge.",
+            () => StatusColorPendingPreparation,
+            AppSettings.DefaultStatusColorPendingPreparation,
+            value => StatusColorPendingPreparation = value);
         PickStatusColorInStockCommand = CreateColorPickerCommand(
             "Lieferbereit",
             "Statusfarbe für voll lieferbereite Aufträge.",
@@ -264,6 +271,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public ICommand PickStatusColorOrderedCommand { get; }
 
     public ICommand PickStatusColorOnTheWayCommand { get; }
+
+    public ICommand PickStatusColorPendingPreparationCommand { get; }
 
     public ICommand PickStatusColorInStockCommand { get; }
 
@@ -476,6 +485,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _statusColorOnTheWay;
         set => SetColorProperty(ref _statusColorOnTheWay, value, AppSettings.DefaultStatusColorOnTheWay);
+    }
+
+    public string StatusColorPendingPreparation
+    {
+        get => _statusColorPendingPreparation;
+        set => SetColorProperty(ref _statusColorPendingPreparation, value, AppSettings.DefaultStatusColorPendingPreparation);
     }
 
     public string StatusColorInStock
@@ -949,6 +964,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(StatusColorNotSpecified) or
             nameof(StatusColorOrdered) or
             nameof(StatusColorOnTheWay) or
+            nameof(StatusColorPendingPreparation) or
             nameof(StatusColorInStock) or
             nameof(StatusColorPlanned) or
             nameof(CalendarLoadWarningColor) or
@@ -1200,6 +1216,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         StatusColorNotSpecified = AppSettings.DefaultStatusColorNotSpecified;
         StatusColorOrdered = AppSettings.DefaultStatusColorOrdered;
         StatusColorOnTheWay = AppSettings.DefaultStatusColorOnTheWay;
+        StatusColorPendingPreparation = AppSettings.DefaultStatusColorPendingPreparation;
         StatusColorInStock = AppSettings.DefaultStatusColorInStock;
         StatusColorPlanned = AppSettings.DefaultStatusColorPlanned;
         CalendarLoadWarningColor = AppSettings.DefaultCalendarLoadWarningColor;
@@ -1232,6 +1249,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         userPreference.StatusColorNotSpecified = NormalizeHexColor(StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
         userPreference.StatusColorOrdered = NormalizeHexColor(StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
         userPreference.StatusColorOnTheWay = NormalizeHexColor(StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+        userPreference.StatusColorPendingPreparation = NormalizeHexColor(StatusColorPendingPreparation, AppSettings.DefaultStatusColorPendingPreparation);
         userPreference.StatusColorInStock = NormalizeHexColor(StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         userPreference.StatusColorPlanned = NormalizeHexColor(StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
         userPreference.CalendarLoadWarningColor = NormalizeHexColor(CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);
@@ -1310,6 +1328,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         StatusColorNotSpecified = NormalizeHexColor(userPreference.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
         StatusColorOrdered = NormalizeHexColor(userPreference.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
         StatusColorOnTheWay = NormalizeHexColor(userPreference.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+        StatusColorPendingPreparation = NormalizeHexColor(userPreference.StatusColorPendingPreparation, AppSettings.DefaultStatusColorPendingPreparation);
         StatusColorInStock = NormalizeHexColor(userPreference.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         StatusColorPlanned = NormalizeHexColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
         CalendarLoadWarningColor = NormalizeHexColor(userPreference.CalendarLoadWarningColor, AppSettings.DefaultCalendarLoadWarningColor);

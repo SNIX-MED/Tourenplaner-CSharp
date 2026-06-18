@@ -32,6 +32,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private const string AvisoBadgeColorNotAvisiert = "#64748B";
     private const string AvisoBadgeColorInformiert = "#F59E0B";
     private const string AvisoBadgeColorBestaetigt = "#16A34A";
+    private const string ProductStatusColorPendingPreparation = "#16A34A";
     private static readonly string[] PlannedTourOverlayPalette =
     [
         "#2563EB",
@@ -49,6 +50,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         Order.OrderedStatus,
         Order.InTransitStatus,
         Order.PartiallyInTransitStatus,
+        Order.PendingPreparationStatus,
+        Order.PartiallyPendingPreparationStatus,
         Order.PartiallyReadyStatus,
         Order.ReadyToDeliverStatus
     ];
@@ -103,6 +106,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _statusColorNotSpecified = AppSettings.DefaultStatusColorNotSpecified;
     private string _statusColorOrdered = AppSettings.DefaultStatusColorOrdered;
     private string _statusColorOnTheWay = AppSettings.DefaultStatusColorOnTheWay;
+    private string _statusColorPendingPreparation = AppSettings.DefaultStatusColorPendingPreparation;
     private string _statusColorInStock = AppSettings.DefaultStatusColorInStock;
     private string _statusColorPlanned = AppSettings.DefaultStatusColorPlanned;
     private bool _mapUseDistinctPlannedTourColors = true;
@@ -349,6 +353,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public string LegendStatusColorNotSpecified => _statusColorNotSpecified;
     public string LegendStatusColorOrdered => _statusColorOrdered;
     public string LegendStatusColorOnTheWay => _statusColorOnTheWay;
+    public string LegendStatusColorPendingPreparation => _statusColorPendingPreparation;
     public string LegendStatusColorInStock => _statusColorInStock;
     public string LegendStatusColorPlanned => _statusColorPlanned;
     public string LegendAvisoBadgeColorNotAvisiert => AvisoBadgeColorNotAvisiert;
@@ -922,12 +927,13 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
                     _suppressDetailStatusSave = false;
                     _suppressDetailAvisoStatusSave = false;
                 }
-                ClearDetailProductSelection(raiseDetailItemsChanged: false);
+                ResetDetailProductSelectionForCurrentOrder(raiseDetailItemsChanged: false);
                 OnPropertyChanged(nameof(DetailAddress));
                 OnPropertyChanged(nameof(DetailCustomer));
                 OnPropertyChanged(nameof(DetailOrderNumber));
                 OnPropertyChanged(nameof(DetailOrderStatus));
                 OnPropertyChanged(nameof(DetailOrderStatusColor));
+                OnPropertyChanged(nameof(DetailOrderStatusBadgeBackgroundColor));
                 OnPropertyChanged(nameof(DetailAvisoStatus));
                 OnPropertyChanged(nameof(CanEditDetailAvisoStatus));
                 OnPropertyChanged(nameof(DetailTourStatus));
@@ -980,6 +986,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _statusColorNotSpecified = NormalizeStatusColor(userPreference.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
         _statusColorOrdered = NormalizeStatusColor(userPreference.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
         _statusColorOnTheWay = NormalizeStatusColor(userPreference.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+        _statusColorPendingPreparation = NormalizeStatusColor(userPreference.StatusColorPendingPreparation, AppSettings.DefaultStatusColorPendingPreparation);
         _statusColorInStock = NormalizeStatusColor(userPreference.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         _statusColorPlanned = NormalizeStatusColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
         _mapUseDistinctPlannedTourColors = userPreference.MapUseDistinctPlannedTourColors;
@@ -1098,7 +1105,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public string DetailCustomer => FormatDeliveryAddress(FindSelectedOrderModel());
     public string DetailOrderNumber => SelectedOrder?.OrderId ?? "n/a";
     public string DetailOrderStatus => FindSelectedOrderModel()?.OrderStatus ?? SelectedOrder?.StatusLabel ?? Order.DefaultOrderStatus;
-    public string DetailOrderStatusColor => ResolveOrderStatusColor(DetailOrderStatus, isAssigned: false);
+    public string DetailOrderStatusColor => ResolveOrderStatusColor(FindSelectedOrderModel(), isAssigned: false);
+    public string DetailOrderStatusBadgeBackgroundColor => CreateOrderStatusBackground(FindSelectedOrderModel(), DetailOrderStatusColor);
     public string DetailAvisoStatus => NormalizeAvisoStatus(FindSelectedOrderModel()?.AvisoStatus);
     public bool CanEditDetailAvisoStatus
     {
@@ -1256,14 +1264,19 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 DeliveryLabel: "Frei Bordsteinkante",
                 StatusLabel: Order.DefaultOrderStatus,
                 IsAssigned: false,
-                AvisoStatusLabel: "nicht avisiert");
+                AvisoStatusLabel: "nicht avisiert",
+                HasPendingPreparation: false,
+                StatusColorHex: ResolveOrderStatusColor((string?)null, isAssigned: false));
         }
 
+        var isAssigned = IsOrderAssignedOrInDraftRoute(order);
         return new MapOrderVisualInfo(
             DeliveryLabel: NormalizeDeliveryType(order.DeliveryType),
             StatusLabel: NormalizeOrderStatus(order.OrderStatus),
-            IsAssigned: IsOrderAssignedOrInDraftRoute(order),
-            AvisoStatusLabel: NormalizeAvisoStatus(order.AvisoStatus));
+            IsAssigned: isAssigned,
+            AvisoStatusLabel: NormalizeAvisoStatus(order.AvisoStatus),
+            HasPendingPreparation: HasPendingPreparationProduct(order.Products),
+            StatusColorHex: ResolveOrderStatusColor(order, isAssigned));
     }
 
     public IReadOnlyList<GeoPoint> GetRouteGeometrySnapshot()
@@ -1842,7 +1855,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             var statuses = mapOrders
                 .Select(o => NormalizeOrderStatus(o.OrderStatus))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(GetOrderStatusSortIndex)
+                .ThenBy(x => x, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var deliveryTypes = mapOrders
                 .Select(o => NormalizeDeliveryType(o.DeliveryType))
@@ -1899,6 +1913,20 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             option.PropertyChanged += OnOrderFilterOptionChanged;
             target.Add(option);
         }
+    }
+
+    private static int GetOrderStatusSortIndex(string? status)
+    {
+        var normalized = NormalizeOrderStatus(status);
+        for (var i = 0; i < _orderStatusOptions.Count; i++)
+        {
+            if (string.Equals(_orderStatusOptions[i], normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return int.MaxValue;
     }
 
     private void OnOrderFilterOptionChanged(object? sender, PropertyChangedEventArgs e)
@@ -2033,12 +2061,14 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         OnPropertyChanged(nameof(LegendStatusColorNotSpecified));
         OnPropertyChanged(nameof(LegendStatusColorOrdered));
         OnPropertyChanged(nameof(LegendStatusColorOnTheWay));
+        OnPropertyChanged(nameof(LegendStatusColorPendingPreparation));
         OnPropertyChanged(nameof(LegendStatusColorInStock));
         OnPropertyChanged(nameof(LegendStatusColorPlanned));
         OnPropertyChanged(nameof(LegendAvisoBadgeColorNotAvisiert));
         OnPropertyChanged(nameof(LegendAvisoBadgeColorInformiert));
         OnPropertyChanged(nameof(LegendAvisoBadgeColorBestaetigt));
         OnPropertyChanged(nameof(DetailOrderStatusColor));
+        OnPropertyChanged(nameof(DetailOrderStatusBadgeBackgroundColor));
         OnPropertyChanged(nameof(DetailProductItems));
     }
 
@@ -5268,6 +5298,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         OnPropertyChanged(nameof(DetailProductItems));
         OnPropertyChanged(nameof(DetailOrderStatus));
         OnPropertyChanged(nameof(DetailOrderStatusColor));
+        OnPropertyChanged(nameof(DetailOrderStatusBadgeBackgroundColor));
         RefreshRouteVisualsAfterOrderMutation();
         PublishOrderChange(order.Id, order.Id);
         StatusText = $"Produkt in Auftrag {order.Id} wurde aktualisiert.";
@@ -5328,6 +5359,51 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
 
         _selectedDetailProductIndices.Clear();
+        if (raiseDetailItemsChanged)
+        {
+            OnPropertyChanged(nameof(DetailProductItems));
+        }
+
+        SyncDetailSelectedProductStatusFromSelection();
+        OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(DetailSelectedProductsSummary));
+        RaiseCommandStates();
+    }
+
+    private void ResetDetailProductSelectionForCurrentOrder(bool raiseDetailItemsChanged = true)
+    {
+        _selectedDetailProductIndices.Clear();
+        EnsureDetailProductSelection(raiseDetailItemsChanged);
+    }
+
+    private void EnsureDetailProductSelection(bool raiseDetailItemsChanged = true)
+    {
+        var order = FindSelectedOrderModel();
+        var products = order?.Products ?? [];
+        var hasSelectableProduct = false;
+
+        for (var index = 0; index < products.Count; index++)
+        {
+            var product = products[index];
+            if (product is null || string.IsNullOrWhiteSpace(product.Name))
+            {
+                continue;
+            }
+
+            hasSelectableProduct = true;
+            if (_selectedDetailProductIndices.Count == 0)
+            {
+                _selectedDetailProductIndices.Add(index);
+            }
+
+            break;
+        }
+
+        if (!hasSelectableProduct)
+        {
+            _selectedDetailProductIndices.Clear();
+        }
+
         if (raiseDetailItemsChanged)
         {
             OnPropertyChanged(nameof(DetailProductItems));
@@ -5409,11 +5485,12 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         order.OrderStatus = Order.ResolveOrderStatusFromProducts(products);
         await _orderRepository.SaveAllAsync(_allOrders);
         RebuildOrderGrid(order.Id);
-        ClearDetailProductSelection(raiseDetailItemsChanged: false);
+        EnsureDetailProductSelection(raiseDetailItemsChanged: false);
         OnPropertyChanged(nameof(DetailProducts));
         OnPropertyChanged(nameof(DetailProductItems));
         OnPropertyChanged(nameof(DetailOrderStatus));
         OnPropertyChanged(nameof(DetailOrderStatusColor));
+        OnPropertyChanged(nameof(DetailOrderStatusBadgeBackgroundColor));
         RefreshRouteVisualsAfterOrderMutation();
         PublishOrderChange(order.Id, order.Id);
         StatusText = $"{changedCount} Produkt(e) in Auftrag {order.Id} auf \"{normalizedStatus}\" gesetzt.";
@@ -5534,6 +5611,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 OnPropertyChanged(nameof(RouteStops));
                 OnPropertyChanged(nameof(DetailOrderStatus));
                 OnPropertyChanged(nameof(DetailOrderStatusColor));
+                OnPropertyChanged(nameof(DetailOrderStatusBadgeBackgroundColor));
                 PublishOrderChange(order.Id, order.Id);
             }
 
@@ -5574,6 +5652,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         OnPropertyChanged(nameof(RouteStops));
         OnPropertyChanged(nameof(DetailOrderStatus));
         OnPropertyChanged(nameof(DetailOrderStatusColor));
+        OnPropertyChanged(nameof(DetailOrderStatusBadgeBackgroundColor));
         StatusText = $"Status für Auftrag {order.Id} gespeichert.";
     }
 
@@ -5788,6 +5867,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             var nextStatusColorNotSpecified = NormalizeStatusColor(userPreference.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
             var nextStatusColorOrdered = NormalizeStatusColor(userPreference.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
             var nextStatusColorOnTheWay = NormalizeStatusColor(userPreference.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+            var nextStatusColorPendingPreparation = NormalizeStatusColor(userPreference.StatusColorPendingPreparation, AppSettings.DefaultStatusColorPendingPreparation);
             var nextStatusColorInStock = NormalizeStatusColor(userPreference.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
             var nextStatusColorPlanned = NormalizeStatusColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
             var nextMapUseDistinctPlannedTourColors = userPreference.MapUseDistinctPlannedTourColors;
@@ -5825,12 +5905,14 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             if (_statusColorNotSpecified != nextStatusColorNotSpecified ||
                 _statusColorOrdered != nextStatusColorOrdered ||
                 _statusColorOnTheWay != nextStatusColorOnTheWay ||
+                _statusColorPendingPreparation != nextStatusColorPendingPreparation ||
                 _statusColorInStock != nextStatusColorInStock ||
                 _statusColorPlanned != nextStatusColorPlanned)
             {
                 _statusColorNotSpecified = nextStatusColorNotSpecified;
                 _statusColorOrdered = nextStatusColorOrdered;
                 _statusColorOnTheWay = nextStatusColorOnTheWay;
+                _statusColorPendingPreparation = nextStatusColorPendingPreparation;
                 _statusColorInStock = nextStatusColorInStock;
                 _statusColorPlanned = nextStatusColorPlanned;
                 NotifyLegendColorsChanged();
@@ -6916,6 +6998,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     private MapOrderItem BuildMapOrderItem(Order order, bool isDimmed = false)
     {
         var totalWeightKg = Math.Max(0d, (order.Products ?? []).Sum(OrderProductFormatter.ResolveTotalWeightKg));
+        var isAssigned = IsOrderAssignedOrInDraftRoute(order);
         return new MapOrderItem
         {
             OrderId = order.Id,
@@ -6928,13 +7011,15 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             TotalWeightKgText = totalWeightKg.ToString("0.##", CultureInfo.CurrentCulture),
             ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
             AssignedTourId = order.AssignedTourId ?? string.Empty,
-            IsAssigned = IsOrderAssignedOrInDraftRoute(order),
+            IsAssigned = isAssigned,
             Latitude = order.Location?.Latitude ?? double.NaN,
             Longitude = order.Location?.Longitude ?? double.NaN,
             DeliveryLabel = NormalizeDeliveryType(order.DeliveryType),
             StatusLabel = NormalizeOrderStatus(order.OrderStatus),
+            StatusColorHex = ResolveOrderStatusColor(order, isAssigned),
             AvisoStatusLabel = NormalizeAvisoStatus(order.AvisoStatus),
             TourStatusLabel = ResolveTourStatus(order),
+            HasPendingPreparation = HasPendingPreparationProduct(order.Products),
             IsDimmed = isDimmed,
             IsBatchSelected = _selectedBatchOrderIds.Contains(order.Id)
         };
@@ -7035,6 +7120,16 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         return lines;
     }
 
+    private static bool HasPendingPreparationProduct(IEnumerable<OrderProductInfo>? products)
+    {
+        return (products ?? []).Any(product =>
+            product is not null &&
+            string.Equals(
+                OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus),
+                OrderProductInfo.PendingPreparationStatus,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string NormalizeUiText(string? value)
     {
         var current = (value ?? string.Empty).Trim();
@@ -7127,6 +7222,16 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return _statusColorOrdered;
         }
 
+        if (string.Equals(normalized, Order.PendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return _statusColorInStock;
+        }
+
+        if (string.Equals(normalized, Order.PartiallyPendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return _statusColorPendingPreparation;
+        }
+
         if (string.Equals(normalized, Order.InTransitStatus, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(normalized, Order.PartiallyReadyStatus, StringComparison.OrdinalIgnoreCase))
         {
@@ -7139,6 +7244,34 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
 
         return _statusColorNotSpecified;
+    }
+
+    public string ResolveOrderStatusColor(Order? order, bool isAssigned)
+    {
+        if (order is null)
+        {
+            return ResolveOrderStatusColor((string?)null, isAssigned);
+        }
+
+        var normalizedStatus = NormalizeOrderStatus(order.OrderStatus);
+        if (string.Equals(normalizedStatus, Order.PartiallyPendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            var baseStatus = Order.ResolvePartiallyPendingPreparationBaseStatus(order.Products);
+            return ResolveOrderStatusColor(baseStatus, isAssigned);
+        }
+
+        return ResolveOrderStatusColor(normalizedStatus, isAssigned);
+    }
+
+    private string ResolveProductDeliveryStatusColor(string? deliveryStatus)
+    {
+        var normalized = OrderProductInfo.NormalizeDeliveryStatus(deliveryStatus);
+        if (string.Equals(normalized, OrderProductInfo.PendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return ProductStatusColorPendingPreparation;
+        }
+
+        return ResolveOrderStatusColor(normalized, isAssigned: false);
     }
 
     private static string NormalizeStatusColor(string? value, string fallback)
@@ -7169,7 +7302,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             var weightLine = $"{unitWeightKg.ToString("0.##", culture)} kg/Stk";
             var totalLine = $"Gesamt: {totalWeightKg.ToString("0.##", culture)} kg";
             var deliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus);
-            var borderColor = ResolveOrderStatusColor(deliveryStatus, isAssigned: false);
+            var borderColor = ResolveProductDeliveryStatusColor(deliveryStatus);
             var backgroundColor = CreateSoftStatusBackground(deliveryStatus, borderColor);
 
             items.Add(new DetailProductItem(
@@ -7194,6 +7327,23 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 OrderProductInfo.NormalizeDeliveryStatus(deliveryStatus),
                 OrderProductInfo.DefaultDeliveryStatus,
                 StringComparison.OrdinalIgnoreCase))
+        {
+            return "#FFFFFFFF";
+        }
+
+        var normalized = (statusColor ?? string.Empty).Trim();
+        if (normalized.Length == 7 && normalized.StartsWith('#'))
+        {
+            return $"#33{normalized[1..]}";
+        }
+
+        return "#FFF8FAFC";
+    }
+
+    private static string CreateOrderStatusBackground(Order? order, string? statusColor)
+    {
+        var normalizedStatus = Order.NormalizeOrderStatus(order?.OrderStatus);
+        if (string.Equals(normalizedStatus, Order.DefaultOrderStatus, StringComparison.OrdinalIgnoreCase))
         {
             return "#FFFFFFFF";
         }
@@ -7265,8 +7415,10 @@ public sealed class MapOrderItem
     public double Longitude { get; set; }
     public string DeliveryLabel { get; set; } = "Frei Bordsteinkante";
     public string StatusLabel { get; set; } = Order.DefaultOrderStatus;
+    public string StatusColorHex { get; set; } = AppSettings.DefaultStatusColorNotSpecified;
     public string AvisoStatusLabel { get; set; } = "nicht avisiert";
     public string TourStatusLabel { get; set; } = "Offen";
+    public bool HasPendingPreparation { get; set; }
     public bool IsDimmed { get; set; }
     public bool IsBatchSelected { get; set; }
 }
@@ -7613,7 +7765,7 @@ public sealed class RouteStopItem : ObservableObject
     }
 }
 
-public sealed record MapOrderVisualInfo(string DeliveryLabel, string StatusLabel, bool IsAssigned, string AvisoStatusLabel);
+public sealed record MapOrderVisualInfo(string DeliveryLabel, string StatusLabel, bool IsAssigned, string AvisoStatusLabel, bool HasPendingPreparation, string StatusColorHex);
 
 public sealed record CompanyMarkerInfo(string Name, string Address, double Latitude, double Longitude);
 

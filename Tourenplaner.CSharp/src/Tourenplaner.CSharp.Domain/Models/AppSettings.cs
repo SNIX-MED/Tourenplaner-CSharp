@@ -6,6 +6,7 @@ public sealed class AppSettings
     public const string DefaultStatusColorNotSpecified = "#A3A3A3";
     public const string DefaultStatusColorOrdered = "#0EA5E9";
     public const string DefaultStatusColorOnTheWay = "#F59E0B";
+    public const string DefaultStatusColorPendingPreparation = "#F97316";
     public const string DefaultStatusColorInStock = "#16A34A";
     public const string DefaultStatusColorPlanned = "#64748B";
     public const string DefaultCalendarLoadWarningColor = "#F59E0B";
@@ -29,6 +30,7 @@ public sealed class AppSettings
     public string StatusColorNotSpecified { get; set; } = DefaultStatusColorNotSpecified;
     public string StatusColorOrdered { get; set; } = DefaultStatusColorOrdered;
     public string StatusColorOnTheWay { get; set; } = DefaultStatusColorOnTheWay;
+    public string StatusColorPendingPreparation { get; set; } = DefaultStatusColorPendingPreparation;
     public string StatusColorInStock { get; set; } = DefaultStatusColorInStock;
     public string StatusColorPlanned { get; set; } = DefaultStatusColorPlanned;
     public string CalendarLoadWarningColor { get; set; } = DefaultCalendarLoadWarningColor;
@@ -112,6 +114,7 @@ public sealed class AppSettings
             StatusColorNotSpecified = StatusColorNotSpecified,
             StatusColorOrdered = StatusColorOrdered,
             StatusColorOnTheWay = StatusColorOnTheWay,
+            StatusColorPendingPreparation = StatusColorPendingPreparation,
             StatusColorInStock = StatusColorInStock,
             StatusColorPlanned = StatusColorPlanned,
             CalendarLoadWarningColor = CalendarLoadWarningColor,
@@ -152,6 +155,7 @@ public sealed class UserAppPreference
     public string StatusColorNotSpecified { get; set; } = AppSettings.DefaultStatusColorNotSpecified;
     public string StatusColorOrdered { get; set; } = AppSettings.DefaultStatusColorOrdered;
     public string StatusColorOnTheWay { get; set; } = AppSettings.DefaultStatusColorOnTheWay;
+    public string StatusColorPendingPreparation { get; set; } = AppSettings.DefaultStatusColorPendingPreparation;
     public string StatusColorInStock { get; set; } = AppSettings.DefaultStatusColorInStock;
     public string StatusColorPlanned { get; set; } = AppSettings.DefaultStatusColorPlanned;
     public string CalendarLoadWarningColor { get; set; } = AppSettings.DefaultCalendarLoadWarningColor;
@@ -191,6 +195,7 @@ public sealed class UserAppPreference
             StatusColorNotSpecified = StatusColorNotSpecified,
             StatusColorOrdered = StatusColorOrdered,
             StatusColorOnTheWay = StatusColorOnTheWay,
+            StatusColorPendingPreparation = StatusColorPendingPreparation,
             StatusColorInStock = StatusColorInStock,
             StatusColorPlanned = StatusColorPlanned,
             CalendarLoadWarningColor = CalendarLoadWarningColor,

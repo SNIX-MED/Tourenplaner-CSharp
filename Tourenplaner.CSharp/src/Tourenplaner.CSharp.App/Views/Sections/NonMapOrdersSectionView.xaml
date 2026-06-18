@@ -85,31 +85,6 @@
             <Setter Property="Padding" Value="10,4" />
             <Setter Property="CornerRadius" Value="8" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="#E8F1FF" />
-            <Setter Property="BorderBrush" Value="#BFDBFE" />
-            <Setter Property="Tag" Value="#2563EB" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding OrderStatus}" Value="Teilweise bereit">
-                    <Setter Property="Background" Value="#ECFDF3" />
-                    <Setter Property="BorderBrush" Value="#BBF7D0" />
-                    <Setter Property="Tag" Value="#16A34A" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding OrderStatus}" Value="Lieferbereit">
-                    <Setter Property="Background" Value="#F3E8FF" />
-                    <Setter Property="BorderBrush" Value="#D8B4FE" />
-                    <Setter Property="Tag" Value="#9333EA" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding OrderStatus}" Value="Unterwegs">
-                    <Setter Property="Background" Value="#FFF3E6" />
-                    <Setter Property="BorderBrush" Value="#FDBA74" />
-                    <Setter Property="Tag" Value="#EA580C" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding OrderStatus}" Value="Teilweise Unterwegs">
-                    <Setter Property="Background" Value="#FFF7ED" />
-                    <Setter Property="BorderBrush" Value="#FCD34D" />
-                    <Setter Property="Tag" Value="#D97706" />
-                </DataTrigger>
-            </Style.Triggers>
         </Style>
 
         <Style x:Key="DeliveryTypeBadgeTextStyle" TargetType="TextBlock">
@@ -542,6 +517,9 @@
                                     <StackPanel VerticalAlignment="Center">
                                         <Border x:Name="DeliveryTypeBadge"
                                                 HorizontalAlignment="Left"
+                                                Background="{Binding OrderStatusBadgeBackground}"
+                                                BorderBrush="{Binding OrderStatusBadgeBorderBrush}"
+                                                Tag="{Binding OrderStatusBadgeForeground}"
                                                 Style="{StaticResource DeliveryTypeBadgeStyle}">
                                             <TextBlock Style="{StaticResource DeliveryTypeBadgeTextStyle}" Text="{Binding DeliveryType}" />
                                         </Border>
