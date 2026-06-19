@@ -23,7 +23,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="Root"
-                                CornerRadius="14"
+                                CornerRadius="{DynamicResource Radius.ControlMd}"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}">
@@ -90,7 +90,7 @@
         <Style x:Key="TopbarFilterSegmentHostStyle" TargetType="Border">
             <Setter Property="Height" Value="40" />
             <Setter Property="Padding" Value="3" />
-            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Pill}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
             <Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" />
@@ -127,7 +127,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Root"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="10">
+                                CornerRadius="{DynamicResource Radius.ControlMd}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}" />
@@ -798,7 +798,7 @@
                                     Margin="0,0,8,0"
                                     Padding="10,0"
                                     Height="40"
-                                    CornerRadius="14"
+                                    CornerRadius="{DynamicResource Radius.ContainerLg}"
                                     BorderBrush="{DynamicResource Brush.BorderSoft}"
                                     BorderThickness="1"
                                     Background="{DynamicResource Brush.CardMuted}">
@@ -836,10 +836,11 @@
                                                PopupAnimation="Fade">
                                             <Border Margin="0,6,0,0"
                                                     Padding="10"
-                                                    CornerRadius="14"
+                                                    CornerRadius="{DynamicResource Radius.ContainerLg}"
                                                     Background="{DynamicResource Brush.Card}"
                                                     BorderBrush="{DynamicResource Brush.InputBorder}"
-                                                    BorderThickness="1">
+                                                    BorderThickness="1"
+                                                    Effect="{DynamicResource Shadow.Overlay}">
                                                 <StackPanel Width="244">
                                                     <Grid Margin="0,0,0,8">
                                                         <Grid.ColumnDefinitions>
@@ -852,7 +853,7 @@
                                                                 FontFamily="Segoe Fluent Icons"
                                                                 Content="&#xE76B;"
                                                                 Command="{Binding PreviousFromMonthCommand}" />
-                                                        <Border Grid.Column="1" Margin="8,0" CornerRadius="10"
+                                                        <Border Grid.Column="1" Margin="8,0" CornerRadius="{DynamicResource Radius.ControlMd}"
                                                                 Background="{DynamicResource Brush.CardMuted}"
                                                                 BorderBrush="{DynamicResource Brush.InputBorder}"
                                                                 BorderThickness="1">
@@ -895,7 +896,7 @@
                                                         </ListBox.ItemContainerStyle>
                                                         <ListBox.ItemTemplate>
                                                             <DataTemplate>
-                                                                <Border x:Name="TopbarFromDayRoot" Width="30" Height="30" CornerRadius="10"
+                                                                <Border x:Name="TopbarFromDayRoot" Width="30" Height="30" CornerRadius="{DynamicResource Radius.ControlMd}"
                                                                         Background="Transparent" BorderBrush="Transparent" BorderThickness="1">
                                                                     <TextBlock x:Name="TopbarFromDayText" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding DayText}" />
                                                                 </Border>
@@ -954,10 +955,11 @@
                                                PopupAnimation="Fade">
                                             <Border Margin="0,6,0,0"
                                                     Padding="10"
-                                                    CornerRadius="14"
+                                                    CornerRadius="{DynamicResource Radius.ContainerLg}"
                                                     Background="{DynamicResource Brush.Card}"
                                                     BorderBrush="{DynamicResource Brush.InputBorder}"
-                                                    BorderThickness="1">
+                                                    BorderThickness="1"
+                                                    Effect="{DynamicResource Shadow.Overlay}">
                                                 <StackPanel Width="244">
                                                     <Grid Margin="0,0,0,8">
                                                         <Grid.ColumnDefinitions>
@@ -970,7 +972,7 @@
                                                                 FontFamily="Segoe Fluent Icons"
                                                                 Content="&#xE76B;"
                                                                 Command="{Binding PreviousToMonthCommand}" />
-                                                        <Border Grid.Column="1" Margin="8,0" CornerRadius="10"
+                                                        <Border Grid.Column="1" Margin="8,0" CornerRadius="{DynamicResource Radius.ControlMd}"
                                                                 Background="{DynamicResource Brush.CardMuted}"
                                                                 BorderBrush="{DynamicResource Brush.InputBorder}"
                                                                 BorderThickness="1">
@@ -1013,7 +1015,7 @@
                                                         </ListBox.ItemContainerStyle>
                                                         <ListBox.ItemTemplate>
                                                             <DataTemplate>
-                                                                <Border x:Name="TopbarToDayRoot" Width="30" Height="30" CornerRadius="10"
+                                                                <Border x:Name="TopbarToDayRoot" Width="30" Height="30" CornerRadius="{DynamicResource Radius.ControlMd}"
                                                                         Background="Transparent" BorderBrush="Transparent" BorderThickness="1">
                                                                     <TextBlock x:Name="TopbarToDayText" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding DayText}" />
                                                                 </Border>
@@ -1326,7 +1328,7 @@
 
                             <Border Grid.Column="1"
                                     Margin="0,0,10,0"
-                                    CornerRadius="13"
+                                    CornerRadius="{DynamicResource Radius.Pill}"
                                     BorderThickness="1"
                                     BorderBrush="{DynamicResource Brush.BorderSoft}"
                                     Background="{DynamicResource Brush.CardMuted}">

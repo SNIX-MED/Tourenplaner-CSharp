@@ -510,11 +510,35 @@
 
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Button Grid.Column="0" Content="Schließen" Style="{StaticResource DarkButtonStyle}" Margin="0,0,8,0" IsCancel="True" />
-                <Button Grid.Column="1" Content="Speichern" Style="{StaticResource SuccessButtonStyle}" Margin="8,0,0,0" IsDefault="True" Click="OnSaveClicked" />
+                <Button x:Name="DeleteButton"
+                        Grid.Column="0"
+                        Width="110"
+                        Height="40"
+                        Margin="0,0,12,0"
+                        Content="Löschen"
+                        Style="{StaticResource DangerOutlineButtonStyle}"
+                        Visibility="Collapsed"
+                        Click="OnDeleteClicked" />
+                <Button Grid.Column="2"
+                        Width="120"
+                        Height="40"
+                        Margin="0,0,8,0"
+                        Content="Abbrechen"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        IsCancel="True"
+                        Click="OnCancelClicked" />
+                <Button Grid.Column="3"
+                        Width="120"
+                        Height="40"
+                        Content="Speichern"
+                        Style="{StaticResource SuccessButtonStyle}"
+                        IsDefault="True"
+                        Click="OnSaveClicked" />
             </Grid>
         </Grid>
     </Border>

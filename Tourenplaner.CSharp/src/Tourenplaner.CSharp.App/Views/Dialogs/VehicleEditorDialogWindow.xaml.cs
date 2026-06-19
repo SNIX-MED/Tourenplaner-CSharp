@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Windows;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
@@ -19,6 +19,8 @@ public partial class VehicleEditorDialogWindow : Window
 
     public VehicleEditorResult? Result { get; private set; }
 
+    public bool DeleteRequested { get; private set; }
+
     private void OnSetVehicleTypeClicked(object sender, RoutedEventArgs e)
     {
         ViewModel.SetTrailer(false);
@@ -35,11 +37,18 @@ public partial class VehicleEditorDialogWindow : Window
         Close();
     }
 
+    private void OnDeleteClicked(object sender, RoutedEventArgs e)
+    {
+        DeleteRequested = true;
+        DialogResult = false;
+        Close();
+    }
+
     private void OnSaveClicked(object sender, RoutedEventArgs e)
     {
         if (!ViewModel.TryBuildResult(out var result, out var error))
         {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, error, "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppMessageBox.Show(this, error, "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -95,6 +104,8 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
     }
 
     public string Heading => IsTrailer ? "Anhänger" : "Zugfahrzeug";
+
+    public bool HasExistingEntry => !string.IsNullOrWhiteSpace(_id);
 
     public bool IsTrailer
     {
@@ -206,6 +217,32 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
     {
         get => _outageEndDate;
         set => SetProperty(ref _outageEndDate, value);
+    }
+
+    public DateTime? OutageStartSelectedDate
+    {
+        get => ParseDateTime(_outageStartDate);
+        set
+        {
+            var normalized = FormatDate(value);
+            if (SetProperty(ref _outageStartDate, normalized))
+            {
+                OnPropertyChanged(nameof(OutageStartDate));
+            }
+        }
+    }
+
+    public DateTime? OutageEndSelectedDate
+    {
+        get => ParseDateTime(_outageEndDate);
+        set
+        {
+            var normalized = FormatDate(value);
+            if (SetProperty(ref _outageEndDate, normalized))
+            {
+                OnPropertyChanged(nameof(OutageEndDate));
+            }
+        }
     }
 
     public void SetTrailer(bool isTrailer)
@@ -364,22 +401,39 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         return true;
     }
 
-    private static string NormalizeType(string? raw, bool isTrailer)
+    private static string NormalizeType(string? type, bool isTrailer)
     {
-        if (isTrailer)
+        if (!string.IsNullOrWhiteSpace(type))
         {
-            return "trailer";
+            var trimmed = type.Trim();
+            if (isTrailer && !trimmed.Contains("Anh", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Anhänger";
+            }
+
+            if (!isTrailer && trimmed.Contains("Anh", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Zugfahrzeug";
+            }
+
+            return trimmed;
         }
 
-        var normalized = (raw ?? string.Empty).Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "truck" => "truck",
-            "van" => "van",
-            "car" => "car",
-            _ => "truck"
-        };
+        return isTrailer ? "Anhänger" : "Zugfahrzeug";
+    }
+
+    private static DateTime? ParseDateTime(string? raw)
+    {
+        var parsed = ResourceAvailabilityService.ParseDate(raw);
+        return parsed.HasValue
+            ? parsed.Value.ToDateTime(TimeOnly.MinValue)
+            : null;
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value.HasValue
+            ? DateOnly.FromDateTime(value.Value).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)
+            : string.Empty;
     }
 }
-
-

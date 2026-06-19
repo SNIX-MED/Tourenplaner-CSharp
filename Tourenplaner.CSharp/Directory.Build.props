@@ -5,10 +5,10 @@
     <Nullable>enable</Nullable>
     <LangVersion>12.0</LangVersion>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <Version>1.0.30</Version>
-    <AssemblyVersion>1.0.30.0</AssemblyVersion>
-    <FileVersion>1.0.30.0</FileVersion>
-    <InformationalVersion>1.0.30</InformationalVersion>
+    <Version>1.0.31</Version>
+    <AssemblyVersion>1.0.31.0</AssemblyVersion>
+    <FileVersion>1.0.31.0</FileVersion>
+    <InformationalVersion>1.0.31</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 </Project>

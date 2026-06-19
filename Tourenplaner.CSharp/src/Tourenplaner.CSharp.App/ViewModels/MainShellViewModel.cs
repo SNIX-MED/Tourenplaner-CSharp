@@ -560,7 +560,46 @@ public sealed class MainShellViewModel : ObservableObject
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        if (dialog.ShowDialog() != true || dialog.CreatedOrder is null)
+        var dialogResult = dialog.ShowDialog();
+        if (dialog.DeleteRequested)
+        {
+            var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Soll der Auftrag {existing.Id} wirklich gelöscht werden?",
+                "Auftrag löschen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                if (_orderMutationRepository is not null)
+                {
+                    await _orderMutationRepository.DeleteAsync(existing.Id, existing.ConcurrencyToken);
+                }
+                else
+                {
+                    orders.RemoveAll(x => string.Equals(x.Id, existing.Id, StringComparison.OrdinalIgnoreCase));
+                    await _orderRepository.SaveAllAsync(orders);
+                }
+            }
+            catch (ConcurrencyConflictException)
+            {
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                    "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Bitte oeffnen Sie den Auftrag erneut.",
+                    "Mehrbenutzerkonflikt",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            _dataSyncService.PublishOrders(_instanceId, existing.Id, null);
+            return;
+        }
+
+        if (dialogResult != true || dialog.CreatedOrder is null)
         {
             return;
         }

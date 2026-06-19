@@ -13,20 +13,39 @@ namespace Tourenplaner.CSharp.App.Views.Dialogs;
 
 public partial class ManualOrderDialogWindow : Window
 {
+    private readonly bool _isEditMode;
+
     public ManualOrderDialogWindow(
         Order? existingOrder = null,
         IReadOnlyList<string>? deliveryTypes = null,
         OrderType defaultOrderType = OrderType.Map)
     {
         InitializeComponent();
+        _isEditMode = existingOrder is not null;
         ViewModel = new ManualOrderDialogViewModel(existingOrder, deliveryTypes, defaultOrderType);
         DataContext = ViewModel;
         Title = existingOrder is null ? "Kundenkartei" : $"Auftrag bearbeiten - {existingOrder.Id}";
+        DeleteButton.Visibility = _isEditMode ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public ManualOrderDialogViewModel ViewModel { get; }
 
     public Order? CreatedOrder { get; private set; }
+
+    public bool DeleteRequested { get; private set; }
+
+    private void OnCancelClicked(object sender, RoutedEventArgs e)
+    {
+        DialogResult = false;
+        Close();
+    }
+
+    private void OnDeleteClicked(object sender, RoutedEventArgs e)
+    {
+        DeleteRequested = true;
+        DialogResult = false;
+        Close();
+    }
 
     private void OnSaveClicked(object sender, RoutedEventArgs e)
     {
@@ -41,6 +60,7 @@ public partial class ManualOrderDialogWindow : Window
             return;
         }
 
+        DeleteRequested = false;
         CreatedOrder = order;
         DialogResult = true;
         Close();

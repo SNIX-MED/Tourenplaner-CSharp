@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using Tourenplaner.CSharp.App.ViewModels;
@@ -22,8 +22,17 @@ public partial class VehicleCombinationEditorDialogWindow : Window
 
     public VehicleCombinationEditorResult? Result { get; private set; }
 
+    public bool DeleteRequested { get; private set; }
+
     private void OnCancelClicked(object sender, RoutedEventArgs e)
     {
+        DialogResult = false;
+        Close();
+    }
+
+    private void OnDeleteClicked(object sender, RoutedEventArgs e)
+    {
+        DeleteRequested = true;
         DialogResult = false;
         Close();
     }
@@ -73,6 +82,8 @@ public sealed class VehicleCombinationEditorDialogViewModel : ObservableObject
     public ObservableCollection<VehicleCombinationOption> TrailerOptions { get; }
 
     public string Heading => "Fahrzeugkombination";
+
+    public bool HasExistingEntry => !string.IsNullOrWhiteSpace(_id);
 
     public VehicleCombinationOption? SelectedVehicle
     {
@@ -167,5 +178,3 @@ public sealed class VehicleCombinationEditorDialogViewModel : ObservableObject
         return true;
     }
 }
-
-

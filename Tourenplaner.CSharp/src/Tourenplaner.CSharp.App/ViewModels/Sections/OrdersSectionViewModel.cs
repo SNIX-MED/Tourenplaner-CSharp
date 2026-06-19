@@ -332,7 +332,14 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        if (dialog.ShowDialog() != true || dialog.CreatedOrder is null)
+        var dialogResult = dialog.ShowDialog();
+        if (dialog.DeleteRequested)
+        {
+            await RemoveSelectedOrderAsync();
+            return;
+        }
+
+        if (dialogResult != true || dialog.CreatedOrder is null)
         {
             return;
         }

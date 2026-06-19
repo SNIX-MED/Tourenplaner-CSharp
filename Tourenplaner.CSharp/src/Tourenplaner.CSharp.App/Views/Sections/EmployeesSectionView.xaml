@@ -34,6 +34,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
@@ -41,7 +42,7 @@
                                         <TextBlock Margin="8,0,0,0"
                                                    FontSize="18"
                                                    Foreground="#D4A017"
-                                                   Text="★"
+                                                   Text="&#x2605;"
                                                    Visibility="{Binding IsFavorite, Converter={StaticResource BoolToVisibilityConverter}}" />
                                     </StackPanel>
 
@@ -69,33 +70,27 @@
                                                    Text="{Binding AvailabilityLabel}" />
                                     </Border>
 
+                                    <Button Grid.Row="0"
+                                            Grid.Column="2"
+                                            Width="32"
+                                            Height="32"
+                                            Margin="8,0,0,0"
+                                            Padding="0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="Segoe Fluent Icons"
+                                            FontSize="14"
+                                            Content="&#xE70F;"
+                                            ToolTip="Mitarbeiter bearbeiten"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Tag="{Binding}"
+                                            Click="OnEditEntryClicked" />
+
                                     <TextBlock Grid.Row="1"
-                                               Grid.ColumnSpan="2"
+                                               Grid.ColumnSpan="3"
                                                Margin="0,10,0,0"
                                                Foreground="{DynamicResource Brush.TextMuted}"
                                                TextWrapping="Wrap"
                                                Text="{Binding DetailsLine}" />
-
-                                    <Grid Grid.Row="2" Grid.ColumnSpan="2" Margin="0,12,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0"
-                                                Height="36"
-                                                Margin="0,0,8,0"
-                                                Content="Bearbeiten"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Tag="{Binding}"
-                                                Click="OnEditEntryClicked" />
-                                        <Button Grid.Column="1"
-                                                Height="36"
-                                                Margin="8,0,0,0"
-                                                Content="Löschen"
-                                                Style="{StaticResource DangerOutlineButtonStyle}"
-                                                Tag="{Binding}"
-                                                Click="OnDeleteEntryClicked" />
-                                    </Grid>
                                 </Grid>
                             </Border>
                         </DataTemplate>

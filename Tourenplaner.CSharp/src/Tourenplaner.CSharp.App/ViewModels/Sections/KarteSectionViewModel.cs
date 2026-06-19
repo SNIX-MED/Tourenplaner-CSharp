@@ -5245,7 +5245,28 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        if (dialog.ShowDialog() != true || dialog.CreatedOrder is null)
+        var dialogResult = dialog.ShowDialog();
+        if (dialog.DeleteRequested)
+        {
+            var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Soll der Auftrag {selected.Id} wirklich gelöscht werden?",
+                "Auftrag löschen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            _allOrders.RemoveAll(x => string.Equals(x.Id, selected.Id, StringComparison.OrdinalIgnoreCase));
+            await _orderRepository.SaveAllAsync(_allOrders);
+            await RefreshAsync();
+            PublishOrderChange(selected.Id, null);
+            StatusText = $"Auftrag {selected.Id} wurde gelöscht.";
+            return;
+        }
+
+        if (dialogResult != true || dialog.CreatedOrder is null)
         {
             return;
         }

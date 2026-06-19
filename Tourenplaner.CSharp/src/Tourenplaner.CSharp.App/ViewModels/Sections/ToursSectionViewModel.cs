@@ -1141,7 +1141,44 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        if (dialog.ShowDialog() != true || dialog.CreatedOrder is null)
+        var dialogResult = dialog.ShowDialog();
+        if (dialog.DeleteRequested)
+        {
+            var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Soll der Auftrag {existing.Id} wirklich gelöscht werden?",
+                "Auftrag löschen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            orders.RemoveAll(x => string.Equals(x.Id, existing.Id, StringComparison.OrdinalIgnoreCase));
+
+            if (_orderMutationRepository is not null)
+            {
+                try
+                {
+                    await _orderMutationRepository.DeleteAsync(existing.Id, existing.ConcurrencyToken);
+                }
+                catch (ConcurrencyConflictException)
+                {
+                    await HandleConcurrencyConflictAsync(SelectedTour?.TourId);
+                    return;
+                }
+            }
+            else
+            {
+                await _orderRepository.SaveAllAsync(orders);
+            }
+
+            _dataSyncService.PublishOrders(_instanceId, existing.Id, null);
+            StatusText = $"Auftrag {existing.Id} wurde gelöscht.";
+            return;
+        }
+
+        if (dialogResult != true || dialog.CreatedOrder is null)
         {
             return;
         }

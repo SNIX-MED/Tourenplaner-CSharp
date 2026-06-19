@@ -31,6 +31,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Row="0" Grid.Column="0">
@@ -62,31 +63,25 @@
                                                    Text="{Binding AvailabilityLabel}" />
                                     </Border>
 
-                                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,10,0,0">
+                                    <Button Grid.Row="0"
+                                            Grid.Column="2"
+                                            Width="32"
+                                            Height="32"
+                                            Margin="8,0,0,0"
+                                            Padding="0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="Segoe Fluent Icons"
+                                            FontSize="14"
+                                            Content="&#xE70F;"
+                                            ToolTip="Fahrzeug bearbeiten"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Tag="{Binding}"
+                                            Click="OnEditEntryClicked" />
+
+                                    <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,10,0,0">
                                         <TextBlock Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" Text="{Binding DetailsLine}" />
                                         <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" Text="{Binding Notes}" />
                                     </StackPanel>
-
-                                    <Grid Grid.Row="2" Grid.ColumnSpan="2" Margin="0,12,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0"
-                                                Height="36"
-                                                Margin="0,0,8,0"
-                                                Content="Bearbeiten"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Tag="{Binding}"
-                                                Click="OnEditEntryClicked" />
-                                        <Button Grid.Column="1"
-                                                Height="36"
-                                                Margin="8,0,0,0"
-                                                Content="Löschen"
-                                                Style="{StaticResource DangerOutlineButtonStyle}"
-                                                Tag="{Binding}"
-                                                Click="OnDeleteEntryClicked" />
-                                    </Grid>
                                 </Grid>
                             </Border>
                         </DataTemplate>

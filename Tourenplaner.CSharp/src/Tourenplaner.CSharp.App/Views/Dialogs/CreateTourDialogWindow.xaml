@@ -22,6 +22,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
@@ -114,22 +115,23 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <ScrollViewer Grid.Row="0"
-                                  MaxHeight="170"
+                                  MaxHeight="96"
+                                  VerticalAlignment="Top"
                                   VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding Employees}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <UniformGrid Columns="3" />
+                                    <WrapPanel Orientation="Horizontal" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Margin="0,0,6,6"
-                                            Padding="6,4"
-                                            MinHeight="28"
-                                            CornerRadius="8"
+                                    <Border Margin="0,0,8,8"
+                                            Padding="8,4"
+                                            MinWidth="190"
+                                            CornerRadius="999"
                                             Background="{DynamicResource Brush.SurfaceRaised}">
-                                        <Grid>
+                                        <Grid MinHeight="24">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
@@ -165,7 +167,7 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="9" Margin="0,16,0,0">
+            <Grid Grid.Row="10" Margin="0,16,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />

@@ -41,13 +41,13 @@
         <Setter Property="Background" Value="{StaticResource Brush.GlassSurface}" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.GlassStroke}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="CornerRadius" Value="12" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Effect">
             <Setter.Value>
-                <DropShadowEffect BlurRadius="28"
+                <DropShadowEffect BlurRadius="16"
                                   ShadowDepth="0"
-                                  Opacity="0.26"
+                                  Opacity="0.12"
                                   Color="#A0000000" />
             </Setter.Value>
         </Setter>
@@ -67,7 +67,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="12"
+                            CornerRadius="8"
                             RenderTransformOrigin="0.5,0.5">
                         <Border.RenderTransform>
                             <ScaleTransform ScaleX="1" ScaleY="1" />
@@ -135,7 +135,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="10">
+                            CornerRadius="8">
                         <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" />
                     </Border>
                     <ControlTemplate.Triggers>
@@ -167,7 +167,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="GroupBox">
-                    <Border CornerRadius="14"
+                    <Border CornerRadius="12"
                             Background="{StaticResource Brush.GlassSurface}"
                             BorderBrush="{StaticResource Brush.GlassStroke}"
                             BorderThickness="1"
@@ -239,7 +239,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
                     <Border x:Name="ItemBorder"
-                            CornerRadius="12"
+                            CornerRadius="10"
                             Background="#22FFFFFF"
                             BorderBrush="#52FFFFFF"
                             BorderThickness="1"

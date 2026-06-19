@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.App.Views.Dialogs;
@@ -79,7 +79,23 @@ public partial class EmployeesSectionView : UserControl
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        if (dialog.ShowDialog() == true && dialog.Result is not null)
+        var dialogResult = dialog.ShowDialog();
+        if (dialog.DeleteRequested)
+        {
+            var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"\"{entry.Name}\" wirklich löschen?",
+                "Mitarbeiter löschen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm == MessageBoxResult.Yes)
+            {
+                await vm.DeleteEntryAsync(entry);
+            }
+
+            return;
+        }
+
+        if (dialogResult == true && dialog.Result is not null)
         {
             var warning = await vm.ApplyEditorResultAsync(dialog.Result);
             if (!string.IsNullOrWhiteSpace(warning))
@@ -88,27 +104,4 @@ public partial class EmployeesSectionView : UserControl
             }
         }
     }
-
-    private async void OnDeleteEntryClicked(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is not EmployeesSectionViewModel vm ||
-            sender is not Button { Tag: EmployeeCardItem entry })
-        {
-            return;
-        }
-
-        var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-            $"\"{entry.Name}\" wirklich löschen?",
-            "Mitarbeiter löschen",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        if (confirm != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        await vm.DeleteEntryAsync(entry);
-    }
 }
-
-

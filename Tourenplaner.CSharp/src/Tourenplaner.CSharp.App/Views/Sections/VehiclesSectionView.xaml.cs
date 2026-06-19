@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.App.Views.Dialogs;
@@ -109,7 +109,23 @@ public partial class VehiclesSectionView : UserControl
                 Owner = System.Windows.Application.Current?.MainWindow
             };
 
-            if (combinationDialog.ShowDialog() == true && combinationDialog.Result is not null)
+            var dialogResult = combinationDialog.ShowDialog();
+            if (combinationDialog.DeleteRequested)
+            {
+                var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                    $"\"{entry.Name}\" wirklich löschen?",
+                    "Fahrzeugkombination löschen",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (confirm == MessageBoxResult.Yes)
+                {
+                    await vm.DeleteEntryAsync(entry);
+                }
+
+                return;
+            }
+
+            if (dialogResult == true && combinationDialog.Result is not null)
             {
                 try
                 {
@@ -129,7 +145,23 @@ public partial class VehiclesSectionView : UserControl
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        if (dialog.ShowDialog() == true && dialog.Result is not null)
+        var result = dialog.ShowDialog();
+        if (dialog.DeleteRequested)
+        {
+            var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"\"{entry.Name}\" wirklich löschen?",
+                "Fahrzeug löschen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm == MessageBoxResult.Yes)
+            {
+                await vm.DeleteEntryAsync(entry);
+            }
+
+            return;
+        }
+
+        if (result == true && dialog.Result is not null)
         {
             try
             {
@@ -145,27 +177,4 @@ public partial class VehiclesSectionView : UserControl
             }
         }
     }
-
-    private async void OnDeleteEntryClicked(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is not VehiclesSectionViewModel vm ||
-            sender is not Button { Tag: FleetEntryCardItem entry })
-        {
-            return;
-        }
-
-        var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-            $"\"{entry.Name}\" wirklich löschen?",
-            entry.IsCombination ? "Fahrzeugkombination löschen" : "Fahrzeug löschen",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        if (confirm != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        await vm.DeleteEntryAsync(entry);
-    }
 }
-
-
