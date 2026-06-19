@@ -332,6 +332,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public ObservableCollection<MapOrderFilterOption> SupplierFilters { get; } = new();
 
     public string FilterSummaryText => BuildFilterSummaryText();
+    public int ActiveFilterGroupCount => CountActiveFilterGroups();
+    public bool HasActiveFilterGroups => ActiveFilterGroupCount > 0;
     public int SelectedBatchOrderCount => _selectedBatchOrderIds.Count;
     public bool HasSelectedBatchOrders => SelectedBatchOrderCount > 0;
     public string SelectedBatchOrderSummary => $"{SelectedBatchOrderCount} Auftrag/Aufträge markiert";
@@ -1828,6 +1830,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     private void TriggerOrderFilterRefresh()
     {
         OnPropertyChanged(nameof(FilterSummaryText));
+        OnPropertyChanged(nameof(ActiveFilterGroupCount));
+        OnPropertyChanged(nameof(HasActiveFilterGroups));
         OnPropertyChanged(nameof(ToggleAllFiltersButtonText));
         if (_suppressFilterRefresh)
         {
@@ -1885,6 +1889,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
 
         OnPropertyChanged(nameof(FilterSummaryText));
+        OnPropertyChanged(nameof(ActiveFilterGroupCount));
+        OnPropertyChanged(nameof(HasActiveFilterGroups));
         OnPropertyChanged(nameof(ToggleAllFiltersButtonText));
     }
 
@@ -2015,6 +2021,42 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         return parts.Count == 0
             ? "Filter (alle Aufträge)"
             : $"Filter ({string.Join(" | ", parts)})";
+    }
+
+    private int CountActiveFilterGroups()
+    {
+        var count = 0;
+        if (!(IncludeOpenOrders && IncludePlannedOrders))
+        {
+            count++;
+        }
+
+        if (IsFilterGroupActive(OrderStatusFilters))
+        {
+            count++;
+        }
+
+        if (IsFilterGroupActive(DeliveryTypeFilters))
+        {
+            count++;
+        }
+
+        if (IsFilterGroupActive(AvisoStatusFilters))
+        {
+            count++;
+        }
+
+        if (IsFilterGroupActive(SupplierFilters))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+    private static bool IsFilterGroupActive(ObservableCollection<MapOrderFilterOption> options)
+    {
+        return options.Count > 0 && options.Any(x => !x.IsSelected);
     }
 
     private static void AddPartialSummary(

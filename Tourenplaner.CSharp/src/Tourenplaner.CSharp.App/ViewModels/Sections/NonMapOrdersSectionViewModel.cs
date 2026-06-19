@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -19,6 +20,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private const string AllDeliveryTypesLabel = "Alle Lieferarten";
     private const string AllStatusesLabel = "Alle Status";
     private const string DefaultOrderStatus = Order.DefaultOrderStatus;
+    private const string UnspecifiedSupplierFilterOption = "nicht Festgelegt";
     private static readonly IReadOnlyList<string> KnownStatusOptions =
     [
         DefaultOrderStatus,
@@ -46,9 +48,14 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private OrderItem? _selectedOrder;
     private string _selectedDeliveryTypeFilter = AllDeliveryTypesLabel;
     private string _selectedStatusFilter = AllStatusesLabel;
+    private bool _includeOpenOrders = true;
+    private bool _includePlannedOrders = true;
+    private bool _isUpdatingFilterOptions;
+    private bool _suppressFilterRefresh;
     private bool _isCustomerColumnVisible = true;
     private bool _isDeliveryAddressColumnVisible = true;
     private bool _isDeliveryPersonColumnVisible = true;
+    private bool _isNonMapOrdersFilterPanelVisible;
     private bool _showArchivedOrders;
 
     public NonMapOrdersSectionViewModel(IOrderRepository repository, ITourRecordStore tourRepository, AppDataSyncService dataSyncService, Func<int, Task>? openTourAsync = null)
@@ -78,6 +85,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         ShowActiveOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = false);
         ShowArchivedOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = true);
         ToggleArchiveModeCommand = new DelegateCommand(() => ShowArchivedOrders = !ShowArchivedOrders);
+        ResetOrderFiltersCommand = new DelegateCommand(ResetOrderFilters);
+        ToggleAllOrderFiltersCommand = new DelegateCommand(ToggleAllOrderFilters);
         _dataSyncService.OrdersChanged += OnOrdersChanged;
         _ = RefreshAsync();
     }
@@ -85,6 +94,10 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     public ObservableCollection<OrderItem> NonMapOrders { get; } = new();
     public ObservableCollection<string> DeliveryTypeFilterOptions { get; } = [];
     public ObservableCollection<string> StatusFilterOptions { get; } = [];
+    public ObservableCollection<MapOrderFilterOption> OrderStatusFilters { get; } = new();
+    public ObservableCollection<MapOrderFilterOption> DeliveryTypeFilters { get; } = new();
+    public ObservableCollection<MapOrderFilterOption> AvisoStatusFilters { get; } = new();
+    public ObservableCollection<MapOrderFilterOption> SupplierFilters { get; } = new();
 
     public ICommand RefreshCommand { get; }
 
@@ -123,6 +136,10 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     public ICommand ShowArchivedOrdersCommand { get; }
 
     public ICommand ToggleArchiveModeCommand { get; }
+
+    public ICommand ResetOrderFiltersCommand { get; }
+
+    public ICommand ToggleAllOrderFiltersCommand { get; }
 
     public string SearchText
     {
@@ -183,6 +200,38 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         get => _isDeliveryPersonColumnVisible;
         set => SetProperty(ref _isDeliveryPersonColumnVisible, value);
     }
+
+    public bool IsNonMapOrdersFilterPanelVisible
+    {
+        get => _isNonMapOrdersFilterPanelVisible;
+        set => SetProperty(ref _isNonMapOrdersFilterPanelVisible, value);
+    }
+
+    public bool IncludeOpenOrders
+    {
+        get => _includeOpenOrders;
+        set
+        {
+            if (SetProperty(ref _includeOpenOrders, value))
+            {
+                TriggerOrderFilterRefresh();
+            }
+        }
+    }
+
+    public bool IncludePlannedOrders
+    {
+        get => _includePlannedOrders;
+        set
+        {
+            if (SetProperty(ref _includePlannedOrders, value))
+            {
+                TriggerOrderFilterRefresh();
+            }
+        }
+    }
+
+    public string ToggleAllFiltersButtonText => AreAllFiltersSelected() ? "Alle abwählen" : "Alle auswählen";
 
     public bool ShowArchivedOrders
     {
@@ -553,8 +602,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         var items = _allOrders
             .Where(o => o.Type == OrderType.NonMap)
             .Where(o => o.IsArchived == ShowArchivedOrders)
-            .Where(o => MatchesDeliveryTypeFilter(o))
-            .Where(o => MatchesStatusFilter(o))
+            .Where(MatchesTourAssignmentFilter)
+            .Where(MatchesSelectedFilters)
             .Where(o => MatchesSearchQuery(o, query));
 
         NonMapOrders.Clear();
@@ -740,6 +789,81 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             ? selectedStatus
             : AllStatusesLabel;
         OnPropertyChanged(nameof(SelectedStatusFilter));
+
+        if (_isUpdatingFilterOptions)
+        {
+            return;
+        }
+
+        _isUpdatingFilterOptions = true;
+        try
+        {
+            var orders = _allOrders
+                .Where(o => o.Type == OrderType.NonMap)
+                .Where(o => o.IsArchived == ShowArchivedOrders)
+                .ToList();
+
+            var statuses = orders
+                .Select(o => NormalizeOrderStatus(o.OrderStatus))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(GetOrderStatusSortIndex)
+                .ThenBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var deliveryTypes = orders
+                .Select(o => DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(o.DeliveryType))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var avisoStatuses = orders
+                .Select(o => string.IsNullOrWhiteSpace(o.AvisoStatus) ? "nicht avisiert" : o.AvisoStatus.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var suppliers = orders
+                .SelectMany(o => o.Products ?? [])
+                .Select(p => NormalizeSupplier(p.Supplier))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            UpdateFilterOptions(OrderStatusFilters, statuses);
+            UpdateFilterOptions(DeliveryTypeFilters, deliveryTypes);
+            UpdateFilterOptions(AvisoStatusFilters, avisoStatuses);
+            UpdateFilterOptions(SupplierFilters, suppliers);
+        }
+        finally
+        {
+            _isUpdatingFilterOptions = false;
+        }
+
+        OnPropertyChanged(nameof(ToggleAllFiltersButtonText));
+    }
+
+    private void UpdateFilterOptions(ObservableCollection<MapOrderFilterOption> target, IReadOnlyList<string> values)
+    {
+        var previouslyAvailable = target
+            .Select(x => x.Label)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var previouslySelected = target
+            .Where(x => x.IsSelected)
+            .Select(x => x.Label)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var keepCurrentSelection = target.Count > 0;
+
+        foreach (var option in target)
+        {
+            option.PropertyChanged -= OnOrderFilterOptionChanged;
+        }
+
+        target.Clear();
+        foreach (var value in values.Where(x => !string.IsNullOrWhiteSpace(x)))
+        {
+            var isNewValue = !previouslyAvailable.Contains(value);
+            var isSelected = !keepCurrentSelection || previouslySelected.Contains(value) || isNewValue;
+            var option = new MapOrderFilterOption(value, isSelected);
+            option.PropertyChanged += OnOrderFilterOptionChanged;
+            target.Add(option);
+        }
     }
 
     private static string NormalizeOrderStatus(string? status)
@@ -751,6 +875,100 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         }
 
         return normalized;
+    }
+
+    private static int GetOrderStatusSortIndex(string? status)
+    {
+        var normalized = NormalizeOrderStatus(status);
+        for (var i = 0; i < KnownStatusOptions.Count; i++)
+        {
+            if (string.Equals(KnownStatusOptions[i], normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return KnownStatusOptions.Count;
+    }
+
+    private void TriggerOrderFilterRefresh()
+    {
+        OnPropertyChanged(nameof(ToggleAllFiltersButtonText));
+        if (_suppressFilterRefresh)
+        {
+            return;
+        }
+
+        RebuildGrid();
+    }
+
+    private void OnOrderFilterOptionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_isUpdatingFilterOptions || e.PropertyName != nameof(MapOrderFilterOption.IsSelected))
+        {
+            return;
+        }
+
+        TriggerOrderFilterRefresh();
+    }
+
+    private void ResetOrderFilters()
+    {
+        _suppressFilterRefresh = true;
+        try
+        {
+            IncludeOpenOrders = true;
+            IncludePlannedOrders = true;
+            SetAllFilterOptions(OrderStatusFilters, true);
+            SetAllFilterOptions(DeliveryTypeFilters, true);
+            SetAllFilterOptions(AvisoStatusFilters, true);
+            SetAllFilterOptions(SupplierFilters, true);
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+
+        TriggerOrderFilterRefresh();
+    }
+
+    private void ToggleAllOrderFilters()
+    {
+        var targetState = !AreAllFiltersSelected();
+        _suppressFilterRefresh = true;
+        try
+        {
+            IncludeOpenOrders = targetState;
+            IncludePlannedOrders = targetState;
+            SetAllFilterOptions(OrderStatusFilters, targetState);
+            SetAllFilterOptions(DeliveryTypeFilters, targetState);
+            SetAllFilterOptions(AvisoStatusFilters, targetState);
+            SetAllFilterOptions(SupplierFilters, targetState);
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+
+        TriggerOrderFilterRefresh();
+    }
+
+    private bool AreAllFiltersSelected()
+    {
+        return IncludeOpenOrders &&
+               IncludePlannedOrders &&
+               OrderStatusFilters.All(x => x.IsSelected) &&
+               DeliveryTypeFilters.All(x => x.IsSelected) &&
+               AvisoStatusFilters.All(x => x.IsSelected) &&
+               SupplierFilters.All(x => x.IsSelected);
+    }
+
+    private static void SetAllFilterOptions(ObservableCollection<MapOrderFilterOption> options, bool isSelected)
+    {
+        foreach (var option in options)
+        {
+            option.IsSelected = isSelected;
+        }
     }
 
     private static bool SyncDerivedOrderStatuses(IEnumerable<Order> orders)
@@ -801,6 +1019,75 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private void PublishOrderChange(string? previousOrderId, string? currentOrderId)
     {
         _dataSyncService.PublishOrders(_instanceId, previousOrderId, currentOrderId);
+    }
+
+    private bool MatchesTourAssignmentFilter(Order order)
+    {
+        var isAssigned = !string.IsNullOrWhiteSpace(order.AssignedTourId);
+        return isAssigned ? IncludePlannedOrders : IncludeOpenOrders;
+    }
+
+    private bool MatchesSelectedFilters(Order order)
+    {
+        var selectedOrderStatuses = GetSelectedFilterLabels(OrderStatusFilters);
+        if (selectedOrderStatuses.Count > 0 &&
+            selectedOrderStatuses.Count != OrderStatusFilters.Count &&
+            !selectedOrderStatuses.Contains(NormalizeOrderStatus(order.OrderStatus)))
+        {
+            return false;
+        }
+
+        var selectedDeliveryTypes = GetSelectedFilterLabels(DeliveryTypeFilters);
+        if (selectedDeliveryTypes.Count > 0 &&
+            selectedDeliveryTypes.Count != DeliveryTypeFilters.Count &&
+            !selectedDeliveryTypes.Contains(DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType)))
+        {
+            return false;
+        }
+
+        var selectedAvisoStatuses = GetSelectedFilterLabels(AvisoStatusFilters);
+        var avisoStatus = string.IsNullOrWhiteSpace(order.AvisoStatus) ? "nicht avisiert" : order.AvisoStatus.Trim();
+        if (selectedAvisoStatuses.Count > 0 &&
+            selectedAvisoStatuses.Count != AvisoStatusFilters.Count &&
+            !selectedAvisoStatuses.Contains(avisoStatus))
+        {
+            return false;
+        }
+
+        var selectedSuppliers = GetSelectedFilterLabels(SupplierFilters)
+            .Select(NormalizeSupplier)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return selectedSuppliers.Count == 0 ||
+               selectedSuppliers.Count == SupplierFilters.Count ||
+               OrderContainsAnySupplier(order, selectedSuppliers);
+    }
+
+    private static HashSet<string> GetSelectedFilterLabels(ObservableCollection<MapOrderFilterOption> options)
+    {
+        return options
+            .Where(o => o.IsSelected)
+            .Select(o => o.Label)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool OrderContainsAnySupplier(Order order, IReadOnlySet<string> suppliers)
+    {
+        if (suppliers.Count == 0)
+        {
+            return true;
+        }
+
+        return (order.Products ?? [])
+            .Select(p => NormalizeSupplier(p.Supplier))
+            .Any(suppliers.Contains);
+    }
+
+    private static string NormalizeSupplier(string? supplier)
+    {
+        var normalized = (supplier ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized)
+            ? UnspecifiedSupplierFilterOption
+            : normalized;
     }
 
     private bool MatchesDeliveryTypeFilter(Order order)

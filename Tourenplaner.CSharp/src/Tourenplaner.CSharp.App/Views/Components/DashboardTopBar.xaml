@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
              xmlns:sections="clr-namespace:Tourenplaner.CSharp.App.ViewModels.Sections"
              mc:Ignorable="d"
              d:DesignHeight="130"
@@ -12,6 +13,7 @@
         <Style x:Key="TopbarToggleButtonStyle" TargetType="ToggleButton">
             <Setter Property="Height" Value="40" />
             <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.ButtonForeground}" />
             <Setter Property="Background" Value="{DynamicResource Brush.ButtonBackground}" />
@@ -84,6 +86,75 @@
             <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
             <Setter Property="FontSize" Value="15" />
         </Style>
+
+        <Style x:Key="TopbarFilterSegmentHostStyle" TargetType="Border">
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+            <Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" />
+        </Style>
+
+        <Style x:Key="TopbarFilterSegmentButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+
+        <Style x:Key="TopbarFilterResetButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+            <Setter Property="FontSize" Value="15" />
+        </Style>
+
+        <Style x:Key="TopbarInlineIconButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="10">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.ButtonHoverBackground}" />
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TopbarFilterChipLabelStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
     </UserControl.Resources>
 
     <Border Padding="14">
@@ -109,9 +180,10 @@
                 </Grid.ColumnDefinitions>
                 <Button Grid.Column="0"
                         Width="22"
-                        Height="64"
+                        Height="40"
                         Margin="0,0,10,0"
                         Padding="0"
+                        VerticalAlignment="Center"
                         ToolTip="{Binding SidebarToggleToolTip}"
                         Command="{Binding ToggleSidebarCommand}">
                     <Button.Style>
@@ -154,7 +226,6 @@
                 </Grid.ColumnDefinitions>
 
                 <ContentControl Grid.Column="0"
-                                MaxWidth="980"
                                 HorizontalAlignment="Stretch"
                                 Content="{Binding CurrentSection}"
                                 Visibility="{Binding IsTopBarSectionControlsVisible, Converter={StaticResource BoolToVisibilityConverter}}">
@@ -171,36 +242,58 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <Grid Grid.Column="0">
+                            <Grid Grid.Column="0"
+                                  HorizontalAlignment="Center">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="44" />
-                                    <ColumnDefinition Width="220" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0"
-                                         Height="40"
-                                         VerticalAlignment="Center"
-                                         Margin="0,0,10,0"
-                                         ToolTip="Ort suchen (Enter)..."
-                                         Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                                    <TextBox.InputBindings>
-                                        <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
-                                    </TextBox.InputBindings>
-                                </TextBox>
-                                <Button Grid.Column="1"
+                                <Border Grid.Column="0"
+                                        Width="300"
                                         Height="40"
-                                        Width="44"
-                                        Margin="0,0,10,0"
-                                        ToolTip="Ort suchen"
-                                        Style="{StaticResource TopbarCompactPrimaryButtonStyle}"
-                                        Command="{Binding SearchCommand}"
-                                        Content="&#xE721;" />
-                                <TextBlock Grid.Column="2"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,10,0"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource Brush.TextMuted}"
-                                           Text="{Binding FilterSummaryText}" />
+                                        Margin="0,0,8,0"
+                                        CornerRadius="12"
+                                        BorderBrush="{DynamicResource Brush.InputBorder}"
+                                        BorderThickness="1"
+                                        Background="{DynamicResource Brush.InputBackground}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="32" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   FontFamily="Segoe Fluent Icons"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="&#xE721;" />
+                                        <Grid Grid.Column="1">
+                                            <TextBox BorderThickness="0"
+                                                     Background="Transparent"
+                                                     ToolTip="Aufträge filtern, mit Enter auf Karte suchen"
+                                                     Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                <TextBox.InputBindings>
+                                                    <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+                                                </TextBox.InputBindings>
+                                            </TextBox>
+                                            <TextBlock IsHitTestVisible="False"
+                                                       Margin="2,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource Brush.TextSubtle}"
+                                                       Text="Suche...">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SearchText}" Value="">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
                             </Grid>
 
                             <Grid Grid.Column="1" Margin="0,0,8,0">
@@ -217,14 +310,40 @@
                                         </Canvas>
                                     </Viewbox>
                                 </ToggleButton>
+                                <Border MinWidth="18"
+                                        Height="18"
+                                        Margin="0,-5,-5,0"
+                                        Padding="4,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        CornerRadius="9"
+                                        Background="{DynamicResource Brush.Accent}"
+                                        BorderBrush="White"
+                                        BorderThickness="1"
+                                        IsHitTestVisible="False">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasActiveFilterGroups}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="White"
+                                               Text="{Binding ActiveFilterGroupCount}" />
+                                </Border>
                                 <Popup PlacementTarget="{Binding ElementName=MapTopBarControlsRoot}"
                                        Placement="Custom"
                                        CustomPopupPlacementCallback="CenterPopupUnderButton"
                                        StaysOpen="True"
                                        AllowsTransparency="True"
                                        IsOpen="False">
-                                    <Border Style="{StaticResource SoftCardStyle}"
-                                            Padding="10"
+                                    <Border Style="{StaticResource FilterPopupPanelStyle}"
                                             Width="920"
                                             MaxHeight="360">
                                         <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -266,6 +385,7 @@
                                                 </Grid>
                                                 <Grid Grid.Row="1" Margin="0,12,0,0">
                                                     <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="*" />
@@ -312,13 +432,34 @@
                                                             </ItemsControl.ItemTemplate>
                                                         </ItemsControl>
                                                     </Grid>
-                                                    <Grid Grid.Column="2">
+                                                    <Grid Grid.Column="2" Margin="0,0,12,0">
                                                         <Grid.RowDefinitions>
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="Auto" />
                                                         </Grid.RowDefinitions>
                                                         <TextBlock FontWeight="SemiBold" Text="Avisierungsstatus" />
                                                         <ItemsControl Grid.Row="1" Margin="0,6,0,0" ItemsSource="{Binding AvisoStatusFilters}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <CheckBox Margin="0,0,10,6"
+                                                                              Content="{Binding Label}"
+                                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Grid>
+                                                    <Grid Grid.Column="3">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock FontWeight="SemiBold" Text="Lieferant" />
+                                                        <ItemsControl Grid.Row="1" Margin="0,6,0,0" ItemsSource="{Binding SupplierFilters}">
                                                             <ItemsControl.ItemsPanel>
                                                                 <ItemsPanelTemplate>
                                                                     <WrapPanel />
@@ -605,28 +746,308 @@
                         </Grid>
                     </DataTemplate>
                     <DataTemplate DataType="{x:Type sections:ToursSectionViewModel}">
-                        <Grid>
+                        <Grid HorizontalAlignment="Right"
+                              Margin="0,0,8,0">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0"
-                                       Style="{StaticResource TopbarStatusTextStyle}"
-                                       Text="{Binding FilterInfoText}" />
+                            <Border Grid.Column="0"
+                                    Margin="0,0,8,0"
+                                    Style="{StaticResource TopbarFilterSegmentHostStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0"
+                                            Content="Aktiv"
+                                            Command="{Binding ShowActiveToursCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource TopbarFilterSegmentButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowActiveTours}" Value="True">
+                                                        <Setter Property="Foreground" Value="White" />
+                                                        <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Grid.Column="1"
+                                            Content="Archiviert"
+                                            Command="{Binding ShowArchivedToursCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource TopbarFilterSegmentButtonStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShowArchivedTours}" Value="True">
+                                                        <Setter Property="Foreground" Value="White" />
+                                                        <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
+                            </Border>
 
-                            <ToggleButton Grid.Column="1"
-                                          Width="44"
-                                          Padding="0"
-                                          Style="{StaticResource TopbarToggleButtonStyle}"
-                                          ToolTip="Filter"
-                                          IsChecked="{Binding IsToursFilterPanelVisible, Mode=TwoWay}">
-                                <Viewbox Style="{StaticResource FilterIconViewboxStyle}">
-                                    <Canvas Width="24" Height="24">
-                                        <Path Style="{StaticResource FilterIconPathStyle}" />
-                                    </Canvas>
-                                </Viewbox>
-                            </ToggleButton>
+                            <Border Grid.Column="1"
+                                    Margin="0,0,8,0"
+                                    Padding="10,0"
+                                    Height="40"
+                                    CornerRadius="14"
+                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource Brush.CardMuted}">
+                                <WrapPanel VerticalAlignment="Center"
+                                           Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource TopbarFilterChipLabelStyle}"
+                                               Text="Von" />
+                                    <Grid Margin="0,0,8,0">
+                                        <Button x:Name="TopbarFromDateButton"
+                                                Width="132"
+                                                Height="32"
+                                                Padding="10,0"
+                                                HorizontalContentAlignment="Left"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding ToggleFromDatePopupCommand}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center"
+                                                           Text="{Binding FromDateDisplayText}" />
+                                                <TextBlock Grid.Column="1"
+                                                           Margin="8,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           FontFamily="Segoe Fluent Icons"
+                                                           Text="&#xE787;" />
+                                            </Grid>
+                                        </Button>
+                                        <Popup IsOpen="{Binding IsFromDatePopupOpen, Mode=TwoWay}"
+                                               PlacementTarget="{Binding ElementName=TopbarFromDateButton}"
+                                               Placement="Bottom"
+                                               StaysOpen="False"
+                                               AllowsTransparency="True"
+                                               PopupAnimation="Fade">
+                                            <Border Margin="0,6,0,0"
+                                                    Padding="10"
+                                                    CornerRadius="14"
+                                                    Background="{DynamicResource Brush.Card}"
+                                                    BorderBrush="{DynamicResource Brush.InputBorder}"
+                                                    BorderThickness="1">
+                                                <StackPanel Width="244">
+                                                    <Grid Margin="0,0,0,8">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="36" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="36" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0" Width="30" Height="30" Padding="0"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                FontFamily="Segoe Fluent Icons"
+                                                                Content="&#xE76B;"
+                                                                Command="{Binding PreviousFromMonthCommand}" />
+                                                        <Border Grid.Column="1" Margin="8,0" CornerRadius="10"
+                                                                Background="{DynamicResource Brush.CardMuted}"
+                                                                BorderBrush="{DynamicResource Brush.InputBorder}"
+                                                                BorderThickness="1">
+                                                            <TextBlock HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       FontWeight="SemiBold"
+                                                                       Text="{Binding FromMonthDisplayText}" />
+                                                        </Border>
+                                                        <Button Grid.Column="2" Width="30" Height="30" Padding="0"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                FontFamily="Segoe Fluent Icons"
+                                                                Content="&#xE76C;"
+                                                                Command="{Binding NextFromMonthCommand}" />
+                                                    </Grid>
+                                                    <UniformGrid Columns="7" Margin="0,0,0,6">
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="M" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="D" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="M" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="D" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="F" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="S" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="S" />
+                                                    </UniformGrid>
+                                                    <ListBox ItemsSource="{Binding FromCalendarDays}" SelectedItem="{Binding SelectedFromCalendarDay, Mode=TwoWay}"
+                                                             BorderThickness="0" Background="Transparent"
+                                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                             ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                                        <ListBox.ItemsPanel>
+                                                            <ItemsPanelTemplate><UniformGrid Columns="7" Rows="6" /></ItemsPanelTemplate>
+                                                        </ListBox.ItemsPanel>
+                                                        <ListBox.ItemContainerStyle>
+                                                            <Style TargetType="ListBoxItem">
+                                                                <Setter Property="Padding" Value="0" />
+                                                                <Setter Property="Margin" Value="2" />
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Setter Property="BorderThickness" Value="0" />
+                                                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                                                            </Style>
+                                                        </ListBox.ItemContainerStyle>
+                                                        <ListBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border x:Name="TopbarFromDayRoot" Width="30" Height="30" CornerRadius="10"
+                                                                        Background="Transparent" BorderBrush="Transparent" BorderThickness="1">
+                                                                    <TextBlock x:Name="TopbarFromDayText" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding DayText}" />
+                                                                </Border>
+                                                                <DataTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False"><Setter TargetName="TopbarFromDayText" Property="Opacity" Value="0.45" /></DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                                        <Setter TargetName="TopbarFromDayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                        <Setter TargetName="TopbarFromDayRoot" Property="BorderThickness" Value="1" />
+                                                                        <Setter TargetName="TopbarFromDayText" Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                                        <Setter TargetName="TopbarFromDayText" Property="FontWeight" Value="Bold" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter TargetName="TopbarFromDayRoot" Property="Background" Value="#D6ECFF" />
+                                                                        <Setter TargetName="TopbarFromDayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                        <Setter TargetName="TopbarFromDayRoot" Property="BorderThickness" Value="2" />
+                                                                        <Setter TargetName="TopbarFromDayText" Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                                                    </DataTrigger>
+                                                                </DataTemplate.Triggers>
+                                                            </DataTemplate>
+                                                        </ListBox.ItemTemplate>
+                                                    </ListBox>
+                                                </StackPanel>
+                                            </Border>
+                                        </Popup>
+                                    </Grid>
+
+                                    <TextBlock Style="{StaticResource TopbarFilterChipLabelStyle}"
+                                               Text="Bis" />
+                                    <Grid>
+                                        <Button x:Name="TopbarToDateButton"
+                                                Width="132"
+                                                Height="32"
+                                                Padding="10,0"
+                                                HorizontalContentAlignment="Left"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding ToggleToDatePopupCommand}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center"
+                                                           Text="{Binding ToDateDisplayText}" />
+                                                <TextBlock Grid.Column="1"
+                                                           Margin="8,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           FontFamily="Segoe Fluent Icons"
+                                                           Text="&#xE787;" />
+                                            </Grid>
+                                        </Button>
+                                        <Popup IsOpen="{Binding IsToDatePopupOpen, Mode=TwoWay}"
+                                               PlacementTarget="{Binding ElementName=TopbarToDateButton}"
+                                               Placement="Bottom"
+                                               StaysOpen="False"
+                                               AllowsTransparency="True"
+                                               PopupAnimation="Fade">
+                                            <Border Margin="0,6,0,0"
+                                                    Padding="10"
+                                                    CornerRadius="14"
+                                                    Background="{DynamicResource Brush.Card}"
+                                                    BorderBrush="{DynamicResource Brush.InputBorder}"
+                                                    BorderThickness="1">
+                                                <StackPanel Width="244">
+                                                    <Grid Margin="0,0,0,8">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="36" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="36" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0" Width="30" Height="30" Padding="0"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                FontFamily="Segoe Fluent Icons"
+                                                                Content="&#xE76B;"
+                                                                Command="{Binding PreviousToMonthCommand}" />
+                                                        <Border Grid.Column="1" Margin="8,0" CornerRadius="10"
+                                                                Background="{DynamicResource Brush.CardMuted}"
+                                                                BorderBrush="{DynamicResource Brush.InputBorder}"
+                                                                BorderThickness="1">
+                                                            <TextBlock HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       FontWeight="SemiBold"
+                                                                       Text="{Binding ToMonthDisplayText}" />
+                                                        </Border>
+                                                        <Button Grid.Column="2" Width="30" Height="30" Padding="0"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                FontFamily="Segoe Fluent Icons"
+                                                                Content="&#xE76C;"
+                                                                Command="{Binding NextToMonthCommand}" />
+                                                    </Grid>
+                                                    <UniformGrid Columns="7" Margin="0,0,0,6">
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="M" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="D" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="M" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="D" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="F" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="S" />
+                                                        <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextMuted}" Text="S" />
+                                                    </UniformGrid>
+                                                    <ListBox ItemsSource="{Binding ToCalendarDays}" SelectedItem="{Binding SelectedToCalendarDay, Mode=TwoWay}"
+                                                             BorderThickness="0" Background="Transparent"
+                                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                             ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                                        <ListBox.ItemsPanel>
+                                                            <ItemsPanelTemplate><UniformGrid Columns="7" Rows="6" /></ItemsPanelTemplate>
+                                                        </ListBox.ItemsPanel>
+                                                        <ListBox.ItemContainerStyle>
+                                                            <Style TargetType="ListBoxItem">
+                                                                <Setter Property="Padding" Value="0" />
+                                                                <Setter Property="Margin" Value="2" />
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Setter Property="BorderThickness" Value="0" />
+                                                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                                                            </Style>
+                                                        </ListBox.ItemContainerStyle>
+                                                        <ListBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border x:Name="TopbarToDayRoot" Width="30" Height="30" CornerRadius="10"
+                                                                        Background="Transparent" BorderBrush="Transparent" BorderThickness="1">
+                                                                    <TextBlock x:Name="TopbarToDayText" HorizontalAlignment="Center" VerticalAlignment="Center" Text="{Binding DayText}" />
+                                                                </Border>
+                                                                <DataTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCurrentMonth}" Value="False"><Setter TargetName="TopbarToDayText" Property="Opacity" Value="0.45" /></DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                                        <Setter TargetName="TopbarToDayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                        <Setter TargetName="TopbarToDayRoot" Property="BorderThickness" Value="1" />
+                                                                        <Setter TargetName="TopbarToDayText" Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                                        <Setter TargetName="TopbarToDayText" Property="FontWeight" Value="Bold" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter TargetName="TopbarToDayRoot" Property="Background" Value="#D6ECFF" />
+                                                                        <Setter TargetName="TopbarToDayRoot" Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                        <Setter TargetName="TopbarToDayRoot" Property="BorderThickness" Value="2" />
+                                                                        <Setter TargetName="TopbarToDayText" Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                                                    </DataTrigger>
+                                                                </DataTemplate.Triggers>
+                                                            </DataTemplate>
+                                                        </ListBox.ItemTemplate>
+                                                    </ListBox>
+                                                </StackPanel>
+                                            </Border>
+                                        </Popup>
+                                    </Grid>
+
+                                    <Button Margin="6,0,0,0"
+                                            Style="{StaticResource TopbarInlineIconButtonStyle}"
+                                            ToolTip="Datumsfilter zurücksetzen"
+                                            Content="&#xE72C;"
+                                            Command="{Binding ResetDateFilterCommand}" />
+                                </WrapPanel>
+                            </Border>
+
                         </Grid>
                     </DataTemplate>
 
@@ -643,9 +1064,11 @@
                             </Grid.ColumnDefinitions>
 
                             <Border Grid.Column="0"
+                                    Grid.ColumnSpan="2"
                                     Width="300"
                                     Height="40"
                                     Margin="0,0,8,0"
+                                    HorizontalAlignment="Center"
                                     CornerRadius="12"
                                     BorderBrush="{DynamicResource Brush.InputBorder}"
                                     BorderThickness="1"
@@ -691,88 +1114,14 @@
                                               Width="44"
                                               Padding="0"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
-                                              ToolTip="Filter">
+                                              ToolTip="Filter"
+                                              IsChecked="{Binding IsOrdersFilterPanelVisible, Mode=TwoWay}">
                                     <Viewbox Style="{StaticResource FilterIconViewboxStyle}">
                                         <Canvas Width="24" Height="24">
                                             <Path Style="{StaticResource FilterIconPathStyle}" />
                                         </Canvas>
                                     </Viewbox>
                                 </ToggleButton>
-                                <Popup PlacementTarget="{Binding ElementName=OrdersFilterPopupButton}"
-                                       Placement="Bottom"
-                                       StaysOpen="False"
-                                       AllowsTransparency="True"
-                                       IsOpen="{Binding IsChecked, ElementName=OrdersFilterPopupButton, Mode=TwoWay}">
-                                    <Border Style="{StaticResource SoftCardStyle}"
-                                            Margin="0,6,0,0"
-                                            Padding="12"
-                                            MinWidth="360">
-                                        <StackPanel>
-                                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Filter" />
-                                            <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Lieferart" />
-                                            <ComboBox Height="36"
-                                                      Margin="0,4,0,8"
-                                                      ItemsSource="{Binding DeliveryTypeFilterOptions}"
-                                                      SelectedItem="{Binding SelectedDeliveryTypeFilter, Mode=TwoWay}" />
-                                            <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Status" />
-                                            <ComboBox Height="36"
-                                                      Margin="0,4,0,10"
-                                                      ItemsSource="{Binding StatusFilterOptions}"
-                                                      SelectedItem="{Binding SelectedStatusFilter, Mode=TwoWay}" />
-                                            <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Ansicht" />
-                                            <Border Margin="0,4,0,0"
-                                                    CornerRadius="13"
-                                                    BorderThickness="1"
-                                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
-                                                    Background="{DynamicResource Brush.CardMuted}">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <Button Grid.Column="0"
-                                                            Margin="4"
-                                                            Height="34"
-                                                            Content="Aktiv"
-                                                            Command="{Binding ShowActiveOrdersCommand}">
-                                                        <Button.Style>
-                                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                                <Setter Property="Background" Value="Transparent" />
-                                                                <Setter Property="BorderBrush" Value="Transparent" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding ShowActiveOrders}" Value="True">
-                                                                        <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
-                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                                        <Setter Property="Foreground" Value="White" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
-                                                    <Button Grid.Column="1"
-                                                            Margin="4"
-                                                            Height="34"
-                                                            Content="Archiviert"
-                                                            Command="{Binding ShowArchivedOrdersCommand}">
-                                                        <Button.Style>
-                                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                                <Setter Property="Background" Value="Transparent" />
-                                                                <Setter Property="BorderBrush" Value="Transparent" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding ShowArchivedOrders}" Value="True">
-                                                                        <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
-                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                                        <Setter Property="Foreground" Value="White" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
-                                                </Grid>
-                                            </Border>
-                                        </StackPanel>
-                                    </Border>
-                                </Popup>
                             </Grid>
 
                             <Grid Grid.Column="3" Margin="0,0,8,0">
@@ -836,9 +1185,11 @@
                             </Grid.ColumnDefinitions>
 
                             <Border Grid.Column="0"
+                                    Grid.ColumnSpan="2"
                                     Width="300"
                                     Height="40"
                                     Margin="0,0,8,0"
+                                    HorizontalAlignment="Center"
                                     CornerRadius="12"
                                     BorderBrush="{DynamicResource Brush.InputBorder}"
                                     BorderThickness="1"
@@ -884,88 +1235,14 @@
                                               Width="44"
                                               Padding="0"
                                               Style="{StaticResource TopbarToggleButtonStyle}"
-                                              ToolTip="Filter">
+                                              ToolTip="Filter"
+                                              IsChecked="{Binding IsNonMapOrdersFilterPanelVisible, Mode=TwoWay}">
                                     <Viewbox Style="{StaticResource FilterIconViewboxStyle}">
                                         <Canvas Width="24" Height="24">
                                             <Path Style="{StaticResource FilterIconPathStyle}" />
                                         </Canvas>
                                     </Viewbox>
                                 </ToggleButton>
-                                <Popup PlacementTarget="{Binding ElementName=NonMapOrdersFilterPopupButton}"
-                                       Placement="Bottom"
-                                       StaysOpen="False"
-                                       AllowsTransparency="True"
-                                       IsOpen="{Binding IsChecked, ElementName=NonMapOrdersFilterPopupButton, Mode=TwoWay}">
-                                    <Border Style="{StaticResource SoftCardStyle}"
-                                            Margin="0,6,0,0"
-                                            Padding="12"
-                                            MinWidth="360">
-                                        <StackPanel>
-                                            <TextBlock FontWeight="SemiBold" Margin="0,0,0,8" Text="Filter" />
-                                            <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Lieferart" />
-                                            <ComboBox Height="36"
-                                                      Margin="0,4,0,8"
-                                                      ItemsSource="{Binding DeliveryTypeFilterOptions}"
-                                                      SelectedItem="{Binding SelectedDeliveryTypeFilter, Mode=TwoWay}" />
-                                            <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Status" />
-                                            <ComboBox Height="36"
-                                                      Margin="0,4,0,10"
-                                                      ItemsSource="{Binding StatusFilterOptions}"
-                                                      SelectedItem="{Binding SelectedStatusFilter, Mode=TwoWay}" />
-                                            <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Ansicht" />
-                                            <Border Margin="0,4,0,0"
-                                                    CornerRadius="13"
-                                                    BorderThickness="1"
-                                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
-                                                    Background="{DynamicResource Brush.CardMuted}">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <Button Grid.Column="0"
-                                                            Margin="4"
-                                                            Height="34"
-                                                            Content="Aktiv"
-                                                            Command="{Binding ShowActiveOrdersCommand}">
-                                                        <Button.Style>
-                                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                                <Setter Property="Background" Value="Transparent" />
-                                                                <Setter Property="BorderBrush" Value="Transparent" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding ShowActiveOrders}" Value="True">
-                                                                        <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
-                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                                        <Setter Property="Foreground" Value="White" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
-                                                    <Button Grid.Column="1"
-                                                            Margin="4"
-                                                            Height="34"
-                                                            Content="Archiviert"
-                                                            Command="{Binding ShowArchivedOrdersCommand}">
-                                                        <Button.Style>
-                                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                                <Setter Property="Background" Value="Transparent" />
-                                                                <Setter Property="BorderBrush" Value="Transparent" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding ShowArchivedOrders}" Value="True">
-                                                                        <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
-                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                                        <Setter Property="Foreground" Value="White" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
-                                                </Grid>
-                                            </Border>
-                                        </StackPanel>
-                                    </Border>
-                                </Popup>
                             </Grid>
 
                             <Grid Grid.Column="3" Margin="0,0,8,0">
@@ -1218,6 +1495,7 @@
                                       Background="{DynamicResource Brush.ButtonBackground}"
                                       BorderBrush="{DynamicResource Brush.ButtonBorder}"
                                       BorderThickness="1"
+                                      Cursor="Hand"
                                       Foreground="{DynamicResource Brush.ButtonForeground}">
                             <ToggleButton.Style>
                                 <Style TargetType="ToggleButton">

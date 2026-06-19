@@ -125,6 +125,215 @@
         <Setter Property="BorderThickness" Value="1" />
     </Style>
 
+    <Style x:Key="FilterPopupPanelStyle" TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="CornerRadius" Value="16" />
+    </Style>
+
+    <Style x:Key="FilterPanelSectionStyle" TargetType="Border">
+        <Setter Property="Padding" Value="14" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style x:Key="FilterPanelTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+    </Style>
+
+    <Style x:Key="FilterPanelCaptionTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,2,0,10" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+    </Style>
+
+    <Style x:Key="FilterPanelCardStyle" TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+        <Setter Property="Effect" Value="{x:Null}" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="Margin" Value="0,0,14,8" />
+        <Setter Property="Width" Value="215" />
+        <Setter Property="MinHeight" Value="150" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
+    </Style>
+
+    <Style x:Key="FilterPanelIconBadgeStyle" TargetType="Border">
+        <Setter Property="Width" Value="42" />
+        <Setter Property="Height" Value="42" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource Brush.CardSoft}" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+
+    <Style x:Key="FilterPanelIconGlyphStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="FilterPanelOptionBorderStyle" TargetType="Border">
+        <Setter Property="Margin" Value="0,0,0,6" />
+        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource Brush.CardSoft}" />
+    </Style>
+
+    <Style x:Key="FilterPanelOptionCheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.InputBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.InputBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="MinHeight" Value="16" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <BulletDecorator Background="Transparent" SnapsToDevicePixels="True">
+                        <BulletDecorator.Bullet>
+                            <Grid Width="20" Height="20">
+                                <Border x:Name="Box"
+                                        Width="18"
+                                        Height="18"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="6" />
+                                <Path x:Name="CheckGlyph"
+                                      Width="10"
+                                      Height="7"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Data="M1,3.5 L3.8,6.2 L9,1"
+                                      Stroke="{DynamicResource Brush.TextPrimary}"
+                                      StrokeThickness="2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      Visibility="Collapsed" />
+                                <Border x:Name="IndeterminateGlyph"
+                                        Width="8"
+                                        Height="2"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        CornerRadius="1"
+                                        Background="{DynamicResource Brush.TextPrimary}"
+                                        Visibility="Collapsed" />
+                            </Grid>
+                        </BulletDecorator.Bullet>
+                        <ContentPresenter x:Name="ContentHost"
+                                          Margin="8,0,0,0"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          RecognizesAccessKey="True"
+                                          SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                    </BulletDecorator>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="ContentHost" Property="Margin" Value="0" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                            <Setter TargetName="ContentHost" Property="Margin" Value="0" />
+                        </DataTrigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{DynamicResource Brush.BorderStrong}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
+                            <Setter TargetName="CheckGlyph" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="{x:Null}">
+                            <Setter TargetName="Box" Property="Background" Value="{DynamicResource Brush.BorderStrong}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
+                            <Setter TargetName="IndeterminateGlyph" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Brush.DarkButton}" />
+                            <Setter TargetName="Box" Property="Background" Value="{DynamicResource Brush.CardMuted}" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsChecked" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Box" Property="Background" Value="{DynamicResource Brush.BorderSoft}" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+                        </MultiTrigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Box" Property="Opacity" Value="0.86" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Box" Property="BorderThickness" Value="2" />
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Brush.DarkButton}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.TextSubtle}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <DataTemplate x:Key="FilterPanelOptionTemplate">
+        <Border>
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource FilterPanelOptionBorderStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <CheckBox Style="{StaticResource FilterPanelOptionCheckBoxStyle}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                <TextBlock Text="{Binding Label}"
+                           TextWrapping="Wrap" />
+            </CheckBox>
+        </Border>
+    </DataTemplate>
+
+    <DataTemplate x:Key="SupplierFilterPanelOptionTemplate">
+        <Border Width="183"
+                HorizontalAlignment="Left"
+                Margin="6,0,6,8">
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource FilterPanelOptionBorderStyle}">
+                    <Setter Property="Width" Value="183" />
+                    <Setter Property="HorizontalAlignment" Value="Left" />
+                    <Setter Property="Margin" Value="6,0,6,8" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <CheckBox Style="{StaticResource FilterPanelOptionCheckBoxStyle}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                <TextBlock Text="{Binding Label}"
+                           TextWrapping="Wrap" />
+            </CheckBox>
+        </Border>
+    </DataTemplate>
+
     <Style x:Key="EntityListContainerCardStyle" TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
         <Setter Property="Padding" Value="12" />
         <Setter Property="CornerRadius" Value="16" />

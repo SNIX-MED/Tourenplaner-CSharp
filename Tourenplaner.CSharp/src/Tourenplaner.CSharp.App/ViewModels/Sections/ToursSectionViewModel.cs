@@ -493,9 +493,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
     }
 
-    public string FromDateDisplayText => FromDate?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "Datum auswählen";
+    public string FromDateDisplayText => FromDate?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "Von";
 
-    public string ToDateDisplayText => ToDate?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "Datum auswählen";
+    public string ToDateDisplayText => ToDate?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "Bis";
 
     public bool IsFromDatePopupOpen
     {

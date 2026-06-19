@@ -8,6 +8,7 @@
              d:DesignHeight="720"
              d:DesignWidth="1200">
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <Style x:Key="OrdersGridStyle" TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
             <Setter Property="Background" Value="{DynamicResource Brush.TableBackground}" />
             <Setter Property="BorderThickness" Value="0" />
@@ -31,8 +32,8 @@
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TableHeaderForeground}" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="10,7" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
@@ -40,8 +41,8 @@
         <Style x:Key="OrdersGridRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-            <Setter Property="MinHeight" Value="60" />
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -74,7 +75,7 @@
 
         <Style x:Key="OrdersGridCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Padding" Value="8,0" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
@@ -82,36 +83,36 @@
         </Style>
 
         <Style x:Key="DeliveryTypeBadgeStyle" TargetType="Border">
-            <Setter Property="Padding" Value="10,4" />
-            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="CornerRadius" Value="7" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
 
         <Style x:Key="DeliveryTypeBadgeTextStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{Binding RelativeSource={RelativeSource AncestorType=Border}, Path=Tag}" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
 
         <Style x:Key="DeliveryStatusTextStyle" TargetType="TextBlock">
-            <Setter Property="Margin" Value="2,4,0,0" />
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="1,2,0,0" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
             <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
 
         <Style x:Key="PrimaryTextStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
 
         <Style x:Key="SecondaryTextStyle" TargetType="TextBlock">
-            <Setter Property="Margin" Value="0,1,0,0" />
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,0" />
+            <Setter Property="FontSize" Value="11" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
@@ -182,6 +183,534 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Margin="0,0,0,4"
+                Background="Transparent"
+                BorderThickness="0"
+                Visibility="{Binding IsOrdersFilterPanelVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          MaxHeight="430">
+                <Grid>
+                    <Grid Grid.Row="0"
+                          Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Style="{StaticResource FilterPanelCardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource FilterPanelIconBadgeStyle}">
+                                        <TextBlock Style="{StaticResource FilterPanelIconGlyphStyle}"
+                                                   Text="&#xE8EF;" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="12,0,0,0">
+                                        <TextBlock FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   Text="Auftragstyp" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="Art des Auftrags"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                                <StackPanel Grid.Row="1"
+                                            Margin="0,16,0,0">
+                                    <Border>
+                                        <Border.Style>
+                                            <Style TargetType="Border" BasedOn="{StaticResource FilterPanelOptionBorderStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IncludeOpenOrders}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <CheckBox Style="{StaticResource FilterPanelOptionCheckBoxStyle}"
+                                                  AutomationProperties.Name="Offene Aufträge"
+                                                  IsChecked="{Binding IncludeOpenOrders, Mode=TwoWay}">
+                                            <TextBlock Text="Offene Aufträge"
+                                                       TextWrapping="Wrap" />
+                                        </CheckBox>
+                                    </Border>
+                                    <Border>
+                                        <Border.Style>
+                                            <Style TargetType="Border" BasedOn="{StaticResource FilterPanelOptionBorderStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IncludePlannedOrders}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <CheckBox Style="{StaticResource FilterPanelOptionCheckBoxStyle}"
+                                                  AutomationProperties.Name="Eingeplante Aufträge"
+                                                  IsChecked="{Binding IncludePlannedOrders, Mode=TwoWay}">
+                                            <TextBlock Text="Eingeplante Aufträge"
+                                                       TextWrapping="Wrap" />
+                                        </CheckBox>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Style="{StaticResource FilterPanelCardStyle}"
+                                Visibility="Collapsed">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource FilterPanelIconBadgeStyle}">
+                                        <TextBlock Style="{StaticResource FilterPanelIconGlyphStyle}"
+                                                   Text="&#xE8A5;" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="12,0,0,0">
+                                        <TextBlock FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   Text="Ansicht" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="Aktive oder archivierte Aufträge"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                                <Border Grid.Row="1"
+                                        Margin="0,16,0,0"
+                                        CornerRadius="13"
+                                        BorderThickness="1"
+                                        BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                        Background="{DynamicResource Brush.CardMuted}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Margin="4"
+                                                Height="34"
+                                                Content="Aktiv"
+                                                Command="{Binding ShowActiveOrdersCommand}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ShowActiveOrders}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter Property="Foreground" Value="White" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <Button Grid.Column="1"
+                                                Margin="4"
+                                                Height="34"
+                                                Content="Archiviert"
+                                                Command="{Binding ShowArchivedOrdersCommand}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ShowArchivedOrders}" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                            <Setter Property="Foreground" Value="White" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Style="{StaticResource FilterPanelCardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource FilterPanelIconBadgeStyle}">
+                                        <TextBlock Style="{StaticResource FilterPanelIconGlyphStyle}"
+                                                   Text="&#xE8D4;" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="12,0,0,0">
+                                        <TextBlock FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   Text="Auftragsstatus" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="Status des Auftrags"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                                <ItemsControl Grid.Row="1"
+                                              Margin="0,16,0,0"
+                                              ItemTemplate="{StaticResource FilterPanelOptionTemplate}"
+                                              ItemsSource="{Binding OrderStatusFilters}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="2"
+                                Style="{StaticResource FilterPanelCardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource FilterPanelIconBadgeStyle}">
+                                        <TextBlock Style="{StaticResource FilterPanelIconGlyphStyle}"
+                                                   Text="&#xE806;" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="12,0,0,0">
+                                        <TextBlock FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   Text="Lieferart" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="Art der Lieferung"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                                <ItemsControl Grid.Row="1"
+                                              Margin="0,16,0,0"
+                                              ItemTemplate="{StaticResource FilterPanelOptionTemplate}"
+                                              ItemsSource="{Binding DeliveryTypeFilters}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="3"
+                                Style="{StaticResource FilterPanelCardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource FilterPanelIconBadgeStyle}">
+                                        <TextBlock Style="{StaticResource FilterPanelIconGlyphStyle}"
+                                                   Text="&#xE7ED;" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="12,0,0,0">
+                                        <TextBlock FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   Text="Avisierungsstatus" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="Status der Avisierung"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                                <ItemsControl Grid.Row="1"
+                                              Margin="0,16,0,0"
+                                              ItemTemplate="{StaticResource FilterPanelOptionTemplate}"
+                                              ItemsSource="{Binding AvisoStatusFilters}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="4"
+                                Style="{StaticResource FilterPanelCardStyle}"
+                                Width="Auto"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,0,0,14">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource FilterPanelIconBadgeStyle}">
+                                        <TextBlock Style="{StaticResource FilterPanelIconGlyphStyle}"
+                                                   Text="&#xE80F;" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="12,0,0,0">
+                                        <TextBlock FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   Text="Lieferant" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Text="Auswahl des Lieferanten"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <Button Grid.Column="2"
+                                            MinWidth="150"
+                                            Margin="16,0,0,0"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Top"
+                                            Content="{Binding ToggleAllFiltersButtonText}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Command="{Binding ToggleAllOrderFiltersCommand}"
+                                            AutomationProperties.Name="Alle Filter auswählen oder abwählen" />
+                                </Grid>
+                                <ItemsControl Grid.Row="1"
+                                              Margin="0,16,0,0"
+                                              ItemTemplate="{StaticResource SupplierFilterPanelOptionTemplate}"
+                                              ItemsSource="{Binding SupplierFilters}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal"
+                                                       ItemWidth="195" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </ScrollViewer>
+        </Border>
+
+        <Border Grid.Row="0"
+                Margin="0,0,0,12"
+                Style="{StaticResource FilterPopupPanelStyle}"
+                Visibility="Collapsed">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          MaxHeight="430">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <CheckBox Grid.Column="0"
+                                  Margin="0,0,18,0"
+                                  VerticalAlignment="Center"
+                                  Content="Offene Aufträge"
+                                  IsChecked="{Binding IncludeOpenOrders, Mode=TwoWay}" />
+                        <CheckBox Grid.Column="1"
+                                  Margin="0,0,18,0"
+                                  VerticalAlignment="Center"
+                                  Content="Eingeplante Aufträge"
+                                  IsChecked="{Binding IncludePlannedOrders, Mode=TwoWay}" />
+                        <Button Grid.Column="2"
+                                Width="150"
+                                Margin="0,0,10,0"
+                                HorizontalAlignment="Right"
+                                Content="{Binding ToggleAllFiltersButtonText}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding ToggleAllOrderFiltersCommand}" />
+                        <Button Grid.Column="3"
+                                Width="120"
+                                Margin="0,0,10,0"
+                                HorizontalAlignment="Right"
+                                Content="Filter Reset"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding ResetOrderFiltersCommand}" />
+                        <Border Grid.Column="4"
+                                Width="250"
+                                HorizontalAlignment="Right"
+                                CornerRadius="13"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                Background="{DynamicResource Brush.CardMuted}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0"
+                                        Margin="4"
+                                        Height="34"
+                                        Content="Aktiv"
+                                        Command="{Binding ShowActiveOrdersCommand}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderBrush" Value="Transparent" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowActiveOrders}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Grid.Column="1"
+                                        Margin="4"
+                                        Height="34"
+                                        Content="Archiviert"
+                                        Command="{Binding ShowArchivedOrdersCommand}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="BorderBrush" Value="Transparent" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowArchivedOrders}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <Grid Grid.Row="1" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0"
+                                Margin="0,0,10,0"
+                                Style="{StaticResource FilterPanelSectionStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource FilterPanelTitleTextStyle}" Text="Auftragsstatus" />
+                                <TextBlock Style="{StaticResource FilterPanelCaptionTextStyle}" Text="Status des Auftrags" />
+                                <ItemsControl ItemsSource="{Binding OrderStatusFilters}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Margin="0,0,10,6"
+                                                      Content="{Binding Label}"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1"
+                                Margin="0,0,10,0"
+                                Style="{StaticResource FilterPanelSectionStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource FilterPanelTitleTextStyle}" Text="Lieferart" />
+                                <TextBlock Style="{StaticResource FilterPanelCaptionTextStyle}" Text="Art der Lieferung" />
+                                <ItemsControl ItemsSource="{Binding DeliveryTypeFilters}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Margin="0,0,10,6"
+                                                      Content="{Binding Label}"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="2"
+                                Margin="0,0,10,0"
+                                Style="{StaticResource FilterPanelSectionStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource FilterPanelTitleTextStyle}" Text="Avisierungsstatus" />
+                                <TextBlock Style="{StaticResource FilterPanelCaptionTextStyle}" Text="Status der Avisierung" />
+                                <ItemsControl ItemsSource="{Binding AvisoStatusFilters}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Margin="0,0,10,6"
+                                                      Content="{Binding Label}"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="3"
+                                Style="{StaticResource FilterPanelSectionStyle}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource FilterPanelTitleTextStyle}" Text="Lieferant" />
+                                <TextBlock Style="{StaticResource FilterPanelCaptionTextStyle}" Text="Auswahl des Lieferanten" />
+                                <ItemsControl ItemsSource="{Binding SupplierFilters}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Margin="0,0,10,6"
+                                                      Content="{Binding Label}"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </ScrollViewer>
+        </Border>
 
         <Border Grid.Row="0" Margin="0,0,0,12" Style="{StaticResource FilterBarCardStyle}" Visibility="Collapsed">
             <Grid>
@@ -437,8 +966,8 @@
                                     <Grid VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Id}"
                                                    VerticalAlignment="Center"
-                                                   Margin="8,0,0,0"
-                                                   FontSize="20"
+                                                   Margin="6,0,0,0"
+                                                   FontSize="17"
                                                    FontWeight="SemiBold">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
