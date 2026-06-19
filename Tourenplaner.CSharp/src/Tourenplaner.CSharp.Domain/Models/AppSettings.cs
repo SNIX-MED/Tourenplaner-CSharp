@@ -19,6 +19,8 @@ public sealed class AppSettings
     public const double DefaultPinInfoCardZoomBehaviorStrength = 1.0d;
     public const int DefaultTomTomTrafficRefreshSeconds = 60;
     public const int DefaultTomTomRouteRecalcDebounceMs = 900;
+    public const int DefaultTomTomVehicleOnlyMaxSpeedKmh = 120;
+    public const int DefaultTomTomVehicleWithTrailerMaxSpeedKmh = 100;
     public const string DefaultMapOverlayStyle = "standard";
 
     public string AppearanceMode { get; set; } = "Light";
@@ -67,6 +69,8 @@ public sealed class AppSettings
     public string TomTomApiKey { get; set; } = "IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH";
     public int TomTomTrafficRefreshSeconds { get; set; } = DefaultTomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs { get; set; } = DefaultTomTomRouteRecalcDebounceMs;
+    public int TomTomVehicleOnlyMaxSpeedKmh { get; set; } = DefaultTomTomVehicleOnlyMaxSpeedKmh;
+    public int TomTomVehicleWithTrailerMaxSpeedKmh { get; set; } = DefaultTomTomVehicleWithTrailerMaxSpeedKmh;
     public bool TomTomEnableTileCache { get; set; } = true;
     public string CurrentUserName { get; set; } = string.Empty;
     public Dictionary<string, MapOverlayUserPreference> MapOverlayPreferencesByUser { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -143,6 +147,8 @@ public sealed class AppSettings
             TourDefaultStartTime = string.IsNullOrWhiteSpace(TourDefaultStartTime) ? DefaultTourStartTime : TourDefaultStartTime,
             TomTomTrafficRefreshSeconds = TomTomTrafficRefreshSeconds,
             TomTomRouteRecalcDebounceMs = TomTomRouteRecalcDebounceMs,
+            TomTomVehicleOnlyMaxSpeedKmh = TomTomVehicleOnlyMaxSpeedKmh,
+            TomTomVehicleWithTrailerMaxSpeedKmh = TomTomVehicleWithTrailerMaxSpeedKmh,
             TomTomEnableTileCache = TomTomEnableTileCache
         };
     }
@@ -184,6 +190,8 @@ public sealed class UserAppPreference
     public string TourDefaultStartTime { get; set; } = AppSettings.DefaultTourStartTime;
     public int TomTomTrafficRefreshSeconds { get; set; } = AppSettings.DefaultTomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs { get; set; } = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
+    public int TomTomVehicleOnlyMaxSpeedKmh { get; set; } = AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh;
+    public int TomTomVehicleWithTrailerMaxSpeedKmh { get; set; } = AppSettings.DefaultTomTomVehicleWithTrailerMaxSpeedKmh;
     public bool TomTomEnableTileCache { get; set; } = true;
 
     public UserAppPreference Clone()
@@ -224,6 +232,8 @@ public sealed class UserAppPreference
             TourDefaultStartTime = TourDefaultStartTime,
             TomTomTrafficRefreshSeconds = TomTomTrafficRefreshSeconds,
             TomTomRouteRecalcDebounceMs = TomTomRouteRecalcDebounceMs,
+            TomTomVehicleOnlyMaxSpeedKmh = TomTomVehicleOnlyMaxSpeedKmh,
+            TomTomVehicleWithTrailerMaxSpeedKmh = TomTomVehicleWithTrailerMaxSpeedKmh,
             TomTomEnableTileCache = TomTomEnableTileCache
         };
     }

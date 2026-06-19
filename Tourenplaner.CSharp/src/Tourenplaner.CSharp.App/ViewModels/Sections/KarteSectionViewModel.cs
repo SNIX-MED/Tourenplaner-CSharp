@@ -122,6 +122,8 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private string _tomTomMapOverlayStyle = AppSettings.DefaultMapOverlayStyle;
     private int _tomTomTrafficRefreshSeconds = AppSettings.DefaultTomTomTrafficRefreshSeconds;
     private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
+    private int _tomTomVehicleOnlyMaxSpeedKmh = AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh;
+    private int _tomTomVehicleWithTrailerMaxSpeedKmh = AppSettings.DefaultTomTomVehicleWithTrailerMaxSpeedKmh;
     private bool _tomTomEnableTileCache = true;
     private string _geocodeCachePath = string.Empty;
     private GeoPoint? _companyLocation;
@@ -1016,6 +1018,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _tomTomRouteRecalcDebounceMs = userPreference.TomTomRouteRecalcDebounceMs is < 100 or > 10000
             ? AppSettings.DefaultTomTomRouteRecalcDebounceMs
             : userPreference.TomTomRouteRecalcDebounceMs;
+        _tomTomVehicleOnlyMaxSpeedKmh = userPreference.TomTomVehicleOnlyMaxSpeedKmh is < 1 or > 250
+            ? AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh
+            : userPreference.TomTomVehicleOnlyMaxSpeedKmh;
+        _tomTomVehicleWithTrailerMaxSpeedKmh = userPreference.TomTomVehicleWithTrailerMaxSpeedKmh is < 1 or > 250
+            ? AppSettings.DefaultTomTomVehicleWithTrailerMaxSpeedKmh
+            : userPreference.TomTomVehicleWithTrailerMaxSpeedKmh;
         _tomTomEnableTileCache = userPreference.TomTomEnableTileCache;
         settings.MapOverlayPreferencesByUser ??= new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase);
         if (settings.MapOverlayPreferencesByUser.TryGetValue(currentUserName, out var overlayPreference) && overlayPreference is not null)
@@ -1051,6 +1059,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(TomTomMapOverlayStyle));
         OnPropertyChanged(nameof(TomTomTrafficRefreshSeconds));
         OnPropertyChanged(nameof(TomTomRouteRecalcDebounceMs));
+        OnPropertyChanged(nameof(TomTomVehicleOnlyMaxSpeedKmh));
+        OnPropertyChanged(nameof(TomTomVehicleWithTrailerMaxSpeedKmh));
+        OnPropertyChanged(nameof(CurrentRouteAppliedMaxSpeedKmh));
+        OnPropertyChanged(nameof(HasCurrentRouteAppliedMaxSpeed));
         OnPropertyChanged(nameof(TomTomEnableTileCache));
         OnPropertyChanged(nameof(MapPinInfoCardShowName));
         OnPropertyChanged(nameof(MapPinInfoCardShowOrderNumber));
@@ -1173,6 +1185,10 @@ public bool TomTomUseDepartAtTraffic => _tomTomUseDepartAtTraffic;
 public string TomTomMapOverlayStyle => _tomTomMapOverlayStyle;
 public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs => _tomTomRouteRecalcDebounceMs;
+    public int TomTomVehicleOnlyMaxSpeedKmh => _tomTomVehicleOnlyMaxSpeedKmh;
+    public int TomTomVehicleWithTrailerMaxSpeedKmh => _tomTomVehicleWithTrailerMaxSpeedKmh;
+    public int CurrentRouteAppliedMaxSpeedKmh => ResolveCurrentRouteMaxSpeedKmh();
+    public bool HasCurrentRouteAppliedMaxSpeed => CurrentRouteAppliedMaxSpeedKmh > 0;
     public bool TomTomEnableTileCache => _tomTomEnableTileCache;
 
     private static string FormatOrderAddress(Order? order)
@@ -3388,6 +3404,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         _currentRouteTrailerId = (tour.TrailerId ?? string.Empty).Trim();
         _currentRouteSecondaryVehicleId = (tour.SecondaryVehicleId ?? string.Empty).Trim();
         _currentRouteSecondaryTrailerId = (tour.SecondaryTrailerId ?? string.Empty).Trim();
+        OnPropertyChanged(nameof(CurrentRouteAppliedMaxSpeedKmh));
+        OnPropertyChanged(nameof(HasCurrentRouteAppliedMaxSpeed));
         _suppressRouteChangeTracking = true;
         try
         {
@@ -4104,6 +4122,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         _currentRouteTrailerId = string.Empty;
         _currentRouteSecondaryVehicleId = string.Empty;
         _currentRouteSecondaryTrailerId = string.Empty;
+        OnPropertyChanged(nameof(CurrentRouteAppliedMaxSpeedKmh));
+        OnPropertyChanged(nameof(HasCurrentRouteAppliedMaxSpeed));
         _suppressRouteChangeTracking = true;
         RouteDate = DateOnly.FromDateTime(DateTime.Today).ToString("dd.MM.yyyy");
         RouteStartHour = _defaultRouteStartHour;
@@ -6251,31 +6271,48 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
     private TomTomRoutingService GetTomTomRoutingServiceForCurrentRoute()
     {
-        if (_tomTomUseVehicleDimensions || _tomTomUseVehicleWeightRestrictions)
+        var maxSpeedKmh = ResolveCurrentRouteMaxSpeedKmh();
+        if (_tomTomUseVehicleDimensions || _tomTomUseVehicleWeightRestrictions || maxSpeedKmh > 0)
         {
             var vehicle = ResolvePrimaryAssignedVehicle();
             var dimensions = vehicle?.ExternalDimensions;
-            if (dimensions is not null || (_tomTomUseVehicleWeightRestrictions && (vehicle?.GrossWeightKg ?? 0) > 0))
+            var hasWeightRestriction = _tomTomUseVehicleWeightRestrictions && (vehicle?.GrossWeightKg ?? 0) > 0;
+            if (dimensions is not null || hasWeightRestriction || maxSpeedKmh > 0)
             {
                 var lengthMeters = _tomTomUseVehicleDimensions ? Math.Clamp((dimensions?.LengthCm ?? 0) / 100d, 0d, 50d) : 0d;
                 var widthMeters = _tomTomUseVehicleDimensions ? Math.Clamp((dimensions?.WidthCm ?? 0) / 100d, 0d, 10d) : 0d;
                 var heightMeters = _tomTomUseVehicleDimensions ? Math.Clamp((dimensions?.HeightCm ?? 0) / 100d, 0d, 10d) : 0d;
-                var weightKg = _tomTomUseVehicleWeightRestrictions ? Math.Clamp(vehicle?.GrossWeightKg ?? 0, 0, 100000) : 0;
-                var hasDimension = lengthMeters > 0d || widthMeters > 0d || heightMeters > 0d || weightKg > 0;
-                if (hasDimension)
+                var weightKg = hasWeightRestriction ? Math.Clamp(vehicle?.GrossWeightKg ?? 0, 0, 100000) : 0;
+                var hasRoutingConstraint = lengthMeters > 0d || widthMeters > 0d || heightMeters > 0d || weightKg > 0 || maxSpeedKmh > 0;
+                if (hasRoutingConstraint)
                 {
                     var profile = new TomTomRoutingProfile(
                         global::Tourenplaner.CSharp.App.Services.TomTomRoutingMode.HeightAware,
                         heightMeters,
                         lengthMeters,
                         widthMeters,
-                        weightKg);
+                        weightKg,
+                        maxSpeedKmh);
                     return new TomTomRoutingService(_tomTomApiKey, profile);
                 }
             }
         }
 
         return new TomTomRoutingService(_tomTomApiKey, TomTomRoutingProfile.Default);
+    }
+
+    private int ResolveCurrentRouteMaxSpeedKmh()
+    {
+        var hasVehicle = !string.IsNullOrWhiteSpace(_currentRouteVehicleId) || !string.IsNullOrWhiteSpace(_currentRouteSecondaryVehicleId);
+        if (!hasVehicle)
+        {
+            return 0;
+        }
+
+        var hasTrailer = !string.IsNullOrWhiteSpace(_currentRouteTrailerId) || !string.IsNullOrWhiteSpace(_currentRouteSecondaryTrailerId);
+        return hasTrailer
+            ? Math.Clamp(_tomTomVehicleWithTrailerMaxSpeedKmh, 1, 250)
+            : Math.Clamp(_tomTomVehicleOnlyMaxSpeedKmh, 1, 250);
     }
 
     public async Task UpdateMapOverlayOptionsAsync(string style, bool showTrafficFlow, bool showTrafficIncidents, bool showRoadLabels, bool showPoi, bool useVehicleDimensions, bool useVehicleWeightRestrictions, bool useDepartAtTraffic)
@@ -6612,6 +6649,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         var departAt = plannedDeparture?.ToString("yyyy-MM-ddTHH:mm:ssK", CultureInfo.InvariantCulture) ?? "none";
         var vehicle = ResolvePrimaryAssignedVehicle();
         var dimensions = vehicle?.ExternalDimensions;
+        var maxSpeedKmh = ResolveCurrentRouteMaxSpeedKmh();
 
         var vehicleLengthMeters = _tomTomUseVehicleDimensions
             ? Math.Clamp((dimensions?.LengthCm ?? 0) / 100d, 0d, 50d)
@@ -6627,7 +6665,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             : 0;
 
         var restrictionsSignature = FormattableString.Invariant(
-            $"dims={(_tomTomUseVehicleDimensions ? 1 : 0)}:{vehicleLengthMeters:0.###},{vehicleWidthMeters:0.###},{vehicleHeightMeters:0.###};weight={(_tomTomUseVehicleWeightRestrictions ? 1 : 0)}:{vehicleWeightKg}");
+            $"dims={(_tomTomUseVehicleDimensions ? 1 : 0)}:{vehicleLengthMeters:0.###},{vehicleWidthMeters:0.###},{vehicleHeightMeters:0.###};weight={(_tomTomUseVehicleWeightRestrictions ? 1 : 0)}:{vehicleWeightKg};maxSpeed={maxSpeedKmh}");
 
         return $"{path}#departAt={departAt}#trafficV2#{restrictionsSignature}";
     }

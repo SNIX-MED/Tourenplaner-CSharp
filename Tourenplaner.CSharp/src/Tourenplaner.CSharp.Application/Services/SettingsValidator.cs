@@ -163,6 +163,16 @@ public sealed class SettingsValidator
             errors.Add("TomTomRouteRecalcDebounceMs must be between 100 and 10000.");
         }
 
+        if (settings.TomTomVehicleOnlyMaxSpeedKmh is < 1 or > 250)
+        {
+            errors.Add("TomTomVehicleOnlyMaxSpeedKmh must be between 1 and 250.");
+        }
+
+        if (settings.TomTomVehicleWithTrailerMaxSpeedKmh is < 1 or > 250)
+        {
+            errors.Add("TomTomVehicleWithTrailerMaxSpeedKmh must be between 1 and 250.");
+        }
+
         return new ValidationResult(errors);
     }
 

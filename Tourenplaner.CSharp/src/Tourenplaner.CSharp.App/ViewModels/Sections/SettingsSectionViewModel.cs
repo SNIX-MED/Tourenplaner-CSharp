@@ -79,6 +79,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _tomTomApiKey = "IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH";
     private int _tomTomTrafficRefreshSeconds = AppSettings.DefaultTomTomTrafficRefreshSeconds;
     private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
+    private int _tomTomVehicleOnlyMaxSpeedKmh = AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh;
+    private int _tomTomVehicleWithTrailerMaxSpeedKmh = AppSettings.DefaultTomTomVehicleWithTrailerMaxSpeedKmh;
     private bool _tomTomEnableTileCache = true;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
@@ -627,6 +629,18 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _tomTomRouteRecalcDebounceMs, value);
     }
 
+    public int TomTomVehicleOnlyMaxSpeedKmh
+    {
+        get => _tomTomVehicleOnlyMaxSpeedKmh;
+        set => SetProperty(ref _tomTomVehicleOnlyMaxSpeedKmh, value);
+    }
+
+    public int TomTomVehicleWithTrailerMaxSpeedKmh
+    {
+        get => _tomTomVehicleWithTrailerMaxSpeedKmh;
+        set => SetProperty(ref _tomTomVehicleWithTrailerMaxSpeedKmh, value);
+    }
+
     public bool TomTomEnableTileCache
     {
         get => _tomTomEnableTileCache;
@@ -987,6 +1001,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(TomTomApiKey) or
             nameof(TomTomTrafficRefreshSeconds) or
             nameof(TomTomRouteRecalcDebounceMs) or
+            nameof(TomTomVehicleOnlyMaxSpeedKmh) or
+            nameof(TomTomVehicleWithTrailerMaxSpeedKmh) or
             nameof(TomTomEnableTileCache) or
             nameof(BackupsEnabled) or
             nameof(BackupDir) or
@@ -1276,6 +1292,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         userPreference.TourDefaultStartTime = NormalizeTourDefaultStartTime(TourDefaultStartTime);
         userPreference.TomTomTrafficRefreshSeconds = Math.Max(15, TomTomTrafficRefreshSeconds);
         userPreference.TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000);
+        userPreference.TomTomVehicleOnlyMaxSpeedKmh = Math.Clamp(TomTomVehicleOnlyMaxSpeedKmh, 1, 250);
+        userPreference.TomTomVehicleWithTrailerMaxSpeedKmh = Math.Clamp(TomTomVehicleWithTrailerMaxSpeedKmh, 1, 250);
         userPreference.TomTomEnableTileCache = TomTomEnableTileCache;
 
         model.AppearanceMode = "Light";
@@ -1286,6 +1304,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         model.StorageMode = StorageMode;
         model.PostgreSqlStorage = BuildPostgreSqlStorageSettings();
         model.TomTomApiKey = (TomTomApiKey ?? string.Empty).Trim();
+        model.TomTomTrafficRefreshSeconds = Math.Max(15, TomTomTrafficRefreshSeconds);
+        model.TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000);
+        model.TomTomVehicleOnlyMaxSpeedKmh = Math.Clamp(TomTomVehicleOnlyMaxSpeedKmh, 1, 250);
+        model.TomTomVehicleWithTrailerMaxSpeedKmh = Math.Clamp(TomTomVehicleWithTrailerMaxSpeedKmh, 1, 250);
         model.CurrentUserName = currentUserName;
         model.MapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
             model.MapOverlayPreferencesByUser ?? _mapOverlayPreferencesByUser ?? new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase),
@@ -1355,6 +1377,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         TomTomApiKey = settings.TomTomApiKey ?? string.Empty;
         TomTomTrafficRefreshSeconds = userPreference.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : userPreference.TomTomTrafficRefreshSeconds;
         TomTomRouteRecalcDebounceMs = userPreference.TomTomRouteRecalcDebounceMs is < 100 or > 10000 ? AppSettings.DefaultTomTomRouteRecalcDebounceMs : userPreference.TomTomRouteRecalcDebounceMs;
+        TomTomVehicleOnlyMaxSpeedKmh = userPreference.TomTomVehicleOnlyMaxSpeedKmh is < 1 or > 250 ? AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh : userPreference.TomTomVehicleOnlyMaxSpeedKmh;
+        TomTomVehicleWithTrailerMaxSpeedKmh = userPreference.TomTomVehicleWithTrailerMaxSpeedKmh is < 1 or > 250 ? AppSettings.DefaultTomTomVehicleWithTrailerMaxSpeedKmh : userPreference.TomTomVehicleWithTrailerMaxSpeedKmh;
         TomTomEnableTileCache = userPreference.TomTomEnableTileCache;
         _currentUserName = currentUserName;
         _mapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(

@@ -259,7 +259,8 @@ public partial class KarteSectionView : UserControl
             QueueMapRefresh(MapRefreshOperation.DetailsToggle, UiRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.TomTomApiKey) ||
-                 e.PropertyName == nameof(KarteSectionViewModel.TomTomEnableTileCache))
+                 e.PropertyName == nameof(KarteSectionViewModel.TomTomEnableTileCache) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.CurrentRouteAppliedMaxSpeedKmh))
         {
             _ = ReloadMapDocumentAsync();
         }
@@ -285,7 +286,8 @@ public partial class KarteSectionView : UserControl
             vm.TomTomUseVehicleDimensions,
             vm.TomTomUseVehicleWeightRestrictions,
             vm.TomTomUseDepartAtTraffic,
-            vm.PinInfoCardScale);
+            vm.PinInfoCardScale,
+            vm.CurrentRouteAppliedMaxSpeedKmh);
         MapWebView.NavigateToString(html);
         await Task.CompletedTask;
     }
@@ -598,7 +600,8 @@ public partial class KarteSectionView : UserControl
                 vm?.TomTomUseVehicleDimensions ?? false,
                 vm?.TomTomUseVehicleWeightRestrictions ?? false,
                 vm?.TomTomUseDepartAtTraffic ?? true,
-                vm?.PinInfoCardScale ?? AppSettings.DefaultPinInfoCardScale);
+                vm?.PinInfoCardScale ?? AppSettings.DefaultPinInfoCardScale,
+                vm?.CurrentRouteAppliedMaxSpeedKmh ?? 0);
             MapWebView.NavigateToString(html);
             _mapReady = true;
             MapWebView.Visibility = Visibility.Visible;

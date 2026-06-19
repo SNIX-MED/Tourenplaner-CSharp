@@ -91,6 +91,12 @@ public sealed class TomTomRoutingService
             }
         }
 
+        if (_profile.VehicleMaxSpeedKmh > 0)
+        {
+            var maxSpeed = _profile.VehicleMaxSpeedKmh.ToString(CultureInfo.InvariantCulture);
+            url += $"&vehicleMaxSpeed={Uri.EscapeDataString(maxSpeed)}";
+        }
+
         if (departAt.HasValue)
         {
             var departAtIso = departAt.Value.ToString("yyyy-MM-ddTHH:mm:ssK", CultureInfo.InvariantCulture);
@@ -376,7 +382,8 @@ public sealed record TomTomRoutingProfile(
     double VehicleHeightMeters,
     double VehicleLengthMeters = 0d,
     double VehicleWidthMeters = 0d,
-    int VehicleWeightKg = 0)
+    int VehicleWeightKg = 0,
+    int VehicleMaxSpeedKmh = 0)
 {
     public static TomTomRoutingProfile Default { get; } = new(TomTomRoutingMode.Car, 0d);
 }

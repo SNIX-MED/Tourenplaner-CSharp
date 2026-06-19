@@ -1095,6 +1095,25 @@
                                         </Border>
                                     </Grid>
 
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Max. Tempo Zugfahrzeug (km/h)" />
+                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TomTomVehicleOnlyMaxSpeedKmh, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Max. Tempo mit Anhänger (km/h)" />
+                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TomTomVehicleWithTrailerMaxSpeedKmh, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
                                 </StackPanel>
 
                                 <StackPanel>

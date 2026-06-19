@@ -13,7 +13,8 @@ internal static class MapHtmlDocumentBuilder
         bool mapOverlayUseVehicleDimensions,
         bool mapOverlayUseVehicleWeightRestrictions,
         bool mapOverlayUseDepartAtTraffic,
-        double pinInfoCardScale)
+        double pinInfoCardScale,
+        int currentRouteAppliedMaxSpeedKmh)
     {
         var normalizedPinInfoCardScale = pinInfoCardScale is >= 0.7d and <= 1.8d
             ? pinInfoCardScale
@@ -62,6 +63,9 @@ internal static class MapHtmlDocumentBuilder
                    .gawela-company-marker { width: 22px; height: 22px; border-radius: 50%; background: #0f766e; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; }
                    .gawela-company-marker svg { width: 12px; height: 12px; fill: #ffffff; display: block; }
                    .map-top-controls { position: absolute; right: 12px; top: 12px; z-index: 1350; display: inline-flex; align-items: center; gap: 8px; }
+                   .speed-limit-badge { width: 40px; height: 40px; min-width: 40px; min-height: 40px; border-radius: 50%; background: #ffffff; border: 5px solid #e30613; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
+                   .speed-limit-badge.hidden { display: none !important; }
+                   .speed-limit-badge span { display: block; font-size: 17px; line-height: 1; font-weight: 900; color: #000000; letter-spacing: -0.04em; }
                    .map-options-toggle { border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; padding: 0; font-size: 12px; color: #0f172a; cursor: pointer; font-weight: 600; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
                    .map-options-toggle.hidden { display: none !important; }
                    .map-options-toggle:hover { background: #e9edf6; border-color: #bac4d4; }
@@ -128,6 +132,9 @@ internal static class MapHtmlDocumentBuilder
                  <div id="status" class="status">Karte wird initialisiert...</div>
                  <div id="tourHoverTooltip" class="tour-hover-tooltip" aria-hidden="true"></div>
                  <div class="map-top-controls">
+                   <div id="speedLimitBadge" class="speed-limit-badge __SPEED_LIMIT_BADGE_HIDDEN__" aria-label="Aktuell berücksichtigte Höchstgeschwindigkeit">
+                     <span>__CURRENT_ROUTE_MAX_SPEED__</span>
+                   </div>
                    <button id="mapOptionsToggle" class="map-options-toggle" type="button" aria-label="Map options">__MAP_OPTIONS_BUTTON_CONTENT__</button>
                    <button id="detailsToggle" class="details-toggle" type="button" aria-label="Auftragsdetails umschalten">&#xE76B;</button>
                  </div>
@@ -2078,6 +2085,8 @@ internal static class MapHtmlDocumentBuilder
             .Replace("__TT_USE_DEPART_AT_TRAFFIC__", mapOverlayUseDepartAtTraffic ? "true" : "false")
             .Replace("__PIN_INFO_CARD_SCALE__", pinInfoCardScaleToken)
             .Replace("__TT_TILE_CACHE__", tomTomEnableTileCache ? "true" : "false")
+            .Replace("__CURRENT_ROUTE_MAX_SPEED__", currentRouteAppliedMaxSpeedKmh > 0 ? currentRouteAppliedMaxSpeedKmh.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty)
+            .Replace("__SPEED_LIMIT_BADGE_HIDDEN__", currentRouteAppliedMaxSpeedKmh > 0 ? string.Empty : "hidden")
             .Replace("__MAP_OPTIONS_BUTTON_CONTENT__", mapOptionsButtonContent)
             .Replace("__INFO_ICON_LOCATION__", infoIconLocation)
             .Replace("__INFO_ICON_PRODUCTS__", infoIconProducts)
