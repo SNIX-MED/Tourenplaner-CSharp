@@ -38,6 +38,16 @@ internal static class TourNormalizer
         source.TravelTimeCache = source.TravelTimeCache
             .Where(x => !string.IsNullOrWhiteSpace(x.Key))
             .ToDictionary(x => x.Key.Trim(), x => x.Value);
+        source.TravelTimeProfileCache = (source.TravelTimeProfileCache ?? new Dictionary<string, TourTravelTimeProfile>())
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+            .ToDictionary(
+                x => x.Key.Trim(),
+                x => new TourTravelTimeProfile
+                {
+                    OptimisticMinutes = Math.Max(0, x.Value?.OptimisticMinutes ?? 0),
+                    RealisticMinutes = Math.Max(0, x.Value?.RealisticMinutes ?? x.Value?.OptimisticMinutes ?? 0),
+                    PessimisticMinutes = Math.Max(0, x.Value?.PessimisticMinutes ?? x.Value?.RealisticMinutes ?? x.Value?.OptimisticMinutes ?? 0)
+                });
 
         return source;
     }
@@ -54,7 +64,9 @@ internal static class TourNormalizer
         source.Lon ??= source.Lng;
         source.TimeWindowStart = (source.TimeWindowStart ?? string.Empty).Trim();
         source.TimeWindowEnd = (source.TimeWindowEnd ?? string.Empty).Trim();
+        source.PlannedArrivalOptimistic = (source.PlannedArrivalOptimistic ?? string.Empty).Trim();
         source.PlannedArrival = (source.PlannedArrival ?? string.Empty).Trim();
+        source.PlannedArrivalPessimistic = (source.PlannedArrivalPessimistic ?? string.Empty).Trim();
         source.PlannedDeparture = (source.PlannedDeparture ?? string.Empty).Trim();
         source.ScheduleConflictText = (source.ScheduleConflictText ?? string.Empty).Trim();
         source.Gewicht = (source.Gewicht ?? string.Empty).Trim();

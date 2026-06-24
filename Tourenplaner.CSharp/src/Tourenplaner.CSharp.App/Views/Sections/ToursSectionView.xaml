@@ -714,6 +714,24 @@
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
+                                                    <TextBlock Text="{Binding ArrivalRangeText}"
+                                                               HorizontalAlignment="Right"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource Brush.TextMuted}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding ArrivalRangeText}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                     <TextBlock HorizontalAlignment="Right"
                                                                Foreground="{DynamicResource Brush.TextMuted}">
                                                         <TextBlock.Style>
@@ -1041,6 +1059,21 @@
                                                                            FontSize="18"
                                                                            Foreground="{DynamicResource Brush.TextPrimary}"
                                                                            Text="{Binding DisplayTime}" />
+                                                                <TextBlock HorizontalAlignment="Right"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                                           Text="{Binding ArrivalRangeText}">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding ArrivalRangeText}" Value="">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
                                                                 <TextBlock HorizontalAlignment="Right"
                                                                            Foreground="{DynamicResource Brush.TextMuted}"
                                                                            Text="{Binding TimeLabel}" />

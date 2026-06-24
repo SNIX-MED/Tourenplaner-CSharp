@@ -130,6 +130,76 @@ public sealed class TomTomRoutingService
             var geometry = new List<GeoPoint>();
             var legs = new List<OsrmRouteLeg>();
             var trafficSegments = new List<OsrmRouteTrafficSegment>();
+            static int? ReadOptionalSeconds(JsonElement element, string propertyName)
+            {
+                if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.Number)
+                {
+                    return null;
+                }
+
+                return Math.Max(0, (int)Math.Round(value.GetDouble(), MidpointRounding.AwayFromZero));
+            }
+
+            static int SecondsToMinutes(int seconds)
+            {
+                return Math.Max(0, (int)Math.Round(seconds / 60d, MidpointRounding.AwayFromZero));
+            }
+
+            static RouteLegTravelTimeProfile BuildTravelTimeProfile(JsonElement summary)
+            {
+                var travelSeconds = ReadOptionalSeconds(summary, "travelTimeInSeconds");
+                var noTrafficSeconds = ReadOptionalSeconds(summary, "noTrafficTravelTimeInSeconds");
+                var historicSeconds = ReadOptionalSeconds(summary, "historicTrafficTravelTimeInSeconds");
+                var liveTrafficSeconds = ReadOptionalSeconds(summary, "liveTrafficIncidentsTravelTimeInSeconds");
+
+                var realisticSeconds = travelSeconds
+                    ?? historicSeconds
+                    ?? liveTrafficSeconds
+                    ?? noTrafficSeconds
+                    ?? 0;
+
+                var noTrafficDelaySeconds = noTrafficSeconds.HasValue
+                    ? Math.Max(0, realisticSeconds - noTrafficSeconds.Value)
+                    : 0;
+                var historicDelaySeconds = historicSeconds.HasValue
+                    ? Math.Max(0, historicSeconds.Value - realisticSeconds)
+                    : 0;
+                var liveIncidentDelaySeconds = liveTrafficSeconds.HasValue
+                    ? Math.Max(0, liveTrafficSeconds.Value)
+                    : 0;
+
+                var optimisticBufferSeconds = Math.Max(
+                    4 * 60,
+                    Math.Min(10 * 60, (int)Math.Round(realisticSeconds * 0.08d, MidpointRounding.AwayFromZero)));
+                var optimisticSeconds = Math.Max(
+                    0,
+                    realisticSeconds - Math.Max(0, Math.Min(noTrafficDelaySeconds, optimisticBufferSeconds)));
+
+                var pessimisticDelaySeconds = Math.Max(
+                    Math.Max(historicDelaySeconds, liveIncidentDelaySeconds),
+                    noTrafficDelaySeconds > 0
+                        ? (int)Math.Round(noTrafficDelaySeconds * 1.20d, MidpointRounding.AwayFromZero)
+                        : 0);
+                var pessimisticBufferFloorSeconds = Math.Max(
+                    8 * 60,
+                    Math.Min(18 * 60, (int)Math.Round(realisticSeconds * 0.18d, MidpointRounding.AwayFromZero)));
+                var pessimisticBufferCapSeconds = Math.Max(
+                    12 * 60,
+                    Math.Min(22 * 60, (int)Math.Round(realisticSeconds * 0.24d, MidpointRounding.AwayFromZero)));
+                var pessimisticBufferSeconds = Math.Min(
+                    Math.Max(pessimisticDelaySeconds, pessimisticBufferFloorSeconds),
+                    pessimisticBufferCapSeconds);
+                var pessimisticSeconds = realisticSeconds + pessimisticBufferSeconds;
+
+                optimisticSeconds = Math.Min(optimisticSeconds, realisticSeconds);
+                pessimisticSeconds = Math.Max(pessimisticSeconds, realisticSeconds);
+
+                return new RouteLegTravelTimeProfile(
+                    SecondsToMinutes(optimisticSeconds),
+                    SecondsToMinutes(realisticSeconds),
+                    SecondsToMinutes(pessimisticSeconds));
+            }
+
             static string ResolveTrafficLevel(JsonElement section)
             {
                 var trafficLevel = "unknown";
@@ -262,9 +332,11 @@ public sealed class TomTomRoutingService
             foreach (var leg in legsElement.EnumerateArray())
             {
                 var durationMinutes = 0;
+                var travelTimes = RouteLegTravelTimeProfile.FromSingleDuration(0);
                 var distanceKm = 0d;
                 if (leg.TryGetProperty("summary", out var summary) && summary.ValueKind == JsonValueKind.Object)
                 {
+                    travelTimes = BuildTravelTimeProfile(summary);
                     if (summary.TryGetProperty("travelTimeInSeconds", out var sec) && sec.ValueKind == JsonValueKind.Number)
                     {
                         durationMinutes = Math.Max(0, (int)Math.Round(sec.GetDouble() / 60d, MidpointRounding.AwayFromZero));
@@ -276,7 +348,12 @@ public sealed class TomTomRoutingService
                     }
                 }
 
-                legs.Add(new OsrmRouteLeg(durationMinutes, distanceKm));
+                legs.Add(new OsrmRouteLeg(
+                    new RouteLegTravelTimeProfile(
+                        travelTimes.OptimisticDurationMinutes,
+                        durationMinutes > 0 ? durationMinutes : travelTimes.RealisticDurationMinutes,
+                        travelTimes.PessimisticDurationMinutes),
+                    distanceKm));
                 if (!leg.TryGetProperty("points", out var points) || points.ValueKind != JsonValueKind.Array)
                 {
                     legIndex++;

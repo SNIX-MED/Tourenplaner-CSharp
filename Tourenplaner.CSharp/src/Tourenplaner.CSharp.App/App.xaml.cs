@@ -23,6 +23,8 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        var startupStep = "Vorbereitung";
+        string? startupWarning = null;
 
         var splashWindow = new StartupSplashWindow();
         splashWindow.Show();
@@ -39,6 +41,7 @@ public partial class App : System.Windows.Application
 
         try
         {
+            startupStep = "Update-Pruefung";
             var updateProgress = new Progress<string>(message => splashWindow.SetStatus(message));
             var updateResult = await InstalledAppUpdateService.TryApplyUpdateAsync(updateProgress);
             if (updateResult.UpdateWasStarted)
@@ -55,10 +58,12 @@ public partial class App : System.Windows.Application
             if (!string.IsNullOrWhiteSpace(updateResult.ErrorMessage))
             {
                 TryLogInfo("AutomaticUpdate", $"Automatisches Update konnte nicht gestartet werden: {updateResult.ErrorMessage}");
+                startupWarning = updateResult.ErrorMessage;
                 await RenderSplashStepAsync(splashWindow, "Update konnte nicht geladen werden. Installierte Version wird gestartet...");
                 await Task.Delay(900);
             }
 
+            startupStep = "Repository-Initialisierung";
             await RenderSplashStepAsync(splashWindow, "Dateien und Einstellungen werden geladen...");
             var settingsPath = Path.Combine(dataRoot, "settings.json");
             var ordersJsonPath = Path.Combine(dataRoot, "orders.json");
@@ -83,6 +88,7 @@ public partial class App : System.Windows.Application
             var historyService = new AppDataHistoryService(
                 dataSyncService,
                 repositories.GetHistoryTrackedPaths().ToArray());
+            startupStep = "Hauptfenster";
             var mainWindow = new MainWindow
             {
                 DataContext = new MainShellViewModel(
@@ -91,18 +97,35 @@ public partial class App : System.Windows.Application
                     repositories)
             };
 
+            startupStep = "Verlauf";
             await RenderSplashStepAsync(splashWindow, "Verlauf wird initialisiert...");
             historyService.Initialize();
             _historyService = historyService;
 
+            startupStep = "Tour-Integritaet";
             await RenderSplashStepAsync(splashWindow, "Tourdaten werden geprueft...");
             await RunTourIntegrityCheckOnStartup(repositories.TourRecordStore, repositories.AppSettingsStore, repositories.StorageMode == AppStorageMode.JsonFiles ? repositories.ToursJsonPath : null);
+            startupStep = "Oberflaeche";
             await RenderSplashStepAsync(splashWindow, "Oberflaeche wird gestartet...");
 
             MainWindow = mainWindow;
             mainWindow.Show();
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             splashWindow.Close();
+            await AppRuntimeDiagnosticsService.WriteStartupDiagnosticsAsync(
+                new AppStartupDiagnosticsSnapshot(
+                    startupWarning is null ? "Success" : "SuccessWithWarning",
+                    startupWarning is null ? "Programmstart erfolgreich." : "Programmstart erfolgreich, aber mit Warnung.",
+                    startupWarning,
+                    startupStep,
+                    DateTime.UtcNow,
+                    dataRoot,
+                    AppContext.BaseDirectory,
+                    _logPath,
+                    AppRuntimeDiagnosticsService.GetStartupDiagnosticsPath(dataRoot),
+                    AppRuntimeDiagnosticsService.FindUpdateConfigPath(AppContext.BaseDirectory),
+                    repositories.StorageMode.ToString(),
+                    null));
             await PromptPastTourArchivingOnStartupAsync(mainWindow, repositories.TourRecordStore, repositories.OrderRepository);
         }
         catch (Exception ex)
@@ -113,10 +136,26 @@ public partial class App : System.Windows.Application
             }
 
             TryLogException("StartupFailed", ex);
+            await AppRuntimeDiagnosticsService.WriteStartupDiagnosticsAsync(
+                new AppStartupDiagnosticsSnapshot(
+                    "Failed",
+                    "Programmstart fehlgeschlagen.",
+                    ex.Message,
+                    startupStep,
+                    DateTime.UtcNow,
+                    dataRoot,
+                    AppContext.BaseDirectory,
+                    _logPath,
+                    AppRuntimeDiagnosticsService.GetStartupDiagnosticsPath(dataRoot),
+                    AppRuntimeDiagnosticsService.FindUpdateConfigPath(AppContext.BaseDirectory),
+                    null,
+                    ex.GetType().FullName));
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"Die App konnte nicht gestartet werden.{Environment.NewLine}{Environment.NewLine}" +
+                $"Schritt: {startupStep}{Environment.NewLine}" +
                 $"Fehler: {ex.Message}{Environment.NewLine}{Environment.NewLine}" +
-                $"Details: {_logPath}",
+                $"Diagnose: {AppRuntimeDiagnosticsService.GetStartupDiagnosticsPath(dataRoot)}{Environment.NewLine}" +
+                $"Log: {_logPath}",
                 "GAWELA Tourenplaner - Startfehler",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);

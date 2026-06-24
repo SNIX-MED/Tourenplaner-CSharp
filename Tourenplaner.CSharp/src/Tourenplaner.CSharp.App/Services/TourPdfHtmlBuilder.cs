@@ -263,6 +263,11 @@ public static class TourPdfHtmlBuilder
             extras.Add($"ETA: {stop.Arrival.Trim()}");
         }
 
+        if (!string.IsNullOrWhiteSpace(stop.ArrivalRange))
+        {
+            extras.Add($"ETA-Fenster: {stop.ArrivalRange.Trim()}");
+        }
+
         if (!string.IsNullOrWhiteSpace(stop.WeightText))
         {
             extras.Add($"Gewicht: {stop.WeightText.Trim()}");

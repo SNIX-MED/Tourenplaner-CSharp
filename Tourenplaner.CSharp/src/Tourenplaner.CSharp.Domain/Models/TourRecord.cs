@@ -15,5 +15,13 @@ public sealed class TourRecord
     public string? SecondaryTrailerId { get; set; }
     public bool IsArchived { get; set; }
     public Dictionary<string, int> TravelTimeCache { get; set; } = new();
+    public Dictionary<string, TourTravelTimeProfile> TravelTimeProfileCache { get; set; } = new();
     public string? ConcurrencyToken { get; set; }
+}
+
+public sealed class TourTravelTimeProfile
+{
+    public int OptimisticMinutes { get; set; }
+    public int RealisticMinutes { get; set; }
+    public int PessimisticMinutes { get; set; }
 }

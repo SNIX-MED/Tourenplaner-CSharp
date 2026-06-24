@@ -69,6 +69,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private readonly AppDataSyncService _dataSyncService;
     private readonly RouteOptimizationService _optimizationService;
     private readonly MapRouteService _mapRouteService;
+    private readonly TourScheduleService _scheduleService;
     private readonly TourConflictService _conflictService;
     private readonly Dictionary<string, string> _employeeLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Order> _allOrders = new();
@@ -124,6 +125,10 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
     private int _tomTomVehicleOnlyMaxSpeedKmh = AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh;
     private int _tomTomVehicleWithTrailerMaxSpeedKmh = AppSettings.DefaultTomTomVehicleWithTrailerMaxSpeedKmh;
+    private int _trafficBufferPercentFrom0500To0730 = AppSettings.DefaultTrafficBufferPercentFrom0500To0730;
+    private int _trafficBufferPercentFrom0730To0900 = AppSettings.DefaultTrafficBufferPercentFrom0730To0900;
+    private int _trafficBufferPercentFrom0900To1530 = AppSettings.DefaultTrafficBufferPercentFrom0900To1530;
+    private int _trafficBufferPercentFrom1530To1830 = AppSettings.DefaultTrafficBufferPercentFrom1530To1830;
     private bool _tomTomEnableTileCache = true;
     private string _geocodeCachePath = string.Empty;
     private GeoPoint? _companyLocation;
@@ -208,7 +213,12 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _dataSyncService = dataSyncService;
         _optimizationService = new RouteOptimizationService();
         _mapRouteService = new MapRouteService();
-        _conflictService = new TourConflictService();
+        _scheduleService = new TourScheduleService(
+            AppSettings.DefaultTrafficBufferPercentFrom0500To0730,
+            AppSettings.DefaultTrafficBufferPercentFrom0730To0900,
+            AppSettings.DefaultTrafficBufferPercentFrom0900To1530,
+            AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
+        _conflictService = new TourConflictService(_scheduleService);
         _geocodeCachePath = Path.Combine(dataRoot, "geocode-cache.json");
         _routeComputationCachePath = Path.Combine(dataRoot, "route-computation-cache.json");
 
@@ -1024,6 +1034,27 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         _tomTomVehicleWithTrailerMaxSpeedKmh = userPreference.TomTomVehicleWithTrailerMaxSpeedKmh is < 1 or > 250
             ? AppSettings.DefaultTomTomVehicleWithTrailerMaxSpeedKmh
             : userPreference.TomTomVehicleWithTrailerMaxSpeedKmh;
+        _trafficBufferPercentFrom0500To0730 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom0500To0730,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom0500To0730);
+        _trafficBufferPercentFrom0730To0900 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom0730To0900,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom0730To0900);
+        _trafficBufferPercentFrom0900To1530 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom0900To1530,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom0900To1530);
+        _trafficBufferPercentFrom1530To1830 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom1530To1830,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
+        _scheduleService.SetTrafficBufferPercentProfile(
+            _trafficBufferPercentFrom0500To0730,
+            _trafficBufferPercentFrom0730To0900,
+            _trafficBufferPercentFrom0900To1530,
+            _trafficBufferPercentFrom1530To1830);
         _tomTomEnableTileCache = userPreference.TomTomEnableTileCache;
         settings.MapOverlayPreferencesByUser ??= new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase);
         if (settings.MapOverlayPreferencesByUser.TryGetValue(currentUserName, out var overlayPreference) && overlayPreference is not null)
@@ -3013,6 +3044,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             _companyAddress,
             _companyLocation,
             defaultServiceMinutes: 10);
+        ApplyCurrentRouteTravelTimeCaches(tour);
         tour.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
         tour.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
         tour.SecondaryVehicleId = string.IsNullOrWhiteSpace(secondaryVehicleId) ? null : secondaryVehicleId.Trim();
@@ -3128,7 +3160,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 _companyAddress,
                 _companyLocation,
                 defaultServiceMinutes: 10);
-            new TourScheduleService().ApplySchedule(updated);
+            ApplyCurrentRouteTravelTimeCaches(updated);
+            _scheduleService.ApplySchedule(updated);
         }
         else
         {
@@ -3312,8 +3345,10 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                     Order = stop.Order,
                     TimeWindowStart = (stop.TimeWindowStart ?? string.Empty).Trim(),
                     TimeWindowEnd = (stop.TimeWindowEnd ?? string.Empty).Trim(),
+                    PlannedArrivalOptimistic = (stop.PlannedArrivalOptimistic ?? string.Empty).Trim(),
                     ServiceMinutes = stop.ServiceMinutes,
                     PlannedArrival = (stop.PlannedArrival ?? string.Empty).Trim(),
+                    PlannedArrivalPessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim(),
                     PlannedDeparture = (stop.PlannedDeparture ?? string.Empty).Trim(),
                     WaitMinutes = stop.WaitMinutes,
                     ScheduleConflict = stop.ScheduleConflict,
@@ -3335,7 +3370,17 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             IsArchived = source.IsArchived,
             ConcurrencyToken = source.ConcurrencyToken,
             TravelTimeCache = (source.TravelTimeCache ?? new Dictionary<string, int>())
-                .ToDictionary(x => (x.Key ?? string.Empty).Trim(), x => x.Value, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => (x.Key ?? string.Empty).Trim(), x => x.Value, StringComparer.OrdinalIgnoreCase),
+            TravelTimeProfileCache = (source.TravelTimeProfileCache ?? new Dictionary<string, TourTravelTimeProfile>())
+                .ToDictionary(
+                    x => (x.Key ?? string.Empty).Trim(),
+                    x => new TourTravelTimeProfile
+                    {
+                        OptimisticMinutes = Math.Max(0, x.Value?.OptimisticMinutes ?? 0),
+                        RealisticMinutes = Math.Max(0, x.Value?.RealisticMinutes ?? 0),
+                        PessimisticMinutes = Math.Max(0, x.Value?.PessimisticMinutes ?? 0)
+                    },
+                    StringComparer.OrdinalIgnoreCase)
         };
     }
 
@@ -3691,8 +3736,10 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             Order = stop.Order,
             TimeWindowStart = (stop.TimeWindowStart ?? string.Empty).Trim(),
             TimeWindowEnd = (stop.TimeWindowEnd ?? string.Empty).Trim(),
+            PlannedArrivalOptimistic = (stop.PlannedArrivalOptimistic ?? string.Empty).Trim(),
             ServiceMinutes = stop.ServiceMinutes,
             PlannedArrival = (stop.PlannedArrival ?? string.Empty).Trim(),
+            PlannedArrivalPessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim(),
             PlannedDeparture = (stop.PlannedDeparture ?? string.Empty).Trim(),
             WaitMinutes = stop.WaitMinutes,
             ScheduleConflict = stop.ScheduleConflict,
@@ -3705,6 +3752,67 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     private static string NormalizeTourStopName(string? value)
     {
         return TourStopIdentity.NormalizeCompanyStopDisplayName(value);
+    }
+
+    private void ApplyCurrentRouteTravelTimeCaches(TourRecord tour)
+    {
+        tour.TravelTimeCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        tour.TravelTimeProfileCache = new Dictionary<string, TourTravelTimeProfile>(StringComparer.OrdinalIgnoreCase);
+
+        var orderedStops = (tour.Stops ?? [])
+            .Where(x => x is not null)
+            .OrderBy(x => x.Order)
+            .ToList();
+        var routedIndices = orderedStops
+            .Select((stop, index) => new { stop, index })
+            .Where(x => !string.Equals((x.stop.StopKind ?? string.Empty).Trim(), PauseStopKind, StringComparison.OrdinalIgnoreCase))
+            .Where(x => x.stop.Lat.HasValue && x.stop.Lng.HasValue)
+            .ToList();
+
+        if (routedIndices.Count < 2 || _routeLegs.Count == 0)
+        {
+            return;
+        }
+
+        var legCount = Math.Min(_routeLegs.Count, routedIndices.Count - 1);
+        for (var legIndex = 0; legIndex < legCount; legIndex++)
+        {
+            var from = routedIndices[legIndex];
+            var to = routedIndices[legIndex + 1];
+            var leg = _routeLegs[legIndex];
+            var betweenStops = orderedStops
+                .Skip(from.index + 1)
+                .Take(to.index - from.index - 1)
+                .ToList();
+
+            var previousStopId = (from.stop.Id ?? string.Empty).Trim();
+            foreach (var pause in betweenStops)
+            {
+                var pauseId = (pause.Id ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(previousStopId) || string.IsNullOrWhiteSpace(pauseId))
+                {
+                    continue;
+                }
+
+                tour.TravelTimeCache[$"{previousStopId}|{pauseId}"] = 0;
+                tour.TravelTimeProfileCache[$"{previousStopId}|{pauseId}"] = new TourTravelTimeProfile();
+                previousStopId = pauseId;
+            }
+
+            var targetStopId = (to.stop.Id ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(previousStopId) || string.IsNullOrWhiteSpace(targetStopId))
+            {
+                continue;
+            }
+
+            tour.TravelTimeCache[$"{previousStopId}|{targetStopId}"] = leg.RealisticDurationMinutes;
+            tour.TravelTimeProfileCache[$"{previousStopId}|{targetStopId}"] = new TourTravelTimeProfile
+            {
+                OptimisticMinutes = leg.OptimisticDurationMinutes,
+                RealisticMinutes = leg.RealisticDurationMinutes,
+                PessimisticMinutes = leg.PessimisticDurationMinutes
+            };
+        }
     }
 
     private static string BuildTourLookupLabel(TourRecord tour)
@@ -3896,20 +4004,25 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return false;
         }
 
-        var stops = routeStops.Select((stop, index) => new RouteExportStopInfo(
-            stop.Position,
-            ToAlphaLabel(index + 1),
-            string.IsNullOrWhiteSpace(stop.Customer) ? stop.Address : stop.Customer,
-            stop.Address,
-            ResolveDeliveryTypeText(stop.OrderId),
-            stop.OrderId,
-            stop.Latitude,
-            stop.Longitude,
-            ResolveTimeWindow(stop.OrderId),
-            stop.EtaText,
-            ResolveWeightText(stop.OrderId),
-            stop.EmployeeInfoText,
-            GetPauseStopsAfter(stop).Sum(x => Math.Max(0, x.PlannedStayMinutes))))
+        var stops = routeStops.Select((stop, index) =>
+            {
+                var arrivalText = ResolveArrivalTimeText(stop.OrderId);
+                return new RouteExportStopInfo(
+                    stop.Position,
+                    ToAlphaLabel(index + 1),
+                    string.IsNullOrWhiteSpace(stop.Customer) ? stop.Address : stop.Customer,
+                    stop.Address,
+                    ResolveDeliveryTypeText(stop.OrderId),
+                    stop.OrderId,
+                    stop.Latitude,
+                    stop.Longitude,
+                    ResolveTimeWindow(stop.OrderId),
+                    string.IsNullOrWhiteSpace(arrivalText) ? stop.EtaText : arrivalText,
+                    ResolveArrivalRangeText(stop.OrderId),
+                    ResolveWeightText(stop.OrderId),
+                    stop.EmployeeInfoText,
+                    GetPauseStopsAfter(stop).Sum(x => Math.Max(0, x.PlannedStayMinutes)));
+            })
             .ToList();
 
         snapshot = new RouteExportSnapshot(
@@ -3981,6 +4094,55 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
 
         return stop.TimeWindowStart ?? stop.TimeWindowEnd ?? string.Empty;
+    }
+
+    private string ResolveArrivalTimeText(string orderId)
+    {
+        var stop = _savedTours
+            .SelectMany(x => x.Stops ?? [])
+            .FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(x.Auftragsnummer, orderId, StringComparison.OrdinalIgnoreCase));
+
+        if (stop is null)
+        {
+            return string.Empty;
+        }
+
+        var realistic = (stop.PlannedArrival ?? string.Empty).Trim();
+        var optimistic = (stop.PlannedArrivalOptimistic ?? string.Empty).Trim();
+        var pessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(optimistic) || string.IsNullOrWhiteSpace(pessimistic) ||
+            string.Equals(optimistic, pessimistic, StringComparison.Ordinal))
+        {
+            return realistic;
+        }
+
+        return string.IsNullOrWhiteSpace(realistic)
+            ? $"{optimistic} - {pessimistic}"
+            : $"{realistic} ({optimistic} - {pessimistic})";
+    }
+
+    private string ResolveArrivalRangeText(string orderId)
+    {
+        var stop = _savedTours
+            .SelectMany(x => x.Stops ?? [])
+            .FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(x.Auftragsnummer, orderId, StringComparison.OrdinalIgnoreCase));
+
+        if (stop is null)
+        {
+            return string.Empty;
+        }
+
+        var optimistic = (stop.PlannedArrivalOptimistic ?? string.Empty).Trim();
+        var pessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(optimistic) || string.IsNullOrWhiteSpace(pessimistic) ||
+            string.Equals(optimistic, pessimistic, StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        return $"{optimistic} - {pessimistic}";
     }
 
     private string ResolveWeightText(string orderId)
@@ -4310,8 +4472,10 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         foreach (var stop in RouteStops)
         {
             stop.EtaText = string.Empty;
+            stop.EtaRangeText = string.Empty;
             stop.ClearNextLeg();
             stop.ClearPauseAfter();
+            stop.ClearTrafficBufferAfter();
         }
     }
 
@@ -4624,7 +4788,13 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             _ => "Ressource"
         };
 
-        return $"{label}: {resourceName} (Tour {conflict.TourIdA} / {conflict.TourIdB}, {conflict.StartA:dd.MM.yyyy})";
+        var leftEndText = string.Equals(conflict.EndA.ToString("HH:mm"), (conflict.PessimisticEndA ?? conflict.EndA).ToString("HH:mm"), StringComparison.Ordinal)
+            ? conflict.EndA.ToString("HH:mm")
+            : $"{conflict.EndA:HH:mm} bis {(conflict.PessimisticEndA ?? conflict.EndA):HH:mm}";
+        var rightEndText = string.Equals(conflict.EndB.ToString("HH:mm"), (conflict.PessimisticEndB ?? conflict.EndB).ToString("HH:mm"), StringComparison.Ordinal)
+            ? conflict.EndB.ToString("HH:mm")
+            : $"{conflict.EndB:HH:mm} bis {(conflict.PessimisticEndB ?? conflict.EndB):HH:mm}";
+        return $"{label}: {resourceName} (Tour {conflict.TourIdA}: {conflict.StartA:HH:mm}-{leftEndText} / Tour {conflict.TourIdB}: {conflict.StartB:HH:mm}-{rightEndText}, {conflict.StartA:dd.MM.yyyy})";
     }
 
     private static string GetAssignmentConflictGroupLabel(TourAssignmentConflict conflict)
@@ -5300,7 +5470,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return;
         }
 
-        updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated, _tomTomApiKey, _geocodeCachePath) ?? selected.Location;
+        var updatedGeocodingResult = await AddressGeocodingService.TryResolveOrderAsync(updated, _tomTomApiKey, _geocodeCachePath);
+        updated.Location = updatedGeocodingResult?.Location ?? selected.Location;
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
         _allOrders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
@@ -5311,6 +5482,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         await RefreshAsync();
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, updated.Id, StringComparison.OrdinalIgnoreCase));
         PublishOrderChange(originalId, updated.Id);
+        OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
     }
 
@@ -6711,7 +6883,12 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 .Select(x => new GeoPoint(x.Latitude, x.Longitude))
                 .ToList();
             legs = cache.Legs
-                .Select(x => new OsrmRouteLeg(Math.Max(0, x.DurationMinutes), Math.Max(0d, x.DistanceKm)))
+                .Select(x => new OsrmRouteLeg(
+                    new RouteLegTravelTimeProfile(
+                        Math.Max(0, x.OptimisticDurationMinutes ?? x.DurationMinutes),
+                        Math.Max(0, x.RealisticDurationMinutes ?? x.DurationMinutes),
+                        Math.Max(0, x.PessimisticDurationMinutes ?? x.DurationMinutes)),
+                    Math.Max(0d, x.DistanceKm)))
                 .ToList();
             trafficSegments = (cache.TrafficSegments ?? new List<RouteTrafficSegmentCacheItem>())
                 .Select(x => new OsrmRouteTrafficSegment(
@@ -6794,6 +6971,9 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 Legs = legs.Select(x => new RouteLegCacheItem
                 {
                     DurationMinutes = x.DurationMinutes,
+                    OptimisticDurationMinutes = x.OptimisticDurationMinutes,
+                    RealisticDurationMinutes = x.RealisticDurationMinutes,
+                    PessimisticDurationMinutes = x.PessimisticDurationMinutes,
                     DistanceKm = x.DistanceKm
                 }).ToList(),
                 TrafficSegments = trafficSegments.Select(x => new RouteTrafficSegmentCacheItem
@@ -6832,8 +7012,11 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
 
         var start = BuildStartDateTime();
-        var current = start;
+        var optimisticCurrent = start;
+        var realisticCurrent = start;
+        var pessimisticCurrent = start;
         var totalDriveMinutes = 0;
+        var totalTrafficBufferMinutes = 0;
         var totalStayMinutes = 0;
         var totalDistanceKm = 0d;
         var sb = new StringBuilder();
@@ -6845,10 +7028,13 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         {
             if (IsPauseStop(stop))
             {
-                stop.EtaText = current.ToString("HH:mm");
+                stop.EtaText = realisticCurrent.ToString("HH:mm");
+                stop.EtaRangeText = BuildTimeRangeText(optimisticCurrent, pessimisticCurrent);
                 previousRoutedStop?.AddPauseAfter(Math.Max(0, stop.PlannedStayMinutes));
                 totalStayMinutes += Math.Max(0, stop.PlannedStayMinutes);
-                current = current.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
+                optimisticCurrent = optimisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
+                realisticCurrent = realisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
+                pessimisticCurrent = pessimisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
                 continue;
             }
 
@@ -6860,6 +7046,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             if (previousRoutedStop is null)
             {
                 stop.EtaText = start.ToString("HH:mm");
+                stop.EtaRangeText = string.Empty;
                 previousRoutedStop = stop;
                 continue;
             }
@@ -6870,43 +7057,108 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             }
 
             var leg = _routeLegs[routeLegIndex];
-            var depart = current;
-            current = current.AddMinutes(leg.DurationMinutes);
-            var arrive = current;
+            var realisticDepart = realisticCurrent;
+            optimisticCurrent = optimisticCurrent.AddMinutes(leg.OptimisticDurationMinutes);
+            realisticCurrent = realisticCurrent.AddMinutes(leg.RealisticDurationMinutes);
+            pessimisticCurrent = pessimisticCurrent.AddMinutes(leg.PessimisticDurationMinutes);
+            var trafficBufferMinutes = TrafficBufferService.CalculateBufferMinutes(
+                leg.RealisticDurationMinutes,
+                realisticDepart,
+                _trafficBufferPercentFrom0500To0730,
+                _trafficBufferPercentFrom0730To0900,
+                _trafficBufferPercentFrom0900To1530,
+                _trafficBufferPercentFrom1530To1830);
+            if (trafficBufferMinutes > 0)
+            {
+                optimisticCurrent = optimisticCurrent.AddMinutes(trafficBufferMinutes);
+                realisticCurrent = realisticCurrent.AddMinutes(trafficBufferMinutes);
+                pessimisticCurrent = pessimisticCurrent.AddMinutes(trafficBufferMinutes);
+                previousRoutedStop.AddTrafficBufferAfter(trafficBufferMinutes);
+                totalTrafficBufferMinutes += trafficBufferMinutes;
+            }
+            var arrive = realisticCurrent;
+            var legRangeText = BuildTimeRangeText(optimisticCurrent, pessimisticCurrent);
             totalDriveMinutes += leg.DurationMinutes;
             totalDistanceKm += leg.DistanceKm;
 
             previousRoutedStop.SetNextLeg(
                 durationText: FormatDuration(leg.DurationMinutes),
                 distanceText: $"{leg.DistanceKm:0.0} km",
-                departureText: depart.ToString("HH:mm"),
+                departureText: realisticDepart.ToString("HH:mm"),
                 arrivalText: arrive.ToString("HH:mm"),
+                arrivalRangeText: legRangeText,
                 accentColorHex: routeLegIndex % 2 == 0 ? "#7BC6A4" : "#8EC6E8");
 
             sb.AppendLine($"{BuildStopLabel(previousRoutedStop, isFrom: true)} -> {BuildStopLabel(stop, isFrom: false)}");
             sb.AppendLine($"{leg.DurationMinutes} min | {leg.DistanceKm:0.0} km");
-            sb.AppendLine($"{depart:HH:mm} -> {arrive:HH:mm}");
+            if (trafficBufferMinutes > 0)
+            {
+                sb.AppendLine($"Staupuffer: {trafficBufferMinutes} min");
+            }
+            sb.AppendLine($"{realisticDepart:HH:mm} -> {arrive:HH:mm}");
+            if (!string.IsNullOrWhiteSpace(legRangeText))
+            {
+                sb.AppendLine($"Fenster: {legRangeText}");
+            }
             if (routeLegIndex < _routeLegs.Count - 1)
             {
                 sb.AppendLine();
             }
 
             stop.EtaText = arrive.ToString("HH:mm");
+            stop.EtaRangeText = legRangeText;
             if (!IsCompanyStop(stop) && !IsPauseStop(stop))
             {
                 totalStayMinutes += Math.Max(0, stop.PlannedStayMinutes);
-                current = current.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
+                optimisticCurrent = optimisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
+                realisticCurrent = realisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
+                pessimisticCurrent = pessimisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
             }
 
             previousRoutedStop = stop;
             routeLegIndex++;
         }
 
-        var end = current;
-        RouteTimingSummary = $"Start: {start:HH:mm} | Fahrt: {totalDriveMinutes} min | Aufenthalt: {totalStayMinutes} min | Ende: {end:HH:mm}";
-        RouteOperationalSummaryText = $"Gesamt Fahrzeit: {FormatDuration(totalDriveMinutes)} | Gesamt Distanz: {totalDistanceKm:0.0} km | Start: {start:HH:mm} | Ende: {end:HH:mm}";
+        var end = realisticCurrent;
+        RouteTimingSummary = $"Start: {start:HH:mm} | Fahrt: {totalDriveMinutes} min | Staupuffer: {totalTrafficBufferMinutes} min | Aufenthalt: {totalStayMinutes} min | Ende: {end:HH:mm}";
+        RouteOperationalSummaryText = $"Gesamt Fahrzeit: {FormatDuration(totalDriveMinutes)} | Staupuffer: {FormatDuration(totalTrafficBufferMinutes)} | Gesamt Distanz: {totalDistanceKm:0.0} km | Start: {start:HH:mm} | Ende: {end:HH:mm}";
         DriveTimesText = sb.Length == 0 ? "Noch keine Stopps geplant." : sb.ToString().TrimEnd();
     }
+
+    private static string BuildTimeRangeText(DateTime optimistic, DateTime pessimistic)
+    {
+        var optimisticText = RoundDownToHalfHour(optimistic).ToString("HH:mm");
+        var pessimisticText = Max(optimistic, RoundDisplayedRangeEndToHalfHour(pessimistic)).ToString("HH:mm");
+        return string.Equals(optimisticText, pessimisticText, StringComparison.Ordinal)
+            ? string.Empty
+            : $"{optimisticText} - {pessimisticText}";
+    }
+
+    private static DateTime RoundDownToHalfHour(DateTime value)
+    {
+        var roundedMinutes = (value.Minute / 30) * 30;
+        return new DateTime(value.Year, value.Month, value.Day, value.Hour, roundedMinutes, 0, value.Kind);
+    }
+
+    private static DateTime RoundDisplayedRangeEndToHalfHour(DateTime value)
+    {
+        var minute = value.Minute;
+        var roundedMinutes = minute switch
+        {
+            <= 14 => 0,
+            <= 44 => 30,
+            _ => 0
+        };
+        var rounded = new DateTime(value.Year, value.Month, value.Day, value.Hour, 0, 0, value.Kind);
+        if (minute >= 45)
+        {
+            rounded = rounded.AddHours(1);
+        }
+
+        return rounded.AddMinutes(roundedMinutes);
+    }
+
+    private static DateTime Max(DateTime left, DateTime right) => left >= right ? left : right;
 
     private void ClearDriveTimes()
     {
@@ -7457,6 +7709,21 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
         return "#FFF8FAFC";
     }
+
+    private static int ResolveTrafficBufferPercent(int explicitValue, int legacyValue, int fallbackValue)
+    {
+        if (explicitValue is >= 0 and <= 100)
+        {
+            return explicitValue;
+        }
+
+        if (legacyValue is >= 0 and <= 100)
+        {
+            return legacyValue;
+        }
+
+        return fallbackValue;
+    }
 }
 
 public sealed class DetailProductItem
@@ -7563,13 +7830,16 @@ public sealed class RouteStopItem : ObservableObject
     private bool _isLegSelected;
     private int _plannedStayMinutes = 10;
     private string _etaText = string.Empty;
+    private string _etaRangeText = string.Empty;
     private string _nextLegDurationText = string.Empty;
     private string _nextLegDistanceText = string.Empty;
     private string _nextLegDepartureText = string.Empty;
     private string _nextLegArrivalText = string.Empty;
+    private string _nextLegArrivalRangeText = string.Empty;
     private string _nextLegAccentColor = "#8EC6E8";
     private string _employeeInfoText = string.Empty;
     private int _pauseAfterMinutes;
+    private int _trafficBufferAfterMinutes;
 
     public int Position
     {
@@ -7730,6 +8000,18 @@ public sealed class RouteStopItem : ObservableObject
         }
     }
 
+    public string EtaRangeText
+    {
+        get => _etaRangeText;
+        set
+        {
+            if (SetProperty(ref _etaRangeText, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(HasEtaRange));
+            }
+        }
+    }
+
     public string NextLegDurationText
     {
         get => _nextLegDurationText;
@@ -7766,6 +8048,12 @@ public sealed class RouteStopItem : ObservableObject
         private set => SetProperty(ref _nextLegArrivalText, value);
     }
 
+    public string NextLegArrivalRangeText
+    {
+        get => _nextLegArrivalRangeText;
+        private set => SetProperty(ref _nextLegArrivalRangeText, value);
+    }
+
     public string NextLegAccentColor
     {
         get => _nextLegAccentColor;
@@ -7799,6 +8087,20 @@ public sealed class RouteStopItem : ObservableObject
         }
     }
 
+    public int TrafficBufferAfterMinutes
+    {
+        get => _trafficBufferAfterMinutes;
+        private set
+        {
+            var clamped = Math.Max(0, value);
+            if (SetProperty(ref _trafficBufferAfterMinutes, clamped))
+            {
+                OnPropertyChanged(nameof(HasTrafficBufferAfter));
+                OnPropertyChanged(nameof(TrafficBufferAfterText));
+            }
+        }
+    }
+
     private bool IsCompanyDisplay => IsCompanyAnchor ||
                                      string.Equals(OrderId, "__company_start__", StringComparison.OrdinalIgnoreCase) ||
                                      string.Equals(OrderId, "__company_end__", StringComparison.OrdinalIgnoreCase) ||
@@ -7808,7 +8110,9 @@ public sealed class RouteStopItem : ObservableObject
     public bool IsRouteEnd => string.Equals(OrderId, "__company_end__", StringComparison.OrdinalIgnoreCase);
     public string RouteBadgeText => IsRouteStart ? "Start" : IsRouteEnd ? "Ende" : string.Empty;
     public bool HasNextLeg => !string.IsNullOrWhiteSpace(NextLegDurationText) && !string.IsNullOrWhiteSpace(NextLegDistanceText);
+    public bool HasEtaRange => !string.IsNullOrWhiteSpace(EtaRangeText);
     public bool HasPauseAfter => PauseAfterMinutes > 0;
+    public bool HasTrafficBufferAfter => TrafficBufferAfterMinutes > 0;
     public string DisplayPosition => ToAlphaLabel(DisplayIndex > 0 ? DisplayIndex : Position);
     public string DisplayName => IsCompanyDisplay ? Address : (IsPauseStop ? "Pause" : (!string.IsNullOrWhiteSpace(Customer) ? Customer : Address));
     public string DisplayNameWithOrder =>
@@ -7822,13 +8126,15 @@ public sealed class RouteStopItem : ObservableObject
     public string DisplayEta => string.IsNullOrWhiteSpace(EtaText) ? "--:--" : EtaText;
     public string DisplayEmployeeInfo => IsCompanyDisplay || IsPauseStop ? string.Empty : EmployeeInfoText;
     public string PauseAfterText => $"{PauseAfterMinutes} min";
+    public string TrafficBufferAfterText => $"+ {TrafficBufferAfterMinutes} min";
 
-    public void SetNextLeg(string durationText, string distanceText, string departureText, string arrivalText, string accentColorHex)
+    public void SetNextLeg(string durationText, string distanceText, string departureText, string arrivalText, string arrivalRangeText, string accentColorHex)
     {
         NextLegDurationText = durationText ?? string.Empty;
         NextLegDistanceText = distanceText ?? string.Empty;
         NextLegDepartureText = departureText ?? string.Empty;
         NextLegArrivalText = arrivalText ?? string.Empty;
+        NextLegArrivalRangeText = arrivalRangeText ?? string.Empty;
         NextLegAccentColor = string.IsNullOrWhiteSpace(accentColorHex) ? "#8EC6E8" : accentColorHex;
     }
 
@@ -7838,6 +8144,7 @@ public sealed class RouteStopItem : ObservableObject
         NextLegDistanceText = string.Empty;
         NextLegDepartureText = string.Empty;
         NextLegArrivalText = string.Empty;
+        NextLegArrivalRangeText = string.Empty;
         NextLegAccentColor = "#8EC6E8";
     }
 
@@ -7846,9 +8153,19 @@ public sealed class RouteStopItem : ObservableObject
         PauseAfterMinutes += Math.Max(0, minutes);
     }
 
+    public void AddTrafficBufferAfter(int minutes)
+    {
+        TrafficBufferAfterMinutes += Math.Max(0, minutes);
+    }
+
     public void ClearPauseAfter()
     {
         PauseAfterMinutes = 0;
+    }
+
+    public void ClearTrafficBufferAfter()
+    {
+        TrafficBufferAfterMinutes = 0;
     }
 
     private static string ToAlphaLabel(int position)
@@ -7863,6 +8180,21 @@ public sealed class RouteStopItem : ObservableObject
         }
 
         return label;
+    }
+
+    private static int ResolveTrafficBufferPercent(int explicitValue, int legacyValue, int fallbackValue)
+    {
+        if (explicitValue is >= 0 and <= 100)
+        {
+            return explicitValue;
+        }
+
+        if (legacyValue is >= 0 and <= 100)
+        {
+            return legacyValue;
+        }
+
+        return fallbackValue;
     }
 }
 
@@ -7942,6 +8274,9 @@ internal sealed class RouteGeometryPointCacheItem
 internal sealed class RouteLegCacheItem
 {
     public int DurationMinutes { get; set; }
+    public int? OptimisticDurationMinutes { get; set; }
+    public int? RealisticDurationMinutes { get; set; }
+    public int? PessimisticDurationMinutes { get; set; }
     public double DistanceKm { get; set; }
 }
 

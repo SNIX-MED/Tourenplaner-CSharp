@@ -94,4 +94,47 @@ public class TourConflictServiceTests
 
         Assert.Contains(conflicts, c => c.ResourceType == "vehicle" && c.ResourceId == "V-2");
     }
+
+    [Fact]
+    public void FindAssignmentConflicts_UsesPessimisticTourEndForOverlapDetection()
+    {
+        var service = new TourConflictService();
+        var tours = new[]
+        {
+            new TourRecord
+            {
+                Id = 400,
+                Date = "21.03.2026",
+                StartTime = "08:00",
+                VehicleId = "V-9",
+                Stops =
+                [
+                    new TourStopRecord { Id = "A", Order = 1, ServiceMinutes = 10 },
+                    new TourStopRecord { Id = "B", Order = 2, ServiceMinutes = 10 }
+                ],
+                TravelTimeProfileCache = new Dictionary<string, TourTravelTimeProfile>
+                {
+                    ["A|B"] = new()
+                    {
+                        OptimisticMinutes = 20,
+                        RealisticMinutes = 30,
+                        PessimisticMinutes = 80
+                    }
+                }
+            },
+            new TourRecord
+            {
+                Id = 401,
+                Date = "21.03.2026",
+                StartTime = "09:05",
+                VehicleId = "V-9",
+                Stops = [new TourStopRecord { Id = "C", Order = 1, ServiceMinutes = 15 }]
+            }
+        };
+
+        var conflicts = service.FindAssignmentConflicts(tours);
+
+        Assert.Contains(conflicts, c => c.ResourceType == "vehicle" && c.ResourceId == "V-9");
+        Assert.Contains(conflicts, c => c.Message.Contains("pessimistisch bis", StringComparison.OrdinalIgnoreCase));
+    }
 }

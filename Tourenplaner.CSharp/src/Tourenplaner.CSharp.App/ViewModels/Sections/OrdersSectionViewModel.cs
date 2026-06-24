@@ -292,7 +292,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
 
         var createdOrder = dialog.CreatedOrder;
-        createdOrder.Location ??= await AddressGeocodingService.TryGeocodeOrderAsync(createdOrder);
+        var geocodingResult = createdOrder.Location is null
+            ? await AddressGeocodingService.TryResolveOrderAsync(createdOrder)
+            : null;
+        createdOrder.Location ??= geocodingResult?.Location;
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, createdOrder.Id, StringComparison.OrdinalIgnoreCase));
         _allOrders.Add(createdOrder);
@@ -304,6 +307,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         await RefreshFromRepositoryAsync(createdOrder.Id);
         SelectOrderById(createdOrder.Id);
         PublishOrderChange(null, createdOrder.Id);
+        OrderPinAssignmentWarningService.ShowIfNeeded(createdOrder, geocodingResult);
         StatusText = createdOrder.Location is null
             ? $"Auftrag {createdOrder.Id} gespeichert, aber Adresse konnte nicht automatisch geokodiert werden."
             : $"Auftrag {createdOrder.Id} wurde gespeichert.";
@@ -354,7 +358,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
-        updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated) ?? existing.Location;
+        var updatedGeocodingResult = await AddressGeocodingService.TryResolveOrderAsync(updated);
+        updated.Location = updatedGeocodingResult?.Location ?? existing.Location;
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
         _allOrders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
@@ -378,6 +383,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         await RefreshFromRepositoryAsync(updated.Id);
         SelectOrderById(updated.Id);
         PublishOrderChange(originalId, updated.Id);
+        OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
     }
 

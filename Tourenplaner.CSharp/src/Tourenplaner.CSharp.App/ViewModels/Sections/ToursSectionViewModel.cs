@@ -18,6 +18,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private const string PauseStopKind = "pause";
     private const string PauseStopIdPrefix = "pause:";
     private const int DefaultPauseMinutes = 15;
+    private const int EtaRangeWarningThresholdMinutes = 20;
     private static readonly CultureInfo UiCulture = CultureInfo.GetCultureInfo("de-CH");
     private readonly ITourRecordStore _tourRepository;
     private readonly IOrderRepository _orderRepository;
@@ -66,6 +67,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private string _dragPreviewDurationText = string.Empty;
     private string _dragPreviewDistanceText = string.Empty;
     private string _lastDragPreviewSignature = string.Empty;
+    private int _trafficBufferPercentFrom0500To0730 = AppSettings.DefaultTrafficBufferPercentFrom0500To0730;
+    private int _trafficBufferPercentFrom0730To0900 = AppSettings.DefaultTrafficBufferPercentFrom0730To0900;
+    private int _trafficBufferPercentFrom0900To1530 = AppSettings.DefaultTrafficBufferPercentFrom0900To1530;
+    private int _trafficBufferPercentFrom1530To1830 = AppSettings.DefaultTrafficBufferPercentFrom1530To1830;
     private LookupItem? _selectedVehicle;
     private LookupItem? _selectedTrailer;
     private TourOverviewItem? _selectedTour;
@@ -92,7 +97,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         _settingsRepository = settingsRepository;
         _tourMutationStore = tourRepository as ITourRecordMutationStore;
         _dataSyncService = dataSyncService ?? new AppDataSyncService();
-        _scheduleService = new TourScheduleService();
+        _scheduleService = new TourScheduleService(
+            AppSettings.DefaultTrafficBufferPercentFrom0500To0730,
+            AppSettings.DefaultTrafficBufferPercentFrom0730To0900,
+            AppSettings.DefaultTrafficBufferPercentFrom0900To1530,
+            AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
         _conflictService = new TourConflictService(_scheduleService);
         _routeOptimizationService = new RouteOptimizationService();
         _openTourOnMapAsync = openTourOnMapAsync;
@@ -616,6 +625,28 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     {
         await LoadReferenceDataAsync();
         var settings = await _settingsRepository.LoadAsync();
+        var userPreference = settings.ResolveUserPreference(AppSettings.NormalizeUserName(LocalUserSessionService.CurrentUserName));
+        _trafficBufferPercentFrom0500To0730 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom0500To0730,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom0500To0730);
+        _trafficBufferPercentFrom0730To0900 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom0730To0900,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom0730To0900);
+        _trafficBufferPercentFrom0900To1530 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom0900To1530,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom0900To1530);
+        _trafficBufferPercentFrom1530To1830 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom1530To1830,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
+        _scheduleService.SetTrafficBufferPercentProfile(
+            _trafficBufferPercentFrom0500To0730,
+            _trafficBufferPercentFrom0730To0900,
+            _trafficBufferPercentFrom0900To1530,
+            _trafficBufferPercentFrom1530To1830);
         var orders = await _orderRepository.GetAllAsync();
         _ordersById.Clear();
         foreach (var order in orders.Where(x => !string.IsNullOrWhiteSpace(x.Id)))
@@ -843,7 +874,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var etaDelta = FormatSignedMinutes(afterMetrics.EndMinutes - beforeMetrics.EndMinutes);
         var durationDelta = FormatSignedMinutes(afterMetrics.DurationMinutes - beforeMetrics.DurationMinutes);
         var distanceDelta = FormatSignedDistance(afterMetrics.DistanceKm - beforeMetrics.DistanceKm);
-        StatusText = $"Stopps in Tour {tour.Name} neu angeordnet | ETA: {afterMetrics.EndTime} ({etaDelta}) | Dauer: {FormatDuration(afterMetrics.DurationMinutes)} ({durationDelta}) | Distanz: {afterMetrics.DistanceKm:0.0} km ({distanceDelta})";
+        StatusText = $"Stopps in Tour {tour.Name} neu angeordnet | ETA: {afterMetrics.EndTime}{FormatEtaRangeSuffix(afterMetrics)} ({etaDelta}) | Dauer: {FormatDuration(afterMetrics.DurationMinutes)} ({durationDelta}) | Distanz: {afterMetrics.DistanceKm:0.0} km ({distanceDelta})";
         return true;
     }
 
@@ -880,7 +911,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var currentMetrics = BuildTourOrderMetrics(tour);
         var previewMetrics = BuildTourOrderMetrics(tour, reorderedStops);
 
-        DragPreviewEtaText = $"ETA Ende: {previewMetrics.EndTime} ({FormatSignedMinutes(previewMetrics.EndMinutes - currentMetrics.EndMinutes)})";
+        DragPreviewEtaText = $"ETA Ende: {previewMetrics.EndTime}{FormatEtaRangeSuffix(previewMetrics)} ({FormatSignedMinutes(previewMetrics.EndMinutes - currentMetrics.EndMinutes)})";
         DragPreviewDurationText = $"Dauer: {FormatDuration(previewMetrics.DurationMinutes)} ({FormatSignedMinutes(previewMetrics.DurationMinutes - currentMetrics.DurationMinutes)})";
         DragPreviewDistanceText = $"Distanz: {previewMetrics.DistanceKm:0.0} km ({FormatSignedDistance(previewMetrics.DistanceKm - currentMetrics.DistanceKm)})";
         OnPropertyChanged(nameof(HasDragPreview));
@@ -1186,7 +1217,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var updated = dialog.CreatedOrder;
         updated.Type = existing.Type;
         updated.AssignedTourId = existing.AssignedTourId;
-        updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated) ?? existing.Location;
+        var updatedGeocodingResult = await AddressGeocodingService.TryResolveOrderAsync(updated);
+        updated.Location = updatedGeocodingResult?.Location ?? existing.Location;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
         orders.RemoveAll(x => string.Equals(x.Id, existing.Id, StringComparison.OrdinalIgnoreCase));
@@ -1220,6 +1252,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             await _orderRepository.SaveAllAsync(orders);
         }
         _dataSyncService.PublishOrders(_instanceId);
+        OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
     }
 
@@ -1904,6 +1937,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 OrderAddress = (stop.Address ?? string.Empty).Trim(),
                 DeliveryAddress = BuildCalendarStopDisplayName(order, stop),
                 WindowText = BuildCalendarWindowText(stop),
+                ArrivalRangeText = BuildArrivalRangeText(stop),
                 DepartureText = BuildCalendarDepartureText(stop),
                 DisplayTime = BuildCalendarDisplayTime(stop),
                 TimeLabel = "Ankunft",
@@ -1967,6 +2001,20 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         return (stop.PlannedDeparture ?? string.Empty).Trim();
+    }
+
+    private static string BuildArrivalRangeText(TourStopRecord stop)
+    {
+        var optimistic = (stop.PlannedArrivalOptimistic ?? string.Empty).Trim();
+        var pessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(optimistic) || string.IsNullOrWhiteSpace(pessimistic))
+        {
+            return string.Empty;
+        }
+
+        return string.Equals(optimistic, pessimistic, StringComparison.Ordinal)
+            ? string.Empty
+            : $"{optimistic} - {pessimistic}";
     }
 
     private static IReadOnlyList<string> BuildCalendarProductLines(Order? order, TourStopRecord stop)
@@ -2069,6 +2117,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 Date = tour.Date,
                 StartTime = tour.StartTime,
                 TravelTimeCache = new Dictionary<string, int>(tour.TravelTimeCache),
+                TravelTimeProfileCache = (tour.TravelTimeProfileCache ?? new Dictionary<string, TourTravelTimeProfile>()).ToDictionary(
+                    kv => kv.Key,
+                    kv => new TourTravelTimeProfile
+                    {
+                        OptimisticMinutes = kv.Value.OptimisticMinutes,
+                        RealisticMinutes = kv.Value.RealisticMinutes,
+                        PessimisticMinutes = kv.Value.PessimisticMinutes
+                    }),
                 Stops = orderedStopsOverride
             };
 
@@ -2081,6 +2137,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return new TourOrderMetrics(
             EndTime: schedule.End.ToString("HH:mm"),
             EndMinutes: (int)Math.Round(schedule.End.TimeOfDay.TotalMinutes),
+            PessimisticEndTime: (schedule.PessimisticEnd ?? schedule.End).ToString("HH:mm"),
+            PessimisticEndMinutes: (int)Math.Round((schedule.PessimisticEnd ?? schedule.End).TimeOfDay.TotalMinutes),
             DurationMinutes: totalDurationMinutes,
             DistanceKm: routeDistanceKm);
     }
@@ -2109,6 +2167,17 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var sign = deltaMinutes > 0 ? "+" : "-";
         return $"{sign}{Math.Abs(deltaMinutes)} min";
+    }
+
+    private static string FormatEtaRangeSuffix(TourOrderMetrics metrics)
+    {
+        if (string.IsNullOrWhiteSpace(metrics.PessimisticEndTime) ||
+            string.Equals(metrics.EndTime, metrics.PessimisticEndTime, StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        return $" (bis {metrics.PessimisticEndTime})";
     }
 
     private static string FormatSignedDistance(double deltaKm)
@@ -2319,6 +2388,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 Address = isCompanyStop || isPauseStop ? string.Empty : stop.Address,
                 Window = isCompanyStop || isPauseStop ? string.Empty : $"{stop.TimeWindowStart} - {stop.TimeWindowEnd}".Trim(' ', '-'),
                 Arrival = arrival,
+                ArrivalRangeText = isCompanyStop ? string.Empty : BuildArrivalRangeText(stop),
                 Departure = departure,
                 Weight = isCompanyStop || isPauseStop ? string.Empty : $"{ParseWeightKg(stop.Gewicht)} kg",
                 Conflict = isCompanyStop || isPauseStop ? string.Empty : (stop.ScheduleConflict ? (string.IsNullOrWhiteSpace(stop.ScheduleConflictText) ? "Yes" : stop.ScheduleConflictText) : string.Empty),
@@ -2517,6 +2587,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             ConcurrencyToken = source.ConcurrencyToken,
             EmployeeIds = source.EmployeeIds.ToList(),
             TravelTimeCache = source.TravelTimeCache.ToDictionary(kv => kv.Key, kv => kv.Value),
+            TravelTimeProfileCache = (source.TravelTimeProfileCache ?? new Dictionary<string, TourTravelTimeProfile>()).ToDictionary(
+                kv => kv.Key,
+                kv => new TourTravelTimeProfile
+                {
+                    OptimisticMinutes = kv.Value.OptimisticMinutes,
+                    RealisticMinutes = kv.Value.RealisticMinutes,
+                    PessimisticMinutes = kv.Value.PessimisticMinutes
+                }),
             Stops = source.Stops.Select(stop => new TourStopRecord
             {
                 Id = stop.Id,
@@ -2530,8 +2608,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 Order = stop.Order,
                 TimeWindowStart = stop.TimeWindowStart,
                 TimeWindowEnd = stop.TimeWindowEnd,
+                PlannedArrivalOptimistic = stop.PlannedArrivalOptimistic,
                 ServiceMinutes = stop.ServiceMinutes,
                 PlannedArrival = stop.PlannedArrival,
+                PlannedArrivalPessimistic = stop.PlannedArrivalPessimistic,
                 PlannedDeparture = stop.PlannedDeparture,
                 WaitMinutes = stop.WaitMinutes,
                 ScheduleConflict = stop.ScheduleConflict,
@@ -2726,12 +2806,29 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         for (var i = 0; i < schedulePreview.Stops.Count && i < orderedStops.Count; i++)
         {
             var scheduleEntry = schedulePreview.Stops[i];
+            var stop = orderedStops[i];
+            if (!IsCompanyStop(stop) && !IsPauseStop(stop))
+            {
+                var optimisticArrival = scheduleEntry.OptimisticArrival ?? scheduleEntry.Arrival;
+                var pessimisticArrival = scheduleEntry.PessimisticArrival ?? scheduleEntry.Arrival;
+                var etaSpreadMinutes = Math.Max(0, (int)Math.Round((pessimisticArrival - optimisticArrival).TotalMinutes));
+                if (etaSpreadMinutes >= EtaRangeWarningThresholdMinutes)
+                {
+                    var etaStopLabel = string.IsNullOrWhiteSpace(stop.Auftragsnummer)
+                        ? stop.Name
+                        : $"{stop.Name} ({stop.Auftragsnummer})";
+                    warnings.Add(new TourPlanningWarningItem(
+                        Title: "ETA-Spanne",
+                        Message: $"{etaStopLabel}: ETA-Fenster {optimisticArrival:HH:mm} - {pessimisticArrival:HH:mm} (Spanne {etaSpreadMinutes} min).",
+                        Suggestion: "Mehr Puffer einplanen, Startzeit vorziehen oder Tour kompakter planen."));
+                }
+            }
+
             if (!scheduleEntry.HasConflict)
             {
                 continue;
             }
 
-            var stop = orderedStops[i];
             var stopLabel = string.IsNullOrWhiteSpace(stop.Auftragsnummer)
                 ? stop.Name
                 : $"{stop.Name} ({stop.Auftragsnummer})";
@@ -2821,7 +2918,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             _ => "Ressource"
         };
 
-        return $"{label}: {resourceName} (Tour {conflict.TourIdA} / {conflict.TourIdB}, {conflict.StartA:dd.MM.yyyy})";
+        var leftEndText = string.Equals(conflict.EndA.ToString("HH:mm"), (conflict.PessimisticEndA ?? conflict.EndA).ToString("HH:mm"), StringComparison.Ordinal)
+            ? conflict.EndA.ToString("HH:mm")
+            : $"{conflict.EndA:HH:mm} bis {(conflict.PessimisticEndA ?? conflict.EndA):HH:mm}";
+        var rightEndText = string.Equals(conflict.EndB.ToString("HH:mm"), (conflict.PessimisticEndB ?? conflict.EndB).ToString("HH:mm"), StringComparison.Ordinal)
+            ? conflict.EndB.ToString("HH:mm")
+            : $"{conflict.EndB:HH:mm} bis {(conflict.PessimisticEndB ?? conflict.EndB):HH:mm}";
+        return $"{label}: {resourceName} (Tour {conflict.TourIdA}: {conflict.StartA:HH:mm}-{leftEndText} / Tour {conflict.TourIdB}: {conflict.StartB:HH:mm}-{rightEndText}, {conflict.StartA:dd.MM.yyyy})";
     }
 
     private static string GetAssignmentConflictGroupLabel(TourAssignmentConflict conflict)
@@ -3078,11 +3181,28 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var parts = new[] { street, zipCity }.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
         return parts.Length == 0 ? "Firmenadresse nicht gesetzt" : string.Join(", ", parts);
     }
+
+    private static int ResolveTrafficBufferPercent(int explicitValue, int legacyValue, int fallbackValue)
+    {
+        if (explicitValue is >= 0 and <= 100)
+        {
+            return explicitValue;
+        }
+
+        if (legacyValue is >= 0 and <= 100)
+        {
+            return legacyValue;
+        }
+
+        return fallbackValue;
+    }
 }
 
 internal readonly record struct TourOrderMetrics(
     string EndTime,
     int EndMinutes,
+    string PessimisticEndTime,
+    int PessimisticEndMinutes,
     int DurationMinutes,
     double DistanceKm);
 
@@ -3126,6 +3246,7 @@ public sealed class TourCalendarCardStopItem
     public string OrderAddress { get; set; } = string.Empty;
     public string DeliveryAddress { get; set; } = string.Empty;
     public string WindowText { get; set; } = string.Empty;
+    public string ArrivalRangeText { get; set; } = string.Empty;
     public string DepartureText { get; set; } = string.Empty;
     public string DisplayTime { get; set; } = string.Empty;
     public string TimeLabel { get; set; } = string.Empty;
@@ -3147,6 +3268,7 @@ public sealed class TourStopOverviewItem
     public string Address { get; set; } = string.Empty;
     public string Window { get; set; } = string.Empty;
     public string Arrival { get; set; } = string.Empty;
+    public string ArrivalRangeText { get; set; } = string.Empty;
     public string Departure { get; set; } = string.Empty;
     public string Weight { get; set; } = string.Empty;
     public string Conflict { get; set; } = string.Empty;

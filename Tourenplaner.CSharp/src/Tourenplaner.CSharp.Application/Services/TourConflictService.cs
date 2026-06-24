@@ -33,7 +33,11 @@ public sealed class TourConflictService
                     continue;
                 }
 
-                if (!IsOverlapping(a.Schedule.Start, a.Schedule.End, b.Schedule.Start, b.Schedule.End))
+                if (!IsOverlapping(
+                        a.Schedule.Start,
+                        a.Schedule.PessimisticEnd ?? a.Schedule.End,
+                        b.Schedule.Start,
+                        b.Schedule.PessimisticEnd ?? b.Schedule.End))
                 {
                     continue;
                 }
@@ -123,7 +127,11 @@ public sealed class TourConflictService
         (TourRecord Tour, TourScheduleResult Schedule) left,
         (TourRecord Tour, TourScheduleResult Schedule) right)
     {
-        var text = $"{resourceType} '{resourceId}' ist am {left.Schedule.Start:dd.MM.yyyy} doppelt eingeplant (Tour {left.Tour.Id} und Tour {right.Tour.Id}).";
+        var leftPessimisticEnd = left.Schedule.PessimisticEnd ?? left.Schedule.End;
+        var rightPessimisticEnd = right.Schedule.PessimisticEnd ?? right.Schedule.End;
+        var text = $"{resourceType} '{resourceId}' ist am {left.Schedule.Start:dd.MM.yyyy} doppelt eingeplant " +
+                   $"(Tour {left.Tour.Id}: {left.Schedule.Start:HH:mm}-{left.Schedule.End:HH:mm}, pessimistisch bis {leftPessimisticEnd:HH:mm}; " +
+                   $"Tour {right.Tour.Id}: {right.Schedule.Start:HH:mm}-{right.Schedule.End:HH:mm}, pessimistisch bis {rightPessimisticEnd:HH:mm}).";
         return new TourAssignmentConflict(
             resourceType,
             resourceId,
@@ -133,6 +141,8 @@ public sealed class TourConflictService
             left.Schedule.End,
             right.Schedule.Start,
             right.Schedule.End,
-            text);
+            text,
+            leftPessimisticEnd,
+            rightPessimisticEnd);
     }
 }

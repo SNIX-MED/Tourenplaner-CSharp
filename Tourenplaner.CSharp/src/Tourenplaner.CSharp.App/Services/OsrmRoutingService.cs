@@ -185,7 +185,41 @@ public sealed class OsrmRoutingService
     }
 }
 
-public sealed record OsrmRouteLeg(int DurationMinutes, double DistanceKm);
+public sealed record RouteLegTravelTimeProfile(int OptimisticDurationMinutes, int RealisticDurationMinutes, int PessimisticDurationMinutes)
+{
+    public static RouteLegTravelTimeProfile FromSingleDuration(int durationMinutes)
+    {
+        var normalized = Math.Max(0, durationMinutes);
+        return new RouteLegTravelTimeProfile(normalized, normalized, normalized);
+    }
+}
+
+public sealed record OsrmRouteLeg
+{
+    public OsrmRouteLeg(int durationMinutes, double distanceKm)
+        : this(RouteLegTravelTimeProfile.FromSingleDuration(durationMinutes), distanceKm)
+    {
+    }
+
+    public OsrmRouteLeg(RouteLegTravelTimeProfile travelTimes, double distanceKm)
+    {
+        TravelTimes = travelTimes ?? RouteLegTravelTimeProfile.FromSingleDuration(0);
+        DistanceKm = Math.Max(0d, distanceKm);
+    }
+
+    public RouteLegTravelTimeProfile TravelTimes { get; init; }
+
+    // Keep existing consumers on the "realistic" baseline while we phase in time windows.
+    public int DurationMinutes => TravelTimes.RealisticDurationMinutes;
+
+    public int OptimisticDurationMinutes => TravelTimes.OptimisticDurationMinutes;
+
+    public int RealisticDurationMinutes => TravelTimes.RealisticDurationMinutes;
+
+    public int PessimisticDurationMinutes => TravelTimes.PessimisticDurationMinutes;
+
+    public double DistanceKm { get; init; }
+}
 
 public sealed record OsrmRouteResult(
     IReadOnlyList<GeoPoint> GeometryPoints,

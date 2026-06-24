@@ -9,4 +9,6 @@ public sealed record TourAssignmentConflict(
     DateTime EndA,
     DateTime StartB,
     DateTime EndB,
-    string Message);
+    string Message,
+    DateTime? PessimisticEndA = null,
+    DateTime? PessimisticEndB = null);

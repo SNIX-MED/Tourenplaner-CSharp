@@ -10,6 +10,7 @@ public class ImportResult
     public int UpdatedOrders { get; set; }
     public int UnchangedOrders { get; set; }
     public List<string> Errors { get; set; } = new();
+    public List<string> ChangedOrderIds { get; set; } = new();
     public DateTime ImportedAt { get; set; }
 }
 
@@ -92,8 +93,13 @@ public class SqlOrderImportService : ISqlOrderImportService
 
                 if (existingOrder is null)
                 {
-                    existingOrders.Add(CreateImportedOrder(sqlOrder, isMapOrder));
+                    var createdOrder = CreateImportedOrder(sqlOrder, isMapOrder);
+                    existingOrders.Add(createdOrder);
                     result.CreatedOrders++;
+                    if (!string.IsNullOrWhiteSpace(createdOrder.Id))
+                    {
+                        result.ChangedOrderIds.Add(createdOrder.Id);
+                    }
                     continue;
                 }
 
@@ -107,6 +113,10 @@ public class SqlOrderImportService : ISqlOrderImportService
 
                 ApplyImportedData(existingOrder, importedOrder);
                 result.UpdatedOrders++;
+                if (!string.IsNullOrWhiteSpace(existingOrder.Id))
+                {
+                    result.ChangedOrderIds.Add(existingOrder.Id);
+                }
             }
             catch (Exception ex)
             {
@@ -192,7 +202,8 @@ public class SqlOrderImportService : ISqlOrderImportService
             {
                 Name = sqlOrder.KundeFirma,
                 ContactPerson = orderContactPerson,
-                Street = auftragsAdresse,
+                Street = (sqlOrder.KundeStrasse ?? string.Empty).Trim(),
+                HouseNumber = (sqlOrder.KundeHausnummer ?? string.Empty).Trim(),
                 PostalCode = sqlOrder.KundePLZ,
                 City = sqlOrder.KundeOrt
             },
@@ -201,6 +212,7 @@ public class SqlOrderImportService : ISqlOrderImportService
                 Name = deliveryAddress.Name,
                 ContactPerson = deliveryAddress.ContactPerson,
                 Street = deliveryAddress.Street,
+                HouseNumber = deliveryAddress.HouseNumber,
                 PostalCode = deliveryAddress.PostalCode,
                 City = deliveryAddress.City
             },
@@ -320,7 +332,7 @@ public class SqlOrderImportService : ISqlOrderImportService
         }
     }
 
-    private (string Name, string ContactPerson, string Street, string PostalCode, string City) ResolveDeliveryAddress(SqlOrderImportData sqlOrder)
+    private (string Name, string ContactPerson, string Street, string HouseNumber, string PostalCode, string City) ResolveDeliveryAddress(SqlOrderImportData sqlOrder)
     {
         var hasSeparateDeliveryAddress =
             !string.IsNullOrWhiteSpace(sqlOrder.LieferStrasse) ||
@@ -334,13 +346,6 @@ public class SqlOrderImportService : ISqlOrderImportService
 
         if (hasSeparateDeliveryAddress)
         {
-            var lieferAdresse = BuildAddress(
-                sqlOrder.LieferStrasse,
-                sqlOrder.LieferHausnummer,
-                sqlOrder.LieferPLZ,
-                sqlOrder.LieferOrt,
-                sqlOrder.LieferLand);
-
             var name = string.IsNullOrWhiteSpace(sqlOrder.LieferFirma)
                 ? BuildCustomerName(sqlOrder)
                 : sqlOrder.LieferFirma;
@@ -355,17 +360,11 @@ public class SqlOrderImportService : ISqlOrderImportService
             return (
                 Name: name,
                 ContactPerson: contactPerson,
-                Street: lieferAdresse,
+                Street: (sqlOrder.LieferStrasse ?? string.Empty).Trim(),
+                HouseNumber: (sqlOrder.LieferHausnummer ?? string.Empty).Trim(),
                 PostalCode: sqlOrder.LieferPLZ,
                 City: sqlOrder.LieferOrt);
         }
-
-        var auftragsAdresse = BuildAddress(
-            sqlOrder.KundeStrasse,
-            sqlOrder.KundeHausnummer,
-            sqlOrder.KundePLZ,
-            sqlOrder.KundeOrt,
-            sqlOrder.KundeLand);
 
         var customerContact = ResolvePreferredContact(sqlOrder.KundeKontaktperson, string.Empty);
         if (string.IsNullOrWhiteSpace(customerContact))
@@ -376,7 +375,8 @@ public class SqlOrderImportService : ISqlOrderImportService
         return (
             Name: string.IsNullOrWhiteSpace(sqlOrder.KundeFirma) ? BuildCustomerName(sqlOrder) : sqlOrder.KundeFirma,
             ContactPerson: customerContact,
-            Street: auftragsAdresse,
+            Street: (sqlOrder.KundeStrasse ?? string.Empty).Trim(),
+            HouseNumber: (sqlOrder.KundeHausnummer ?? string.Empty).Trim(),
             PostalCode: sqlOrder.KundePLZ,
             City: sqlOrder.KundeOrt);
     }

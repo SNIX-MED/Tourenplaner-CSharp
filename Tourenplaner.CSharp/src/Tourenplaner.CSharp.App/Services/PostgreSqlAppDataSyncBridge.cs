@@ -24,6 +24,7 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
     }
 
     public event EventHandler<AppDataChangedEventArgs>? RemoteDataChanged;
+    public event EventHandler<AppDataSyncBridgeStatusChangedEventArgs>? StatusChanged;
 
     public async Task BroadcastAsync(AppDataChangedEventArgs args, CancellationToken cancellationToken = default)
     {
@@ -63,14 +64,16 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
         {
             try
             {
+                RaiseStatus(isConnected: false, "PostgreSQL-Sync verbindet...", null);
                 await ListenUntilDisconnectedAsync(_shutdownCts.Token);
             }
             catch (OperationCanceledException) when (_shutdownCts.IsCancellationRequested)
             {
                 break;
             }
-            catch
+            catch (Exception ex)
             {
+                RaiseStatus(isConnected: false, "PostgreSQL-Sync unterbrochen.", ex.Message);
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(3), _shutdownCts.Token);
@@ -90,6 +93,7 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
         try
         {
             await connection.OpenAsync(cancellationToken);
+            RaiseStatus(isConnected: true, "PostgreSQL-Sync verbunden.", null);
             await using var command = connection.CreateCommand();
             command.CommandText = $"""LISTEN "{ChannelName}";""";
             await command.ExecuteNonQueryAsync(cancellationToken);
@@ -102,6 +106,10 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
         finally
         {
             connection.Notification -= OnNotification;
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                RaiseStatus(isConnected: false, "PostgreSQL-Sync getrennt.", null);
+            }
         }
     }
 
@@ -126,6 +134,17 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
                 payload.PreviousId,
                 payload.CurrentId,
                 payload.ClientInstanceId));
+    }
+
+    private void RaiseStatus(bool isConnected, string statusText, string? errorMessage)
+    {
+        StatusChanged?.Invoke(
+            this,
+            new AppDataSyncBridgeStatusChangedEventArgs(
+                isConnected,
+                statusText,
+                errorMessage,
+                DateTime.UtcNow));
     }
 
     private sealed record AppDataSyncPayload(

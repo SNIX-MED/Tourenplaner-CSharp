@@ -21,6 +21,7 @@ public sealed record RouteExportStopInfo(
     double Longitude,
     string TimeWindow,
     string Arrival,
+    string ArrivalRange,
     string WeightText,
     string EmployeeInfoText,
     int PauseAfterMinutes);

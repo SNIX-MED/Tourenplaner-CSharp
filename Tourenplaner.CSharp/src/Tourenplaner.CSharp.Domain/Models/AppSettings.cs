@@ -21,6 +21,10 @@ public sealed class AppSettings
     public const int DefaultTomTomRouteRecalcDebounceMs = 900;
     public const int DefaultTomTomVehicleOnlyMaxSpeedKmh = 120;
     public const int DefaultTomTomVehicleWithTrailerMaxSpeedKmh = 100;
+    public const int DefaultTrafficBufferPercentFrom0500To0730 = 20;
+    public const int DefaultTrafficBufferPercentFrom0730To0900 = 20;
+    public const int DefaultTrafficBufferPercentFrom0900To1530 = 20;
+    public const int DefaultTrafficBufferPercentFrom1530To1830 = 20;
     public const string DefaultMapOverlayStyle = "standard";
 
     public string AppearanceMode { get; set; } = "Light";
@@ -71,6 +75,11 @@ public sealed class AppSettings
     public int TomTomRouteRecalcDebounceMs { get; set; } = DefaultTomTomRouteRecalcDebounceMs;
     public int TomTomVehicleOnlyMaxSpeedKmh { get; set; } = DefaultTomTomVehicleOnlyMaxSpeedKmh;
     public int TomTomVehicleWithTrailerMaxSpeedKmh { get; set; } = DefaultTomTomVehicleWithTrailerMaxSpeedKmh;
+    public int TrafficBufferPercentPerThirtyMinutes { get; set; } = DefaultTrafficBufferPercentFrom0500To0730;
+    public int TrafficBufferPercentFrom0500To0730 { get; set; } = -1;
+    public int TrafficBufferPercentFrom0730To0900 { get; set; } = -1;
+    public int TrafficBufferPercentFrom0900To1530 { get; set; } = -1;
+    public int TrafficBufferPercentFrom1530To1830 { get; set; } = -1;
     public bool TomTomEnableTileCache { get; set; } = true;
     public string CurrentUserName { get; set; } = string.Empty;
     public Dictionary<string, MapOverlayUserPreference> MapOverlayPreferencesByUser { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -149,8 +158,40 @@ public sealed class AppSettings
             TomTomRouteRecalcDebounceMs = TomTomRouteRecalcDebounceMs,
             TomTomVehicleOnlyMaxSpeedKmh = TomTomVehicleOnlyMaxSpeedKmh,
             TomTomVehicleWithTrailerMaxSpeedKmh = TomTomVehicleWithTrailerMaxSpeedKmh,
+            TrafficBufferPercentPerThirtyMinutes = TrafficBufferPercentPerThirtyMinutes,
+            TrafficBufferPercentFrom0500To0730 = ResolveTrafficBufferPercent(
+                TrafficBufferPercentFrom0500To0730,
+                TrafficBufferPercentPerThirtyMinutes,
+                DefaultTrafficBufferPercentFrom0500To0730),
+            TrafficBufferPercentFrom0730To0900 = ResolveTrafficBufferPercent(
+                TrafficBufferPercentFrom0730To0900,
+                TrafficBufferPercentPerThirtyMinutes,
+                DefaultTrafficBufferPercentFrom0730To0900),
+            TrafficBufferPercentFrom0900To1530 = ResolveTrafficBufferPercent(
+                TrafficBufferPercentFrom0900To1530,
+                TrafficBufferPercentPerThirtyMinutes,
+                DefaultTrafficBufferPercentFrom0900To1530),
+            TrafficBufferPercentFrom1530To1830 = ResolveTrafficBufferPercent(
+                TrafficBufferPercentFrom1530To1830,
+                TrafficBufferPercentPerThirtyMinutes,
+                DefaultTrafficBufferPercentFrom1530To1830),
             TomTomEnableTileCache = TomTomEnableTileCache
         };
+    }
+
+    private static int ResolveTrafficBufferPercent(int explicitValue, int legacyValue, int fallbackValue)
+    {
+        if (explicitValue is >= 0 and <= 100)
+        {
+            return explicitValue;
+        }
+
+        if (legacyValue is >= 0 and <= 100)
+        {
+            return legacyValue;
+        }
+
+        return fallbackValue;
     }
 }
 
@@ -192,6 +233,11 @@ public sealed class UserAppPreference
     public int TomTomRouteRecalcDebounceMs { get; set; } = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
     public int TomTomVehicleOnlyMaxSpeedKmh { get; set; } = AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh;
     public int TomTomVehicleWithTrailerMaxSpeedKmh { get; set; } = AppSettings.DefaultTomTomVehicleWithTrailerMaxSpeedKmh;
+    public int TrafficBufferPercentPerThirtyMinutes { get; set; } = AppSettings.DefaultTrafficBufferPercentFrom0500To0730;
+    public int TrafficBufferPercentFrom0500To0730 { get; set; } = -1;
+    public int TrafficBufferPercentFrom0730To0900 { get; set; } = -1;
+    public int TrafficBufferPercentFrom0900To1530 { get; set; } = -1;
+    public int TrafficBufferPercentFrom1530To1830 { get; set; } = -1;
     public bool TomTomEnableTileCache { get; set; } = true;
 
     public UserAppPreference Clone()
@@ -234,6 +280,11 @@ public sealed class UserAppPreference
             TomTomRouteRecalcDebounceMs = TomTomRouteRecalcDebounceMs,
             TomTomVehicleOnlyMaxSpeedKmh = TomTomVehicleOnlyMaxSpeedKmh,
             TomTomVehicleWithTrailerMaxSpeedKmh = TomTomVehicleWithTrailerMaxSpeedKmh,
+            TrafficBufferPercentPerThirtyMinutes = TrafficBufferPercentPerThirtyMinutes,
+            TrafficBufferPercentFrom0500To0730 = TrafficBufferPercentFrom0500To0730,
+            TrafficBufferPercentFrom0730To0900 = TrafficBufferPercentFrom0730To0900,
+            TrafficBufferPercentFrom0900To1530 = TrafficBufferPercentFrom0900To1530,
+            TrafficBufferPercentFrom1530To1830 = TrafficBufferPercentFrom1530To1830,
             TomTomEnableTileCache = TomTomEnableTileCache
         };
     }

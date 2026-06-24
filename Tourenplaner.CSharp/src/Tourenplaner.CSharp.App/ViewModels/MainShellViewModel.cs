@@ -607,7 +607,8 @@ public sealed class MainShellViewModel : ObservableObject
         var updated = dialog.CreatedOrder;
         updated.Type = existing.Type;
         updated.AssignedTourId = existing.AssignedTourId;
-        updated.Location = await AddressGeocodingService.TryGeocodeOrderAsync(updated) ?? existing.Location;
+        var updatedGeocodingResult = await AddressGeocodingService.TryResolveOrderAsync(updated);
+        updated.Location = updatedGeocodingResult?.Location ?? existing.Location;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
         var originalId = existing.Id;
@@ -644,6 +645,7 @@ public sealed class MainShellViewModel : ObservableObject
         }
 
         _dataSyncService.PublishOrders(_instanceId, originalId, updated.Id);
+        OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
     }
 
     private async Task UndoAsync()

@@ -43,6 +43,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _importStatusMessage = "";
     private bool _isPreviewingXmlImport;
     private string _xmlImportPreviewSummary = string.Empty;
+    private string _xmlImportPinIssueSummary = string.Empty;
     private int _xmlImportPreviewHiddenItemCount;
     private bool _hasPendingXmlImportPreview;
     private readonly List<SqlOrderImportData> _previewedXmlOrders = new();
@@ -81,6 +82,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
     private int _tomTomVehicleOnlyMaxSpeedKmh = AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh;
     private int _tomTomVehicleWithTrailerMaxSpeedKmh = AppSettings.DefaultTomTomVehicleWithTrailerMaxSpeedKmh;
+    private int _trafficBufferPercentFrom0500To0730 = AppSettings.DefaultTrafficBufferPercentFrom0500To0730;
+    private int _trafficBufferPercentFrom0730To0900 = AppSettings.DefaultTrafficBufferPercentFrom0730To0900;
+    private int _trafficBufferPercentFrom0900To1530 = AppSettings.DefaultTrafficBufferPercentFrom0900To1530;
+    private int _trafficBufferPercentFrom1530To1830 = AppSettings.DefaultTrafficBufferPercentFrom1530To1830;
     private bool _tomTomEnableTileCache = true;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
@@ -95,8 +100,22 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private string _availableUpdateVersion = "Noch nicht geprüft";
     private string _lastUpdateCheckText = "Noch nicht geprüft";
     private string _updatePublishedAtText = "-";
+    private string _updateConfigPath = "Nicht gefunden";
     private string _updateActionUrl = string.Empty;
     private bool _isUpdateAvailable;
+    private string _startupStatusText = "Noch keine Startdiagnose vorhanden.";
+    private string _startupDetailText = "-";
+    private string _startupRecordedAtText = "Noch keine Startdiagnose vorhanden.";
+    private string _startupLastStepText = "-";
+    private string _diagnosticsFilePath = string.Empty;
+    private string _crashLogPath = string.Empty;
+    private string _syncStatusText = "Lokaler Dateibetrieb ohne Live-Sync.";
+    private string _syncModeText = "Lokaler Dateibetrieb";
+    private string _lastSyncStatusChangeText = "Noch keine Statusaenderung";
+    private string _lastRemoteSyncText = "Noch keine externe Aenderung";
+    private string _lastLocalSyncText = "Noch keine lokale Aenderung";
+    private string _lastSyncActivityText = "Noch keine Synchronisationsaktivitaet";
+    private string _syncErrorText = "-";
     private string _latestBackupFile = "n/a";
     private string _latestBackupModifiedText = "n/a";
     private int _availableBackupsCount;
@@ -242,6 +261,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
         XmlImportPreviewItems = [];
         XmlImportPreviewErrors = [];
+        XmlImportPinIssueItems = [];
         XmlImportStructureFields = CreateXmlImportStructureFields();
         XmlImportAddressFields = CreateXmlImportAddressFields();
         XmlImportOrderFields = CreateXmlImportOrderFields();
@@ -251,6 +271,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         AttachXmlImportFieldHandlers(XmlImportAddressFields);
         AttachXmlImportFieldHandlers(XmlImportOrderFields);
         AttachXmlImportFieldHandlers(XmlImportProductFields);
+        if (_dataSyncService is not null)
+        {
+            _dataSyncService.StatusChanged += OnSyncStatusChanged;
+        }
+        ApplySyncDiagnostics(_dataSyncService?.GetDiagnosticsSnapshot());
 
         PropertyChanged += OnSelfPropertyChanged;
 
@@ -310,6 +335,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public ObservableCollection<XmlImportPreviewListItemViewModel> XmlImportPreviewItems { get; }
 
     public ObservableCollection<string> XmlImportPreviewErrors { get; }
+
+    public ObservableCollection<XmlImportPinIssueListItemViewModel> XmlImportPinIssueItems { get; }
 
     public ObservableCollection<XmlImportMappingFieldViewModel> XmlImportStructureFields { get; }
 
@@ -641,6 +668,30 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _tomTomVehicleWithTrailerMaxSpeedKmh, value);
     }
 
+    public int TrafficBufferPercentFrom0500To0730
+    {
+        get => _trafficBufferPercentFrom0500To0730;
+        set => SetProperty(ref _trafficBufferPercentFrom0500To0730, value);
+    }
+
+    public int TrafficBufferPercentFrom0730To0900
+    {
+        get => _trafficBufferPercentFrom0730To0900;
+        set => SetProperty(ref _trafficBufferPercentFrom0730To0900, value);
+    }
+
+    public int TrafficBufferPercentFrom0900To1530
+    {
+        get => _trafficBufferPercentFrom0900To1530;
+        set => SetProperty(ref _trafficBufferPercentFrom0900To1530, value);
+    }
+
+    public int TrafficBufferPercentFrom1530To1830
+    {
+        get => _trafficBufferPercentFrom1530To1830;
+        set => SetProperty(ref _trafficBufferPercentFrom1530To1830, value);
+    }
+
     public bool TomTomEnableTileCache
     {
         get => _tomTomEnableTileCache;
@@ -723,6 +774,90 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _updatePublishedAtText;
         private set => SetProperty(ref _updatePublishedAtText, value);
+    }
+
+    public string UpdateConfigPath
+    {
+        get => _updateConfigPath;
+        private set => SetProperty(ref _updateConfigPath, value);
+    }
+
+    public string StartupStatusText
+    {
+        get => _startupStatusText;
+        private set => SetProperty(ref _startupStatusText, value);
+    }
+
+    public string StartupDetailText
+    {
+        get => _startupDetailText;
+        private set => SetProperty(ref _startupDetailText, value);
+    }
+
+    public string StartupRecordedAtText
+    {
+        get => _startupRecordedAtText;
+        private set => SetProperty(ref _startupRecordedAtText, value);
+    }
+
+    public string StartupLastStepText
+    {
+        get => _startupLastStepText;
+        private set => SetProperty(ref _startupLastStepText, value);
+    }
+
+    public string DiagnosticsFilePath
+    {
+        get => _diagnosticsFilePath;
+        private set => SetProperty(ref _diagnosticsFilePath, value);
+    }
+
+    public string CrashLogPath
+    {
+        get => _crashLogPath;
+        private set => SetProperty(ref _crashLogPath, value);
+    }
+
+    public string SyncStatusText
+    {
+        get => _syncStatusText;
+        private set => SetProperty(ref _syncStatusText, value);
+    }
+
+    public string SyncModeText
+    {
+        get => _syncModeText;
+        private set => SetProperty(ref _syncModeText, value);
+    }
+
+    public string LastSyncStatusChangeText
+    {
+        get => _lastSyncStatusChangeText;
+        private set => SetProperty(ref _lastSyncStatusChangeText, value);
+    }
+
+    public string LastRemoteSyncText
+    {
+        get => _lastRemoteSyncText;
+        private set => SetProperty(ref _lastRemoteSyncText, value);
+    }
+
+    public string LastLocalSyncText
+    {
+        get => _lastLocalSyncText;
+        private set => SetProperty(ref _lastLocalSyncText, value);
+    }
+
+    public string LastSyncActivityText
+    {
+        get => _lastSyncActivityText;
+        private set => SetProperty(ref _lastSyncActivityText, value);
+    }
+
+    public string SyncErrorText
+    {
+        get => _syncErrorText;
+        private set => SetProperty(ref _syncErrorText, value);
     }
 
     public bool CanDownloadAvailableUpdate => _isUpdateAvailable && !string.IsNullOrWhiteSpace(_updateActionUrl);
@@ -834,6 +969,12 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _xmlImportPreviewSummary, value);
     }
 
+    public string XmlImportPinIssueSummary
+    {
+        get => _xmlImportPinIssueSummary;
+        private set => SetProperty(ref _xmlImportPinIssueSummary, value);
+    }
+
     public bool IsXmlImportBusy => IsImportingOrders || IsPreviewingXmlImport;
 
     public bool HasXmlImportPreview => !string.IsNullOrWhiteSpace(XmlImportPreviewSummary);
@@ -841,6 +982,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     public bool HasXmlImportPreviewItems => XmlImportPreviewItems.Count > 0;
 
     public bool HasXmlImportPreviewErrors => XmlImportPreviewErrors.Count > 0;
+
+    public bool HasXmlImportPinIssues => XmlImportPinIssueItems.Count > 0;
+
+    public bool HasXmlImportPinIssueSummary => !string.IsNullOrWhiteSpace(XmlImportPinIssueSummary);
 
     public bool HasXmlImportPreviewHiddenItems => _xmlImportPreviewHiddenItemCount > 0;
 
@@ -861,6 +1006,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
                 ?? "0.0.0";
             RuntimeVersion = Environment.Version.ToString();
             ResetUpdateStatus();
+            UpdateConfigPath = AppRuntimeDiagnosticsService.FindUpdateConfigPath(AppContext.BaseDirectory) ?? "Nicht gefunden";
+            CrashLogPath = AppRuntimeDiagnosticsService.GetCrashLogPath(_dataRoot);
+            DiagnosticsFilePath = AppRuntimeDiagnosticsService.GetStartupDiagnosticsPath(_dataRoot);
+            ApplyStartupDiagnostics(AppRuntimeDiagnosticsService.LoadStartupDiagnostics(_dataRoot));
+            ApplySyncDiagnostics(_dataSyncService?.GetDiagnosticsSnapshot());
 
             var settings = await _repository.LoadAsync();
             _activeStorageMode = settings.StorageMode;
@@ -1003,6 +1153,10 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(TomTomRouteRecalcDebounceMs) or
             nameof(TomTomVehicleOnlyMaxSpeedKmh) or
             nameof(TomTomVehicleWithTrailerMaxSpeedKmh) or
+            nameof(TrafficBufferPercentFrom0500To0730) or
+            nameof(TrafficBufferPercentFrom0730To0900) or
+            nameof(TrafficBufferPercentFrom0900To1530) or
+            nameof(TrafficBufferPercentFrom1530To1830) or
             nameof(TomTomEnableTileCache) or
             nameof(BackupsEnabled) or
             nameof(BackupDir) or
@@ -1152,6 +1306,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private async Task CheckForUpdatesCoreAsync(bool showToastWhenUpToDate)
     {
         UpdateStatusText = "Suche nach Updates...";
+        UpdateConfigPath = AppRuntimeDiagnosticsService.FindUpdateConfigPath(AppContext.BaseDirectory) ?? "Nicht gefunden";
 
         try
         {
@@ -1248,9 +1403,62 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         AvailableUpdateVersion = "Noch nicht geprüft";
         LastUpdateCheckText = "Noch nicht geprüft";
         UpdatePublishedAtText = "-";
+        UpdateConfigPath = AppRuntimeDiagnosticsService.FindUpdateConfigPath(AppContext.BaseDirectory) ?? "Nicht gefunden";
         _updateActionUrl = string.Empty;
         _isUpdateAvailable = false;
         DownloadAvailableUpdateCommand.RaiseCanExecuteChanged();
+    }
+
+    private void OnSyncStatusChanged(object? sender, AppDataSyncDiagnosticsSnapshot snapshot)
+    {
+        if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            _ = System.Windows.Application.Current.Dispatcher.InvokeAsync(() => OnSyncStatusChanged(sender, snapshot));
+            return;
+        }
+
+        ApplySyncDiagnostics(snapshot);
+    }
+
+    private void ApplyStartupDiagnostics(AppStartupDiagnosticsSnapshot snapshot)
+    {
+        StartupStatusText = snapshot.Summary;
+        StartupDetailText = string.IsNullOrWhiteSpace(snapshot.Detail) ? "-" : snapshot.Detail!;
+        StartupLastStepText = string.IsNullOrWhiteSpace(snapshot.LastStep) ? "-" : snapshot.LastStep!;
+        StartupRecordedAtText = snapshot.RecordedAtUtc == DateTime.MinValue
+            ? "Noch keine Startdiagnose vorhanden."
+            : snapshot.RecordedAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
+        DiagnosticsFilePath = string.IsNullOrWhiteSpace(snapshot.DiagnosticsFilePath)
+            ? AppRuntimeDiagnosticsService.GetStartupDiagnosticsPath(_dataRoot)
+            : snapshot.DiagnosticsFilePath;
+        CrashLogPath = string.IsNullOrWhiteSpace(snapshot.CrashLogPath)
+            ? AppRuntimeDiagnosticsService.GetCrashLogPath(_dataRoot)
+            : snapshot.CrashLogPath;
+    }
+
+    private void ApplySyncDiagnostics(AppDataSyncDiagnosticsSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            SyncModeText = "Lokaler Dateibetrieb";
+            SyncStatusText = "Lokaler Dateibetrieb ohne Live-Sync.";
+            LastSyncStatusChangeText = "Noch keine Statusaenderung";
+            LastRemoteSyncText = "Noch keine externe Aenderung";
+            LastLocalSyncText = "Noch keine lokale Aenderung";
+            LastSyncActivityText = "Noch keine Synchronisationsaktivitaet";
+            SyncErrorText = "-";
+            return;
+        }
+
+        SyncModeText = snapshot.IsRemoteSyncEnabled
+            ? (snapshot.IsRemoteSyncConnected ? "PostgreSQL Mehrbenutzer verbunden" : "PostgreSQL Mehrbenutzer getrennt")
+            : "Lokaler Dateibetrieb";
+        SyncStatusText = snapshot.StatusText;
+        LastSyncStatusChangeText = FormatOptionalDateTime(snapshot.LastStatusChangeUtc, "Noch keine Statusaenderung");
+        LastRemoteSyncText = FormatOptionalDateTime(snapshot.LastRemoteChangeUtc, "Noch keine externe Aenderung");
+        LastLocalSyncText = FormatOptionalDateTime(snapshot.LastLocalPublishUtc, "Noch keine lokale Aenderung");
+        LastSyncActivityText = FormatOptionalDateTime(snapshot.LastAnyChangeUtc, "Noch keine Synchronisationsaktivitaet");
+        SyncErrorText = string.IsNullOrWhiteSpace(snapshot.LastErrorMessage) ? "-" : snapshot.LastErrorMessage!;
     }
 
     private AppSettings BuildModel(AppSettings? existingSettings = null)
@@ -1294,6 +1502,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         userPreference.TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000);
         userPreference.TomTomVehicleOnlyMaxSpeedKmh = Math.Clamp(TomTomVehicleOnlyMaxSpeedKmh, 1, 250);
         userPreference.TomTomVehicleWithTrailerMaxSpeedKmh = Math.Clamp(TomTomVehicleWithTrailerMaxSpeedKmh, 1, 250);
+        userPreference.TrafficBufferPercentPerThirtyMinutes = Math.Clamp(TrafficBufferPercentFrom0500To0730, 0, 100);
+        userPreference.TrafficBufferPercentFrom0500To0730 = Math.Clamp(TrafficBufferPercentFrom0500To0730, 0, 100);
+        userPreference.TrafficBufferPercentFrom0730To0900 = Math.Clamp(TrafficBufferPercentFrom0730To0900, 0, 100);
+        userPreference.TrafficBufferPercentFrom0900To1530 = Math.Clamp(TrafficBufferPercentFrom0900To1530, 0, 100);
+        userPreference.TrafficBufferPercentFrom1530To1830 = Math.Clamp(TrafficBufferPercentFrom1530To1830, 0, 100);
         userPreference.TomTomEnableTileCache = TomTomEnableTileCache;
 
         model.AppearanceMode = "Light";
@@ -1308,6 +1521,11 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         model.TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000);
         model.TomTomVehicleOnlyMaxSpeedKmh = Math.Clamp(TomTomVehicleOnlyMaxSpeedKmh, 1, 250);
         model.TomTomVehicleWithTrailerMaxSpeedKmh = Math.Clamp(TomTomVehicleWithTrailerMaxSpeedKmh, 1, 250);
+        model.TrafficBufferPercentPerThirtyMinutes = Math.Clamp(TrafficBufferPercentFrom0500To0730, 0, 100);
+        model.TrafficBufferPercentFrom0500To0730 = Math.Clamp(TrafficBufferPercentFrom0500To0730, 0, 100);
+        model.TrafficBufferPercentFrom0730To0900 = Math.Clamp(TrafficBufferPercentFrom0730To0900, 0, 100);
+        model.TrafficBufferPercentFrom0900To1530 = Math.Clamp(TrafficBufferPercentFrom0900To1530, 0, 100);
+        model.TrafficBufferPercentFrom1530To1830 = Math.Clamp(TrafficBufferPercentFrom1530To1830, 0, 100);
         model.CurrentUserName = currentUserName;
         model.MapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
             model.MapOverlayPreferencesByUser ?? _mapOverlayPreferencesByUser ?? new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase),
@@ -1379,6 +1597,22 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         TomTomRouteRecalcDebounceMs = userPreference.TomTomRouteRecalcDebounceMs is < 100 or > 10000 ? AppSettings.DefaultTomTomRouteRecalcDebounceMs : userPreference.TomTomRouteRecalcDebounceMs;
         TomTomVehicleOnlyMaxSpeedKmh = userPreference.TomTomVehicleOnlyMaxSpeedKmh is < 1 or > 250 ? AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh : userPreference.TomTomVehicleOnlyMaxSpeedKmh;
         TomTomVehicleWithTrailerMaxSpeedKmh = userPreference.TomTomVehicleWithTrailerMaxSpeedKmh is < 1 or > 250 ? AppSettings.DefaultTomTomVehicleWithTrailerMaxSpeedKmh : userPreference.TomTomVehicleWithTrailerMaxSpeedKmh;
+        TrafficBufferPercentFrom0500To0730 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom0500To0730,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom0500To0730);
+        TrafficBufferPercentFrom0730To0900 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom0730To0900,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom0730To0900);
+        TrafficBufferPercentFrom0900To1530 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom0900To1530,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom0900To1530);
+        TrafficBufferPercentFrom1530To1830 = ResolveTrafficBufferPercent(
+            userPreference.TrafficBufferPercentFrom1530To1830,
+            userPreference.TrafficBufferPercentPerThirtyMinutes,
+            AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
         TomTomEnableTileCache = userPreference.TomTomEnableTileCache;
         _currentUserName = currentUserName;
         _mapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
@@ -1617,6 +1851,22 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
         return AppSettings.DefaultTourStartTime;
     }
+
+    private static int ResolveTrafficBufferPercent(int explicitValue, int legacyValue, int fallbackValue)
+    {
+        if (explicitValue is >= 0 and <= 100)
+        {
+            return explicitValue;
+        }
+
+        if (legacyValue is >= 0 and <= 100)
+        {
+            return legacyValue;
+        }
+
+        return fallbackValue;
+    }
+
     private static string TryFormatPublishedAt(string? publishedAtUtc)
     {
         if (string.IsNullOrWhiteSpace(publishedAtUtc))
@@ -1627,6 +1877,13 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         return DateTime.TryParse(publishedAtUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var parsed)
             ? parsed.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
             : publishedAtUtc;
+    }
+
+    private static string FormatOptionalDateTime(DateTime? value, string fallback)
+    {
+        return value.HasValue
+            ? value.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")
+            : fallback;
     }
 
     private void UpdateBackupStatus(string? backupDir)
@@ -1838,8 +2095,25 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
             if (result.CreatedOrders > 0 || result.UpdatedOrders > 0)
             {
+                var pinIssues = await EvaluateImportedPinAssignmentsAsync(result);
+                ApplyXmlImportPinIssues(pinIssues);
                 _dataSyncService?.PublishOrders(_instanceId);
                 StartBackgroundPinGeocoding();
+
+                if (pinIssues.Count > 0)
+                {
+                    AppMessageBox.Show(
+                        $"XML-Import abgeschlossen.{Environment.NewLine}{Environment.NewLine}" +
+                        $"{pinIssues.Count} importierte Karten-Auftraege konnten nicht exakt zugeordnet werden.{Environment.NewLine}" +
+                        "Die betroffenen Auftraege sind unten im Bereich \"Problematische Pin-Zuordnungen\" aufgelistet.",
+                        "Pins pruefen",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+            }
+            else
+            {
+                ClearXmlImportPinIssues();
             }
 
             var appSettings = await _settingsRepository.GetAsync();
@@ -1852,7 +2126,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             RaiseXmlImportPreviewStateChanged();
 
             var totalErrorCount = parserErrorCount + result.Errors.Count;
-            ImportStatusMessage = BuildXmlImportCompletionMessage(result, totalErrorCount);
+            ImportStatusMessage = BuildXmlImportCompletionMessage(result, totalErrorCount, XmlImportPinIssueItems.Count);
             StatusText = $"XML Import abgeschlossen: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert, {result.UnchangedOrders} unverändert.";
         }
         catch (Exception ex)
@@ -1914,6 +2188,8 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         XmlImportPreviewSummary = string.Empty;
         XmlImportPreviewItems.Clear();
         XmlImportPreviewErrors.Clear();
+        XmlImportPinIssueSummary = string.Empty;
+        XmlImportPinIssueItems.Clear();
 
         if (clearStatus)
         {
@@ -1923,11 +2199,103 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         RaiseXmlImportPreviewStateChanged();
     }
 
+    private async Task<IReadOnlyList<XmlImportPinIssueListItemViewModel>> EvaluateImportedPinAssignmentsAsync(ImportResult result)
+    {
+        if (_orderRepository is null)
+        {
+            return [];
+        }
+
+        var changedOrderIds = result.ChangedOrderIds
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (changedOrderIds.Count == 0)
+        {
+            return [];
+        }
+
+        var allOrders = (await _orderRepository.GetAllAsync()).ToList();
+        var importedMapOrders = allOrders
+            .Where(x => x.Type == OrderType.Map &&
+                        changedOrderIds.Contains(x.Id ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        if (importedMapOrders.Count == 0)
+        {
+            return [];
+        }
+
+        var issues = new List<XmlImportPinIssueListItemViewModel>();
+        var cacheFilePath = Path.Combine(_dataRoot, "geocode-cache.json");
+        var hasLocationUpdates = false;
+
+        foreach (var order in importedMapOrders)
+        {
+            var geocodingResult = await AddressGeocodingService.TryResolveOrderAsync(order, TomTomApiKey, cacheFilePath);
+            if (geocodingResult?.Location != order.Location)
+            {
+                order.Location = geocodingResult?.Location;
+                hasLocationUpdates = true;
+            }
+
+            var addressLine = BuildXmlImportPinIssueAddress(order);
+            if (geocodingResult is null)
+            {
+                issues.Add(XmlImportPinIssueListItemViewModel.CreateMissing(
+                    (order.Id ?? string.Empty).Trim(),
+                    (order.CustomerName ?? string.Empty).Trim(),
+                    addressLine));
+                continue;
+            }
+
+            if (!geocodingResult.IsPrecise)
+            {
+                issues.Add(XmlImportPinIssueListItemViewModel.CreateApproximate(
+                    (order.Id ?? string.Empty).Trim(),
+                    (order.CustomerName ?? string.Empty).Trim(),
+                    addressLine,
+                    (geocodingResult.MatchType ?? string.Empty).Trim(),
+                    geocodingResult.EntityType));
+            }
+        }
+
+        if (hasLocationUpdates)
+        {
+            await _orderRepository.SaveAllAsync(allOrders);
+        }
+
+        return issues;
+    }
+
+    private void ApplyXmlImportPinIssues(IReadOnlyList<XmlImportPinIssueListItemViewModel> issues)
+    {
+        XmlImportPinIssueItems.Clear();
+        foreach (var issue in issues)
+        {
+            XmlImportPinIssueItems.Add(issue);
+        }
+
+        XmlImportPinIssueSummary = issues.Count == 0
+            ? string.Empty
+            : $"{issues.Count} importierte Karten-Auftraege muessen bei der Pin-Zuordnung manuell geprueft werden.";
+        RaiseXmlImportPreviewStateChanged();
+    }
+
+    private void ClearXmlImportPinIssues()
+    {
+        XmlImportPinIssueSummary = string.Empty;
+        XmlImportPinIssueItems.Clear();
+        RaiseXmlImportPreviewStateChanged();
+    }
+
     private void RaiseXmlImportPreviewStateChanged()
     {
         OnPropertyChanged(nameof(HasXmlImportPreview));
         OnPropertyChanged(nameof(HasXmlImportPreviewItems));
         OnPropertyChanged(nameof(HasXmlImportPreviewErrors));
+        OnPropertyChanged(nameof(HasXmlImportPinIssues));
+        OnPropertyChanged(nameof(HasXmlImportPinIssueSummary));
         OnPropertyChanged(nameof(HasXmlImportPreviewHiddenItems));
         OnPropertyChanged(nameof(XmlImportPreviewHiddenItemsText));
         RaiseXmlImportCommandStates();
@@ -1983,12 +2351,17 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         return message;
     }
 
-    private static string BuildXmlImportCompletionMessage(ImportResult result, int errorCount)
+    private static string BuildXmlImportCompletionMessage(ImportResult result, int errorCount, int pinIssueCount)
     {
         var message = $"Import abgeschlossen: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert, {result.UnchangedOrders} unverändert.";
         if (result.CreatedOrders > 0 || result.UpdatedOrders > 0)
         {
             message += " Pins ohne Koordinaten werden im Hintergrund weiter geprüft.";
+        }
+
+        if (pinIssueCount > 0)
+        {
+            message += $" {pinIssueCount} importierte Karten-Auftraege sollten wegen unklarer Pin-Zuordnung manuell korrigiert werden.";
         }
 
         if (errorCount > 0)
@@ -1997,6 +2370,29 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         }
 
         return message;
+    }
+
+    private static string BuildXmlImportPinIssueAddress(Order order)
+    {
+        var street = string.Join(" ", new[]
+        {
+            (order.DeliveryAddress?.Street ?? string.Empty).Trim(),
+            (order.DeliveryAddress?.HouseNumber ?? string.Empty).Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        var postalCity = string.Join(" ", new[]
+        {
+            (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim(),
+            (order.DeliveryAddress?.City ?? string.Empty).Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        var addressLine = string.Join(", ", new[] { street, postalCity }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        if (!string.IsNullOrWhiteSpace(addressLine))
+        {
+            return addressLine;
+        }
+
+        return (order.Address ?? string.Empty).Trim();
     }
 
     private DelegateCommand CreateColorPickerCommand(

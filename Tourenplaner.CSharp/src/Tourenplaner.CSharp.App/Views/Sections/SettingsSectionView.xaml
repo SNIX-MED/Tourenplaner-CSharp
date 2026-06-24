@@ -1114,6 +1114,59 @@
                                         </Border>
                                     </Grid>
 
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="05:00 - 07:30 Staupuffer (%)" />
+                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom0500To0730, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="07:30 - 09:00 Staupuffer (%)" />
+                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom0730To0900, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="09:00 - 15:30 Staupuffer (%)" />
+                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom0900To1530, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="15:30 - 18:30 Staupuffer (%)" />
+                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom1530To1830, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource SettingsFieldCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock Margin="0,8,0,0"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                           TextWrapping="Wrap"
+                                                           Text="Bis 30 Minuten Fahrzeit wird kein Stauzuschlag gerechnet. Ab 30 Minuten wird je nach Abfahrtszeit des Streckenabschnitts der passende Prozentwert einmalig als ETA-Puffer eingerechnet. Ausserhalb 05:00 bis 18:30 wird aktuell kein Zuschlag angewendet." />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
                                 </StackPanel>
 
                                 <StackPanel>
@@ -1362,6 +1415,33 @@
                                         <TextBlock Text="{Binding ImportStatusMessage}" TextWrapping="Wrap" />
                                     </Border>
 
+                                    <Border Padding="18"
+                                            CornerRadius="22"
+                                            Background="#FEF3C7"
+                                            BorderBrush="#F59E0B"
+                                            BorderThickness="1">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasXmlImportPinIssueSummary}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Pins manuell prüfen" />
+                                            <TextBlock Margin="0,8,0,0"
+                                                       Text="{Binding XmlImportPinIssueSummary}"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Margin="0,8,0,0"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       Text="Diese importierten Aufträge konnten nicht exakt geokodiert werden und sollten in der Karte oder in den Aufträgen manuell kontrolliert werden."
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+
                                     <Border>
                                         <Border.Style>
                                             <Style TargetType="Border" BasedOn="{StaticResource SettingsInnerPanelStyle}">
@@ -1447,6 +1527,69 @@
 
                                     <Border Padding="18"
                                             CornerRadius="22"
+                                            Background="#FFF7ED"
+                                            BorderBrush="#FDBA74"
+                                            BorderThickness="1">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasXmlImportPinIssues}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Problematische Pin-Zuordnungen" />
+                                            <ScrollViewer Margin="0,14,0,0" MaxHeight="280" VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding XmlImportPinIssueItems}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="0,0,0,10"
+                                                                    Padding="12"
+                                                                    CornerRadius="14"
+                                                                    Background="{DynamicResource Brush.Card}"
+                                                                    BorderBrush="{DynamicResource Brush.GlassStroke}"
+                                                                    BorderThickness="1">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Border Grid.Column="0"
+                                                                            VerticalAlignment="Top"
+                                                                            Padding="10,5"
+                                                                            CornerRadius="999"
+                                                                            Background="{Binding IssueBackground}">
+                                                                        <TextBlock Foreground="{Binding IssueForeground}"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Text="{Binding IssueLabel}" />
+                                                                    </Border>
+                                                                    <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                                                        <TextBlock FontWeight="SemiBold" Text="{Binding OrderId}" />
+                                                                        <TextBlock Margin="0,2,0,0" Text="{Binding CustomerLine}" />
+                                                                        <TextBlock Margin="0,2,0,0" Text="{Binding AddressDisplayLine}" TextWrapping="Wrap" />
+                                                                        <TextBlock Margin="0,8,0,0"
+                                                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                                                   Text="{Binding IssueSummary}"
+                                                                                   TextWrapping="Wrap" />
+                                                                        <TextBlock Margin="0,4,0,0"
+                                                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                                                   Text="{Binding MatchSummary}"
+                                                                                   TextWrapping="Wrap" />
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Padding="18"
+                                            CornerRadius="22"
                                             Background="{DynamicResource Brush.DangerSoft}"
                                             BorderBrush="{DynamicResource Brush.Danger}"
                                             BorderThickness="1">
@@ -1507,6 +1650,81 @@
                                             <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,18,0,0" Text="{Binding AvailableUpdateVersion}" />
                                             <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Veröffentlicht" />
                                             <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,18,0,0" Text="{Binding UpdatePublishedAtText}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="170" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzter Start" />
+                                            <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding StartupStatusText}" />
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Zeitpunkt" />
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,18,0,0" Text="{Binding StartupRecordedAtText}" />
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzter Schritt" />
+                                            <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,18,0,0" Text="{Binding StartupLastStepText}" />
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Detail" />
+                                            <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding StartupDetailText}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="170" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Sync-Modus" />
+                                            <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding SyncModeText}" />
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Sync-Status" />
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding SyncStatusText}" />
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte Statusänderung" />
+                                            <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastSyncStatusChangeText}" />
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte externe Änderung" />
+                                            <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastRemoteSyncText}" />
+                                            <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte lokale Änderung" />
+                                            <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastLocalSyncText}" />
+                                            <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte Aktivität" />
+                                            <TextBlock Grid.Row="5" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastSyncActivityText}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="170" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Update-Konfig" />
+                                            <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding UpdateConfigPath}" />
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Diagnose-Datei" />
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding DiagnosticsFilePath}" />
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Crash-Log" />
+                                            <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding CrashLogPath}" />
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzter Sync-Fehler" />
+                                            <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding SyncErrorText}" />
                                         </Grid>
                                     </Border>
 

@@ -13,8 +13,10 @@ public sealed class TourStopRecord
     public int Order { get; set; }
     public string TimeWindowStart { get; set; } = string.Empty;
     public string TimeWindowEnd { get; set; } = string.Empty;
+    public string PlannedArrivalOptimistic { get; set; } = string.Empty;
     public int ServiceMinutes { get; set; }
     public string PlannedArrival { get; set; } = string.Empty;
+    public string PlannedArrivalPessimistic { get; set; } = string.Empty;
     public string PlannedDeparture { get; set; } = string.Empty;
     public int WaitMinutes { get; set; }
     public bool ScheduleConflict { get; set; }
