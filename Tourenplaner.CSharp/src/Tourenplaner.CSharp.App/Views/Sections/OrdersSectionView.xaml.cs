@@ -9,8 +9,6 @@ namespace Tourenplaner.CSharp.App.Views.Sections;
 public partial class OrdersSectionView : UserControl
 {
     private OrdersSectionViewModel? _viewModel;
-    private PopupToggleController? _filterPopupController;
-    private PopupToggleController? _columnsPopupController;
 
     public OrdersSectionView()
     {
@@ -23,39 +21,21 @@ public partial class OrdersSectionView : UserControl
 
     private void OnAnyMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        var viewer = VisualTreeUtilities.FindDescendant<ScrollViewer>(OrdersGrid);
-        if (viewer is null || viewer.ScrollableHeight <= 0)
-        {
-            return;
-        }
-
-        var target = viewer.VerticalOffset - (e.Delta / 3d);
-        if (target < 0)
-        {
-            target = 0;
-        }
-        else if (target > viewer.ScrollableHeight)
-        {
-            target = viewer.ScrollableHeight;
-        }
-
-        viewer.ScrollToVerticalOffset(target);
-        e.Handled = true;
+        OrderSectionViewHelpers.HandleMouseWheel(OrdersGrid, e);
     }
 
     private void OnOpenOrderClick(object sender, RoutedEventArgs e)
     {
+        OrderSectionViewHelpers.HandleOpenOrderClick<OrdersSectionViewModel>(
+            DataContext,
+            sender,
+            OrdersGrid,
+            static (vm, item) => vm.SelectedOrder = item);
+
         if (DataContext is not OrdersSectionViewModel vm)
         {
             return;
         }
-
-        if (sender is FrameworkElement { DataContext: OrderItem item })
-        {
-            OrdersGrid.SelectedItem = item;
-            vm.SelectedOrder = item;
-        }
-
         if (vm.EditSelectedOrderCommand.CanExecute(null))
         {
             vm.EditSelectedOrderCommand.Execute(null);
@@ -64,51 +44,23 @@ public partial class OrdersSectionView : UserControl
 
     private void OrdersGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        var row = VisualTreeUtilities.FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
-        if (row?.Item is not OrderItem item || DataContext is not OrdersSectionViewModel vm)
-        {
-            return;
-        }
-
-        OrdersGrid.SelectedItem = item;
-        vm.SelectedOrder = item;
+        OrderSectionViewHelpers.HandlePreviewMouseRightButtonDown<OrdersSectionViewModel>(
+            DataContext,
+            e.OriginalSource,
+            OrdersGrid,
+            static (vm, item) => vm.SelectedOrder = item);
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        EnsurePopupControllers();
         BindViewModel(DataContext as OrdersSectionViewModel);
     }
 
-    private void OnUnloaded(object sender, RoutedEventArgs e)
-    {
-        DisposePopupControllers();
-    }
+    private void OnUnloaded(object sender, RoutedEventArgs e) { }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         BindViewModel(e.NewValue as OrdersSectionViewModel);
-    }
-
-    private void EnsurePopupControllers()
-    {
-        _filterPopupController ??= new PopupToggleController(
-            FilterPopupButton,
-            FilterPopup,
-            () => _columnsPopupController?.Close());
-
-        _columnsPopupController ??= new PopupToggleController(
-            ColumnsPopupButton,
-            ColumnsPopup,
-            () => _filterPopupController?.Close());
-    }
-
-    private void DisposePopupControllers()
-    {
-        _filterPopupController?.Dispose();
-        _columnsPopupController?.Dispose();
-        _filterPopupController = null;
-        _columnsPopupController = null;
     }
 
     private void BindViewModel(OrdersSectionViewModel? vm)
@@ -143,14 +95,22 @@ public partial class OrdersSectionView : UserControl
         var vm = _viewModel;
         if (vm is null)
         {
-            CustomerColumn.Visibility = Visibility.Visible;
-            DeliveryAddressColumn.Visibility = Visibility.Visible;
-            DeliveryPersonColumn.Visibility = Visibility.Visible;
+            OrderSectionViewHelpers.ApplyColumnVisibility(
+                customerVisible: true,
+                deliveryAddressVisible: true,
+                deliveryPersonVisible: true,
+                CustomerColumn,
+                DeliveryAddressColumn,
+                DeliveryPersonColumn);
             return;
         }
 
-        CustomerColumn.Visibility = vm.IsCustomerColumnVisible ? Visibility.Visible : Visibility.Collapsed;
-        DeliveryAddressColumn.Visibility = vm.IsDeliveryAddressColumnVisible ? Visibility.Visible : Visibility.Collapsed;
-        DeliveryPersonColumn.Visibility = vm.IsDeliveryPersonColumnVisible ? Visibility.Visible : Visibility.Collapsed;
+        OrderSectionViewHelpers.ApplyColumnVisibility(
+            vm.IsCustomerColumnVisible,
+            vm.IsDeliveryAddressColumnVisible,
+            vm.IsDeliveryPersonColumnVisible,
+            CustomerColumn,
+            DeliveryAddressColumn,
+            DeliveryPersonColumn);
     }
 }

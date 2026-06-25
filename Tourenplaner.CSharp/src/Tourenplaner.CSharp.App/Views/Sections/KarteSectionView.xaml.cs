@@ -54,7 +54,7 @@ public partial class KarteSectionView : UserControl
     private bool _suppressSelectionSync;
     private GridLength _lastDetailsPanelWidth = DefaultDetailsPanelWidth;
     private Point? _routeGridDragStart;
-    private RouteStopItem? _routeGridDragItem;
+    private RouteDragPayload? _routeGridDragItem;
     private int _mapRefreshRevision;
     private bool _isMapRefreshLoopRunning;
     private MapRefreshOperation _pendingMapRefresh;
@@ -63,6 +63,8 @@ public partial class KarteSectionView : UserControl
     private double _lastAppliedPinInfoCardScale = double.NaN;
     private string? _lastCompanyMarkerPayloadJson;
     private readonly WebViewRouteExportService _routeExportService = new();
+
+    private sealed record RouteDragPayload(string SourceOrderId, bool IsPauseBlock);
 
     public KarteSectionView()
     {
@@ -1186,6 +1188,27 @@ public partial class KarteSectionView : UserControl
         vm.SetHoveredTourOverviewId(0);
     }
 
+    private void TourOverviewList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListBox listBox)
+        {
+            return;
+        }
+
+        var listItem = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (listItem?.DataContext is SavedTourOverviewItem selected)
+        {
+            listBox.SelectedItem = selected;
+            return;
+        }
+
+        listBox.SelectedItem = null;
+        if (DataContext is KarteSectionViewModel vm)
+        {
+            vm.SetHoveredTourOverviewId(0);
+        }
+    }
+
     private void TourOverviewList_MouseMove(object sender, MouseEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm)
@@ -1209,6 +1232,20 @@ public partial class KarteSectionView : UserControl
         {
             vm.SetHoveredTourOverviewId(0);
         }
+    }
+
+    private void TourOverviewList_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (sender is not ListBox listBox ||
+            DataContext is not KarteSectionViewModel vm ||
+            listBox.SelectedItem is not SavedTourOverviewItem selected ||
+            selected.TourId <= 0)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        vm.SelectTourOverviewById(selected.TourId);
     }
 
     private void OnRouteStopContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -1416,6 +1453,7 @@ public partial class KarteSectionView : UserControl
     {
         _routeGridDragStart = null;
         _routeGridDragItem = null;
+        ClearRouteDropIndicator();
 
         if (VisualTreeUtilities.FindAncestor<ScrollBar>(e.OriginalSource as DependencyObject) is not null)
         {
@@ -1428,8 +1466,25 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
+        if (HasAncestorTag(e.OriginalSource as DependencyObject, "RoutePauseDragHandle"))
+        {
+            if (!item.HasPauseAfter)
+            {
+                return;
+            }
+
+            _routeGridDragStart = e.GetPosition(RouteStopsList);
+            _routeGridDragItem = new RouteDragPayload(item.OrderId, true);
+            return;
+        }
+
+        if (HasAncestorTag(e.OriginalSource as DependencyObject, "RouteLegSurface"))
+        {
+            return;
+        }
+
         _routeGridDragStart = e.GetPosition(RouteStopsList);
-        _routeGridDragItem = item;
+        _routeGridDragItem = new RouteDragPayload(item.OrderId, false);
     }
 
     private void RouteStopsList_MouseMove(object sender, MouseEventArgs e)
@@ -1450,41 +1505,67 @@ public partial class KarteSectionView : UserControl
         var dragItem = _routeGridDragItem;
         _routeGridDragStart = null;
         _routeGridDragItem = null;
-        DragDrop.DoDragDrop(RouteStopsList, new DataObject(typeof(string), dragItem.OrderId), DragDropEffects.Move);
+        DragDrop.DoDragDrop(RouteStopsList, new DataObject(typeof(RouteDragPayload), dragItem), DragDropEffects.Move);
+        ClearRouteDropIndicator();
     }
 
     private void RouteStopsList_DragOver(object sender, DragEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
-            !e.Data.GetDataPresent(typeof(string)))
+            !e.Data.GetDataPresent(typeof(RouteDragPayload)))
         {
+            ClearRouteDropIndicator();
             e.Effects = DragDropEffects.None;
             e.Handled = true;
             return;
         }
 
-        var sourceOrderId = e.Data.GetData(typeof(string)) as string;
+        var payload = e.Data.GetData(typeof(RouteDragPayload)) as RouteDragPayload;
         var targetItem = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
         var targetStop = targetItem?.DataContext as RouteStopItem;
-        if (string.IsNullOrWhiteSpace(sourceOrderId) ||
+        if (payload is null ||
+            string.IsNullOrWhiteSpace(payload.SourceOrderId) ||
+            targetItem is null ||
             targetStop is null ||
-            targetStop.IsCompanyAnchor)
+            targetStop.IsCompanyAnchor ||
+            targetStop.IsPauseStop)
         {
+            ClearRouteDropIndicator();
             e.Effects = DragDropEffects.None;
             e.Handled = true;
             return;
         }
 
-        var sourceStop = vm.RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, sourceOrderId, StringComparison.OrdinalIgnoreCase));
-        if (sourceStop is null ||
-            sourceStop.IsCompanyAnchor ||
+        var sourceStop = vm.RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, payload.SourceOrderId, StringComparison.OrdinalIgnoreCase));
+        if (sourceStop is null || sourceStop.IsCompanyAnchor)
+        {
+            ClearRouteDropIndicator();
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        var insertAfter = GetInsertAfter(targetItem, e);
+        if (!payload.IsPauseBlock &&
             string.Equals(sourceStop.OrderId, targetStop.OrderId, StringComparison.OrdinalIgnoreCase))
         {
+            ClearRouteDropIndicator();
             e.Effects = DragDropEffects.None;
             e.Handled = true;
             return;
         }
 
+        if (payload.IsPauseBlock &&
+            string.Equals(sourceStop.OrderId, targetStop.OrderId, StringComparison.OrdinalIgnoreCase) &&
+            insertAfter)
+        {
+            ClearRouteDropIndicator();
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        SetRouteDropIndicator(vm, targetStop, insertAfter);
         e.Effects = DragDropEffects.Move;
         e.Handled = true;
     }
@@ -1492,25 +1573,84 @@ public partial class KarteSectionView : UserControl
     private void RouteStopsList_Drop(object sender, DragEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
-            !e.Data.GetDataPresent(typeof(string)))
+            !e.Data.GetDataPresent(typeof(RouteDragPayload)))
         {
             return;
         }
 
-        var sourceOrderId = e.Data.GetData(typeof(string)) as string;
+        var payload = e.Data.GetData(typeof(RouteDragPayload)) as RouteDragPayload;
         var targetItem = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
         var targetStop = targetItem?.DataContext as RouteStopItem;
-        if (string.IsNullOrWhiteSpace(sourceOrderId) || targetStop is null)
+        if (payload is null || string.IsNullOrWhiteSpace(payload.SourceOrderId) || targetItem is null || targetStop is null)
         {
+            ClearRouteDropIndicator();
             return;
         }
 
-        var moved = vm.MoveRouteStopByOrderIds(sourceOrderId, targetStop.OrderId);
+        var insertAfter = GetInsertAfter(targetItem, e);
+        var moved = payload.IsPauseBlock
+            ? vm.MovePauseBlockByAnchorOrderIds(payload.SourceOrderId, targetStop.OrderId, insertAfter)
+            : vm.MoveRouteStopByOrderIds(payload.SourceOrderId, targetStop.OrderId, insertAfter);
+
+        ClearRouteDropIndicator();
         if (moved && vm.SelectedRouteStop is not null)
         {
             RouteStopsList.SelectedItem = vm.SelectedRouteStop;
             RouteStopsList.ScrollIntoView(vm.SelectedRouteStop);
         }
+    }
+
+    private void RouteStopsList_DragLeave(object sender, DragEventArgs e)
+    {
+        ClearRouteDropIndicator();
+    }
+
+    private static bool GetInsertAfter(ListBoxItem targetItem, DragEventArgs e)
+    {
+        var position = e.GetPosition(targetItem);
+        return position.Y > targetItem.ActualHeight / 2d;
+    }
+
+    private void SetRouteDropIndicator(KarteSectionViewModel vm, RouteStopItem targetStop, bool insertAfter)
+    {
+        foreach (var stop in vm.RouteStops)
+        {
+            stop.IsDropTargetBefore = false;
+            stop.IsDropTargetAfter = false;
+        }
+
+        targetStop.IsDropTargetBefore = !insertAfter;
+        targetStop.IsDropTargetAfter = insertAfter;
+    }
+
+    private void ClearRouteDropIndicator()
+    {
+        if (DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        foreach (var stop in vm.RouteStops)
+        {
+            stop.IsDropTargetBefore = false;
+            stop.IsDropTargetAfter = false;
+        }
+    }
+
+    private static bool HasAncestorTag(DependencyObject? child, string tag)
+    {
+        while (child is not null)
+        {
+            if (child is FrameworkElement element &&
+                string.Equals(element.Tag as string, tag, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            child = VisualTreeHelper.GetParent(child);
+        }
+
+        return false;
     }
 
     private static string ResolveDeliveryShape(string? deliveryLabel)

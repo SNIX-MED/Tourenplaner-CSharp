@@ -86,6 +86,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private int _trafficBufferPercentFrom0730To0900 = AppSettings.DefaultTrafficBufferPercentFrom0730To0900;
     private int _trafficBufferPercentFrom0900To1530 = AppSettings.DefaultTrafficBufferPercentFrom0900To1530;
     private int _trafficBufferPercentFrom1530To1830 = AppSettings.DefaultTrafficBufferPercentFrom1530To1830;
+    private string _tomTomTrafficSeverityMode = AppSettings.DefaultTomTomTrafficSeverityMode;
     private bool _tomTomEnableTileCache = true;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
@@ -170,6 +171,13 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         [
             new StorageModeOption(AppStorageMode.JsonFiles, "Lokale JSON-Dateien"),
             new StorageModeOption(AppStorageMode.PostgreSql, "PostgreSQL Mehrbenutzer")
+        ];
+
+        TomTomTrafficSeverityOptions =
+        [
+            new TomTomTrafficSeverityOption("standard", "TomTom Standard"),
+            new TomTomTrafficSeverityOption("slightly_stricter", "Etwas strenger"),
+            new TomTomTrafficSeverityOption("strict", "Streng")
         ];
 
         SettingsCategories =
@@ -284,6 +292,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
 
     public ObservableCollection<string> BackupModes { get; }
     public ObservableCollection<StorageModeOption> StorageModeOptions { get; }
+    public ObservableCollection<TomTomTrafficSeverityOption> TomTomTrafficSeverityOptions { get; }
     public ObservableCollection<SettingsCategoryNavigationItem> SettingsCategories { get; }
 
     public ICommand RefreshCommand { get; }
@@ -690,6 +699,34 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _trafficBufferPercentFrom1530To1830;
         set => SetProperty(ref _trafficBufferPercentFrom1530To1830, value);
+    }
+
+    public TomTomTrafficSeverityOption? SelectedTomTomTrafficSeverityOption
+    {
+        get => TomTomTrafficSeverityOptions.FirstOrDefault(x => string.Equals(x.Key, _tomTomTrafficSeverityMode, StringComparison.OrdinalIgnoreCase))
+               ?? TomTomTrafficSeverityOptions.FirstOrDefault();
+        set
+        {
+            if (value is null)
+            {
+                return;
+            }
+
+            TomTomTrafficSeverityMode = value.Key;
+        }
+    }
+
+    public string TomTomTrafficSeverityMode
+    {
+        get => _tomTomTrafficSeverityMode;
+        set
+        {
+            var normalized = AppSettings.NormalizeTomTomTrafficSeverityMode(value);
+            if (SetProperty(ref _tomTomTrafficSeverityMode, normalized))
+            {
+                OnPropertyChanged(nameof(SelectedTomTomTrafficSeverityOption));
+            }
+        }
     }
 
     public bool TomTomEnableTileCache
@@ -1157,6 +1194,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(TrafficBufferPercentFrom0730To0900) or
             nameof(TrafficBufferPercentFrom0900To1530) or
             nameof(TrafficBufferPercentFrom1530To1830) or
+            nameof(TomTomTrafficSeverityMode) or
             nameof(TomTomEnableTileCache) or
             nameof(BackupsEnabled) or
             nameof(BackupDir) or
@@ -1507,6 +1545,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         userPreference.TrafficBufferPercentFrom0730To0900 = Math.Clamp(TrafficBufferPercentFrom0730To0900, 0, 100);
         userPreference.TrafficBufferPercentFrom0900To1530 = Math.Clamp(TrafficBufferPercentFrom0900To1530, 0, 100);
         userPreference.TrafficBufferPercentFrom1530To1830 = Math.Clamp(TrafficBufferPercentFrom1530To1830, 0, 100);
+        userPreference.TomTomTrafficSeverityMode = AppSettings.NormalizeTomTomTrafficSeverityMode(TomTomTrafficSeverityMode);
         userPreference.TomTomEnableTileCache = TomTomEnableTileCache;
 
         model.AppearanceMode = "Light";
@@ -1526,6 +1565,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         model.TrafficBufferPercentFrom0730To0900 = Math.Clamp(TrafficBufferPercentFrom0730To0900, 0, 100);
         model.TrafficBufferPercentFrom0900To1530 = Math.Clamp(TrafficBufferPercentFrom0900To1530, 0, 100);
         model.TrafficBufferPercentFrom1530To1830 = Math.Clamp(TrafficBufferPercentFrom1530To1830, 0, 100);
+        model.TomTomTrafficSeverityMode = AppSettings.NormalizeTomTomTrafficSeverityMode(TomTomTrafficSeverityMode);
         model.CurrentUserName = currentUserName;
         model.MapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
             model.MapOverlayPreferencesByUser ?? _mapOverlayPreferencesByUser ?? new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase),
@@ -1613,6 +1653,7 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             userPreference.TrafficBufferPercentFrom1530To1830,
             userPreference.TrafficBufferPercentPerThirtyMinutes,
             AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
+        TomTomTrafficSeverityMode = AppSettings.NormalizeTomTomTrafficSeverityMode(userPreference.TomTomTrafficSeverityMode);
         TomTomEnableTileCache = userPreference.TomTomEnableTileCache;
         _currentUserName = currentUserName;
         _mapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
@@ -2512,5 +2553,6 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     }
 
     public sealed record StorageModeOption(AppStorageMode Value, string DisplayName);
+    public sealed record TomTomTrafficSeverityOption(string Key, string DisplayName);
 
 }

@@ -25,6 +25,7 @@ public sealed class AppSettings
     public const int DefaultTrafficBufferPercentFrom0730To0900 = 20;
     public const int DefaultTrafficBufferPercentFrom0900To1530 = 20;
     public const int DefaultTrafficBufferPercentFrom1530To1830 = 20;
+    public const string DefaultTomTomTrafficSeverityMode = "slightly_stricter";
     public const string DefaultMapOverlayStyle = "standard";
 
     public string AppearanceMode { get; set; } = "Light";
@@ -80,6 +81,7 @@ public sealed class AppSettings
     public int TrafficBufferPercentFrom0730To0900 { get; set; } = -1;
     public int TrafficBufferPercentFrom0900To1530 { get; set; } = -1;
     public int TrafficBufferPercentFrom1530To1830 { get; set; } = -1;
+    public string TomTomTrafficSeverityMode { get; set; } = DefaultTomTomTrafficSeverityMode;
     public bool TomTomEnableTileCache { get; set; } = true;
     public string CurrentUserName { get; set; } = string.Empty;
     public Dictionary<string, MapOverlayUserPreference> MapOverlayPreferencesByUser { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -175,7 +177,20 @@ public sealed class AppSettings
                 TrafficBufferPercentFrom1530To1830,
                 TrafficBufferPercentPerThirtyMinutes,
                 DefaultTrafficBufferPercentFrom1530To1830),
+            TomTomTrafficSeverityMode = NormalizeTomTomTrafficSeverityMode(TomTomTrafficSeverityMode),
             TomTomEnableTileCache = TomTomEnableTileCache
+        };
+    }
+
+    public static string NormalizeTomTomTrafficSeverityMode(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "standard" => "standard",
+            "strict" => "strict",
+            "slightly_stricter" => "slightly_stricter",
+            _ => DefaultTomTomTrafficSeverityMode
         };
     }
 
@@ -193,6 +208,7 @@ public sealed class AppSettings
 
         return fallbackValue;
     }
+
 }
 
 public sealed class UserAppPreference
@@ -238,6 +254,7 @@ public sealed class UserAppPreference
     public int TrafficBufferPercentFrom0730To0900 { get; set; } = -1;
     public int TrafficBufferPercentFrom0900To1530 { get; set; } = -1;
     public int TrafficBufferPercentFrom1530To1830 { get; set; } = -1;
+    public string TomTomTrafficSeverityMode { get; set; } = AppSettings.DefaultTomTomTrafficSeverityMode;
     public bool TomTomEnableTileCache { get; set; } = true;
 
     public UserAppPreference Clone()
@@ -285,6 +302,7 @@ public sealed class UserAppPreference
             TrafficBufferPercentFrom0730To0900 = TrafficBufferPercentFrom0730To0900,
             TrafficBufferPercentFrom0900To1530 = TrafficBufferPercentFrom0900To1530,
             TrafficBufferPercentFrom1530To1830 = TrafficBufferPercentFrom1530To1830,
+            TomTomTrafficSeverityMode = TomTomTrafficSeverityMode,
             TomTomEnableTileCache = TomTomEnableTileCache
         };
     }

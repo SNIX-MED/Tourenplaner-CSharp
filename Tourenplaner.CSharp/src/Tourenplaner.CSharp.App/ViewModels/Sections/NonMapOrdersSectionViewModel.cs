@@ -278,7 +278,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     public async Task SaveAsync()
     {
-        SyncDerivedOrderStatuses(_allOrders);
+        OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders);
         await _repository.SaveAllAsync(_allOrders);
         PublishOrderChange(SelectedOrder?.Id, SelectedOrder?.Id);
         StatusText = $"Post/Spedition/Abholung gespeichert: {_allOrders.Count(x => x.Type == OrderType.NonMap)}";
@@ -611,7 +611,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             .Where(o => o.IsArchived == ShowArchivedOrders)
             .Where(MatchesTourAssignmentFilter)
             .Where(MatchesSelectedFilters)
-            .Where(o => MatchesSearchQuery(o, query));
+            .Where(o => OrderSectionSharedHelpers.MatchesSearchQuery(o, query));
 
         NonMapOrders.Clear();
         foreach (var order in items.OrderBy(o => o.ScheduledDate).ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
@@ -689,7 +689,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     {
         _allOrders.Clear();
         _allOrders.AddRange(await _repository.GetAllAsync());
-        if (SyncDerivedOrderStatuses(_allOrders))
+        if (OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders))
         {
             await _repository.SaveAllAsync(_allOrders);
         }
@@ -926,10 +926,10 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         {
             IncludeOpenOrders = true;
             IncludePlannedOrders = true;
-            SetAllFilterOptions(OrderStatusFilters, true);
-            SetAllFilterOptions(DeliveryTypeFilters, true);
-            SetAllFilterOptions(AvisoStatusFilters, true);
-            SetAllFilterOptions(SupplierFilters, true);
+            OrderSectionSharedHelpers.SetAllFilterOptions(OrderStatusFilters, true);
+            OrderSectionSharedHelpers.SetAllFilterOptions(DeliveryTypeFilters, true);
+            OrderSectionSharedHelpers.SetAllFilterOptions(AvisoStatusFilters, true);
+            OrderSectionSharedHelpers.SetAllFilterOptions(SupplierFilters, true);
         }
         finally
         {
@@ -947,10 +947,10 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         {
             IncludeOpenOrders = targetState;
             IncludePlannedOrders = targetState;
-            SetAllFilterOptions(OrderStatusFilters, targetState);
-            SetAllFilterOptions(DeliveryTypeFilters, targetState);
-            SetAllFilterOptions(AvisoStatusFilters, targetState);
-            SetAllFilterOptions(SupplierFilters, targetState);
+            OrderSectionSharedHelpers.SetAllFilterOptions(OrderStatusFilters, targetState);
+            OrderSectionSharedHelpers.SetAllFilterOptions(DeliveryTypeFilters, targetState);
+            OrderSectionSharedHelpers.SetAllFilterOptions(AvisoStatusFilters, targetState);
+            OrderSectionSharedHelpers.SetAllFilterOptions(SupplierFilters, targetState);
         }
         finally
         {
@@ -968,37 +968,6 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
                DeliveryTypeFilters.All(x => x.IsSelected) &&
                AvisoStatusFilters.All(x => x.IsSelected) &&
                SupplierFilters.All(x => x.IsSelected);
-    }
-
-    private static void SetAllFilterOptions(ObservableCollection<MapOrderFilterOption> options, bool isSelected)
-    {
-        foreach (var option in options)
-        {
-            option.IsSelected = isSelected;
-        }
-    }
-
-    private static bool SyncDerivedOrderStatuses(IEnumerable<Order> orders)
-    {
-        var changed = false;
-        foreach (var order in orders)
-        {
-            if (order is null)
-            {
-                continue;
-            }
-
-            var derivedStatus = Order.ResolveOrderStatusFromProducts(order.Products);
-            if (string.Equals(Order.NormalizeOrderStatus(order.OrderStatus), derivedStatus, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            order.OrderStatus = derivedStatus;
-            changed = true;
-        }
-
-        return changed;
     }
 
     private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)
@@ -1036,7 +1005,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     private bool MatchesSelectedFilters(Order order)
     {
-        var selectedOrderStatuses = GetSelectedFilterLabels(OrderStatusFilters);
+        var selectedOrderStatuses = OrderSectionSharedHelpers.GetSelectedFilterLabels(OrderStatusFilters);
         if (selectedOrderStatuses.Count > 0 &&
             selectedOrderStatuses.Count != OrderStatusFilters.Count &&
             !selectedOrderStatuses.Contains(NormalizeOrderStatus(order.OrderStatus)))
@@ -1044,7 +1013,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             return false;
         }
 
-        var selectedDeliveryTypes = GetSelectedFilterLabels(DeliveryTypeFilters);
+        var selectedDeliveryTypes = OrderSectionSharedHelpers.GetSelectedFilterLabels(DeliveryTypeFilters);
         if (selectedDeliveryTypes.Count > 0 &&
             selectedDeliveryTypes.Count != DeliveryTypeFilters.Count &&
             !selectedDeliveryTypes.Contains(DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType)))
@@ -1052,7 +1021,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             return false;
         }
 
-        var selectedAvisoStatuses = GetSelectedFilterLabels(AvisoStatusFilters);
+        var selectedAvisoStatuses = OrderSectionSharedHelpers.GetSelectedFilterLabels(AvisoStatusFilters);
         var avisoStatus = string.IsNullOrWhiteSpace(order.AvisoStatus) ? "nicht avisiert" : order.AvisoStatus.Trim();
         if (selectedAvisoStatuses.Count > 0 &&
             selectedAvisoStatuses.Count != AvisoStatusFilters.Count &&
@@ -1061,32 +1030,12 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             return false;
         }
 
-        var selectedSuppliers = GetSelectedFilterLabels(SupplierFilters)
+        var selectedSuppliers = OrderSectionSharedHelpers.GetSelectedFilterLabels(SupplierFilters)
             .Select(NormalizeSupplier)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return selectedSuppliers.Count == 0 ||
                selectedSuppliers.Count == SupplierFilters.Count ||
-               OrderContainsAnySupplier(order, selectedSuppliers);
-    }
-
-    private static HashSet<string> GetSelectedFilterLabels(ObservableCollection<MapOrderFilterOption> options)
-    {
-        return options
-            .Where(o => o.IsSelected)
-            .Select(o => o.Label)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static bool OrderContainsAnySupplier(Order order, IReadOnlySet<string> suppliers)
-    {
-        if (suppliers.Count == 0)
-        {
-            return true;
-        }
-
-        return (order.Products ?? [])
-            .Select(p => NormalizeSupplier(p.Supplier))
-            .Any(suppliers.Contains);
+               OrderSectionSharedHelpers.OrderContainsAnySupplier(order, selectedSuppliers, NormalizeSupplier);
     }
 
     private static string NormalizeSupplier(string? supplier)
@@ -1123,19 +1072,6 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             NormalizeOrderStatus(order.OrderStatus),
             _selectedStatusFilter,
             StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool MatchesSearchQuery(Order order, string query)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return true;
-        }
-
-        return order.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               order.CustomerName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               order.Address.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               (order.AssignedTourId ?? string.Empty).Contains(query, StringComparison.OrdinalIgnoreCase);
     }
 
     private static OrderItem ToOrderItem(Order order)

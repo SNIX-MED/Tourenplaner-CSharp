@@ -19,7 +19,7 @@ using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
-public sealed class KarteSectionViewModel : SectionViewModelBase
+public sealed partial class KarteSectionViewModel : SectionViewModelBase
 {
     private const string CompanyStartStopId = "__company_start__";
     private const string CompanyEndStopId = "__company_end__";
@@ -129,6 +129,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     private int _trafficBufferPercentFrom0730To0900 = AppSettings.DefaultTrafficBufferPercentFrom0730To0900;
     private int _trafficBufferPercentFrom0900To1530 = AppSettings.DefaultTrafficBufferPercentFrom0900To1530;
     private int _trafficBufferPercentFrom1530To1830 = AppSettings.DefaultTrafficBufferPercentFrom1530To1830;
+    private string _tomTomTrafficSeverityMode = AppSettings.DefaultTomTomTrafficSeverityMode;
     private bool _tomTomEnableTileCache = true;
     private string _geocodeCachePath = string.Empty;
     private GeoPoint? _companyLocation;
@@ -235,6 +236,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
         OptimizeRouteCommand = new AsyncCommand(OptimizeRouteAsync, CanOptimizeRoute);
         OpenCreateTourDialogCommand = new AsyncCommand(OpenCreateTourDialogAsync);
         EditSelectedTourCommand = new AsyncCommand(OpenEditSelectedTourDialogAsync, CanEditOrLeaveSelectedTour);
+        ArchiveSelectedTourCommand = new AsyncCommand(ArchiveSelectedTourAsync, CanEditOrLeaveSelectedTour);
         ExportRouteCommand = new AsyncCommand(ExportRouteAsync, CanExportRoute);
         SaveRouteAsTourCommand = new AsyncCommand(SaveRouteAsTourAsync, () => RouteStops.Any(x => !IsCompanyStop(x)));
         SaveCurrentTourCommand = new AsyncCommand(SaveCurrentTourAsync, CanSaveCurrentTour);
@@ -292,6 +294,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
     public ICommand OpenCreateTourDialogCommand { get; }
 
     public ICommand EditSelectedTourCommand { get; }
+    public ICommand ArchiveSelectedTourCommand { get; }
 
     public ICommand ExportRouteCommand { get; }
 
@@ -1050,6 +1053,7 @@ public sealed class KarteSectionViewModel : SectionViewModelBase
             userPreference.TrafficBufferPercentFrom1530To1830,
             userPreference.TrafficBufferPercentPerThirtyMinutes,
             AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
+        _tomTomTrafficSeverityMode = AppSettings.NormalizeTomTomTrafficSeverityMode(userPreference.TomTomTrafficSeverityMode);
         _scheduleService.SetTrafficBufferPercentProfile(
             _trafficBufferPercentFrom0500To0730,
             _trafficBufferPercentFrom0730To0900,
@@ -1502,7 +1506,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
     }
 
-    public bool MoveRouteStopByOrderIds(string sourceOrderId, string targetOrderId)
+    public bool MoveRouteStopByOrderIds(string sourceOrderId, string targetOrderId, bool insertAfter)
     {
         if (string.IsNullOrWhiteSpace(sourceOrderId) || string.IsNullOrWhiteSpace(targetOrderId))
         {
@@ -1522,14 +1526,77 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         }
 
         var sourceIndex = RouteStops.IndexOf(source);
-        var targetIndex = RouteStops.IndexOf(target);
-        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex == targetIndex)
+        if (sourceIndex < 0)
         {
             return false;
         }
 
-        RouteStops.Move(sourceIndex, targetIndex);
+        RouteStops.RemoveAt(sourceIndex);
+        var targetIndex = RouteStops.IndexOf(target);
+        if (targetIndex < 0)
+        {
+            RouteStops.Insert(Math.Min(sourceIndex, RouteStops.Count), source);
+            return false;
+        }
+
+        var insertIndex = insertAfter ? targetIndex + 1 : targetIndex;
+        insertIndex = Math.Max(0, Math.Min(insertIndex, RouteStops.Count));
+        RouteStops.Insert(insertIndex, source);
         SelectedRouteStop = source;
+        RebuildPositions();
+        MarkRouteChanged();
+        return true;
+    }
+
+    public bool MovePauseBlockByAnchorOrderIds(string sourceAnchorOrderId, string targetOrderId, bool insertAfter)
+    {
+        if (string.IsNullOrWhiteSpace(sourceAnchorOrderId) || string.IsNullOrWhiteSpace(targetOrderId))
+        {
+            return false;
+        }
+
+        var sourceAnchor = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, sourceAnchorOrderId, StringComparison.OrdinalIgnoreCase));
+        var target = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, targetOrderId, StringComparison.OrdinalIgnoreCase));
+        if (sourceAnchor is null || target is null || IsCompanyStop(sourceAnchor) || IsCompanyStop(target) || IsPauseStop(target))
+        {
+            return false;
+        }
+
+        var pauses = GetPauseStopsAfter(sourceAnchor);
+        if (pauses.Count == 0)
+        {
+            return false;
+        }
+
+        if (string.Equals(sourceAnchor.OrderId, target.OrderId, StringComparison.OrdinalIgnoreCase) && insertAfter)
+        {
+            return false;
+        }
+
+        foreach (var pause in pauses)
+        {
+            RouteStops.Remove(pause);
+        }
+
+        var targetIndex = RouteStops.IndexOf(target);
+        if (targetIndex < 0)
+        {
+            foreach (var pause in pauses)
+            {
+                RouteStops.Add(pause);
+            }
+
+            return false;
+        }
+
+        var insertIndex = insertAfter ? targetIndex + 1 : targetIndex;
+        insertIndex = Math.Max(0, Math.Min(insertIndex, RouteStops.Count));
+        for (var i = 0; i < pauses.Count; i++)
+        {
+            RouteStops.Insert(insertIndex + i, pauses[i]);
+        }
+
+        SelectedRouteStop = target;
         RebuildPositions();
         MarkRouteChanged();
         return true;
@@ -1745,404 +1812,9 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         return pauses;
     }
 
-    private void RebuildOrderGrid(string? preferredSelectedId = null)
-    {
-        var previousSelectedId = string.IsNullOrWhiteSpace(preferredSelectedId)
-            ? SelectedOrder?.OrderId
-            : preferredSelectedId;
-        RefreshOrderFilterOptions();
-        var routeOrderIds = RouteStops.Select(s => s.OrderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var query = (_searchText ?? string.Empty).Trim();
-        IEnumerable<Order> filtered = _allOrders
-            .Where(o => o.Type == OrderType.Map && o.Location is not null)
-            .Where(o => !o.IsArchived)
-            .Where(o => !routeOrderIds.Contains(o.Id));
-
-        if (!IncludeOpenOrders)
-        {
-            filtered = filtered.Where(o => !string.IsNullOrWhiteSpace(o.AssignedTourId));
-        }
-
-        if (!IncludePlannedOrders)
-        {
-            filtered = filtered.Where(o => string.IsNullOrWhiteSpace(o.AssignedTourId));
-        }
-
-        var selectedOrderStatuses = GetSelectedFilterLabels(OrderStatusFilters);
-        if (selectedOrderStatuses.Count != 0 && selectedOrderStatuses.Count != OrderStatusFilters.Count)
-        {
-            filtered = filtered.Where(o => selectedOrderStatuses.Contains(NormalizeOrderStatus(o.OrderStatus)));
-        }
-
-        var selectedDeliveryTypes = GetSelectedFilterLabels(DeliveryTypeFilters);
-        if (selectedDeliveryTypes.Count != 0 && selectedDeliveryTypes.Count != DeliveryTypeFilters.Count)
-        {
-            filtered = filtered.Where(o => selectedDeliveryTypes.Contains(NormalizeDeliveryType(o.DeliveryType)));
-        }
-
-        var selectedAvisoStatuses = GetSelectedFilterLabels(AvisoStatusFilters);
-        if (selectedAvisoStatuses.Count != 0 && selectedAvisoStatuses.Count != AvisoStatusFilters.Count)
-        {
-            filtered = filtered.Where(o => selectedAvisoStatuses.Contains(NormalizeAvisoStatus(o.AvisoStatus)));
-        }
-
-        var selectedSuppliers = GetSelectedFilterLabels(SupplierFilters)
-            .Select(NormalizeSupplier)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (selectedSuppliers.Count > 0 && selectedSuppliers.Count != SupplierFilters.Count)
-        {
-            filtered = filtered.Where(o => OrderContainsAnySupplier(o, selectedSuppliers));
-        }
-
-        var filteredList = filtered.ToList();
-        var hasSearch = !string.IsNullOrWhiteSpace(query);
-        var matching = hasSearch
-            ? filteredList.Where(o => MatchesSearchQuery(o, query)).ToList()
-            : filteredList;
-        var nonMatching = hasSearch
-            ? filteredList.Where(o => !MatchesSearchQuery(o, query)).ToList()
-            : new List<Order>();
-
-        MapOrders.Clear();
-        foreach (var order in matching
-                     .OrderBy(o => o.ScheduledDate)
-                     .ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
-        {
-            MapOrders.Add(BuildMapOrderItem(order));
-        }
-
-        _dimmedMapOrders.Clear();
-        if (_mapSearchDimNonMatchingPins && hasSearch)
-        {
-            foreach (var order in nonMatching
-                         .OrderBy(o => o.ScheduledDate)
-                         .ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
-            {
-                _dimmedMapOrders.Add(BuildMapOrderItem(order, isDimmed: true));
-            }
-        }
-
-        var validOrderIds = _allOrders
-            .Select(x => (x.Id ?? string.Empty).Trim())
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (_selectedBatchOrderIds.RemoveWhere(x => !validOrderIds.Contains(x)) > 0)
-        {
-            NotifyBatchOrderSelectionChanged(raiseCommandStates: false);
-        }
-
-        if (string.IsNullOrWhiteSpace(previousSelectedId))
-        {
-            SelectedOrder = null;
-        }
-        else
-        {
-            SelectOrderDetailsById(previousSelectedId);
-        }
-        UpdateStatus();
-        RaiseCommandStates();
-    }
-
-    public IReadOnlyList<MapOrderItem> GetMapMarkerSnapshot()
-    {
-        if (!_mapSearchDimNonMatchingPins || string.IsNullOrWhiteSpace(_searchText))
-        {
-            return MapOrders.ToList();
-        }
-
-        return MapOrders.Concat(_dimmedMapOrders).ToList();
-    }
-
-    private void ResetOrderFilters()
-    {
-        _suppressFilterRefresh = true;
-        try
-        {
-            IncludeOpenOrders = true;
-            IncludePlannedOrders = true;
-            SetAllFilterOptions(OrderStatusFilters, true);
-            SetAllFilterOptions(DeliveryTypeFilters, true);
-            SetAllFilterOptions(AvisoStatusFilters, true);
-            SetAllFilterOptions(SupplierFilters, true);
-        }
-        finally
-        {
-            _suppressFilterRefresh = false;
-        }
-
-        TriggerOrderFilterRefresh();
-    }
-
-    private void TriggerOrderFilterRefresh()
-    {
-        OnPropertyChanged(nameof(FilterSummaryText));
-        OnPropertyChanged(nameof(ActiveFilterGroupCount));
-        OnPropertyChanged(nameof(HasActiveFilterGroups));
-        OnPropertyChanged(nameof(ToggleAllFiltersButtonText));
-        if (_suppressFilterRefresh)
-        {
-            return;
-        }
-
-        RebuildOrderGrid();
-    }
-
-    private void RefreshOrderFilterOptions()
-    {
-        if (_isUpdatingFilterOptions)
-        {
-            return;
-        }
-
-        _isUpdatingFilterOptions = true;
-        try
-        {
-            var mapOrders = _allOrders
-                .Where(o => o.Type == OrderType.Map && o.Location is not null)
-                .Where(o => !o.IsArchived)
-                .ToList();
-
-            var statuses = mapOrders
-                .Select(o => NormalizeOrderStatus(o.OrderStatus))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(GetOrderStatusSortIndex)
-                .ThenBy(x => x, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            var deliveryTypes = mapOrders
-                .Select(o => NormalizeDeliveryType(o.DeliveryType))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            var avisoStatuses = mapOrders
-                .Select(o => NormalizeAvisoStatus(o.AvisoStatus))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            var suppliers = mapOrders
-                .SelectMany(o => o.Products ?? [])
-                .Select(p => NormalizeSupplier(p.Supplier))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            UpdateFilterOptions(OrderStatusFilters, statuses);
-            UpdateFilterOptions(DeliveryTypeFilters, deliveryTypes);
-            UpdateFilterOptions(AvisoStatusFilters, avisoStatuses);
-            UpdateFilterOptions(SupplierFilters, suppliers);
-        }
-        finally
-        {
-            _isUpdatingFilterOptions = false;
-        }
-
-        OnPropertyChanged(nameof(FilterSummaryText));
-        OnPropertyChanged(nameof(ActiveFilterGroupCount));
-        OnPropertyChanged(nameof(HasActiveFilterGroups));
-        OnPropertyChanged(nameof(ToggleAllFiltersButtonText));
-    }
-
-    private void UpdateFilterOptions(ObservableCollection<MapOrderFilterOption> target, IReadOnlyList<string> values)
-    {
-        var previouslyAvailable = target
-            .Select(x => x.Label)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var previouslySelected = target
-            .Where(x => x.IsSelected)
-            .Select(x => x.Label)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var keepCurrentSelection = target.Count > 0;
-
-        foreach (var option in target)
-        {
-            option.PropertyChanged -= OnOrderFilterOptionChanged;
-        }
-
-        target.Clear();
-        foreach (var value in values.Where(x => !string.IsNullOrWhiteSpace(x)))
-        {
-            var isNewValue = !previouslyAvailable.Contains(value);
-            var isSelected = !keepCurrentSelection || previouslySelected.Contains(value) || isNewValue;
-            var option = new MapOrderFilterOption(value, isSelected);
-            option.PropertyChanged += OnOrderFilterOptionChanged;
-            target.Add(option);
-        }
-    }
-
-    private static int GetOrderStatusSortIndex(string? status)
-    {
-        var normalized = NormalizeOrderStatus(status);
-        for (var i = 0; i < _orderStatusOptions.Count; i++)
-        {
-            if (string.Equals(_orderStatusOptions[i], normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                return i;
-            }
-        }
-
-        return int.MaxValue;
-    }
-
-    private void OnOrderFilterOptionChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (_isUpdatingFilterOptions || e.PropertyName != nameof(MapOrderFilterOption.IsSelected))
-        {
-            return;
-        }
-
-        TriggerOrderFilterRefresh();
-    }
-
-    private static HashSet<string> GetSelectedFilterLabels(ObservableCollection<MapOrderFilterOption> options)
-    {
-        return options
-            .Where(x => x.IsSelected)
-            .Select(x => x.Label)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static void SetAllFilterOptions(ObservableCollection<MapOrderFilterOption> options, bool isSelected)
-    {
-        foreach (var option in options)
-        {
-            option.IsSelected = isSelected;
-        }
-    }
-
-    private void ToggleAllOrderFilters()
-    {
-        var selectAll = !AreAllFiltersSelected();
-        _suppressFilterRefresh = true;
-        try
-        {
-            IncludeOpenOrders = selectAll;
-            IncludePlannedOrders = selectAll;
-            SetAllFilterOptions(OrderStatusFilters, selectAll);
-            SetAllFilterOptions(DeliveryTypeFilters, selectAll);
-            SetAllFilterOptions(AvisoStatusFilters, selectAll);
-            SetAllFilterOptions(SupplierFilters, selectAll);
-        }
-        finally
-        {
-            _suppressFilterRefresh = false;
-        }
-
-        TriggerOrderFilterRefresh();
-    }
-
     private void TogglePinInfoCards()
     {
         ArePinInfoCardsVisible = !ArePinInfoCardsVisible;
-    }
-
-    private bool AreAllFiltersSelected()
-    {
-        return IncludeOpenOrders &&
-               IncludePlannedOrders &&
-               OrderStatusFilters.All(x => x.IsSelected) &&
-               DeliveryTypeFilters.All(x => x.IsSelected) &&
-               AvisoStatusFilters.All(x => x.IsSelected) &&
-               SupplierFilters.All(x => x.IsSelected);
-    }
-
-    private string BuildFilterSummaryText()
-    {
-        var parts = new List<string>();
-        if (IncludeOpenOrders && !IncludePlannedOrders)
-        {
-            parts.Add("nur offen");
-        }
-        else if (!IncludeOpenOrders && IncludePlannedOrders)
-        {
-            parts.Add("nur eingeplant");
-        }
-        else if (!IncludeOpenOrders && !IncludePlannedOrders)
-        {
-            parts.Add("keine Tourzuordnung");
-        }
-
-        AddPartialSummary(parts, "Status", OrderStatusFilters);
-        AddPartialSummary(parts, "Lieferart", DeliveryTypeFilters);
-        AddPartialSummary(parts, "Aviso", AvisoStatusFilters);
-        AddPartialSummary(parts, "Lieferant", SupplierFilters);
-
-        return parts.Count == 0
-            ? "Filter (alle Aufträge)"
-            : $"Filter ({string.Join(" | ", parts)})";
-    }
-
-    private int CountActiveFilterGroups()
-    {
-        var count = 0;
-        if (!(IncludeOpenOrders && IncludePlannedOrders))
-        {
-            count++;
-        }
-
-        if (IsFilterGroupActive(OrderStatusFilters))
-        {
-            count++;
-        }
-
-        if (IsFilterGroupActive(DeliveryTypeFilters))
-        {
-            count++;
-        }
-
-        if (IsFilterGroupActive(AvisoStatusFilters))
-        {
-            count++;
-        }
-
-        if (IsFilterGroupActive(SupplierFilters))
-        {
-            count++;
-        }
-
-        return count;
-    }
-
-    private static bool IsFilterGroupActive(ObservableCollection<MapOrderFilterOption> options)
-    {
-        return options.Count > 0 && options.Any(x => !x.IsSelected);
-    }
-
-    private static void AddPartialSummary(
-        List<string> parts,
-        string label,
-        ObservableCollection<MapOrderFilterOption> options)
-    {
-        if (options.Count == 0)
-        {
-            return;
-        }
-
-        var selectedCount = options.Count(x => x.IsSelected);
-        if (selectedCount == options.Count)
-        {
-            return;
-        }
-
-        parts.Add($"{label}: {selectedCount}/{options.Count}");
-    }
-
-    private static bool OrderContainsAnySupplier(Order order, IReadOnlySet<string> suppliers)
-    {
-        if (suppliers.Count == 0)
-        {
-            return true;
-        }
-
-        return (order.Products ?? [])
-            .Select(p => NormalizeSupplier(p.Supplier))
-            .Any(suppliers.Contains);
-    }
-
-    private static string NormalizeSupplier(string? supplier)
-    {
-        var normalized = (supplier ?? string.Empty).Trim();
-        return string.IsNullOrWhiteSpace(normalized)
-            ? UnspecifiedSupplierFilterOption
-            : normalized;
     }
 
     private void NotifyLegendColorsChanged()
@@ -4443,6 +4115,66 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         ToastNotificationService.ShowInfo($"Tour {tourLabel} wurde gelöscht.");
     }
 
+    private async Task ArchiveSelectedTourAsync()
+    {
+        var selectedTourId = ResolveCurrentTourId();
+        if (selectedTourId <= 0)
+        {
+            return;
+        }
+
+        var tours = (await _tourRepository.LoadAsync()).ToList();
+        var target = tours.FirstOrDefault(x => x.Id == selectedTourId);
+        if (target is null || target.IsArchived)
+        {
+            await LoadSavedToursAsync();
+            return;
+        }
+
+        var changedOrderCount = 0;
+        var tourKey = target.Id.ToString(CultureInfo.InvariantCulture);
+        var affectedOrders = _allOrders
+            .Where(x => string.Equals((x.AssignedTourId ?? string.Empty).Trim(), tourKey, StringComparison.OrdinalIgnoreCase) &&
+                        !x.IsArchived)
+            .ToList();
+
+        if (affectedOrders.Count > 0)
+        {
+            var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Sollen die {affectedOrders.Count} zugehörigen Aufträge ebenfalls archiviert werden?",
+                "Aufträge mitführen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirmation == MessageBoxResult.Yes)
+            {
+                foreach (var order in affectedOrders)
+                {
+                    order.IsArchived = true;
+                }
+
+                await _orderRepository.SaveAllAsync(_allOrders);
+                _dataSyncService.PublishOrders(_instanceId);
+                changedOrderCount = affectedOrders.Count;
+            }
+        }
+
+        target.IsArchived = true;
+        await _tourRepository.SaveAsync(tours);
+        _dataSyncService.PublishTours(_instanceId, tourKey, tourKey);
+
+        await LoadSavedToursAsync();
+
+        var tourLabel = string.IsNullOrWhiteSpace(target.Name)
+            ? $"Tour {target.Id.ToString(CultureInfo.InvariantCulture)}"
+            : target.Name.Trim();
+        StatusText = $"Tour {tourLabel} wurde archiviert.";
+        var orderInfo = changedOrderCount > 0
+            ? $" {changedOrderCount} Auftrag/Aufträge wurden ebenfalls archiviert."
+            : string.Empty;
+        ToastNotificationService.ShowInfo($"Tour {tourLabel} wurde archiviert.{orderInfo}");
+    }
+
     private void RebuildPositions()
     {
         EnsureCompanyAnchorOrdering();
@@ -4984,6 +4716,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         RaiseCanExecuteChangedIfSupported(OptimizeRouteCommand);
         RaiseCanExecuteChangedIfSupported(OpenCreateTourDialogCommand);
         RaiseCanExecuteChangedIfSupported(EditSelectedTourCommand);
+        RaiseCanExecuteChangedIfSupported(ArchiveSelectedTourCommand);
         RaiseCanExecuteChangedIfSupported(ExportRouteCommand);
         RaiseCanExecuteChangedIfSupported(SaveRouteAsTourCommand);
         RaiseCanExecuteChangedIfSupported(SaveCurrentTourCommand);
@@ -6127,10 +5860,28 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             var nextStatusColorPlanned = NormalizeStatusColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
             var nextMapUseDistinctPlannedTourColors = userPreference.MapUseDistinctPlannedTourColors;
             var nextMapAutoOpenDetailsOnPinSelection = userPreference.MapAutoOpenDetailsOnPinSelection;
+            var nextTrafficBufferPercentFrom0500To0730 = ResolveTrafficBufferPercent(
+                userPreference.TrafficBufferPercentFrom0500To0730,
+                userPreference.TrafficBufferPercentPerThirtyMinutes,
+                AppSettings.DefaultTrafficBufferPercentFrom0500To0730);
+            var nextTrafficBufferPercentFrom0730To0900 = ResolveTrafficBufferPercent(
+                userPreference.TrafficBufferPercentFrom0730To0900,
+                userPreference.TrafficBufferPercentPerThirtyMinutes,
+                AppSettings.DefaultTrafficBufferPercentFrom0730To0900);
+            var nextTrafficBufferPercentFrom0900To1530 = ResolveTrafficBufferPercent(
+                userPreference.TrafficBufferPercentFrom0900To1530,
+                userPreference.TrafficBufferPercentPerThirtyMinutes,
+                AppSettings.DefaultTrafficBufferPercentFrom0900To1530);
+            var nextTrafficBufferPercentFrom1530To1830 = ResolveTrafficBufferPercent(
+                userPreference.TrafficBufferPercentFrom1530To1830,
+                userPreference.TrafficBufferPercentPerThirtyMinutes,
+                AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
+            var nextTomTomTrafficSeverityMode = AppSettings.NormalizeTomTomTrafficSeverityMode(userPreference.TomTomTrafficSeverityMode);
             var nextAvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(userPreference.AvisoEmailSubjectTemplate)
                 ? AppSettings.DefaultAvisoEmailSubjectTemplate
                 : userPreference.AvisoEmailSubjectTemplate.Trim();
             var changed = false;
+            var routeRebuildRequired = false;
 
             _avisoEmailSubjectTemplate = nextAvisoEmailSubjectTemplate;
 
@@ -6186,6 +5937,29 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 _mapAutoOpenDetailsOnPinSelection = nextMapAutoOpenDetailsOnPinSelection;
             }
 
+            if (_trafficBufferPercentFrom0500To0730 != nextTrafficBufferPercentFrom0500To0730 ||
+                _trafficBufferPercentFrom0730To0900 != nextTrafficBufferPercentFrom0730To0900 ||
+                _trafficBufferPercentFrom0900To1530 != nextTrafficBufferPercentFrom0900To1530 ||
+                _trafficBufferPercentFrom1530To1830 != nextTrafficBufferPercentFrom1530To1830)
+            {
+                _trafficBufferPercentFrom0500To0730 = nextTrafficBufferPercentFrom0500To0730;
+                _trafficBufferPercentFrom0730To0900 = nextTrafficBufferPercentFrom0730To0900;
+                _trafficBufferPercentFrom0900To1530 = nextTrafficBufferPercentFrom0900To1530;
+                _trafficBufferPercentFrom1530To1830 = nextTrafficBufferPercentFrom1530To1830;
+                _scheduleService.SetTrafficBufferPercentProfile(
+                    _trafficBufferPercentFrom0500To0730,
+                    _trafficBufferPercentFrom0730To0900,
+                    _trafficBufferPercentFrom0900To1530,
+                    _trafficBufferPercentFrom1530To1830);
+                routeRebuildRequired = true;
+            }
+
+            if (!string.Equals(_tomTomTrafficSeverityMode, nextTomTomTrafficSeverityMode, StringComparison.Ordinal))
+            {
+                _tomTomTrafficSeverityMode = nextTomTomTrafficSeverityMode;
+                routeRebuildRequired = true;
+            }
+
             if (!string.Equals(_companyName, nextCompanyName, StringComparison.Ordinal) ||
                 !string.Equals(_companyAddress, nextCompanyAddress, StringComparison.Ordinal) ||
                 !AreGeoPointsEqual(_companyLocation, nextCompanyLocation))
@@ -6196,11 +5970,17 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 EnsureCompanyAnchors();
                 OnPropertyChanged(nameof(CompanyMarker));
                 changed = true;
+                routeRebuildRequired = true;
             }
 
             if (changed)
             {
                 OnPropertyChanged(nameof(RouteVisualRevision));
+            }
+
+            if (routeRebuildRequired && HasRebuildableCurrentRoute())
+            {
+                RequestRouteGeometryRebuild();
             }
         }
         catch
@@ -6309,6 +6089,17 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     private static bool IsCompanyStop(RouteStopItem stop)
     {
         return stop.IsCompanyAnchor || IsCompanyOrderId(stop.OrderId);
+    }
+
+    private bool HasRebuildableCurrentRoute()
+    {
+        return RouteStops.Any(x =>
+            !IsPauseStop(x) &&
+            !IsCompanyStop(x) &&
+            !double.IsNaN(x.Latitude) &&
+            !double.IsNaN(x.Longitude) &&
+            x.Latitude is >= -90 and <= 90 &&
+            x.Longitude is >= -180 and <= 180);
     }
 
     private void UpdateRouteSelectionVisuals(RouteStopItem? selectedStop, bool selectLeg)
@@ -6464,13 +6255,19 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                         lengthMeters,
                         widthMeters,
                         weightKg,
-                        maxSpeedKmh);
+                        maxSpeedKmh,
+                        ResolveTomTomTrafficSeverityMode(_tomTomTrafficSeverityMode));
                     return new TomTomRoutingService(_tomTomApiKey, profile);
                 }
             }
         }
 
-        return new TomTomRoutingService(_tomTomApiKey, TomTomRoutingProfile.Default);
+        return new TomTomRoutingService(
+            _tomTomApiKey,
+            TomTomRoutingProfile.Default with
+            {
+                TrafficSeverityMode = ResolveTomTomTrafficSeverityMode(_tomTomTrafficSeverityMode)
+            });
     }
 
     private int ResolveCurrentRouteMaxSpeedKmh()
@@ -6838,8 +6635,9 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
         var restrictionsSignature = FormattableString.Invariant(
             $"dims={(_tomTomUseVehicleDimensions ? 1 : 0)}:{vehicleLengthMeters:0.###},{vehicleWidthMeters:0.###},{vehicleHeightMeters:0.###};weight={(_tomTomUseVehicleWeightRestrictions ? 1 : 0)}:{vehicleWeightKg};maxSpeed={maxSpeedKmh}");
+        var trafficSeveritySignature = AppSettings.NormalizeTomTomTrafficSeverityMode(_tomTomTrafficSeverityMode);
 
-        return $"{path}#departAt={departAt}#trafficV2#{restrictionsSignature}";
+        return $"{path}#departAt={departAt}#trafficV3#{restrictionsSignature};severity={trafficSeveritySignature}";
     }
 
     private bool TryLoadRouteComputationCache(
@@ -7724,6 +7522,16 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
 
         return fallbackValue;
     }
+
+    private static TomTomTrafficSeverityMode ResolveTomTomTrafficSeverityMode(string? value)
+    {
+        return AppSettings.NormalizeTomTomTrafficSeverityMode(value) switch
+        {
+            "standard" => TomTomTrafficSeverityMode.Standard,
+            "strict" => TomTomTrafficSeverityMode.Strict,
+            _ => TomTomTrafficSeverityMode.SlightlyStricter
+        };
+    }
 }
 
 public sealed class DetailProductItem
@@ -7828,6 +7636,8 @@ public sealed class RouteStopItem : ObservableObject
     private bool _isPauseStop;
     private bool _isStopSelected;
     private bool _isLegSelected;
+    private bool _isDropTargetBefore;
+    private bool _isDropTargetAfter;
     private int _plannedStayMinutes = 10;
     private string _etaText = string.Empty;
     private string _etaRangeText = string.Empty;
@@ -7973,6 +7783,18 @@ public sealed class RouteStopItem : ObservableObject
     {
         get => _isLegSelected;
         set => SetProperty(ref _isLegSelected, value);
+    }
+
+    public bool IsDropTargetBefore
+    {
+        get => _isDropTargetBefore;
+        set => SetProperty(ref _isDropTargetBefore, value);
+    }
+
+    public bool IsDropTargetAfter
+    {
+        get => _isDropTargetAfter;
+        set => SetProperty(ref _isDropTargetAfter, value);
     }
 
     public int PlannedStayMinutes

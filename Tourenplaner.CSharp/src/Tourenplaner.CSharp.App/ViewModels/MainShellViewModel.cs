@@ -10,6 +10,7 @@ using System.Threading;
 using System.Windows;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 
 namespace Tourenplaner.CSharp.App.ViewModels;
 
@@ -30,6 +31,7 @@ public sealed class MainShellViewModel : ObservableObject
     private readonly IOrderMutationRepository? _orderMutationRepository;
     private readonly IAppSettingsStore _appSettingsRepository;
     private readonly IEmployeeDataStore _employeesRepository;
+    private readonly string _geocodeCachePath;
     private readonly Guid _instanceId = Guid.NewGuid();
     private NavigationItemViewModel? _selectedNavigationItem;
     private object? _currentSection;
@@ -63,6 +65,7 @@ public sealed class MainShellViewModel : ObservableObject
         _orderMutationRepository = repositories.OrderRepository as IOrderMutationRepository;
         _appSettingsRepository = repositories.AppSettingsStore;
         _employeesRepository = repositories.EmployeeDataStore;
+        _geocodeCachePath = Path.Combine(repositories.DataRootPath, "geocode-cache.json");
         LocalUserSessionService.Initialize(repositories.DataRootPath);
         var map = new KarteSectionViewModel(
             repositories.OrderRepository,
@@ -104,6 +107,8 @@ public sealed class MainShellViewModel : ObservableObject
         var orders = new OrdersSectionViewModel(
             repositories.OrderRepository,
             repositories.TourRecordStore,
+            repositories.AppSettingsStore,
+            repositories.DataRootPath,
             dataSyncService,
             tourId => NavigateToTourAsync(tours, tourId));
         var nonMapOrders = new NonMapOrdersSectionViewModel(
@@ -607,7 +612,7 @@ public sealed class MainShellViewModel : ObservableObject
         var updated = dialog.CreatedOrder;
         updated.Type = existing.Type;
         updated.AssignedTourId = existing.AssignedTourId;
-        var updatedGeocodingResult = await AddressGeocodingService.TryResolveOrderAsync(updated);
+        var updatedGeocodingResult = await TryResolveOrderAsync(updated);
         updated.Location = updatedGeocodingResult?.Location ?? existing.Location;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
@@ -646,6 +651,13 @@ public sealed class MainShellViewModel : ObservableObject
 
         _dataSyncService.PublishOrders(_instanceId, originalId, updated.Id);
         OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
+    }
+
+    private async Task<AddressGeocodingResult?> TryResolveOrderAsync(Order order)
+    {
+        var settings = await _appSettingsRepository.LoadAsync();
+        var tomTomApiKey = (settings.TomTomApiKey ?? string.Empty).Trim();
+        return await AddressGeocodingService.TryResolveOrderAsync(order, tomTomApiKey, _geocodeCachePath);
     }
 
     private async Task UndoAsync()

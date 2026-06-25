@@ -1217,7 +1217,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var updated = dialog.CreatedOrder;
         updated.Type = existing.Type;
         updated.AssignedTourId = existing.AssignedTourId;
-        var updatedGeocodingResult = await AddressGeocodingService.TryResolveOrderAsync(updated);
+        var updatedGeocodingResult = await TryResolveOrderAsync(updated);
         updated.Location = updatedGeocodingResult?.Location ?? existing.Location;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
@@ -1254,6 +1254,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         _dataSyncService.PublishOrders(_instanceId);
         OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
+    }
+
+    private async Task<AddressGeocodingResult?> TryResolveOrderAsync(Order order)
+    {
+        var settings = await _settingsRepository.LoadAsync();
+        var tomTomApiKey = (settings.TomTomApiKey ?? string.Empty).Trim();
+        return await AddressGeocodingService.TryResolveOrderAsync(order, tomTomApiKey);
     }
 
     private static bool ConfirmStopReassignment(TourStopOverviewItem sourceItem, TourRecord sourceTour, TourRecord targetTour)

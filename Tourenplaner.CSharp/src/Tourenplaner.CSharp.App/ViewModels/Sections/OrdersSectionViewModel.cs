@@ -35,9 +35,11 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private readonly IOrderRepository _repository;
     private readonly ITourRecordStore _tourRepository;
+    private readonly IAppSettingsStore _settingsRepository;
     private readonly IOrderMutationRepository? _mutationRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly Func<int, Task>? _openTourAsync;
+    private readonly string _geocodeCachePath;
     private readonly List<Order> _allOrders = new();
     private readonly Guid _instanceId = Guid.NewGuid();
     private Order? _lastDeletedOrder;
@@ -58,14 +60,22 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private bool _isOrdersFilterPanelVisible;
     private bool _showArchivedOrders;
 
-    public OrdersSectionViewModel(IOrderRepository repository, ITourRecordStore tourRepository, AppDataSyncService dataSyncService, Func<int, Task>? openTourAsync = null)
+    public OrdersSectionViewModel(
+        IOrderRepository repository,
+        ITourRecordStore tourRepository,
+        IAppSettingsStore settingsRepository,
+        string dataRoot,
+        AppDataSyncService dataSyncService,
+        Func<int, Task>? openTourAsync = null)
         : base("Aufträge", "Aufträge mit Adresse, Zuordnung und Filterung.")
     {
         _repository = repository;
         _tourRepository = tourRepository;
+        _settingsRepository = settingsRepository;
         _mutationRepository = repository as IOrderMutationRepository;
         _dataSyncService = dataSyncService;
         _openTourAsync = openTourAsync;
+        _geocodeCachePath = Path.Combine(dataRoot, "geocode-cache.json");
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SaveCommand = new AsyncCommand(SaveAsync, () => MapOrders.Count > 0);
@@ -253,7 +263,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     public async Task SaveAsync()
     {
-        SyncDerivedOrderStatuses(_allOrders);
+        OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders);
         await _repository.SaveAllAsync(_allOrders);
         PublishOrderChange(SelectedOrder?.Id, SelectedOrder?.Id);
         StatusText = $"Aufträge gespeichert: {_allOrders.Count(x => x.Type == OrderType.Map)}";
@@ -293,7 +303,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
         var createdOrder = dialog.CreatedOrder;
         var geocodingResult = createdOrder.Location is null
-            ? await AddressGeocodingService.TryResolveOrderAsync(createdOrder)
+            ? await TryResolveOrderAsync(createdOrder)
             : null;
         createdOrder.Location ??= geocodingResult?.Location;
 
@@ -358,7 +368,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var updatedGeocodingResult = await AddressGeocodingService.TryResolveOrderAsync(updated);
+        var updatedGeocodingResult = await TryResolveOrderAsync(updated);
         updated.Location = updatedGeocodingResult?.Location ?? existing.Location;
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
@@ -418,6 +428,13 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             MessageBoxImage.Warning);
 
         return confirmation == MessageBoxResult.Yes;
+    }
+
+    private async Task<AddressGeocodingResult?> TryResolveOrderAsync(Order order)
+    {
+        var settings = await _settingsRepository.LoadAsync();
+        var tomTomApiKey = (settings.TomTomApiKey ?? string.Empty).Trim();
+        return await AddressGeocodingService.TryResolveOrderAsync(order, tomTomApiKey, _geocodeCachePath);
     }
 
     private async Task ToggleArchiveSelectedOrderAsync()
@@ -593,7 +610,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             .Where(o => o.IsArchived == ShowArchivedOrders)
             .Where(MatchesTourAssignmentFilter)
             .Where(MatchesSelectedFilters)
-            .Where(o => MatchesSearchQuery(o, query));
+            .Where(o => OrderSectionSharedHelpers.MatchesSearchQuery(o, query));
 
         MapOrders.Clear();
         foreach (var order in map.OrderBy(o => o.ScheduledDate).ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
@@ -671,7 +688,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     {
         _allOrders.Clear();
         _allOrders.AddRange(await _repository.GetAllAsync());
-        if (SyncDerivedOrderStatuses(_allOrders))
+        if (OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders))
         {
             await _repository.SaveAllAsync(_allOrders);
         }
@@ -934,10 +951,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         {
             IncludeOpenOrders = true;
             IncludePlannedOrders = true;
-            SetAllFilterOptions(OrderStatusFilters, true);
-            SetAllFilterOptions(DeliveryTypeFilters, true);
-            SetAllFilterOptions(AvisoStatusFilters, true);
-            SetAllFilterOptions(SupplierFilters, true);
+            OrderSectionSharedHelpers.SetAllFilterOptions(OrderStatusFilters, true);
+            OrderSectionSharedHelpers.SetAllFilterOptions(DeliveryTypeFilters, true);
+            OrderSectionSharedHelpers.SetAllFilterOptions(AvisoStatusFilters, true);
+            OrderSectionSharedHelpers.SetAllFilterOptions(SupplierFilters, true);
         }
         finally
         {
@@ -955,10 +972,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         {
             IncludeOpenOrders = targetState;
             IncludePlannedOrders = targetState;
-            SetAllFilterOptions(OrderStatusFilters, targetState);
-            SetAllFilterOptions(DeliveryTypeFilters, targetState);
-            SetAllFilterOptions(AvisoStatusFilters, targetState);
-            SetAllFilterOptions(SupplierFilters, targetState);
+            OrderSectionSharedHelpers.SetAllFilterOptions(OrderStatusFilters, targetState);
+            OrderSectionSharedHelpers.SetAllFilterOptions(DeliveryTypeFilters, targetState);
+            OrderSectionSharedHelpers.SetAllFilterOptions(AvisoStatusFilters, targetState);
+            OrderSectionSharedHelpers.SetAllFilterOptions(SupplierFilters, targetState);
         }
         finally
         {
@@ -976,37 +993,6 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                DeliveryTypeFilters.All(x => x.IsSelected) &&
                AvisoStatusFilters.All(x => x.IsSelected) &&
                SupplierFilters.All(x => x.IsSelected);
-    }
-
-    private static void SetAllFilterOptions(ObservableCollection<MapOrderFilterOption> options, bool isSelected)
-    {
-        foreach (var option in options)
-        {
-            option.IsSelected = isSelected;
-        }
-    }
-
-    private static bool SyncDerivedOrderStatuses(IEnumerable<Order> orders)
-    {
-        var changed = false;
-        foreach (var order in orders)
-        {
-            if (order is null)
-            {
-                continue;
-            }
-
-            var derivedStatus = Order.ResolveOrderStatusFromProducts(order.Products);
-            if (string.Equals(Order.NormalizeOrderStatus(order.OrderStatus), derivedStatus, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            order.OrderStatus = derivedStatus;
-            changed = true;
-        }
-
-        return changed;
     }
 
     private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)
@@ -1044,7 +1030,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private bool MatchesSelectedFilters(Order order)
     {
-        var selectedOrderStatuses = GetSelectedFilterLabels(OrderStatusFilters);
+        var selectedOrderStatuses = OrderSectionSharedHelpers.GetSelectedFilterLabels(OrderStatusFilters);
         if (selectedOrderStatuses.Count > 0 &&
             selectedOrderStatuses.Count != OrderStatusFilters.Count &&
             !selectedOrderStatuses.Contains(NormalizeOrderStatus(order.OrderStatus)))
@@ -1052,7 +1038,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return false;
         }
 
-        var selectedDeliveryTypes = GetSelectedFilterLabels(DeliveryTypeFilters);
+        var selectedDeliveryTypes = OrderSectionSharedHelpers.GetSelectedFilterLabels(DeliveryTypeFilters);
         if (selectedDeliveryTypes.Count > 0 &&
             selectedDeliveryTypes.Count != DeliveryTypeFilters.Count &&
             !selectedDeliveryTypes.Contains(DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType)))
@@ -1060,7 +1046,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return false;
         }
 
-        var selectedAvisoStatuses = GetSelectedFilterLabels(AvisoStatusFilters);
+        var selectedAvisoStatuses = OrderSectionSharedHelpers.GetSelectedFilterLabels(AvisoStatusFilters);
         var avisoStatus = string.IsNullOrWhiteSpace(order.AvisoStatus) ? "nicht avisiert" : order.AvisoStatus.Trim();
         if (selectedAvisoStatuses.Count > 0 &&
             selectedAvisoStatuses.Count != AvisoStatusFilters.Count &&
@@ -1069,32 +1055,12 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return false;
         }
 
-        var selectedSuppliers = GetSelectedFilterLabels(SupplierFilters)
+        var selectedSuppliers = OrderSectionSharedHelpers.GetSelectedFilterLabels(SupplierFilters)
             .Select(NormalizeSupplier)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return selectedSuppliers.Count == 0 ||
                selectedSuppliers.Count == SupplierFilters.Count ||
-               OrderContainsAnySupplier(order, selectedSuppliers);
-    }
-
-    private static HashSet<string> GetSelectedFilterLabels(ObservableCollection<MapOrderFilterOption> options)
-    {
-        return options
-            .Where(o => o.IsSelected)
-            .Select(o => o.Label)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static bool OrderContainsAnySupplier(Order order, IReadOnlySet<string> suppliers)
-    {
-        if (suppliers.Count == 0)
-        {
-            return true;
-        }
-
-        return (order.Products ?? [])
-            .Select(p => NormalizeSupplier(p.Supplier))
-            .Any(suppliers.Contains);
+               OrderSectionSharedHelpers.OrderContainsAnySupplier(order, selectedSuppliers, NormalizeSupplier);
     }
 
     private static string NormalizeSupplier(string? supplier)
@@ -1103,19 +1069,6 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         return string.IsNullOrWhiteSpace(normalized)
             ? UnspecifiedSupplierFilterOption
             : normalized;
-    }
-
-    private static bool MatchesSearchQuery(Order order, string query)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return true;
-        }
-
-        return order.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               order.CustomerName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               order.Address.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               (order.AssignedTourId ?? string.Empty).Contains(query, StringComparison.OrdinalIgnoreCase);
     }
 
     private static OrderItem ToOrderItem(Order order)
@@ -1227,329 +1180,6 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             IsArchived = source.IsArchived,
             ConcurrencyToken = source.ConcurrencyToken
         };
-    }
-}
-
-public sealed class OrderItem : ObservableObject
-{
-    private string _id = string.Empty;
-    private string _customerName = string.Empty;
-    private string _address = string.Empty;
-    private string _scheduledDate = string.Empty;
-    private string _assignedTourId = string.Empty;
-    private string _latitude = string.Empty;
-    private string _longitude = string.Empty;
-    private string _orderAddressName = string.Empty;
-    private string _orderAddressStreet = string.Empty;
-    private string _orderAddressHouseNumber = string.Empty;
-    private string _orderAddressPostalCode = string.Empty;
-    private string _orderAddressCity = string.Empty;
-    private string _deliveryName = string.Empty;
-    private string _deliveryContactPerson = string.Empty;
-    private string _deliveryStreet = string.Empty;
-    private string _deliveryHouseNumber = string.Empty;
-    private string _deliveryPostalCode = string.Empty;
-    private string _deliveryCity = string.Empty;
-    private string _email = string.Empty;
-    private string _phone = string.Empty;
-    private string _deliveryType = string.Empty;
-    private string _orderStatus = string.Empty;
-    private string _orderStatusBadgeBackground = "#E8F1FF";
-    private string _orderStatusBadgeBorderBrush = "#BFDBFE";
-    private string _orderStatusBadgeForeground = "#2563EB";
-    private string _productsSummary = string.Empty;
-    private string _notes = string.Empty;
-    private bool _isArchived;
-
-    public string Id
-    {
-        get => _id;
-        set => SetProperty(ref _id, value);
-    }
-
-    public string CustomerName
-    {
-        get => _customerName;
-        set => SetProperty(ref _customerName, value);
-    }
-
-    public string Address
-    {
-        get => _address;
-        set => SetProperty(ref _address, value);
-    }
-
-    public string ScheduledDate
-    {
-        get => _scheduledDate;
-        set => SetProperty(ref _scheduledDate, value);
-    }
-
-    public string OrderAddressLine
-    {
-        get
-        {
-            var street = BuildStreetLine(OrderAddressStreet, OrderAddressHouseNumber);
-            var postal = (OrderAddressPostalCode ?? string.Empty).Trim();
-            var city = (OrderAddressCity ?? string.Empty).Trim();
-            var postalCity = string.Join(' ', new[] { postal, city }.Where(x => !string.IsNullOrWhiteSpace(x)));
-            return string.Join(", ", new[] { street, postalCity }.Where(x => !string.IsNullOrWhiteSpace(x)));
-        }
-    }
-
-    public string DeliveryStreetLine
-    {
-        get
-        {
-            var street = BuildStreetLine(DeliveryStreet, DeliveryHouseNumber);
-            return string.IsNullOrWhiteSpace(street) ? (Address ?? string.Empty).Trim() : street;
-        }
-    }
-
-    public string DeliveryPostalCityLine
-    {
-        get
-        {
-            var postal = (DeliveryPostalCode ?? string.Empty).Trim();
-            var city = (DeliveryCity ?? string.Empty).Trim();
-            return string.Join(' ', new[] { postal, city }.Where(x => !string.IsNullOrWhiteSpace(x)));
-        }
-    }
-
-    public string DeliveryPersonPrimary
-    {
-        get
-        {
-            var contact = (DeliveryContactPerson ?? string.Empty).Trim();
-            if (!string.IsNullOrWhiteSpace(contact))
-            {
-                return contact;
-            }
-
-            return (DeliveryName ?? string.Empty).Trim();
-        }
-    }
-
-    public string DeliveryPersonSecondary
-    {
-        get
-        {
-            var phone = (Phone ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(phone))
-            {
-                return string.Empty;
-            }
-
-            var primary = DeliveryPersonPrimary;
-            return string.Equals(primary, phone, StringComparison.OrdinalIgnoreCase) ? string.Empty : phone;
-        }
-    }
-
-    public string AssignedTourId
-    {
-        get => _assignedTourId;
-        set => SetProperty(ref _assignedTourId, value);
-    }
-
-    public string Latitude
-    {
-        get => _latitude;
-        set => SetProperty(ref _latitude, value);
-    }
-
-    public string Longitude
-    {
-        get => _longitude;
-        set => SetProperty(ref _longitude, value);
-    }
-
-    public string OrderAddressName
-    {
-        get => _orderAddressName;
-        set => SetProperty(ref _orderAddressName, value);
-    }
-
-    public string OrderAddressStreet
-    {
-        get => _orderAddressStreet;
-        set => SetProperty(ref _orderAddressStreet, value);
-    }
-
-    public string OrderAddressHouseNumber
-    {
-        get => _orderAddressHouseNumber;
-        set => SetProperty(ref _orderAddressHouseNumber, value);
-    }
-
-    public string OrderAddressPostalCode
-    {
-        get => _orderAddressPostalCode;
-        set => SetProperty(ref _orderAddressPostalCode, value);
-    }
-
-    public string OrderAddressCity
-    {
-        get => _orderAddressCity;
-        set => SetProperty(ref _orderAddressCity, value);
-    }
-
-    public string DeliveryName
-    {
-        get => _deliveryName;
-        set => SetProperty(ref _deliveryName, value);
-    }
-
-    public string DeliveryContactPerson
-    {
-        get => _deliveryContactPerson;
-        set => SetProperty(ref _deliveryContactPerson, value);
-    }
-
-    public string DeliveryStreet
-    {
-        get => _deliveryStreet;
-        set => SetProperty(ref _deliveryStreet, value);
-    }
-
-    public string DeliveryHouseNumber
-    {
-        get => _deliveryHouseNumber;
-        set => SetProperty(ref _deliveryHouseNumber, value);
-    }
-
-    public string DeliveryPostalCode
-    {
-        get => _deliveryPostalCode;
-        set => SetProperty(ref _deliveryPostalCode, value);
-    }
-
-    public string DeliveryCity
-    {
-        get => _deliveryCity;
-        set => SetProperty(ref _deliveryCity, value);
-    }
-
-    public string Email
-    {
-        get => _email;
-        set => SetProperty(ref _email, value);
-    }
-
-    public string Phone
-    {
-        get => _phone;
-        set => SetProperty(ref _phone, value);
-    }
-
-    public string DeliveryType
-    {
-        get => _deliveryType;
-        set => SetProperty(ref _deliveryType, value);
-    }
-
-    public string OrderStatus
-    {
-        get => _orderStatus;
-        set => SetProperty(ref _orderStatus, value);
-    }
-
-    public string OrderStatusBadgeBackground
-    {
-        get => _orderStatusBadgeBackground;
-        set => SetProperty(ref _orderStatusBadgeBackground, value);
-    }
-
-    public string OrderStatusBadgeBorderBrush
-    {
-        get => _orderStatusBadgeBorderBrush;
-        set => SetProperty(ref _orderStatusBadgeBorderBrush, value);
-    }
-
-    public string OrderStatusBadgeForeground
-    {
-        get => _orderStatusBadgeForeground;
-        set => SetProperty(ref _orderStatusBadgeForeground, value);
-    }
-
-    public string ProductsSummary
-    {
-        get => _productsSummary;
-        set => SetProperty(ref _productsSummary, value);
-    }
-
-    public string Notes
-    {
-        get => _notes;
-        set => SetProperty(ref _notes, value);
-    }
-
-    public bool IsArchived
-    {
-        get => _isArchived;
-        set => SetProperty(ref _isArchived, value);
-    }
-
-    private static string BuildStreetLine(string? street, string? houseNumber)
-    {
-        return string.Join(" ", new[]
-        {
-            (street ?? string.Empty).Trim(),
-            (houseNumber ?? string.Empty).Trim()
-        }.Where(x => !string.IsNullOrWhiteSpace(x)));
-    }
-}
-
-internal readonly record struct OrderStatusPalette(string BackgroundHex, string BorderHex, string ForegroundHex);
-
-internal static class OrderStatusDisplayPalette
-{
-    private static readonly OrderStatusPalette BluePalette = new("#E8F1FF", "#BFDBFE", "#2563EB");
-    private static readonly OrderStatusPalette GreenPalette = new("#ECFDF3", "#BBF7D0", "#16A34A");
-    private static readonly OrderStatusPalette PurplePalette = new("#F3E8FF", "#D8B4FE", "#9333EA");
-    private static readonly OrderStatusPalette OrangePalette = new("#FFF3E6", "#FDBA74", "#EA580C");
-    private static readonly OrderStatusPalette AmberPalette = new("#FFF7ED", "#FCD34D", "#D97706");
-
-    public static OrderStatusPalette Resolve(Order order)
-    {
-        var normalizedStatus = Order.NormalizeOrderStatus(order.OrderStatus);
-        if (string.Equals(normalizedStatus, Order.PartiallyPendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
-        {
-            var baseStatus = Order.ResolvePartiallyPendingPreparationBaseStatus(order.Products);
-            return Resolve(baseStatus);
-        }
-
-        return Resolve(normalizedStatus);
-    }
-
-    public static OrderStatusPalette Resolve(string? orderStatus)
-    {
-        var normalizedStatus = Order.NormalizeOrderStatus(orderStatus);
-        if (string.Equals(normalizedStatus, Order.PartiallyReadyStatus, StringComparison.OrdinalIgnoreCase))
-        {
-            return GreenPalette;
-        }
-
-        if (string.Equals(normalizedStatus, Order.ReadyToDeliverStatus, StringComparison.OrdinalIgnoreCase))
-        {
-            return PurplePalette;
-        }
-
-        if (string.Equals(normalizedStatus, Order.InTransitStatus, StringComparison.OrdinalIgnoreCase))
-        {
-            return OrangePalette;
-        }
-
-        if (string.Equals(normalizedStatus, Order.PendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
-        {
-            return GreenPalette;
-        }
-
-        if (string.Equals(normalizedStatus, Order.PartiallyInTransitStatus, StringComparison.OrdinalIgnoreCase))
-        {
-            return AmberPalette;
-        }
-
-        return BluePalette;
     }
 }
 

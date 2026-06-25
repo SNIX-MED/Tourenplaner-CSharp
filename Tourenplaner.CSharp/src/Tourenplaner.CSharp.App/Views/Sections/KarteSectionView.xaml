@@ -1054,11 +1054,45 @@
                                                  ItemsSource="{Binding TourOverviewItems}"
                                                  SelectedItem="{Binding SelectedTourOverviewItem, Mode=TwoWay}"
                                                  PreviewMouseLeftButtonDown="TourOverviewList_PreviewMouseLeftButtonDown"
+                                                 PreviewMouseRightButtonDown="TourOverviewList_PreviewMouseRightButtonDown"
                                                  MouseMove="TourOverviewList_MouseMove"
                                                  MouseLeave="TourOverviewList_MouseLeave"
                                                  MouseDoubleClick="TourOverviewList_MouseDoubleClick"
+                                                 ContextMenuOpening="TourOverviewList_ContextMenuOpening"
                                                  Style="{StaticResource RouteStopsListStyle}"
                                                  ItemContainerStyle="{StaticResource RouteStopListItemStyle}">
+                                            <ListBox.ContextMenu>
+                                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                                             Style="{StaticResource RouteStopContextMenuStyle}">
+                                                    <ContextMenu.Resources>
+                                                        <Style TargetType="Separator">
+                                                            <Setter Property="Margin" Value="0,4" />
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Separator">
+                                                                        <Border Height="1"
+                                                                                Background="{DynamicResource Brush.BorderSoft}" />
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </Style>
+                                                    </ContextMenu.Resources>
+                                                    <MenuItem Header="Tour bearbeiten"
+                                                              Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                              Command="{Binding EditSelectedTourCommand}" />
+                                                    <MenuItem Header="Tour anzeigen"
+                                                              Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                              Command="{Binding OpenSelectedTourOverviewCommand}" />
+                                                    <MenuItem Header="Tour archivieren"
+                                                              Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                              Command="{Binding ArchiveSelectedTourCommand}" />
+                                                    <Separator />
+                                                    <MenuItem Header="Tour löschen"
+                                                              Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                              Command="{Binding DeleteSelectedTourCommand}"
+                                                              Foreground="{DynamicResource Brush.Danger}" />
+                                                </ContextMenu>
+                                            </ListBox.ContextMenu>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border Margin="0,0,0,8"
@@ -1137,6 +1171,7 @@
                                              PreviewMouseLeftButtonDown="RouteStopsList_PreviewMouseLeftButtonDown"
                                              MouseMove="RouteStopsList_MouseMove"
                                              DragOver="RouteStopsList_DragOver"
+                                             DragLeave="RouteStopsList_DragLeave"
                                              Drop="RouteStopsList_Drop"
                                              AllowDrop="True"
                                              Style="{StaticResource RouteStopsListStyle}"
@@ -1230,9 +1265,42 @@
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="46" />
                                                                 <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="84" />
+                                                                <ColumnDefinition Width="Auto" />
                                                             </Grid.ColumnDefinitions>
-
+                                                            <Border Height="3"
+                                                                    Margin="10,-6,10,0"
+                                                                    VerticalAlignment="Top"
+                                                                    Background="{DynamicResource Brush.Accent}"
+                                                                    CornerRadius="2"
+                                                                    Visibility="Collapsed">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsDropTargetBefore}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                            </Border>
+                                                            <Border Height="3"
+                                                                    Margin="10,0,10,-6"
+                                                                    VerticalAlignment="Bottom"
+                                                                    Background="{DynamicResource Brush.Accent}"
+                                                                    CornerRadius="2"
+                                                                    Visibility="Collapsed">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsDropTargetAfter}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                            </Border>
                                                             <Border Width="38"
                                                                     Height="38"
                                                                     CornerRadius="19"
@@ -1451,7 +1519,8 @@
                                                         </Grid>
                                                     </Border>
 
-                                                    <Border Margin="16,-2,16,6"
+                                                    <Border Tag="RouteLegSurface"
+                                                            Margin="16,-2,16,6"
                                                             Padding="6,2"
                                                             CornerRadius="10"
                                                             BorderThickness="1"
@@ -1578,12 +1647,14 @@
                                                                                    Foreground="#8A5A00" />
                                                                     </StackPanel>
                                                                 </Border>
-                                                                <Border Padding="7,3"
+                                                                <Border Tag="RoutePauseDragHandle"
+                                                                        Padding="7,3"
                                                                         VerticalAlignment="Center"
                                                                         Background="#FFF7E8"
                                                                         BorderBrush="#F5C66B"
                                                                         BorderThickness="1"
-                                                                        CornerRadius="8">
+                                                                        CornerRadius="8"
+                                                                        Cursor="Hand">
                                                                     <Border.Style>
                                                                         <Style TargetType="Border">
                                                                             <Setter Property="Visibility" Value="Collapsed" />

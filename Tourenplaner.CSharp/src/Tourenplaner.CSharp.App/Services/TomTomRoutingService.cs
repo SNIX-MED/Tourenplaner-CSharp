@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Http;
 using System.Text.Json;
+using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Services;
@@ -145,7 +146,7 @@ public sealed class TomTomRoutingService
                 return Math.Max(0, (int)Math.Round(seconds / 60d, MidpointRounding.AwayFromZero));
             }
 
-            static RouteLegTravelTimeProfile BuildTravelTimeProfile(JsonElement summary)
+            RouteLegTravelTimeProfile BuildTravelTimeProfile(JsonElement summary)
             {
                 var travelSeconds = ReadOptionalSeconds(summary, "travelTimeInSeconds");
                 var noTrafficSeconds = ReadOptionalSeconds(summary, "noTrafficTravelTimeInSeconds");
@@ -194,87 +195,48 @@ public sealed class TomTomRoutingService
                 optimisticSeconds = Math.Min(optimisticSeconds, realisticSeconds);
                 pessimisticSeconds = Math.Max(pessimisticSeconds, realisticSeconds);
 
+                var adjustedTravelTimes = TomTomTravelTimeAdjustmentService.ApplySeverityMode(
+                    optimisticSeconds,
+                    realisticSeconds,
+                    pessimisticSeconds,
+                    noTrafficDelaySeconds,
+                    historicDelaySeconds,
+                    liveIncidentDelaySeconds,
+                    _profile.TrafficSeverityMode);
+
                 return new RouteLegTravelTimeProfile(
-                    SecondsToMinutes(optimisticSeconds),
-                    SecondsToMinutes(realisticSeconds),
-                    SecondsToMinutes(pessimisticSeconds));
+                    SecondsToMinutes(adjustedTravelTimes.OptimisticSeconds),
+                    SecondsToMinutes(adjustedTravelTimes.RealisticSeconds),
+                    SecondsToMinutes(adjustedTravelTimes.PessimisticSeconds));
             }
 
-            static string ResolveTrafficLevel(JsonElement section)
+            string ResolveTrafficLevel(JsonElement section)
             {
-                var trafficLevel = "unknown";
-                if (section.TryGetProperty("simpleCategory", out var categoryElement) && categoryElement.ValueKind == JsonValueKind.String)
-                {
-                    var rawCategory = (categoryElement.GetString() ?? string.Empty).Trim().ToLowerInvariant();
-                    var normalizedCategory = rawCategory
-                        .Replace("_", string.Empty, StringComparison.Ordinal)
-                        .Replace("-", string.Empty, StringComparison.Ordinal)
-                        .Replace(" ", string.Empty, StringComparison.Ordinal);
-                    trafficLevel = normalizedCategory switch
-                    {
-                        "roadclosure" => "blocked",
-                        "closed" => "blocked",
-                        "jam" => "blocked",
-                        "jammed" => "blocked",
-                        "stationary" => "blocked",
-                        "heavilycongested" => "blocked",
-                        "congested" => "heavy",
-                        "stopandgo" => "heavy",
-                        "slow" => "light",
-                        "freeflow" => "freeFlow",
-                        "open" => "freeFlow",
-                        "none" => "unknown",
-                        _ => "unknown"
-                    };
-                }
+                var simpleCategory = section.TryGetProperty("simpleCategory", out var categoryElement) && categoryElement.ValueKind == JsonValueKind.String
+                    ? categoryElement.GetString()
+                    : null;
+                var delayInSeconds = section.TryGetProperty("delayInSeconds", out var delaySecondsElement) &&
+                    delaySecondsElement.ValueKind == JsonValueKind.Number
+                    ? delaySecondsElement.GetDouble()
+                    : (double?)null;
+                var magnitudeOfDelay = section.TryGetProperty("magnitudeOfDelay", out var delayMagnitudeElement) &&
+                    delayMagnitudeElement.ValueKind == JsonValueKind.Number
+                    ? delayMagnitudeElement.GetInt32()
+                    : (int?)null;
+                var effectiveSpeedInKmh = section.TryGetProperty("effectiveSpeedInKmh", out var speedElement) &&
+                    speedElement.ValueKind == JsonValueKind.Number
+                    ? speedElement.GetDouble()
+                    : (double?)null;
 
-                if (string.Equals(trafficLevel, "unknown", StringComparison.OrdinalIgnoreCase) &&
-                    section.TryGetProperty("delayInSeconds", out var delaySecondsElement) &&
-                    delaySecondsElement.ValueKind == JsonValueKind.Number)
-                {
-                    var delaySeconds = delaySecondsElement.GetDouble();
-                    trafficLevel = delaySeconds switch
-                    {
-                        <= 20d => "freeFlow",
-                        <= 90d => "light",
-                        <= 240d => "moderate",
-                        <= 420d => "heavy",
-                        _ => "blocked"
-                    };
-                }
-
-                if (string.Equals(trafficLevel, "unknown", StringComparison.OrdinalIgnoreCase) &&
-                    section.TryGetProperty("magnitudeOfDelay", out var delayMagnitudeElement) &&
-                    delayMagnitudeElement.ValueKind == JsonValueKind.Number)
-                {
-                    var magnitude = delayMagnitudeElement.GetInt32();
-                    trafficLevel = magnitude switch
-                    {
-                        <= 0 => "freeFlow",
-                        1 => "light",
-                        2 => "heavy",
-                        3 => "blocked",
-                        _ => "blocked"
-                    };
-                }
-
-                if (string.Equals(trafficLevel, "unknown", StringComparison.OrdinalIgnoreCase) &&
-                    section.TryGetProperty("effectiveSpeedInKmh", out var speedElement) && speedElement.ValueKind == JsonValueKind.Number)
-                {
-                    var speed = speedElement.GetDouble();
-                    trafficLevel = speed switch
-                    {
-                        >= 70 => "freeFlow",
-                        >= 40 => "light",
-                        >= 20 => "moderate",
-                        _ => "heavy"
-                    };
-                }
-
-                return trafficLevel;
+                return TomTomTrafficSeverityClassifier.ResolveTrafficLevel(
+                    simpleCategory,
+                    delayInSeconds,
+                    magnitudeOfDelay,
+                    effectiveSpeedInKmh,
+                    _profile.TrafficSeverityMode);
             }
 
-            static bool TryAppendTrafficSection(
+            bool TryAppendTrafficSection(
                 JsonElement section,
                 int rawIndexOffset,
                 bool usesLocalLegIndices,
@@ -460,7 +422,8 @@ public sealed record TomTomRoutingProfile(
     double VehicleLengthMeters = 0d,
     double VehicleWidthMeters = 0d,
     int VehicleWeightKg = 0,
-    int VehicleMaxSpeedKmh = 0)
+    int VehicleMaxSpeedKmh = 0,
+    TomTomTrafficSeverityMode TrafficSeverityMode = TomTomTrafficSeverityMode.Standard)
 {
     public static TomTomRoutingProfile Default { get; } = new(TomTomRoutingMode.Car, 0d);
 }

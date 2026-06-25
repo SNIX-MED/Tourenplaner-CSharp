@@ -1121,14 +1121,26 @@
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="05:00 - 07:30 Staupuffer (%)" />
-                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom0500To0730, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Verkehrsbewertung" />
+                                                <ComboBox Style="{StaticResource SettingsComboBoxStyle}"
+                                                          ItemsSource="{Binding TomTomTrafficSeverityOptions}"
+                                                          SelectedItem="{Binding SelectedTomTomTrafficSeverityOption, Mode=TwoWay}">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding DisplayName}" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                                <TextBlock Margin="0,8,0,0"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                           TextWrapping="Wrap"
+                                                           Text="Legt fest, wie streng Verkehrssegmente aus TomTom intern als leicht, mittel oder schwer eingestuft werden." />
                                             </StackPanel>
                                         </Border>
                                         <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="07:30 - 09:00 Staupuffer (%)" />
-                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom0730To0900, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="05:00 - 07:30 Staupuffer (%)" />
+                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom0500To0730, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Border>
                                     </Grid>
@@ -1140,11 +1152,24 @@
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
                                             <StackPanel>
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="07:30 - 09:00 Staupuffer (%)" />
+                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom0730To0900, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                            <StackPanel>
                                                 <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="09:00 - 15:30 Staupuffer (%)" />
                                                 <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom0900To1530, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Border>
-                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                    </Grid>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
                                             <StackPanel>
                                                 <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="15:30 - 18:30 Staupuffer (%)" />
                                                 <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom1530To1830, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />

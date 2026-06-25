@@ -49,6 +49,11 @@ public partial class RouteStopStayMinutesDialogWindow : Window
 
 public sealed class RouteStopStayMinutesDialogViewModel : INotifyPropertyChanged
 {
+    public sealed record MinuteOption(int Value, string DisplayText)
+    {
+        public override string ToString() => DisplayText;
+    }
+
     private int _selectedMinutes;
     private string _selectedAvisoStatus = string.Empty;
     private string _employeeInfoText = string.Empty;
@@ -59,7 +64,10 @@ public sealed class RouteStopStayMinutesDialogViewModel : INotifyPropertyChanged
         string currentAvisoStatus,
         string currentEmployeeInfoText)
     {
-        MinuteOptions = Enumerable.Range(0, 289).Select(i => i * 5).ToList();
+        MinuteOptions = Enumerable.Range(0, 289)
+            .Select(i => i * 5)
+            .Select(minutes => new MinuteOption(minutes, FormatMinuteOption(minutes)))
+            .ToList();
         AvisoStatusOptions = (avisoStatusOptions ?? [])
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
@@ -67,7 +75,7 @@ public sealed class RouteStopStayMinutesDialogViewModel : INotifyPropertyChanged
             .ToList();
         var normalized = Math.Max(0, currentMinutes);
         var roundedToFive = (int)Math.Round(normalized / 5.0) * 5;
-        SelectedMinutes = MinuteOptions.Contains(roundedToFive) ? roundedToFive : 0;
+        SelectedMinutes = MinuteOptions.Any(x => x.Value == roundedToFive) ? roundedToFive : 0;
         SelectedAvisoStatus = AvisoStatusOptions.FirstOrDefault(x =>
                                  string.Equals(x, (currentAvisoStatus ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase)) ??
                              AvisoStatusOptions.FirstOrDefault() ??
@@ -79,7 +87,7 @@ public sealed class RouteStopStayMinutesDialogViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public IReadOnlyList<int> MinuteOptions { get; }
+    public IReadOnlyList<MinuteOption> MinuteOptions { get; }
     public IReadOnlyList<string> AvisoStatusOptions { get; }
     public bool ShowAvisoStatus { get; }
     public bool ShowEmployeeInfo { get; }
@@ -129,5 +137,19 @@ public sealed class RouteStopStayMinutesDialogViewModel : INotifyPropertyChanged
             _employeeInfoText = normalized;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EmployeeInfoText)));
         }
+    }
+
+    private static string FormatMinuteOption(int minutes)
+    {
+        if (minutes < 60)
+        {
+            return $"{minutes}min";
+        }
+
+        var hours = minutes / 60;
+        var remainingMinutes = minutes % 60;
+        return remainingMinutes == 0
+            ? $"{hours}h 0min"
+            : $"{hours}h {remainingMinutes}min";
     }
 }
