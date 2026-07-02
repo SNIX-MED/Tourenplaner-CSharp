@@ -137,4 +137,33 @@ public class TourConflictServiceTests
         Assert.Contains(conflicts, c => c.ResourceType == "vehicle" && c.ResourceId == "V-9");
         Assert.Contains(conflicts, c => c.Message.Contains("pessimistisch bis", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void FindSameDayAssignmentConflicts_DetectsEmployeeConflictEvenWithoutTimeOverlap()
+    {
+        var service = new TourConflictService();
+        var tours = new[]
+        {
+            new TourRecord
+            {
+                Id = 500,
+                Date = "21.03.2026",
+                StartTime = "08:00",
+                EmployeeIds = ["E-5"],
+                Stops = [new TourStopRecord { Id = "A", Order = 1, ServiceMinutes = 15 }]
+            },
+            new TourRecord
+            {
+                Id = 501,
+                Date = "21.03.2026",
+                StartTime = "14:00",
+                EmployeeIds = ["E-5"],
+                Stops = [new TourStopRecord { Id = "B", Order = 1, ServiceMinutes = 15 }]
+            }
+        };
+
+        var conflicts = service.FindSameDayAssignmentConflicts(tours);
+
+        Assert.Contains(conflicts, c => c.ResourceType == "Mitarbeiter" && c.ResourceId == "E-5");
+    }
 }

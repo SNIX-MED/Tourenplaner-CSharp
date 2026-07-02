@@ -21,10 +21,14 @@ public sealed class AppSettings
     public const int DefaultTomTomRouteRecalcDebounceMs = 900;
     public const int DefaultTomTomVehicleOnlyMaxSpeedKmh = 120;
     public const int DefaultTomTomVehicleWithTrailerMaxSpeedKmh = 100;
-    public const int DefaultTrafficBufferPercentFrom0500To0730 = 20;
+    private const int LegacyDefaultTrafficBufferPercent = 20;
+    public const int DefaultTrafficBufferPercentFrom0500To0730 = 10;
     public const int DefaultTrafficBufferPercentFrom0730To0900 = 20;
-    public const int DefaultTrafficBufferPercentFrom0900To1530 = 20;
+    public const int DefaultTrafficBufferPercentFrom0900To1530 = 0;
     public const int DefaultTrafficBufferPercentFrom1530To1830 = 20;
+    public const int DefaultStayMinutesFreiBordsteinkante = 10;
+    public const int DefaultStayMinutesMitVerteilung = 20;
+    public const int DefaultStayMinutesMitVerteilungMontage = 30;
     public const string DefaultTomTomTrafficSeverityMode = "slightly_stricter";
     public const string DefaultMapOverlayStyle = "standard";
 
@@ -81,6 +85,9 @@ public sealed class AppSettings
     public int TrafficBufferPercentFrom0730To0900 { get; set; } = -1;
     public int TrafficBufferPercentFrom0900To1530 { get; set; } = -1;
     public int TrafficBufferPercentFrom1530To1830 { get; set; } = -1;
+    public int StayMinutesFreiBordsteinkante { get; set; } = DefaultStayMinutesFreiBordsteinkante;
+    public int StayMinutesMitVerteilung { get; set; } = DefaultStayMinutesMitVerteilung;
+    public int StayMinutesMitVerteilungMontage { get; set; } = DefaultStayMinutesMitVerteilungMontage;
     public string TomTomTrafficSeverityMode { get; set; } = DefaultTomTomTrafficSeverityMode;
     public bool TomTomEnableTileCache { get; set; } = true;
     public string CurrentUserName { get; set; } = string.Empty;
@@ -102,7 +109,7 @@ public sealed class AppSettings
         var normalizedUserName = NormalizeUserName(userName);
         if (UserPreferencesByUser.TryGetValue(normalizedUserName, out var existing) && existing is not null)
         {
-            return existing.Clone();
+            return NormalizeTrafficBufferProfile(existing.Clone());
         }
 
         return BuildLegacyUserPreference();
@@ -111,7 +118,7 @@ public sealed class AppSettings
     public void SetUserPreference(string? userName, UserAppPreference preference)
     {
         var normalizedUserName = NormalizeUserName(userName);
-        UserPreferencesByUser[normalizedUserName] = (preference ?? BuildLegacyUserPreference()).Clone();
+        UserPreferencesByUser[normalizedUserName] = NormalizeTrafficBufferProfile((preference ?? BuildLegacyUserPreference()).Clone());
     }
 
     public static string NormalizeUserName(string? userName)
@@ -122,7 +129,7 @@ public sealed class AppSettings
 
     private UserAppPreference BuildLegacyUserPreference()
     {
-        return new UserAppPreference
+        return NormalizeTrafficBufferProfile(new UserAppPreference
         {
             AppearanceMode = string.IsNullOrWhiteSpace(AppearanceMode) ? "Light" : AppearanceMode,
             AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(AvisoEmailSubjectTemplate) ? DefaultAvisoEmailSubjectTemplate : AvisoEmailSubjectTemplate,
@@ -179,7 +186,7 @@ public sealed class AppSettings
                 DefaultTrafficBufferPercentFrom1530To1830),
             TomTomTrafficSeverityMode = NormalizeTomTomTrafficSeverityMode(TomTomTrafficSeverityMode),
             TomTomEnableTileCache = TomTomEnableTileCache
-        };
+        });
     }
 
     public static string NormalizeTomTomTrafficSeverityMode(string? value)
@@ -192,6 +199,23 @@ public sealed class AppSettings
             "slightly_stricter" => "slightly_stricter",
             _ => DefaultTomTomTrafficSeverityMode
         };
+    }
+
+    public int ResolveMapOrderStayMinutes(string? deliveryType)
+    {
+        return DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(deliveryType) switch
+        {
+            DeliveryMethodExtensions.MitVerteilung => NormalizeStayMinutes(StayMinutesMitVerteilung, DefaultStayMinutesMitVerteilung),
+            DeliveryMethodExtensions.MitVerteilungMontage => NormalizeStayMinutes(StayMinutesMitVerteilungMontage, DefaultStayMinutesMitVerteilungMontage),
+            _ => NormalizeStayMinutes(StayMinutesFreiBordsteinkante, DefaultStayMinutesFreiBordsteinkante)
+        };
+    }
+
+    public static int NormalizeStayMinutes(int value, int fallbackValue)
+    {
+        return value < 0
+            ? Math.Max(0, fallbackValue)
+            : Math.Clamp(value, 0, 1440);
     }
 
     private static int ResolveTrafficBufferPercent(int explicitValue, int legacyValue, int fallbackValue)
@@ -207,6 +231,33 @@ public sealed class AppSettings
         }
 
         return fallbackValue;
+    }
+
+    private static UserAppPreference NormalizeTrafficBufferProfile(UserAppPreference preference)
+    {
+        if (!IsLegacyDefaultTrafficBufferProfile(preference))
+        {
+            return preference;
+        }
+
+        preference.TrafficBufferPercentPerThirtyMinutes = DefaultTrafficBufferPercentFrom0500To0730;
+        preference.TrafficBufferPercentFrom0500To0730 = DefaultTrafficBufferPercentFrom0500To0730;
+        preference.TrafficBufferPercentFrom0730To0900 = DefaultTrafficBufferPercentFrom0730To0900;
+        preference.TrafficBufferPercentFrom0900To1530 = DefaultTrafficBufferPercentFrom0900To1530;
+        preference.TrafficBufferPercentFrom1530To1830 = DefaultTrafficBufferPercentFrom1530To1830;
+        return preference;
+    }
+
+    private static bool IsLegacyDefaultTrafficBufferProfile(UserAppPreference preference)
+    {
+        static bool IsLegacyDefaultOrUnspecified(int value)
+            => value == LegacyDefaultTrafficBufferPercent || value == -1;
+
+        return preference.TrafficBufferPercentPerThirtyMinutes == LegacyDefaultTrafficBufferPercent &&
+               IsLegacyDefaultOrUnspecified(preference.TrafficBufferPercentFrom0500To0730) &&
+               IsLegacyDefaultOrUnspecified(preference.TrafficBufferPercentFrom0730To0900) &&
+               IsLegacyDefaultOrUnspecified(preference.TrafficBufferPercentFrom0900To1530) &&
+               IsLegacyDefaultOrUnspecified(preference.TrafficBufferPercentFrom1530To1830);
     }
 
 }

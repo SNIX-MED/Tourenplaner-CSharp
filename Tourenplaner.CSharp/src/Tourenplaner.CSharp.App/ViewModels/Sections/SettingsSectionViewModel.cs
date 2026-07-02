@@ -86,6 +86,9 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
     private int _trafficBufferPercentFrom0730To0900 = AppSettings.DefaultTrafficBufferPercentFrom0730To0900;
     private int _trafficBufferPercentFrom0900To1530 = AppSettings.DefaultTrafficBufferPercentFrom0900To1530;
     private int _trafficBufferPercentFrom1530To1830 = AppSettings.DefaultTrafficBufferPercentFrom1530To1830;
+    private int _stayMinutesFreiBordsteinkante = AppSettings.DefaultStayMinutesFreiBordsteinkante;
+    private int _stayMinutesMitVerteilung = AppSettings.DefaultStayMinutesMitVerteilung;
+    private int _stayMinutesMitVerteilungMontage = AppSettings.DefaultStayMinutesMitVerteilungMontage;
     private string _tomTomTrafficSeverityMode = AppSettings.DefaultTomTomTrafficSeverityMode;
     private bool _tomTomEnableTileCache = true;
     private bool _backupsEnabled;
@@ -701,6 +704,24 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _trafficBufferPercentFrom1530To1830, value);
     }
 
+    public int StayMinutesFreiBordsteinkante
+    {
+        get => _stayMinutesFreiBordsteinkante;
+        set => SetProperty(ref _stayMinutesFreiBordsteinkante, value);
+    }
+
+    public int StayMinutesMitVerteilung
+    {
+        get => _stayMinutesMitVerteilung;
+        set => SetProperty(ref _stayMinutesMitVerteilung, value);
+    }
+
+    public int StayMinutesMitVerteilungMontage
+    {
+        get => _stayMinutesMitVerteilungMontage;
+        set => SetProperty(ref _stayMinutesMitVerteilungMontage, value);
+    }
+
     public TomTomTrafficSeverityOption? SelectedTomTomTrafficSeverityOption
     {
         get => TomTomTrafficSeverityOptions.FirstOrDefault(x => string.Equals(x.Key, _tomTomTrafficSeverityMode, StringComparison.OrdinalIgnoreCase))
@@ -1194,6 +1215,9 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             nameof(TrafficBufferPercentFrom0730To0900) or
             nameof(TrafficBufferPercentFrom0900To1530) or
             nameof(TrafficBufferPercentFrom1530To1830) or
+            nameof(StayMinutesFreiBordsteinkante) or
+            nameof(StayMinutesMitVerteilung) or
+            nameof(StayMinutesMitVerteilungMontage) or
             nameof(TomTomTrafficSeverityMode) or
             nameof(TomTomEnableTileCache) or
             nameof(BackupsEnabled) or
@@ -1565,6 +1589,9 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
         model.TrafficBufferPercentFrom0730To0900 = Math.Clamp(TrafficBufferPercentFrom0730To0900, 0, 100);
         model.TrafficBufferPercentFrom0900To1530 = Math.Clamp(TrafficBufferPercentFrom0900To1530, 0, 100);
         model.TrafficBufferPercentFrom1530To1830 = Math.Clamp(TrafficBufferPercentFrom1530To1830, 0, 100);
+        model.StayMinutesFreiBordsteinkante = AppSettings.NormalizeStayMinutes(StayMinutesFreiBordsteinkante, AppSettings.DefaultStayMinutesFreiBordsteinkante);
+        model.StayMinutesMitVerteilung = AppSettings.NormalizeStayMinutes(StayMinutesMitVerteilung, AppSettings.DefaultStayMinutesMitVerteilung);
+        model.StayMinutesMitVerteilungMontage = AppSettings.NormalizeStayMinutes(StayMinutesMitVerteilungMontage, AppSettings.DefaultStayMinutesMitVerteilungMontage);
         model.TomTomTrafficSeverityMode = AppSettings.NormalizeTomTomTrafficSeverityMode(TomTomTrafficSeverityMode);
         model.CurrentUserName = currentUserName;
         model.MapOverlayPreferencesByUser = new Dictionary<string, MapOverlayUserPreference>(
@@ -1653,6 +1680,15 @@ public sealed class SettingsSectionViewModel : SectionViewModelBase
             userPreference.TrafficBufferPercentFrom1530To1830,
             userPreference.TrafficBufferPercentPerThirtyMinutes,
             AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
+        StayMinutesFreiBordsteinkante = AppSettings.NormalizeStayMinutes(
+            settings.StayMinutesFreiBordsteinkante,
+            AppSettings.DefaultStayMinutesFreiBordsteinkante);
+        StayMinutesMitVerteilung = AppSettings.NormalizeStayMinutes(
+            settings.StayMinutesMitVerteilung,
+            AppSettings.DefaultStayMinutesMitVerteilung);
+        StayMinutesMitVerteilungMontage = AppSettings.NormalizeStayMinutes(
+            settings.StayMinutesMitVerteilungMontage,
+            AppSettings.DefaultStayMinutesMitVerteilungMontage);
         TomTomTrafficSeverityMode = AppSettings.NormalizeTomTomTrafficSeverityMode(userPreference.TomTomTrafficSeverityMode);
         TomTomEnableTileCache = userPreference.TomTomEnableTileCache;
         _currentUserName = currentUserName;

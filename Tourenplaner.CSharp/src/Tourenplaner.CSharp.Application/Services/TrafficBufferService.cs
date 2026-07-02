@@ -33,12 +33,12 @@ public static class TrafficBufferService
         int percentFrom1530To1830)
     {
         var timeOfDay = departureTime.TimeOfDay;
-        if (timeOfDay >= TimeSpan.FromHours(5) && timeOfDay < TimeSpan.FromHours(7.5))
+        if (timeOfDay >= TimeSpan.FromHours(5) && timeOfDay < TimeSpan.FromHours(6))
         {
             return percentFrom0500To0730;
         }
 
-        if (timeOfDay >= TimeSpan.FromHours(7.5) && timeOfDay < TimeSpan.FromHours(9))
+        if (timeOfDay >= TimeSpan.FromHours(6) && timeOfDay < TimeSpan.FromHours(9))
         {
             return percentFrom0730To0900;
         }

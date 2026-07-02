@@ -819,6 +819,7 @@ public partial class KarteSectionView : UserControl
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetPlannedTourOverlays === 'function') window.gawelaSetPlannedTourOverlays({overlaysJson});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson}, {routeColorJson}, {trafficSegmentsJson});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRouteInfo === 'function') window.gawelaSetRouteInfo({routeInfoJson});");
+        await HighlightSelectedRouteStopAsync();
         await HighlightPlannedTourOverlayAsync();
     }
 
@@ -1380,6 +1381,20 @@ public partial class KarteSectionView : UserControl
 
         vm.SelectRouteLegByOrderId(stopItem.OrderId);
         QueueMapRefresh(MapRefreshOperation.RouteSelection);
+        e.Handled = true;
+    }
+
+    private void OnReturnToCompanyLegToggleClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement element ||
+            element.DataContext is not RouteStopItem stopItem ||
+            !stopItem.IsRouteEnd)
+        {
+            return;
+        }
+
+        vm.ToggleReturnToCompanyLegVisibility();
         e.Handled = true;
     }
 

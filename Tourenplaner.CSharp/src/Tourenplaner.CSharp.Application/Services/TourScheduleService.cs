@@ -157,14 +157,14 @@ public sealed class TourScheduleService
                 continue;
             }
 
-            var optimisticArrival = RoundDownToHalfHour(entry.OptimisticArrival ?? entry.Arrival);
-            var displayedPessimisticArrival = Max(
+            var displayedRange = TourArrivalDisplayFormatter.BuildDisplayedArrivalRange(
+                entry.OptimisticArrival ?? entry.Arrival,
                 entry.Arrival,
-                RoundDisplayedRangeEndToHalfHour(entry.PessimisticArrival ?? entry.Arrival));
+                entry.PessimisticArrival ?? entry.Arrival);
 
-            stop.PlannedArrivalOptimistic = optimisticArrival.ToString("HH:mm");
+            stop.PlannedArrivalOptimistic = displayedRange.Optimistic.ToString("HH:mm");
             stop.PlannedArrival = entry.Arrival.ToString("HH:mm");
-            stop.PlannedArrivalPessimistic = displayedPessimisticArrival.ToString("HH:mm");
+            stop.PlannedArrivalPessimistic = displayedRange.Pessimistic.ToString("HH:mm");
             stop.PlannedDeparture = entry.Departure.ToString("HH:mm");
             stop.ScheduleConflict = entry.HasConflict;
             stop.ScheduleConflictText = entry.ConflictText;
@@ -271,28 +271,4 @@ public sealed class TourScheduleService
     }
 
     private static DateTime Max(DateTime left, DateTime right) => left >= right ? left : right;
-
-    private static DateTime RoundDownToHalfHour(DateTime value)
-    {
-        var roundedMinutes = (value.Minute / 30) * 30;
-        return new DateTime(value.Year, value.Month, value.Day, value.Hour, roundedMinutes, 0, value.Kind);
-    }
-
-    private static DateTime RoundDisplayedRangeEndToHalfHour(DateTime value)
-    {
-        var minute = value.Minute;
-        var roundedMinutes = minute switch
-        {
-            <= 14 => 0,
-            <= 44 => 30,
-            _ => 0
-        };
-        var rounded = new DateTime(value.Year, value.Month, value.Day, value.Hour, 0, 0, value.Kind);
-        if (minute >= 45)
-        {
-            rounded = rounded.AddHours(1);
-        }
-
-        return rounded.AddMinutes(roundedMinutes);
-    }
 }

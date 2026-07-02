@@ -1492,6 +1492,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var tour = SelectedTour.Source;
         var (editHour, editMinute) = ParseStartTimeParts(tour.StartTime);
         var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date);
+        var singleEmployeeWarningDeliveryTypes = await BuildSingleEmployeeWarningDeliveryTypesAsync(tour);
 
         var dialog = new CreateTourDialogWindow(
             routeDate: string.IsNullOrWhiteSpace(tour.Date) ? DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : tour.Date.Trim(),
@@ -1501,6 +1502,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             vehicleOptions: vehicles,
             trailerOptions: trailers,
             employeeOptions: employees,
+            singleEmployeeWarningDeliveryTypes: singleEmployeeWarningDeliveryTypes,
             selectedVehicleId: tour.VehicleId,
             selectedTrailerId: tour.TrailerId,
             selectedSecondaryVehicleId: tour.SecondaryVehicleId,
@@ -1593,6 +1595,35 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         await RefreshAsync();
         await FocusTourAsync(tour.Id);
         StatusText = $"Tour {tour.Id} wurde aktualisiert.";
+    }
+
+    private async Task<IReadOnlyList<string>> BuildSingleEmployeeWarningDeliveryTypesAsync(TourRecord tour)
+    {
+        var orderIds = (tour.Stops ?? [])
+            .Where(stop => stop is not null && !string.IsNullOrWhiteSpace(stop.Auftragsnummer))
+            .Select(stop => stop.Auftragsnummer.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (orderIds.Count == 0)
+        {
+            return [];
+        }
+
+        var orders = await _orderRepository.GetAllAsync();
+        var deliveryTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var order in orders.Where(x => orderIds.Contains(x.Id)))
+        {
+            var deliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType);
+            if (string.Equals(deliveryType, DeliveryMethodExtensions.MitVerteilung, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(deliveryType, DeliveryMethodExtensions.MitVerteilungMontage, StringComparison.OrdinalIgnoreCase))
+            {
+                deliveryTypes.Add(deliveryType);
+            }
+        }
+
+        return deliveryTypes
+            .OrderBy(x => string.Equals(x, DeliveryMethodExtensions.MitVerteilung, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ToList();
     }
 
     private async Task<bool> SaveTourAsync(TourRecord tour, CancellationToken cancellationToken = default)
@@ -1983,6 +2014,15 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private static string BuildCalendarWindowText(TourStopRecord stop)
     {
+        var arrivalRange = TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(
+            stop.PlannedArrivalOptimistic,
+            stop.PlannedArrival,
+            stop.PlannedArrivalPessimistic);
+        if (!string.IsNullOrWhiteSpace(arrivalRange))
+        {
+            return arrivalRange;
+        }
+
         var start = (stop.TimeWindowStart ?? string.Empty).Trim();
         var end = (stop.TimeWindowEnd ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(start) && string.IsNullOrWhiteSpace(end))
@@ -2012,16 +2052,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private static string BuildArrivalRangeText(TourStopRecord stop)
     {
-        var optimistic = (stop.PlannedArrivalOptimistic ?? string.Empty).Trim();
-        var pessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(optimistic) || string.IsNullOrWhiteSpace(pessimistic))
-        {
-            return string.Empty;
-        }
-
-        return string.Equals(optimistic, pessimistic, StringComparison.Ordinal)
-            ? string.Empty
-            : $"{optimistic} - {pessimistic}";
+        return TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(
+            stop.PlannedArrivalOptimistic,
+            stop.PlannedArrival,
+            stop.PlannedArrivalPessimistic);
     }
 
     private static IReadOnlyList<string> BuildCalendarProductLines(Order? order, TourStopRecord stop)
@@ -2393,7 +2427,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 OrderNumber = isCompanyStop || isPauseStop ? string.Empty : stop.Auftragsnummer,
                 Name = isCompanyStop ? NormalizeCompanyStopName(stop.Name) : (isPauseStop ? "Pause" : stop.Name),
                 Address = isCompanyStop || isPauseStop ? string.Empty : stop.Address,
-                Window = isCompanyStop || isPauseStop ? string.Empty : $"{stop.TimeWindowStart} - {stop.TimeWindowEnd}".Trim(' ', '-'),
+                Window = isCompanyStop || isPauseStop ? string.Empty : BuildCalendarWindowText(stop),
                 Arrival = arrival,
                 ArrivalRangeText = isCompanyStop ? string.Empty : BuildArrivalRangeText(stop),
                 Departure = departure,
@@ -2732,7 +2766,19 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private bool ConfirmPlanningWarnings(IEnumerable<TourRecord> tours, int targetTourId)
     {
-        var warnings = BuildPlanningWarnings(tours, targetTourId);
+        var allTours = (tours ?? [])
+            .Where(x => x is not null)
+            .ToList();
+
+        var assignmentConflicts = _conflictService.FindSameDayAssignmentConflicts(allTours)
+            .Where(c => c.TourIdA == targetTourId || c.TourIdB == targetTourId)
+            .ToList();
+        if (!ConfirmEmployeeAssignmentConflictWarning(assignmentConflicts))
+        {
+            return false;
+        }
+
+        var warnings = BuildPlanningWarnings(allTours, targetTourId, assignmentConflicts);
         if (warnings.Count == 0)
         {
             return true;
@@ -2777,7 +2823,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                    MessageBoxImage.Warning) == MessageBoxResult.Yes;
     }
 
-    private IReadOnlyList<TourPlanningWarningItem> BuildPlanningWarnings(IEnumerable<TourRecord> tours, int targetTourId)
+    private IReadOnlyList<TourPlanningWarningItem> BuildPlanningWarnings(
+        IEnumerable<TourRecord> tours,
+        int targetTourId,
+        IReadOnlyList<TourAssignmentConflict>? knownAssignmentConflicts = null)
     {
         var allTours = (tours ?? [])
             .Where(x => x is not null)
@@ -2790,8 +2839,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var warnings = new List<TourPlanningWarningItem>();
 
-        var assignmentConflicts = _conflictService.FindSameDayAssignmentConflicts(allTours)
+        var assignmentConflicts = (knownAssignmentConflicts ?? _conflictService.FindSameDayAssignmentConflicts(allTours))
             .Where(c => c.TourIdA == targetTourId || c.TourIdB == targetTourId)
+            .Where(c => !string.Equals((c.ResourceType ?? string.Empty).Trim(), "Mitarbeiter", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals((c.ResourceType ?? string.Empty).Trim(), "employee", StringComparison.OrdinalIgnoreCase))
             .Select(BuildAssignmentConflictDisplayText)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -2900,6 +2951,31 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return warnings
             .DistinctBy(x => $"{x.Title}|{x.Message}", StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private bool ConfirmEmployeeAssignmentConflictWarning(IReadOnlyList<TourAssignmentConflict> conflicts)
+    {
+        var employeeConflicts = conflicts
+            .Where(c => string.Equals((c.ResourceType ?? string.Empty).Trim(), "Mitarbeiter", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals((c.ResourceType ?? string.Empty).Trim(), "employee", StringComparison.OrdinalIgnoreCase))
+            .Select(BuildAssignmentConflictDisplayText)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (employeeConflicts.Count == 0)
+        {
+            return true;
+        }
+
+        var message =
+            "Mindestens ein ausgewählter Mitarbeiter ist am selben Tag bereits einer anderen Tour zugeordnet:" + Environment.NewLine + Environment.NewLine +
+            string.Join(Environment.NewLine, employeeConflicts.Select(x => $"- {x}")) + Environment.NewLine + Environment.NewLine +
+            "Trotzdem speichern?";
+
+        return Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                   message,
+                   "Mitarbeiter-Konflikt",
+                   MessageBoxButton.YesNo,
+                   MessageBoxImage.Warning) == MessageBoxResult.Yes;
     }
 
     private string BuildAssignmentConflictDisplayText(TourAssignmentConflict conflict)

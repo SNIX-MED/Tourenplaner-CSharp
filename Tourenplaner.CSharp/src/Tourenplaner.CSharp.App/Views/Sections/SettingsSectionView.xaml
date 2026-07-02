@@ -596,6 +596,57 @@
                                             </Grid>
                                         </StackPanel>
                                     </Border>
+
+                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Standard-Aufenthaltszeiten Karte" />
+                                            <TextBlock Margin="0,6,0,0"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       TextWrapping="Wrap"
+                                                       Text="Diese globalen Standardwerte gelten für neue Karten-Stopps und für Tourstopps ohne hinterlegte Aufenthaltszeit." />
+
+                                            <Grid Margin="0,16,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Fracht frei Bordsteinkante (min)" />
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding StayMinutesFreiBordsteinkante, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Fracht mit Verteilung (min)" />
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding StayMinutesMitVerteilung, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Fracht mit Verteilung &amp; Montage (min)" />
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding StayMinutesMitVerteilungMontage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Hinweis" />
+                                                        <TextBlock Margin="0,10,0,0"
+                                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                                   TextWrapping="Wrap"
+                                                                   Text="Bereits manuell angepasste Aufenthaltszeiten bestehender Stopps bleiben unverändert." />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
 
                                 <StackPanel>
@@ -1139,7 +1190,7 @@
                                         </Border>
                                         <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="05:00 - 07:30 Staupuffer (%)" />
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="05:00 - 06:00 Staupuffer (%)" />
                                                 <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom0500To0730, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Border>
@@ -1152,7 +1203,7 @@
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="07:30 - 09:00 Staupuffer (%)" />
+                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="06:00 - 09:00 Staupuffer (%)" />
                                                 <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TrafficBufferPercentFrom0730To0900, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Border>

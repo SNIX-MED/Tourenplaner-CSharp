@@ -129,6 +129,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private int _trafficBufferPercentFrom0730To0900 = AppSettings.DefaultTrafficBufferPercentFrom0730To0900;
     private int _trafficBufferPercentFrom0900To1530 = AppSettings.DefaultTrafficBufferPercentFrom0900To1530;
     private int _trafficBufferPercentFrom1530To1830 = AppSettings.DefaultTrafficBufferPercentFrom1530To1830;
+    private int _stayMinutesFreiBordsteinkante = AppSettings.DefaultStayMinutesFreiBordsteinkante;
+    private int _stayMinutesMitVerteilung = AppSettings.DefaultStayMinutesMitVerteilung;
+    private int _stayMinutesMitVerteilungMontage = AppSettings.DefaultStayMinutesMitVerteilungMontage;
     private string _tomTomTrafficSeverityMode = AppSettings.DefaultTomTomTrafficSeverityMode;
     private bool _tomTomEnableTileCache = true;
     private string _geocodeCachePath = string.Empty;
@@ -159,6 +162,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private bool _mapPinInfoCardShowTotalWeight = true;
     private double _pinInfoCardZoomBehaviorStrength = AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
     private bool _isRouteCalculating;
+    private bool _isReturnToCompanyLegVisible;
     private int _routeGeometryInFlightCount;
     private int _routeGeometryRevision;
     private int _activeTourId;
@@ -1053,6 +1057,15 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             userPreference.TrafficBufferPercentFrom1530To1830,
             userPreference.TrafficBufferPercentPerThirtyMinutes,
             AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
+        _stayMinutesFreiBordsteinkante = AppSettings.NormalizeStayMinutes(
+            settings.StayMinutesFreiBordsteinkante,
+            AppSettings.DefaultStayMinutesFreiBordsteinkante);
+        _stayMinutesMitVerteilung = AppSettings.NormalizeStayMinutes(
+            settings.StayMinutesMitVerteilung,
+            AppSettings.DefaultStayMinutesMitVerteilung);
+        _stayMinutesMitVerteilungMontage = AppSettings.NormalizeStayMinutes(
+            settings.StayMinutesMitVerteilungMontage,
+            AppSettings.DefaultStayMinutesMitVerteilungMontage);
         _tomTomTrafficSeverityMode = AppSettings.NormalizeTomTomTrafficSeverityMode(userPreference.TomTomTrafficSeverityMode);
         _scheduleService.SetTrafficBufferPercentProfile(
             _trafficBufferPercentFrom0500To0730,
@@ -1873,10 +1886,10 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             Position = 0,
             OrderId = order.OrderId,
             Customer = order.Customer,
-            Address = order.Address,
+            Address = BuildRouteStopAddressLine(order.Street, order.PostalCodeCity, order.Address),
             Latitude = order.Latitude,
             Longitude = order.Longitude,
-            PlannedStayMinutes = 10
+            PlannedStayMinutes = ResolveDefaultServiceMinutesForDeliveryType(order.DeliveryLabel)
         };
 
         var endIndex = RouteStops
@@ -2524,7 +2537,8 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             RouteStartMinute,
             vehicles,
             trailers,
-            employees)
+            employees,
+            GetSingleEmployeeWarningDeliveryTypesForRouteStops(RouteStops.Where(x => !IsCompanyStop(x)).Select(x => x.OrderId)))
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
@@ -2597,6 +2611,10 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             vehicleOptions: vehicles,
             trailerOptions: trailers,
             employeeOptions: employees,
+            singleEmployeeWarningDeliveryTypes: GetSingleEmployeeWarningDeliveryTypesForRouteStops(
+                RouteStops.Any(x => !IsCompanyStop(x))
+                    ? RouteStops.Where(x => !IsCompanyStop(x)).Select(x => x.OrderId)
+                    : ExtractNonCompanyTourOrderIds(tour)),
             selectedVehicleId: tour.VehicleId,
             selectedTrailerId: tour.TrailerId,
             selectedSecondaryVehicleId: tour.SecondaryVehicleId,
@@ -2715,7 +2733,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             _companyName,
             _companyAddress,
             _companyLocation,
-            defaultServiceMinutes: 10);
+            defaultServiceMinutes: _stayMinutesFreiBordsteinkante);
         ApplyCurrentRouteTravelTimeCaches(tour);
         tour.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
         tour.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
@@ -2831,7 +2849,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 _companyName,
                 _companyAddress,
                 _companyLocation,
-                defaultServiceMinutes: 10);
+                defaultServiceMinutes: _stayMinutesFreiBordsteinkante);
             ApplyCurrentRouteTravelTimeCaches(updated);
             _scheduleService.ApplySchedule(updated);
         }
@@ -2919,6 +2937,11 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         _savedTours.Clear();
         _savedTours.AddRange((await _tourRepository.LoadAsync())
             .Where(t => !t.IsArchived)
+            .Select(t =>
+            {
+                _scheduleService.ApplySchedule(t);
+                return t;
+            })
             .OrderByDescending(t => ParseDateForSort(t.Date))
             .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase));
 
@@ -3211,12 +3234,16 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                             ? (string.IsNullOrWhiteSpace(stop.Id) ? $"{PauseStopIdPrefix}{Guid.NewGuid():N}" : stop.Id.Trim())
                             : ExtractTourStopOrderId(stop),
                         Customer = isPause ? "Pause" : NormalizeTourStopName(stop.Name),
-                        Address = isPause ? string.Empty : (stop.Address ?? string.Empty),
+                        Address = isPause
+                            ? string.Empty
+                            : ResolveRouteStopAddress(ExtractTourStopOrderId(stop), stop.Address),
                         Latitude = isPause ? double.NaN : stop.Lat ?? double.NaN,
                         Longitude = isPause ? double.NaN : stop.Lng ?? stop.Lon ?? double.NaN,
                         IsCompanyAnchor = false,
                         IsPauseStop = isPause,
-                        PlannedStayMinutes = Math.Max(0, stop.ServiceMinutes),
+                        PlannedStayMinutes = isPause
+                            ? Math.Max(0, stop.ServiceMinutes)
+                            : ResolvePlannedStayMinutes(stop.ServiceMinutes, ExtractTourStopOrderId(stop)),
                         EmployeeInfoText = isPause ? string.Empty : stop.EmployeeInfoText ?? string.Empty
                     };
                 })
@@ -3485,6 +3512,16 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 PessimisticMinutes = leg.PessimisticDurationMinutes
             };
         }
+    }
+
+    public bool IsReturnToCompanyLegVisible => _isReturnToCompanyLegVisible;
+
+    public void ToggleReturnToCompanyLegVisibility()
+    {
+        _isReturnToCompanyLegVisible = !_isReturnToCompanyLegVisible;
+        OnPropertyChanged(nameof(IsReturnToCompanyLegVisible));
+        UpdateReturnToCompanyLegToggleState();
+        RequestRouteGeometryRebuild();
     }
 
     private static string BuildTourLookupLabel(TourRecord tour)
@@ -3760,6 +3797,15 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return string.Empty;
         }
 
+        var arrivalRange = TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(
+            stop.PlannedArrivalOptimistic,
+            stop.PlannedArrival,
+            stop.PlannedArrivalPessimistic);
+        if (!string.IsNullOrWhiteSpace(arrivalRange))
+        {
+            return arrivalRange;
+        }
+
         if (!string.IsNullOrWhiteSpace(stop.TimeWindowStart) && !string.IsNullOrWhiteSpace(stop.TimeWindowEnd))
         {
             return $"{stop.TimeWindowStart} - {stop.TimeWindowEnd}";
@@ -3806,15 +3852,10 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return string.Empty;
         }
 
-        var optimistic = (stop.PlannedArrivalOptimistic ?? string.Empty).Trim();
-        var pessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(optimistic) || string.IsNullOrWhiteSpace(pessimistic) ||
-            string.Equals(optimistic, pessimistic, StringComparison.Ordinal))
-        {
-            return string.Empty;
-        }
-
-        return $"{optimistic} - {pessimistic}";
+        return TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(
+            stop.PlannedArrivalOptimistic,
+            stop.PlannedArrival,
+            stop.PlannedArrivalPessimistic);
     }
 
     private string ResolveWeightText(string orderId)
@@ -3915,13 +3956,16 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                     Position = stop.Position,
                     OrderId = stop.OrderId ?? string.Empty,
                     Customer = stop.Customer ?? string.Empty,
-                    Address = stop.Address ?? string.Empty,
+                    Address = ResolveRouteStopAddress(stop.OrderId, stop.Address),
                     Latitude = stop.Latitude,
                     Longitude = stop.Longitude,
                     IsCompanyAnchor = false,
                     IsPauseStop = string.Equals((stop.StopKind ?? string.Empty).Trim(), PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
                                   (stop.OrderId ?? string.Empty).StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase),
-                    PlannedStayMinutes = stop.ServiceMinutes < 0 ? 10 : stop.ServiceMinutes,
+                    PlannedStayMinutes = string.Equals((stop.StopKind ?? string.Empty).Trim(), PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
+                                         (stop.OrderId ?? string.Empty).StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase)
+                        ? Math.Max(0, stop.ServiceMinutes)
+                        : ResolvePlannedStayMinutes(stop.ServiceMinutes, stop.OrderId),
                     EmployeeInfoText = stop.EmployeeInfoText
                 });
             }
@@ -4186,6 +4230,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             stop.DisplayIndex = IsCompanyStop(stop) || IsPauseStop(stop) ? 0 : ++displayIndex;
         }
 
+        UpdateReturnToCompanyLegToggleState();
         ClearRouteStopEtaValues();
 
         OnPropertyChanged(nameof(RouteStops));
@@ -4205,9 +4250,18 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         {
             stop.EtaText = string.Empty;
             stop.EtaRangeText = string.Empty;
+            stop.IsReturnToCompanyLegVisible = stop.IsRouteEnd && _isReturnToCompanyLegVisible;
             stop.ClearNextLeg();
             stop.ClearPauseAfter();
             stop.ClearTrafficBufferAfter();
+        }
+    }
+
+    private void UpdateReturnToCompanyLegToggleState()
+    {
+        foreach (var stop in RouteStops)
+        {
+            stop.IsReturnToCompanyLegVisible = stop.IsRouteEnd && _isReturnToCompanyLegVisible;
         }
     }
 
@@ -4431,6 +4485,20 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return true;
         }
 
+        if (!ConfirmEmployeeAssignmentConflictWarning(conflicts))
+        {
+            return false;
+        }
+
+        conflicts = conflicts
+            .Where(c => !string.Equals((c.ResourceType ?? string.Empty).Trim(), "Mitarbeiter", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals((c.ResourceType ?? string.Empty).Trim(), "employee", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (conflicts.Count == 0)
+        {
+            return true;
+        }
+
         var grouped = conflicts
             .Select(c => new
             {
@@ -4493,6 +4561,31 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         return Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                    message,
                    "Konfliktwarnung",
+                   MessageBoxButton.YesNo,
+                   MessageBoxImage.Warning) == MessageBoxResult.Yes;
+    }
+
+    private bool ConfirmEmployeeAssignmentConflictWarning(IReadOnlyList<TourAssignmentConflict> conflicts)
+    {
+        var employeeConflicts = conflicts
+            .Where(c => string.Equals((c.ResourceType ?? string.Empty).Trim(), "Mitarbeiter", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals((c.ResourceType ?? string.Empty).Trim(), "employee", StringComparison.OrdinalIgnoreCase))
+            .Select(BuildAssignmentConflictDisplayText)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (employeeConflicts.Count == 0)
+        {
+            return true;
+        }
+
+        var message =
+            "Mindestens ein ausgewählter Mitarbeiter ist am selben Tag bereits einer anderen Tour zugeordnet:" + Environment.NewLine + Environment.NewLine +
+            string.Join(Environment.NewLine, employeeConflicts.Select(x => $"- {x}")) + Environment.NewLine + Environment.NewLine +
+            "Trotzdem speichern?";
+
+        return Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                   message,
+                   "Mitarbeiter-Konflikt",
                    MessageBoxButton.YesNo,
                    MessageBoxImage.Warning) == MessageBoxResult.Yes;
     }
@@ -4701,6 +4794,34 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         return order is null
             ? string.Empty
             : NormalizeDeliveryType(order.DeliveryType);
+    }
+
+    private IReadOnlyList<string> GetSingleEmployeeWarningDeliveryTypesForRouteStops(IEnumerable<string?> orderIds)
+    {
+        var normalizedOrderIds = (orderIds ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (normalizedOrderIds.Count == 0)
+        {
+            return [];
+        }
+
+        var presentDeliveryTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var order in _allOrders.Where(x => normalizedOrderIds.Contains(x.Id)))
+        {
+            var deliveryType = NormalizeDeliveryType(order.DeliveryType);
+            if (string.Equals(deliveryType, DeliveryMethodExtensions.MitVerteilung, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(deliveryType, DeliveryMethodExtensions.MitVerteilungMontage, StringComparison.OrdinalIgnoreCase))
+            {
+                presentDeliveryTypes.Add(deliveryType);
+            }
+        }
+
+        return presentDeliveryTypes
+            .OrderBy(x => string.Equals(x, DeliveryMethodExtensions.MitVerteilung, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ToList();
     }
 
     private void RaiseCommandStates()
@@ -5085,6 +5206,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     private void CloseDetails()
     {
         SelectedOrder = null;
+        SelectedRouteStop = null;
     }
 
     private void SendEmailToSelectedOrder()
@@ -5775,7 +5897,10 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             }
 
             stop.Customer = order.CustomerName;
-            stop.Address = order.Address;
+            stop.Address = BuildRouteStopAddressLine(
+                ResolveStreet(order),
+                ResolvePostalCodeCity(order),
+                order.Address);
             stop.Latitude = order.Location?.Latitude ?? stop.Latitude;
             stop.Longitude = order.Location?.Longitude ?? stop.Longitude;
         }
@@ -5877,6 +6002,15 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 userPreference.TrafficBufferPercentPerThirtyMinutes,
                 AppSettings.DefaultTrafficBufferPercentFrom1530To1830);
             var nextTomTomTrafficSeverityMode = AppSettings.NormalizeTomTomTrafficSeverityMode(userPreference.TomTomTrafficSeverityMode);
+            var nextStayMinutesFreiBordsteinkante = AppSettings.NormalizeStayMinutes(
+                settings.StayMinutesFreiBordsteinkante,
+                AppSettings.DefaultStayMinutesFreiBordsteinkante);
+            var nextStayMinutesMitVerteilung = AppSettings.NormalizeStayMinutes(
+                settings.StayMinutesMitVerteilung,
+                AppSettings.DefaultStayMinutesMitVerteilung);
+            var nextStayMinutesMitVerteilungMontage = AppSettings.NormalizeStayMinutes(
+                settings.StayMinutesMitVerteilungMontage,
+                AppSettings.DefaultStayMinutesMitVerteilungMontage);
             var nextAvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(userPreference.AvisoEmailSubjectTemplate)
                 ? AppSettings.DefaultAvisoEmailSubjectTemplate
                 : userPreference.AvisoEmailSubjectTemplate.Trim();
@@ -5959,6 +6093,10 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 _tomTomTrafficSeverityMode = nextTomTomTrafficSeverityMode;
                 routeRebuildRequired = true;
             }
+
+            _stayMinutesFreiBordsteinkante = nextStayMinutesFreiBordsteinkante;
+            _stayMinutesMitVerteilung = nextStayMinutesMitVerteilung;
+            _stayMinutesMitVerteilungMontage = nextStayMinutesMitVerteilungMontage;
 
             if (!string.Equals(_companyName, nextCompanyName, StringComparison.Ordinal) ||
                 !string.Equals(_companyAddress, nextCompanyAddress, StringComparison.Ordinal) ||
@@ -6495,6 +6633,12 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 .Where(x => !double.IsNaN(x.Latitude) && !double.IsNaN(x.Longitude))
                 .Where(x => x.Latitude is >= -90 and <= 90 && x.Longitude is >= -180 and <= 180)
                 .ToList();
+            if (!_isReturnToCompanyLegVisible &&
+                validStops.Count > 1 &&
+                validStops[^1].IsRouteEnd)
+            {
+                validStops.RemoveAt(validStops.Count - 1);
+            }
             var waypoints = validStops.Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
             var plannedDeparture = BuildPlannedDepartureDateTime();
             var trafficDeparture = _tomTomUseDepartAtTraffic ? plannedDeparture : null;
@@ -6827,7 +6971,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             if (IsPauseStop(stop))
             {
                 stop.EtaText = realisticCurrent.ToString("HH:mm");
-                stop.EtaRangeText = BuildTimeRangeText(optimisticCurrent, pessimisticCurrent);
+                stop.EtaRangeText = BuildTimeRangeText(optimisticCurrent, realisticCurrent, pessimisticCurrent);
                 previousRoutedStop?.AddPauseAfter(Math.Max(0, stop.PlannedStayMinutes));
                 totalStayMinutes += Math.Max(0, stop.PlannedStayMinutes);
                 optimisticCurrent = optimisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
@@ -6855,6 +6999,16 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             }
 
             var leg = _routeLegs[routeLegIndex];
+            var isReturnToCompanyLeg = stop.IsRouteEnd;
+            if (isReturnToCompanyLeg && !_isReturnToCompanyLegVisible)
+            {
+                stop.EtaText = string.Empty;
+                stop.EtaRangeText = string.Empty;
+                previousRoutedStop = stop;
+                routeLegIndex++;
+                continue;
+            }
+
             var realisticDepart = realisticCurrent;
             optimisticCurrent = optimisticCurrent.AddMinutes(leg.OptimisticDurationMinutes);
             realisticCurrent = realisticCurrent.AddMinutes(leg.RealisticDurationMinutes);
@@ -6875,7 +7029,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 totalTrafficBufferMinutes += trafficBufferMinutes;
             }
             var arrive = realisticCurrent;
-            var legRangeText = BuildTimeRangeText(optimisticCurrent, pessimisticCurrent);
+            var legRangeText = BuildTimeRangeText(optimisticCurrent, realisticCurrent, pessimisticCurrent);
             totalDriveMinutes += leg.DurationMinutes;
             totalDistanceKm += leg.DistanceKm;
 
@@ -6923,37 +7077,14 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         DriveTimesText = sb.Length == 0 ? "Noch keine Stopps geplant." : sb.ToString().TrimEnd();
     }
 
-    private static string BuildTimeRangeText(DateTime optimistic, DateTime pessimistic)
+    private static string BuildTimeRangeText(DateTime optimistic, DateTime realistic, DateTime pessimistic)
     {
-        var optimisticText = RoundDownToHalfHour(optimistic).ToString("HH:mm");
-        var pessimisticText = Max(optimistic, RoundDisplayedRangeEndToHalfHour(pessimistic)).ToString("HH:mm");
+        var displayedRange = TourArrivalDisplayFormatter.BuildDisplayedArrivalRange(optimistic, realistic, pessimistic);
+        var optimisticText = displayedRange.Optimistic.ToString("HH:mm");
+        var pessimisticText = displayedRange.Pessimistic.ToString("HH:mm");
         return string.Equals(optimisticText, pessimisticText, StringComparison.Ordinal)
             ? string.Empty
             : $"{optimisticText} - {pessimisticText}";
-    }
-
-    private static DateTime RoundDownToHalfHour(DateTime value)
-    {
-        var roundedMinutes = (value.Minute / 30) * 30;
-        return new DateTime(value.Year, value.Month, value.Day, value.Hour, roundedMinutes, 0, value.Kind);
-    }
-
-    private static DateTime RoundDisplayedRangeEndToHalfHour(DateTime value)
-    {
-        var minute = value.Minute;
-        var roundedMinutes = minute switch
-        {
-            <= 14 => 0,
-            <= 44 => 30,
-            _ => 0
-        };
-        var rounded = new DateTime(value.Year, value.Month, value.Day, value.Hour, 0, 0, value.Kind);
-        if (minute >= 45)
-        {
-            rounded = rounded.AddHours(1);
-        }
-
-        return rounded.AddMinutes(roundedMinutes);
     }
 
     private static DateTime Max(DateTime left, DateTime right) => left >= right ? left : right;
@@ -7250,6 +7381,100 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             (street ?? string.Empty).Trim(),
             (houseNumber ?? string.Empty).Trim()
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private int ResolveDefaultServiceMinutesForOrder(string? orderId)
+    {
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
+        return ResolveDefaultServiceMinutesForDeliveryType(order?.DeliveryType);
+    }
+
+    private int ResolveDefaultServiceMinutesForDeliveryType(string? deliveryType)
+    {
+        return DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(deliveryType) switch
+        {
+            DeliveryMethodExtensions.MitVerteilung => _stayMinutesMitVerteilung,
+            DeliveryMethodExtensions.MitVerteilungMontage => _stayMinutesMitVerteilungMontage,
+            _ => _stayMinutesFreiBordsteinkante
+        };
+    }
+
+    private int ResolvePlannedStayMinutes(int serviceMinutes, string? orderId)
+    {
+        return serviceMinutes < 0
+            ? ResolveDefaultServiceMinutesForOrder(orderId)
+            : Math.Max(0, serviceMinutes);
+    }
+
+    internal static string BuildRouteStopAddressLine(string? street, string? postalCodeCity, string? fallbackAddress)
+    {
+        var normalizedStreet = NormalizeUiText(street);
+        var normalizedPostalCodeCity = NormalizeUiText(postalCodeCity);
+        var normalizedFallbackAddress = NormalizeUiText(fallbackAddress);
+
+        if (string.IsNullOrWhiteSpace(normalizedStreet) && !string.IsNullOrWhiteSpace(normalizedFallbackAddress))
+        {
+            var commaIndex = normalizedFallbackAddress.IndexOf(',');
+            normalizedStreet = commaIndex < 0
+                ? normalizedFallbackAddress
+                : normalizedFallbackAddress[..commaIndex].Trim();
+        }
+
+        normalizedStreet = StripTrailingStandaloneNumber(normalizedStreet);
+
+        if (string.IsNullOrWhiteSpace(normalizedPostalCodeCity) && !string.IsNullOrWhiteSpace(normalizedFallbackAddress))
+        {
+            var commaIndex = normalizedFallbackAddress.IndexOf(',');
+            if (commaIndex >= 0 && commaIndex + 1 < normalizedFallbackAddress.Length)
+            {
+                normalizedPostalCodeCity = normalizedFallbackAddress[(commaIndex + 1)..].Trim();
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedStreet))
+        {
+            return normalizedPostalCodeCity;
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedPostalCodeCity))
+        {
+            return normalizedStreet;
+        }
+
+        return $"{normalizedStreet}, {normalizedPostalCodeCity}";
+    }
+
+    private string ResolveRouteStopAddress(string? orderId, string? fallbackAddress)
+    {
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
+        if (order is null)
+        {
+            return BuildRouteStopAddressLine(null, null, fallbackAddress);
+        }
+
+        return BuildRouteStopAddressLine(
+            ResolveStreet(order),
+            ResolvePostalCodeCity(order),
+            order.Address);
+    }
+
+    private static string StripTrailingStandaloneNumber(string? value)
+    {
+        var normalizedValue = NormalizeUiText(value);
+        if (string.IsNullOrWhiteSpace(normalizedValue))
+        {
+            return string.Empty;
+        }
+
+        var parts = normalizedValue.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length >= 2 &&
+            int.TryParse(parts[^1], out _) &&
+            parts[^1].Length >= 5)
+        {
+            return string.Join(" ", parts[..^1]);
+        }
+
+        return normalizedValue;
     }
 
     private static List<string> BuildProductLineItems(IEnumerable<OrderProductInfo>? products)
@@ -7638,6 +7863,7 @@ public sealed class RouteStopItem : ObservableObject
     private bool _isLegSelected;
     private bool _isDropTargetBefore;
     private bool _isDropTargetAfter;
+    private bool _isReturnToCompanyLegVisible;
     private int _plannedStayMinutes = 10;
     private string _etaText = string.Empty;
     private string _etaRangeText = string.Empty;
@@ -7717,6 +7943,7 @@ public sealed class RouteStopItem : ObservableObject
             {
                 OnPropertyChanged(nameof(DisplayName));
                 OnPropertyChanged(nameof(DisplayNameWithOrder));
+                OnPropertyChanged(nameof(DisplayAddress));
             }
         }
     }
@@ -7795,6 +8022,12 @@ public sealed class RouteStopItem : ObservableObject
     {
         get => _isDropTargetAfter;
         set => SetProperty(ref _isDropTargetAfter, value);
+    }
+
+    public bool IsReturnToCompanyLegVisible
+    {
+        get => _isReturnToCompanyLegVisible;
+        set => SetProperty(ref _isReturnToCompanyLegVisible, value);
     }
 
     public int PlannedStayMinutes
@@ -7941,7 +8174,18 @@ public sealed class RouteStopItem : ObservableObject
         IsCompanyDisplay || string.IsNullOrWhiteSpace(DisplayOrder) || string.Equals(DisplayOrder, "-", StringComparison.Ordinal)
             ? DisplayName
             : $"{DisplayName} ({DisplayOrder})";
-    public string DisplayAddress => IsPauseStop || string.Equals(DisplayName, Address, StringComparison.OrdinalIgnoreCase) ? string.Empty : Address;
+    public string DisplayAddress
+    {
+        get
+        {
+            if (IsPauseStop || string.Equals(DisplayName, Address, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Empty;
+            }
+
+            return KarteSectionViewModel.BuildRouteStopAddressLine(null, null, Address);
+        }
+    }
     public string DisplayWindow => "--";
     public string DisplayOrder => IsPauseStop ? string.Empty : (string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId);
     public string DisplayStay => IsCompanyDisplay ? string.Empty : $"{PlannedStayMinutes} min";

@@ -1368,6 +1368,37 @@
                                                                     </Style>
                                                                 </StackPanel.Style>
                                                                 <DockPanel>
+                                                                    <Button DockPanel.Dock="Right"
+                                                                            Width="28"
+                                                                            Height="28"
+                                                                            Margin="8,0,0,0"
+                                                                            Padding="0"
+                                                                            Background="Transparent"
+                                                                            BorderThickness="0"
+                                                                            Cursor="Hand"
+                                                                            ToolTip="Rückfahrt zur Firma ein- oder ausblenden"
+                                                                            Click="OnReturnToCompanyLegToggleClick">
+                                                                        <Button.Style>
+                                                                            <Style TargetType="Button">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsRouteEnd}" Value="True">
+                                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding IsReturnToCompanyLegVisible}" Value="True">
+                                                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.Accent}" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Button.Style>
+                                                                        <TextBlock Text="&#xE890;"
+                                                                                   FontFamily="Segoe MDL2 Assets"
+                                                                                   FontSize="14"
+                                                                                   HorizontalAlignment="Center"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                                                    </Button>
                                                                     <TextBlock Text="{Binding DisplayNameWithOrder}"
                                                                                FontSize="17"
                                                                                FontWeight="SemiBold"

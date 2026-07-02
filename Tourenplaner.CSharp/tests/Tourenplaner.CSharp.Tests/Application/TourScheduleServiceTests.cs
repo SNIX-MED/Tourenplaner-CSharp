@@ -118,7 +118,7 @@ public class TourScheduleServiceTests
     }
 
     [Fact]
-    public void ApplySchedule_RoundsArrivalRangeToHalfHours()
+    public void ApplySchedule_RoundsArrivalRangeToQuarterHours()
     {
         var service = new TourScheduleService(0, 0, 0, 0);
         var tour = new TourRecord
@@ -135,9 +135,9 @@ public class TourScheduleServiceTests
             {
                 ["A|B"] = new()
                 {
-                    OptimisticMinutes = 27,
-                    RealisticMinutes = 34,
-                    PessimisticMinutes = 49
+                    OptimisticMinutes = 28,
+                    RealisticMinutes = 37,
+                    PessimisticMinutes = 53
                 }
             }
         };
@@ -145,12 +145,12 @@ public class TourScheduleServiceTests
         var updated = service.ApplySchedule(tour);
 
         Assert.Equal("08:30", updated.Stops[1].PlannedArrivalOptimistic);
-        Assert.Equal("08:44", updated.Stops[1].PlannedArrival);
-        Assert.Equal("09:00", updated.Stops[1].PlannedArrivalPessimistic);
+        Assert.Equal("08:47", updated.Stops[1].PlannedArrival);
+        Assert.Equal("09:15", updated.Stops[1].PlannedArrivalPessimistic);
     }
 
     [Fact]
-    public void ApplySchedule_RoundsDisplayedRangeEndDownAtFourteenAndFortyFourMinutes()
+    public void ApplySchedule_RoundsDisplayedRangeEndUpToQuarterHour()
     {
         var service = new TourScheduleService(0, 0, 0, 0);
         var tour = new TourRecord
@@ -176,7 +176,7 @@ public class TourScheduleServiceTests
 
         var updated = service.ApplySchedule(tour);
         Assert.Equal("08:00", updated.Stops[1].PlannedArrivalOptimistic);
-        Assert.Equal("08:10", updated.Stops[1].PlannedArrivalPessimistic);
+        Assert.Equal("08:15", updated.Stops[1].PlannedArrivalPessimistic);
 
         tour.TravelTimeProfileCache["A|B"] = new TourTravelTimeProfile
         {
@@ -187,7 +187,39 @@ public class TourScheduleServiceTests
 
         updated = service.ApplySchedule(tour);
         Assert.Equal("08:30", updated.Stops[1].PlannedArrivalOptimistic);
-        Assert.Equal("08:30", updated.Stops[1].PlannedArrivalPessimistic);
+        Assert.Equal("08:45", updated.Stops[1].PlannedArrivalPessimistic);
+    }
+
+    [Fact]
+    public void ApplySchedule_ClampsDisplayedArrivalRangeToTwoHours()
+    {
+        var service = new TourScheduleService(0, 0, 0, 0);
+        var tour = new TourRecord
+        {
+            Id = 11,
+            Date = "21.03.2026",
+            StartTime = "08:00",
+            Stops =
+            [
+                new TourStopRecord { Id = "A", Order = 1, ServiceMinutes = 0 },
+                new TourStopRecord { Id = "B", Order = 2, ServiceMinutes = 0 }
+            ],
+            TravelTimeProfileCache = new Dictionary<string, TourTravelTimeProfile>
+            {
+                ["A|B"] = new()
+                {
+                    OptimisticMinutes = 45,
+                    RealisticMinutes = 60,
+                    PessimisticMinutes = 180
+                }
+            }
+        };
+
+        var updated = service.ApplySchedule(tour);
+
+        Assert.Equal("08:45", updated.Stops[1].PlannedArrivalOptimistic);
+        Assert.Equal("09:00", updated.Stops[1].PlannedArrival);
+        Assert.Equal("10:45", updated.Stops[1].PlannedArrivalPessimistic);
     }
 
     [Fact]
@@ -284,6 +316,38 @@ public class TourScheduleServiceTests
         Assert.Equal("11:39", result.Stops[1].Arrival.ToString("HH:mm"));
         Assert.Equal("11:29", result.Stops[1].OptimisticArrival?.ToString("HH:mm"));
         Assert.Equal("11:54", result.Stops[1].PessimisticArrival?.ToString("HH:mm"));
+    }
+
+    [Fact]
+    public void BuildSchedule_UsesMorningTrafficBufferWindowFromSixToNine()
+    {
+        var service = new TourScheduleService(10, 20, 0, 20);
+        var tour = new TourRecord
+        {
+            Id = 12,
+            Date = "21.03.2026",
+            StartTime = "06:00",
+            Stops =
+            [
+                new TourStopRecord { Id = "A", Order = 1, ServiceMinutes = 0 },
+                new TourStopRecord { Id = "B", Order = 2, ServiceMinutes = 0 }
+            ],
+            TravelTimeProfileCache = new Dictionary<string, TourTravelTimeProfile>
+            {
+                ["A|B"] = new()
+                {
+                    OptimisticMinutes = 35,
+                    RealisticMinutes = 40,
+                    PessimisticMinutes = 50
+                }
+            }
+        };
+
+        var result = service.BuildSchedule(tour);
+
+        Assert.Equal("06:48", result.Stops[1].Arrival.ToString("HH:mm"));
+        Assert.Equal("06:43", result.Stops[1].OptimisticArrival?.ToString("HH:mm"));
+        Assert.Equal("06:58", result.Stops[1].PessimisticArrival?.ToString("HH:mm"));
     }
 
     [Fact]

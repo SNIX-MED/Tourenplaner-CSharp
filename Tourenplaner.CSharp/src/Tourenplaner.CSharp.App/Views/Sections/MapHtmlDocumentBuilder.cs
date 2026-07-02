@@ -52,6 +52,8 @@ internal static class MapHtmlDocumentBuilder
                   .gawela-pin-pattern { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: inherit; z-index: 1; }
                   .gawela-pin-pattern-triangle { position: absolute; left: 4px; top: 4px; width: 20px; height: 18px; pointer-events: none; overflow: hidden; z-index: 1; clip-path: polygon(50% 0, 0 100%, 100% 100%); }
                   .gawela-pin-pattern-fill { width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(135deg, rgba(255,255,255,0) 0 37%, rgba(255,255,255,0.98) 37% 43%, rgba(255,255,255,0) 43% 57%, rgba(255,255,255,0.98) 57% 63%, rgba(255,255,255,0) 63% 100%); background-position: center; background-repeat: no-repeat; }
+                  .gawela-pin-label { position: absolute; left: 4px; top: 4px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 11px; line-height: 1; font-weight: 700; text-transform: uppercase; text-shadow: 0 1px 2px rgba(15,23,42,.45); pointer-events: none; z-index: 2; }
+                  .gawela-pin-label-triangle { left: 2px; top: 5px; width: 24px; height: 18px; }
                   .gawela-pin-badges { position: absolute; right: -2px; top: -2px; display: flex; }
                   .gawela-pin-badge { width: 9px; height: 9px; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 0 1px rgba(30,41,59,0.55); }
                    .gawela-pin-badge-aviso-none { background: #64748b; color: #ffffff; }
@@ -60,6 +62,9 @@ internal static class MapHtmlDocumentBuilder
                    .gawela-pin-badge-assigned { background: #64748b; color: #ffffff; }
                    .gawela-pin-dimmed { opacity: .35; }
                    .gawela-pin-selected { outline: 2px solid #111827; outline-offset: 2px; }
+                   .gawela-route-pin-highlighted .gawela-pin,
+                   .gawela-route-pin-highlighted .gawela-pin-triangle-outline { filter: drop-shadow(0 0 8px rgba(15,23,42,.45)) drop-shadow(0 0 4px rgba(255,255,255,.9)); }
+                   .gawela-route-pin-highlighted .gawela-pin { box-shadow: 0 0 0 3px rgba(255,255,255,.96), 0 0 0 5px rgba(15,23,42,.22), 0 6px 14px rgba(15,23,42,.35); }
                    .gawela-company-marker { width: 22px; height: 22px; border-radius: 50%; background: #0f766e; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; }
                    .gawela-company-marker svg { width: 12px; height: 12px; fill: #ffffff; display: block; }
                    .map-top-controls { position: absolute; right: 12px; top: 12px; z-index: 1350; display: inline-flex; align-items: center; gap: 8px; }
@@ -649,11 +654,23 @@ internal static class MapHtmlDocumentBuilder
                              }
                            }
 
-                           const badges = document.createElement('div');
-                           badges.className = 'gawela-pin-badges';
+                         const badges = document.createElement('div');
+                         badges.className = 'gawela-pin-badges';
 
-                           if (m && m.isAssigned) {
-                             const aviso = document.createElement('div');
+                         const labelText = isRouteMarker && m && m.label
+                           ? String(m.label).trim()
+                           : '';
+                         if (labelText.length > 0) {
+                           const label = document.createElement('div');
+                           label.className = shape === 'triangle'
+                             ? 'gawela-pin-label gawela-pin-label-triangle'
+                             : 'gawela-pin-label';
+                           label.textContent = labelText;
+                           wrap.appendChild(label);
+                         }
+
+                         if (m && m.isAssigned) {
+                           const aviso = document.createElement('div');
                              aviso.className = `gawela-pin-badge ${avisoBadgeClass(m.avisoStatus)}`;
                              badges.appendChild(aviso);
                            }
@@ -1733,6 +1750,18 @@ internal static class MapHtmlDocumentBuilder
                            return [lon, lat];
                          };
 
+                         let highlightedRouteStopId = '';
+
+                         const applyRouteStopHighlight = () => {
+                           routeMarkers.forEach(marker => {
+                             if (!marker || typeof marker.getElement !== 'function') return;
+                             const markerEl = marker.getElement();
+                             if (!markerEl) return;
+                             const markerId = marker.__gawelaOrderId ? String(marker.__gawelaOrderId) : '';
+                             markerEl.classList.toggle('gawela-route-pin-highlighted', !!highlightedRouteStopId && markerId === highlightedRouteStopId);
+                           });
+                         };
+
                          window.gawelaSetRoute = function(routeStops, geometryPoints, routeColor, trafficSegments) {
                            window.__gawelaLastRoutePayload = {
                              routeStops: Array.isArray(routeStops) ? routeStops : [],
@@ -1816,9 +1845,9 @@ internal static class MapHtmlDocumentBuilder
                                });
                              }
 
-                             const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
-                               createScaledPopupHtml(`Route stop ${stop.label || stop.position || '?'}<br/>Order: ${stop.id || ''}`)
-                             );
+                            const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
+                              createScaledPopupHtml('')
+                            );
                              const marker = new ttSdk.Marker({ element: buildMarkerElement(stop, true), draggable: true, anchor: 'center' })
                                .setLngLat([stop.lon, stop.lat])
                                .setPopup(popup)
@@ -1879,6 +1908,8 @@ internal static class MapHtmlDocumentBuilder
                             routeMarkerMap.set(stop.id, marker);
                             routeMarkers.push(marker);
                           });
+
+                           applyRouteStopHighlight();
                         };
 
                          window.gawelaHighlightMarker = function(orderId) {
@@ -1893,6 +1924,8 @@ internal static class MapHtmlDocumentBuilder
                          };
 
                          window.gawelaHighlightRouteStop = function(orderId) {
+                           highlightedRouteStopId = (orderId || '').toString().trim();
+                           applyRouteStopHighlight();
                            const marker = routeMarkerMap.get(orderId);
                            if (!marker) return;
                            map.easeTo({ center: marker.getLngLat(), duration: 350 });
