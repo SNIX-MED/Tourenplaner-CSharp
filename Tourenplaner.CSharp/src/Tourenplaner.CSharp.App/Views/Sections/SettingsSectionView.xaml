@@ -18,82 +18,128 @@
             <Setter Property="Effect" Value="{x:Null}" />
         </Style>
         <Style x:Key="SettingsSidebarCardStyle" TargetType="Border" BasedOn="{StaticResource SharpSoftCardStyle}">
-            <Setter Property="Padding" Value="14" />
-            <Setter Property="CornerRadius" Value="22" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="CornerRadius" Value="18" />
             <Setter Property="Background" Value="{DynamicResource Brush.SidebarBackground}" />
         </Style>
         <Style x:Key="SettingsSurfaceCardStyle" TargetType="Border" BasedOn="{StaticResource SharpSoftCardStyle}">
-            <Setter Property="Padding" Value="22" />
-            <Setter Property="CornerRadius" Value="28" />
+            <Setter Property="Padding" Value="18" />
+            <Setter Property="CornerRadius" Value="22" />
             <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
-            <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="Margin" Value="0,0,0,10" />
         </Style>
         <Style x:Key="SettingsMetricCardStyle" TargetType="Border" BasedOn="{StaticResource SharpGlassPanelBorderStyle}">
-            <Setter Property="Width" Value="250" />
-            <Setter Property="Padding" Value="18" />
-            <Setter Property="Margin" Value="0,0,14,14" />
-            <Setter Property="CornerRadius" Value="22" />
+            <Setter Property="Width" Value="226" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="Margin" Value="0,0,10,10" />
+            <Setter Property="CornerRadius" Value="18" />
             <Setter Property="Background" Value="{DynamicResource Brush.GlassSurfaceSoft}" />
         </Style>
         <Style x:Key="SettingsSectionTitleStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="28" />
+            <Setter Property="FontSize" Value="24" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
         </Style>
         <Style x:Key="SettingsSectionSubtitleStyle" TargetType="TextBlock">
-            <Setter Property="Margin" Value="0,5,0,0" />
+            <Setter Property="Margin" Value="0,3,0,0" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
         <Style x:Key="SettingsSubsectionTitleStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
         </Style>
         <Style x:Key="SettingsFieldLabelStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="12.5" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
+        <Style x:Key="SettingsInfoIconStyle" TargetType="Border">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Background" Value="{DynamicResource Brush.BorderSoft}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="250" />
+            <Setter Property="ToolTipService.ShowDuration" Value="12000" />
+        </Style>
+        <Style x:Key="SettingsInfoIconTextStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Text" Value="?" />
+        </Style>
         <Style x:Key="SettingsTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-            <Setter Property="Margin" Value="0,8,0,0" />
-            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+            <Setter Property="MinHeight" Value="34" />
         </Style>
         <Style x:Key="SettingsComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-            <Setter Property="Margin" Value="0,8,0,0" />
-            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+            <Setter Property="MinHeight" Value="34" />
         </Style>
         <Style x:Key="SettingsFieldCardStyle" TargetType="Border" BasedOn="{StaticResource SharpGlassPanelBorderStyle}">
-            <Setter Property="Padding" Value="16" />
-            <Setter Property="Margin" Value="0,0,14,14" />
-            <Setter Property="CornerRadius" Value="20" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Margin" Value="0,0,10,10" />
+            <Setter Property="CornerRadius" Value="14" />
             <Setter Property="Background" Value="{DynamicResource Brush.GlassSurfaceSoft}" />
         </Style>
         <Style x:Key="SettingsInnerPanelStyle" TargetType="Border" BasedOn="{StaticResource SharpGlassPanelBorderStyle}">
-            <Setter Property="Padding" Value="18" />
-            <Setter Property="Margin" Value="0,0,0,16" />
-            <Setter Property="CornerRadius" Value="22" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="CornerRadius" Value="16" />
             <Setter Property="Background" Value="{DynamicResource Brush.GlassSurfaceSoft}" />
         </Style>
+        <Style x:Key="SettingsAdvancedExpanderStyle" TargetType="Expander">
+            <Setter Property="Margin" Value="0,12,0,0" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
         <Style x:Key="ColorPreviewCardStyle" TargetType="Border" BasedOn="{StaticResource SharpGlassPanelBorderStyle}">
-            <Setter Property="Width" Value="176" />
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="Margin" Value="0,0,10,10" />
-            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Width" Value="152" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
+        </Style>
+        <Style x:Key="CompactColorRowCardStyle" TargetType="Border" BasedOn="{StaticResource SharpGlassPanelBorderStyle}">
+            <Setter Property="Width" Value="306" />
+            <Setter Property="Padding" Value="8" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
+        </Style>
+        <Style x:Key="StatusColorInlineCardStyle" TargetType="Border" BasedOn="{StaticResource SharpGlassPanelBorderStyle}">
+            <Setter Property="Padding" Value="8" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
         </Style>
         <Style x:Key="ColorPreviewActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="MinHeight" Value="34" />
-            <Setter Property="MinWidth" Value="104" />
-            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="MinWidth" Value="96" />
+            <Setter Property="Padding" Value="10,4" />
             <Setter Property="HorizontalAlignment" Value="Left" />
-            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style x:Key="ColorPreviewIconButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinWidth" Value="34" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="ToolTip" Value="Farbe ändern" />
         </Style>
         <Style x:Key="ToggleTileStyle" TargetType="Border" BasedOn="{StaticResource SharpGlassPanelBorderStyle}">
-            <Setter Property="Width" Value="240" />
-            <Setter Property="Padding" Value="14" />
-            <Setter Property="Margin" Value="0,0,12,12" />
-            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Width" Value="204" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="CornerRadius" Value="14" />
             <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
         </Style>
         <Style x:Key="TourColorChoiceRadioButtonStyle" TargetType="RadioButton">
@@ -101,9 +147,9 @@
             <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Width" Value="198" />
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="Width" Value="258" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="Margin" Value="0,0,10,10" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -114,7 +160,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="18"
+                                CornerRadius="14"
                                 SnapsToDevicePixels="True">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -177,14 +223,14 @@
         </Style>
         <Style x:Key="SettingsCategoryListBoxItemStyle" TargetType="ListBoxItem" BasedOn="{StaticResource SidebarListBoxItemStyle}">
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Padding" Value="12,12" />
-            <Setter Property="Margin" Value="0,6,0,0" />
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="Margin" Value="0,4,0,0" />
         </Style>
     </UserControl.Resources>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="280" />
+            <ColumnDefinition Width="252" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
@@ -192,7 +238,7 @@
                 Margin="0,0,14,0"
                 Style="{StaticResource SettingsSidebarCardStyle}">
             <StackPanel>
-                <TextBlock Margin="6,12,6,4"
+                <TextBlock Margin="6,8,6,2"
                            Style="{StaticResource SidebarSectionHeaderTextStyle}"
                            Text="Kategorien" />
                 <ListBox Margin="0,2,0,0"
@@ -210,9 +256,9 @@
             </StackPanel>
         </Border>
 
-        <ScrollViewer Grid.Column="1"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
+        <Grid Grid.Column="1">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <WrapPanel Margin="0,0,0,2">
                     <Border Style="{StaticResource SettingsMetricCardStyle}">
@@ -227,9 +273,9 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Width="40"
-                                        Height="40"
-                                        CornerRadius="14"
+                                <Border Width="34"
+                                        Height="34"
+                                        CornerRadius="12"
                                         Background="#E8F5FF">
                                     <TextBlock FontFamily="Segoe Fluent Icons"
                                                FontSize="17"
@@ -245,8 +291,8 @@
                                            Text="Aktiver Speicher" />
                             </Grid>
                             <TextBlock Grid.Row="1"
-                                       Margin="0,14,0,0"
-                                       FontSize="22"
+                                       Margin="0,10,0,0"
+                                       FontSize="20"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
                                        Text="{Binding ActiveStorageModeDisplayName}" />
@@ -270,9 +316,9 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Width="40"
-                                        Height="40"
-                                        CornerRadius="14"
+                                <Border Width="34"
+                                        Height="34"
+                                        CornerRadius="12"
                                         Background="#F2EAFE">
                                     <TextBlock FontFamily="Segoe Fluent Icons"
                                                FontSize="17"
@@ -288,8 +334,8 @@
                                            Text="Installierte Version" />
                             </Grid>
                             <TextBlock Grid.Row="1"
-                                       Margin="0,14,0,0"
-                                       FontSize="28"
+                                       Margin="0,10,0,0"
+                                       FontSize="24"
                                        FontWeight="SemiBold"
                                        Text="{Binding ApplicationVersion}" />
                             <TextBlock Grid.Row="2"
@@ -311,9 +357,9 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Width="40"
-                                        Height="40"
-                                        CornerRadius="14"
+                                <Border Width="34"
+                                        Height="34"
+                                        CornerRadius="12"
                                         Background="#FFF3E8">
                                     <TextBlock FontFamily="Segoe Fluent Icons"
                                                FontSize="17"
@@ -329,7 +375,7 @@
                                            Text="Update-Status" />
                             </Grid>
                             <TextBlock Grid.Row="1"
-                                       Margin="0,14,0,0"
+                                       Margin="0,10,0,0"
                                        FontSize="17"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
@@ -353,9 +399,9 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Width="40"
-                                        Height="40"
-                                        CornerRadius="14"
+                                <Border Width="34"
+                                        Height="34"
+                                        CornerRadius="12"
                                         Background="#ECFDF3">
                                     <TextBlock FontFamily="Segoe Fluent Icons"
                                                FontSize="17"
@@ -371,8 +417,8 @@
                                            Text="Sicherungen" />
                             </Grid>
                             <TextBlock Grid.Row="1"
-                                       Margin="0,14,0,0"
-                                       FontSize="28"
+                                       Margin="0,10,0,0"
+                                       FontSize="24"
                                        FontWeight="SemiBold"
                                        Text="{Binding AvailableBackupsCount, StringFormat='{}{0} verfügbar'}" />
                             <TextBlock Grid.Row="2"
@@ -395,9 +441,9 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Width="40"
-                                        Height="40"
-                                        CornerRadius="14"
+                                <Border Width="34"
+                                        Height="34"
+                                        CornerRadius="12"
                                         Background="#EEF2FF">
                                     <TextBlock FontFamily="Segoe Fluent Icons"
                                                FontSize="17"
@@ -413,7 +459,7 @@
                                            Text="Importvorschau" />
                             </Grid>
                             <TextBlock Grid.Row="1"
-                                       Margin="0,14,0,0"
+                                       Margin="0,10,0,0"
                                        FontSize="17"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
@@ -451,13 +497,17 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Style="{StaticResource SettingsSectionTitleStyle}"
-                                           Text="{Binding SelectedSettingsCategoryTitle}" />
-                                <TextBlock Style="{StaticResource SettingsSectionSubtitleStyle}"
-                                           Text="{Binding SelectedSettingsCategoryDescription}" />
-                                <Border Margin="0,14,0,0"
-                                        Padding="12,10"
-                                        CornerRadius="16"
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource SettingsSectionTitleStyle}"
+                                               Text="{Binding SelectedSettingsCategoryTitle}" />
+                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                            ToolTip="{Binding SelectedSettingsCategoryDescription}">
+                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                    </Border>
+                                </StackPanel>
+                                <Border Margin="0,10,0,0"
+                                        Padding="10,8"
+                                        CornerRadius="12"
                                         Background="{DynamicResource Brush.GlassSurfaceSoft}"
                                         BorderBrush="{DynamicResource Brush.GlassStroke}"
                                         BorderThickness="1">
@@ -479,15 +529,10 @@
                                 </Border>
                             </StackPanel>
                             <WrapPanel Grid.Column="1"
-                                       Margin="18,0,0,0"
+                                       Margin="12,0,0,0"
                                        VerticalAlignment="Top">
-                                <Button Width="170"
-                                        Margin="0,0,10,10"
-                                        Content="Speichern"
-                                        Style="{StaticResource PrimaryButtonStyle}"
-                                        Command="{Binding SaveCommand}" />
                                 <Button Width="190"
-                                        Margin="0,0,0,10"
+                                        Margin="0,0,0,8"
                                         Content="Updates prüfen"
                                         Command="{Binding CheckForUpdatesCommand}">
                                     <Button.Style>
@@ -504,7 +549,7 @@
                             </WrapPanel>
                         </Grid>
 
-                        <Grid Grid.Row="1" Margin="0,28,0,0">
+                        <Grid Grid.Row="1" Margin="0,20,0,0">
                             <StackPanel>
                                 <StackPanel>
                                     <StackPanel.Style>
@@ -524,40 +569,46 @@
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="E-Mail-Betreff (Standard)" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="E-Mail-Betreff (Standard)" />
+                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                            ToolTip="Betreff für automatisch erstellte Touren-E-Mails. Der Platzhalter X wird durch die Auftragsnummer ersetzt.">
+                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
                                                 <TextBox Style="{StaticResource SettingsTextBoxStyle}"
-                                                         ToolTip="Platzhalter X wird durch die Auftragsnummer ersetzt."
+                                                         ToolTip="Beispiel: Lieferung von Auftrag X"
                                                          Text="{Binding AvisoEmailSubjectTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                <TextBlock Margin="0,8,0,0"
-                                                           Foreground="{DynamicResource Brush.TextMuted}"
-                                                           TextWrapping="Wrap"
-                                                           Text="Dieser Betreff wird für standardmässige Touren-E-Mails verwendet." />
                                             </StackPanel>
                                         </Border>
                                         <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Standard-Startzeit für neue Touren" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Standard-Startzeit für neue Touren" />
+                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                            ToolTip="Startzeit, die bei neuen Touren automatisch vorgeschlagen wird. Format: HH:mm, z. B. 07:30.">
+                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
                                                 <TextBox Style="{StaticResource SettingsTextBoxStyle}"
                                                          MaxLength="5"
-                                                         ToolTip="Beispiel: 07:30"
+                                                         ToolTip="Format: HH:mm, z. B. 07:30"
                                                          Text="{Binding TourDefaultStartTime, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                <TextBlock Margin="0,8,0,0"
-                                                           Foreground="{DynamicResource Brush.TextMuted}"
-                                                           TextWrapping="Wrap"
-                                                           Text="Diese Startzeit wird automatisch für neu angelegte Touren vorgeschlagen." />
                                             </StackPanel>
                                         </Border>
                                     </Grid>
 
                                     <Border Style="{StaticResource SettingsInnerPanelStyle}">
                                         <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Firma" />
-                                            <TextBlock Margin="0,6,0,0"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       TextWrapping="Wrap"
-                                                       Text="Diese Angaben werden als zentrale Firmendaten für Absender, PDFs und die Standortbasis verwendet." />
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Firma" />
+                                                <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                        ToolTip="Firmendaten für Absender, Dokumente und die Standortbasis des Tourenplaners.">
+                                                    <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                </Border>
+                                            </StackPanel>
 
-                                            <Grid Margin="0,16,0,0">
+                                            <Grid Margin="0,12,0,0">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
@@ -568,7 +619,7 @@
                                                         <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                     </StackPanel>
                                                 </Border>
-                                                <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,10">
                                                     <StackPanel>
                                                         <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Firmenstrasse" />
                                                         <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyStreet, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -587,7 +638,7 @@
                                                         <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyPostalCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                     </StackPanel>
                                                 </Border>
-                                                <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,10">
                                                     <StackPanel>
                                                         <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Ort" />
                                                         <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding CompanyCity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -597,56 +648,51 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
-                                        <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Standard-Aufenthaltszeiten Karte" />
-                                            <TextBlock Margin="0,6,0,0"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       TextWrapping="Wrap"
-                                                       Text="Diese globalen Standardwerte gelten für neue Karten-Stopps und für Tourstopps ohne hinterlegte Aufenthaltszeit." />
+                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Standard-Aufenthaltszeiten Karte" />
+                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                            ToolTip="Standard-Aufenthaltszeiten für neue Karten-Stopps. Manuell geänderte Zeiten an bestehenden Stopps bleiben erhalten.">
+                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
 
-                                            <Grid Margin="0,16,0,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
-                                                    <StackPanel>
-                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Fracht frei Bordsteinkante (min)" />
-                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding StayMinutesFreiBordsteinkante, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                    </StackPanel>
-                                                </Border>
-                                                <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
-                                                    <StackPanel>
-                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Fracht mit Verteilung (min)" />
-                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding StayMinutesMitVerteilung, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                    </StackPanel>
-                                                </Border>
-                                            </Grid>
+                                                <Grid Margin="0,16,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Fracht frei Bordsteinkante (min)" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding StayMinutesFreiBordsteinkante, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Fracht mit Verteilung (min)" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding StayMinutesMitVerteilung, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Grid>
 
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
-                                                    <StackPanel>
-                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Fracht mit Verteilung &amp; Montage (min)" />
-                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding StayMinutesMitVerteilungMontage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                    </StackPanel>
-                                                </Border>
-                                                <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
-                                                    <StackPanel>
-                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Hinweis" />
-                                                        <TextBlock Margin="0,10,0,0"
-                                                                   Foreground="{DynamicResource Brush.TextMuted}"
-                                                                   TextWrapping="Wrap"
-                                                                   Text="Bereits manuell angepasste Aufenthaltszeiten bestehender Stopps bleiben unverändert." />
-                                                    </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                        </StackPanel>
-                                    </Border>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Fracht mit Verteilung &amp; Montage (min)" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding StayMinutesMitVerteilungMontage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </Expander>
                                 </StackPanel>
 
                                 <StackPanel>
@@ -663,16 +709,19 @@
 
                                     <Border Style="{StaticResource SettingsInnerPanelStyle}">
                                         <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Datenspeicher" />
-                                            <TextBlock Margin="0,6,0,0"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       TextWrapping="Wrap"
-                                                       Text="Wähle hier, ob die App lokal mit JSON-Dateien oder als Mehrbenutzerlösung mit PostgreSQL arbeitet." />
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Datenspeicher" />
+                                                <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                        ToolTip="Legt fest, ob die App lokale Dateien nutzt oder Daten zentral über PostgreSQL bereitstellt.">
+                                                    <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                </Border>
+                                            </StackPanel>
 
                                             <Border Margin="0,16,0,0" Style="{StaticResource SettingsFieldCardStyle}">
                                                 <StackPanel>
                                                     <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Speicherart" />
                                                     <ComboBox Style="{StaticResource SettingsComboBoxStyle}"
+                                                              ToolTip="{Binding StorageModeChangeHintText}"
                                                               ItemsSource="{Binding StorageModeOptions}"
                                                               SelectedItem="{Binding SelectedStorageModeOption, Mode=TwoWay}">
                                                         <ComboBox.ItemTemplate>
@@ -681,16 +730,12 @@
                                                             </DataTemplate>
                                                         </ComboBox.ItemTemplate>
                                                     </ComboBox>
-                                                    <TextBlock Margin="0,8,0,0"
-                                                               Foreground="{DynamicResource Brush.TextMuted}"
-                                                               TextWrapping="Wrap"
-                                                               Text="{Binding StorageModeChangeHintText}" />
                                                 </StackPanel>
                                             </Border>
 
-                                            <StackPanel Margin="0,14,0,0">
-                                                <StackPanel.Style>
-                                                    <Style TargetType="StackPanel">
+                                            <Expander Header="Erweiterte Einstellungen" Margin="0,14,0,0">
+                                                <Expander.Style>
+                                                    <Style TargetType="Expander" BasedOn="{StaticResource SettingsAdvancedExpanderStyle}">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsPostgreSqlStorageMode}" Value="True">
@@ -698,7 +743,9 @@
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
-                                                </StackPanel.Style>
+                                                </Expander.Style>
+
+                                                <StackPanel>
 
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
@@ -785,10 +832,13 @@
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0" Margin="0,0,18,0">
-                                                            <TextBlock FontWeight="SemiBold" Text="Verbindung prüfen" />
-                                                            <TextBlock Margin="0,4,0,0"
-                                                                       Style="{StaticResource SettingsFieldLabelStyle}"
-                                                                       Text="Prüft die eingegebenen PostgreSQL-Zugangsdaten direkt, ohne dass die App zuerst neu gestartet werden muss." />
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock FontWeight="SemiBold" Text="Verbindung prüfen" />
+                                                                <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                                        ToolTip="Prüft Host, Datenbank, Benutzer und Passwort, ohne die App neu zu starten.">
+                                                                    <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                                </Border>
+                                                            </StackPanel>
                                                         </StackPanel>
                                                         <Button Grid.Column="1"
                                                                 Width="220"
@@ -805,10 +855,13 @@
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
                                                         <StackPanel Grid.Column="0" Margin="0,0,18,0">
-                                                            <TextBlock FontWeight="SemiBold" Text="Umstellung abschließen" />
-                                                            <TextBlock Margin="0,4,0,0"
-                                                                       Style="{StaticResource SettingsFieldLabelStyle}"
-                                                                       Text="Speichert die PostgreSQL-Einstellungen, prüft die Verbindung und startet die App direkt im Mehrbenutzer-Modus neu." />
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock FontWeight="SemiBold" Text="Umstellung abschließen" />
+                                                                <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                                        ToolTip="Speichert die PostgreSQL-Daten, prüft die Verbindung und startet die App im Mehrbenutzer-Modus neu.">
+                                                                    <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                                </Border>
+                                                            </StackPanel>
                                                         </StackPanel>
                                                         <Button Grid.Column="1"
                                                                 Width="240"
@@ -818,7 +871,8 @@
                                                                 Command="{Binding ActivatePostgreSqlAndRestartCommand}" />
                                                     </Grid>
                                                 </Border>
-                                            </StackPanel>
+                                                </StackPanel>
+                                            </Expander>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -835,128 +889,170 @@
                                         </Style>
                                     </StackPanel.Style>
 
-                                    <Grid Margin="0,0,0,16">
+                                    <Grid Margin="0,0,0,12">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Statusfarben" />
-                                            <TextBlock Margin="0,6,0,0"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       TextWrapping="Wrap"
-                                                       Text="Direkte Farb-Vorschauen für Marker, Legenden und Kalenderhinweise statt technischer Hex-Felder." />
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Statusfarben" />
+                                                <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                        ToolTip="Farben für Auftragsstatus in Pins, Listen, Legenden und Kalenderhinweisen.">
+                                                    <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                </Border>
+                                            </StackPanel>
                                         </StackPanel>
                                         <Button Grid.Column="1"
-                                                Width="170"
+                                                Width="150"
                                                 VerticalAlignment="Top"
                                                 Content="Standardfarben"
                                                 Command="{Binding ResetStatusColorsCommand}" />
                                     </Grid>
 
-                                    <WrapPanel>
-                                        <Border Style="{StaticResource ColorPreviewCardStyle}">
-                                            <StackPanel>
-                                                <Border Height="46" CornerRadius="14" Background="{Binding StatusColorNotSpecified}" />
-                                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Nicht festgelegt" />
-                                                <Button Margin="0,8,0,0" Style="{StaticResource ColorPreviewActionButtonStyle}" Content="Farbe ändern" Command="{Binding PickStatusColorNotSpecifiedCommand}" />
-                                            </StackPanel>
+                                    <UniformGrid Columns="6">
+                                        <Border Style="{StaticResource StatusColorInlineCardStyle}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="46" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Height="28" CornerRadius="8" Background="{Binding StatusColorNotSpecified}" />
+                                                <TextBlock Grid.Column="1" Margin="8,0,6,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Nicht festgelegt" TextWrapping="Wrap" />
+                                                <Button Grid.Column="2" Style="{StaticResource ColorPreviewIconButtonStyle}" Content="&#xE70F;" Command="{Binding PickStatusColorNotSpecifiedCommand}" />
+                                            </Grid>
                                         </Border>
-                                        <Border Style="{StaticResource ColorPreviewCardStyle}">
-                                            <StackPanel>
-                                                <Border Height="46" CornerRadius="14" Background="{Binding StatusColorOrdered}" />
-                                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Bestellt" />
-                                                <Button Margin="0,8,0,0" Style="{StaticResource ColorPreviewActionButtonStyle}" Content="Farbe ändern" Command="{Binding PickStatusColorOrderedCommand}" />
-                                            </StackPanel>
+                                        <Border Style="{StaticResource StatusColorInlineCardStyle}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="46" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Height="28" CornerRadius="8" Background="{Binding StatusColorOrdered}" />
+                                                <TextBlock Grid.Column="1" Margin="8,0,6,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Bestellt" TextWrapping="Wrap" />
+                                                <Button Grid.Column="2" Style="{StaticResource ColorPreviewIconButtonStyle}" Content="&#xE70F;" Command="{Binding PickStatusColorOrderedCommand}" />
+                                            </Grid>
                                         </Border>
-                                        <Border Style="{StaticResource ColorPreviewCardStyle}">
-                                            <StackPanel>
-                                                <Border Height="46" CornerRadius="14" Background="{Binding StatusColorOnTheWay}" />
-                                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Unterwegs / Teilweise bereit" />
-                                                <Button Margin="0,8,0,0" Style="{StaticResource ColorPreviewActionButtonStyle}" Content="Farbe ändern" Command="{Binding PickStatusColorOnTheWayCommand}" />
-                                            </StackPanel>
+                                        <Border Style="{StaticResource StatusColorInlineCardStyle}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="46" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Height="28" CornerRadius="8" Background="{Binding StatusColorOnTheWay}" />
+                                                <TextBlock Grid.Column="1" Margin="8,0,6,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Unterwegs / Teilweise bereit" TextWrapping="Wrap" />
+                                                <Button Grid.Column="2" Style="{StaticResource ColorPreviewIconButtonStyle}" Content="&#xE70F;" Command="{Binding PickStatusColorOnTheWayCommand}" />
+                                            </Grid>
                                         </Border>
-                                        <Border Style="{StaticResource ColorPreviewCardStyle}">
-                                            <StackPanel>
-                                                <Border Height="46" CornerRadius="14" Background="{Binding StatusColorPendingPreparation}" />
-                                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Zu richten / Teilweise zu richten" />
-                                                <Button Margin="0,8,0,0" Style="{StaticResource ColorPreviewActionButtonStyle}" Content="Farbe ändern" Command="{Binding PickStatusColorPendingPreparationCommand}" />
-                                            </StackPanel>
+                                        <Border Style="{StaticResource StatusColorInlineCardStyle}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="46" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Height="28" CornerRadius="8" Background="{Binding StatusColorPendingPreparation}" />
+                                                <TextBlock Grid.Column="1" Margin="8,0,6,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Zu richten / Teilweise zu richten" TextWrapping="Wrap" />
+                                                <Button Grid.Column="2" Style="{StaticResource ColorPreviewIconButtonStyle}" Content="&#xE70F;" Command="{Binding PickStatusColorPendingPreparationCommand}" />
+                                            </Grid>
                                         </Border>
-                                        <Border Style="{StaticResource ColorPreviewCardStyle}">
-                                            <StackPanel>
-                                                <Border Height="46" CornerRadius="14" Background="{Binding StatusColorInStock}" />
-                                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Lieferbereit" />
-                                                <Button Margin="0,8,0,0" Style="{StaticResource ColorPreviewActionButtonStyle}" Content="Farbe ändern" Command="{Binding PickStatusColorInStockCommand}" />
-                                            </StackPanel>
+                                        <Border Style="{StaticResource StatusColorInlineCardStyle}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="46" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Height="28" CornerRadius="8" Background="{Binding StatusColorInStock}" />
+                                                <TextBlock Grid.Column="1" Margin="8,0,6,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Lieferbereit" TextWrapping="Wrap" />
+                                                <Button Grid.Column="2" Style="{StaticResource ColorPreviewIconButtonStyle}" Content="&#xE70F;" Command="{Binding PickStatusColorInStockCommand}" />
+                                            </Grid>
                                         </Border>
-                                        <Border Style="{StaticResource ColorPreviewCardStyle}">
-                                            <StackPanel>
-                                                <Border Height="46" CornerRadius="14" Background="{Binding StatusColorPlanned}" />
-                                                <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Eingeplant" />
-                                                <Button Margin="0,8,0,0" Style="{StaticResource ColorPreviewActionButtonStyle}" Content="Farbe ändern" Command="{Binding PickStatusColorPlannedCommand}" />
-                                            </StackPanel>
+                                        <Border Style="{StaticResource StatusColorInlineCardStyle}" Margin="0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="46" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Height="28" CornerRadius="8" Background="{Binding StatusColorPlanned}" />
+                                                <TextBlock Grid.Column="1" Margin="8,0,6,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Eingeplant" TextWrapping="Wrap" />
+                                                <Button Grid.Column="2" Style="{StaticResource ColorPreviewIconButtonStyle}" Content="&#xE70F;" Command="{Binding PickStatusColorPlannedCommand}" />
+                                            </Grid>
                                         </Border>
-                                    </WrapPanel>
+                                    </UniformGrid>
 
-                                    <Border Margin="0,18,0,0">
+                                    <Border Margin="0,12,0,0">
                                         <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Tourfarben" />
-                                            <TextBlock Margin="0,6,0,0"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       TextWrapping="Wrap"
-                                                       Text="Lege fest, ob alle Tourlinien in der Vorschau einheitlich blau dargestellt werden oder automatisch unterschiedliche Farben je Tour erhalten. Warnfälle behalten zusätzlich die rote Warn-Outline." />
-                                            <TextBlock Margin="0,4,0,0"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       TextWrapping="Wrap"
-                                                       Text="Die beiden Vorschaufelder sind direkt anklickbar. Warnlinien behalten in beiden Modi zusätzlich die rote Outline." />
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Tourfarben" />
+                                                <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                        ToolTip="Legt fest, ob Tourlinien einheitlich blau oder je Tour unterschiedlich farbig angezeigt werden. Warnfälle bleiben rot markiert.">
+                                                    <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                </Border>
+                                            </StackPanel>
 
-                                            <WrapPanel Margin="0,14,0,0">
+                                            <WrapPanel Margin="0,10,0,0">
                                                 <RadioButton GroupName="TourColorMode"
                                                              Style="{StaticResource TourColorChoiceRadioButtonStyle}"
                                                              IsChecked="{Binding MapUseDistinctPlannedTourColors, Mode=TwoWay, Converter={StaticResource InverseBooleanConverter}}">
-                                                    <StackPanel>
-                                                        <TextBlock FontWeight="SemiBold" Text="Einfarbig blau" />
-                                                        <TextBlock Margin="0,4,0,0"
-                                                                   Foreground="{DynamicResource Brush.TextMuted}"
-                                                                   TextWrapping="Wrap"
-                                                                   Text="Ruhige, einheitliche Vorschau." />
-                                                        <Border Margin="0,14,0,0"
-                                                                Padding="10"
-                                                                CornerRadius="14"
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="74" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                            <TextBlock FontWeight="SemiBold" Text="Einfarbig blau" />
+                                                            <TextBlock Margin="0,3,0,0"
+                                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                                       TextWrapping="Wrap"
+                                                                       Text="Ruhige Vorschau." />
+                                                        </StackPanel>
+                                                        <Border Grid.Column="1"
+                                                                Padding="8"
+                                                                CornerRadius="12"
                                                                 Background="{DynamicResource Brush.GlassSurfaceSoft}"
                                                                 BorderBrush="{DynamicResource Brush.BorderSoft}"
                                                                 BorderThickness="1">
                                                             <StackPanel>
-                                                                <Border Height="12" Margin="0,0,0,8" CornerRadius="4" Background="#2563EB" />
-                                                                <Border Height="12" Margin="12,0,0,8" CornerRadius="4" Background="#2563EB" />
-                                                                <Border Height="12" Margin="4,0,18,0" CornerRadius="4" Background="#2563EB" />
+                                                                <Border Height="8" Margin="0,0,0,5" CornerRadius="4" Background="#2563EB" />
+                                                                <Border Height="8" Margin="10,0,0,5" CornerRadius="4" Background="#2563EB" />
+                                                                <Border Height="8" Margin="4,0,14,0" CornerRadius="4" Background="#2563EB" />
                                                             </StackPanel>
                                                         </Border>
-                                                    </StackPanel>
+                                                    </Grid>
                                                 </RadioButton>
                                                 <RadioButton GroupName="TourColorMode"
                                                              Style="{StaticResource TourColorChoiceRadioButtonStyle}"
                                                              IsChecked="{Binding MapUseDistinctPlannedTourColors, Mode=TwoWay}">
-                                                    <StackPanel>
-                                                        <TextBlock FontWeight="SemiBold" Text="Mehrfarbig" />
-                                                        <TextBlock Margin="0,4,0,0"
-                                                                   Foreground="{DynamicResource Brush.TextMuted}"
-                                                                   TextWrapping="Wrap"
-                                                                   Text="Bessere Trennung je Tour." />
-                                                        <Border Margin="0,14,0,0"
-                                                                Padding="10"
-                                                                CornerRadius="14"
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="74" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                            <TextBlock FontWeight="SemiBold" Text="Mehrfarbig" />
+                                                            <TextBlock Margin="0,3,0,0"
+                                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                                       TextWrapping="Wrap"
+                                                                       Text="Je Tour getrennt." />
+                                                        </StackPanel>
+                                                        <Border Grid.Column="1"
+                                                                Padding="8"
+                                                                CornerRadius="12"
                                                                 Background="{DynamicResource Brush.GlassSurfaceSoft}"
                                                                 BorderBrush="{DynamicResource Brush.BorderSoft}"
                                                                 BorderThickness="1">
                                                             <StackPanel>
-                                                                <Border Height="12" Margin="0,0,0,8" CornerRadius="4" Background="#2563EB" />
-                                                                <Border Height="12" Margin="12,0,0,8" CornerRadius="4" Background="#16A34A" />
-                                                                <Border Height="12" Margin="4,0,18,0" CornerRadius="4" Background="#D97706" />
+                                                                <Border Height="8" Margin="0,0,0,5" CornerRadius="4" Background="#2563EB" />
+                                                                <Border Height="8" Margin="10,0,0,5" CornerRadius="4" Background="#16A34A" />
+                                                                <Border Height="8" Margin="4,0,14,0" CornerRadius="4" Background="#D97706" />
                                                             </StackPanel>
                                                         </Border>
-                                                    </StackPanel>
+                                                    </Grid>
                                                 </RadioButton>
                                             </WrapPanel>
                                         </StackPanel>
@@ -965,34 +1061,48 @@
                                     <Border>
                                         <StackPanel>
                                             <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Kalender &amp; Kapazität" />
-                                            <WrapPanel Margin="0,14,0,0">
-                                                <Border Style="{StaticResource ColorPreviewCardStyle}" Width="214">
-                                                    <StackPanel>
-                                                        <Border Height="46" CornerRadius="14" Background="{Binding CalendarLoadWarningColor}" />
-                                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Warnstufe" />
-                                                        <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Stark ausgelastete Tage" />
-                                                        <TextBlock Margin="0,10,0,0"
-                                                                   Style="{StaticResource SettingsFieldLabelStyle}"
-                                                                   Text="Ab x Personen" />
-                                                        <TextBox Margin="0,6,0,0"
+                                            <WrapPanel Margin="0,10,0,0">
+                                                <Border Style="{StaticResource CompactColorRowCardStyle}" Width="360">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="58" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="72" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0" Height="28" CornerRadius="8" Background="{Binding CalendarLoadWarningColor}" />
+                                                        <StackPanel Grid.Column="1" Margin="10,0,10,0" VerticalAlignment="Center">
+                                                            <TextBlock FontWeight="SemiBold" Text="Warnstufe" />
+                                                            <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Stark ausgelastet" />
+                                                        </StackPanel>
+                                                        <TextBox Grid.Column="2"
+                                                                 Margin="0"
+                                                                 VerticalAlignment="Center"
                                                                  Style="{StaticResource SettingsTextBoxStyle}"
                                                                  Text="{Binding CalendarLoadWarningPeopleThreshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                        <Button Margin="0,10,0,0" Style="{StaticResource ColorPreviewActionButtonStyle}" Content="Farbe ändern" Command="{Binding PickCalendarLoadWarningColorCommand}" />
-                                                    </StackPanel>
+                                                        <Button Grid.Column="3" Margin="8,0,0,0" Style="{StaticResource ColorPreviewIconButtonStyle}" Content="&#xE70F;" Command="{Binding PickCalendarLoadWarningColorCommand}" />
+                                                    </Grid>
                                                 </Border>
-                                                <Border Style="{StaticResource ColorPreviewCardStyle}" Width="214">
-                                                    <StackPanel>
-                                                        <Border Height="46" CornerRadius="14" Background="{Binding CalendarLoadCriticalColor}" />
-                                                        <TextBlock Margin="0,10,0,0" FontWeight="SemiBold" Text="Kritische Stufe" />
-                                                        <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Kritisch ausgelastete Tage" />
-                                                        <TextBlock Margin="0,10,0,0"
-                                                                   Style="{StaticResource SettingsFieldLabelStyle}"
-                                                                   Text="Ab x Personen" />
-                                                        <TextBox Margin="0,6,0,0"
+                                                <Border Style="{StaticResource CompactColorRowCardStyle}" Width="360">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="58" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="72" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0" Height="28" CornerRadius="8" Background="{Binding CalendarLoadCriticalColor}" />
+                                                        <StackPanel Grid.Column="1" Margin="10,0,10,0" VerticalAlignment="Center">
+                                                            <TextBlock FontWeight="SemiBold" Text="Kritische Stufe" />
+                                                            <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Kritisch ausgelastet" />
+                                                        </StackPanel>
+                                                        <TextBox Grid.Column="2"
+                                                                 Margin="0"
+                                                                 VerticalAlignment="Center"
                                                                  Style="{StaticResource SettingsTextBoxStyle}"
                                                                  Text="{Binding CalendarLoadCriticalPeopleThreshold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                        <Button Margin="0,10,0,0" Style="{StaticResource ColorPreviewActionButtonStyle}" Content="Farbe ändern" Command="{Binding PickCalendarLoadCriticalColorCommand}" />
-                                                    </StackPanel>
+                                                        <Button Grid.Column="3" Margin="8,0,0,0" Style="{StaticResource ColorPreviewIconButtonStyle}" Content="&#xE70F;" Command="{Binding PickCalendarLoadCriticalColorCommand}" />
+                                                    </Grid>
                                                 </Border>
                                             </WrapPanel>
 
@@ -1007,14 +1117,14 @@
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Route rot ab Rest %" />
                                                 <TextBox Grid.Row="0" Grid.Column="1"
-                                                         Margin="0,18,0,0"
+                                                         Margin="0,8,0,0"
                                                          Style="{StaticResource SettingsTextBoxStyle}"
-                                                         ToolTip="Wenn Restkapazität kleiner oder gleich diesem Prozentwert ist, wird die Tourlinie rot."
+                                                         ToolTip="Ab dieser Restkapazität wird eine Tour als stark ausgelastet markiert."
                                                          Text="{Binding MapRouteCapacityWarningThresholdPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                 <Border Grid.Row="1"
                                                         Grid.Column="0"
                                                         Grid.ColumnSpan="2"
-                                                        Margin="0,18,0,0"
+                                                        Margin="0,10,0,0"
                                                         Style="{StaticResource SettingsFieldCardStyle}">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
@@ -1023,10 +1133,13 @@
                                                         </Grid.ColumnDefinitions>
 
                                                         <StackPanel Grid.Column="0" Margin="0,0,18,0">
-                                                            <TextBlock FontWeight="SemiBold" Text="Details bei Pin-Klick" />
-                                                            <TextBlock Margin="0,4,0,0"
-                                                                       Style="{StaticResource SettingsFieldLabelStyle}"
-                                                                       Text="&#214;ffnet das Detailpanel automatisch, sobald ein Karten-Pin ausgew&#228;hlt wird." />
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock FontWeight="SemiBold" Text="Details bei Pin-Klick" />
+                                                                <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                                        ToolTip="Öffnet die Auftragsdetails automatisch, sobald ein Pin auf der Karte ausgewählt wird.">
+                                                                    <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                                </Border>
+                                                            </StackPanel>
                                                         </StackPanel>
 
                                                         <CheckBox Grid.Column="1"
@@ -1039,35 +1152,46 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <Border Style="{StaticResource SettingsInnerPanelStyle}" Margin="0,0,0,0">
-                                        <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Karten-Infokarten &amp; Filter" />
-                                            <CheckBox Margin="0,14,0,0"
-                                                      Content="Nicht passende Suchtreffer ausgrauen statt ausblenden"
-                                                      IsChecked="{Binding MapSearchDimNonMatchingPins, Mode=TwoWay}" />
-                                            <TextBlock Margin="0,18,0,0" Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Sichtbare Felder" />
-                                            <WrapPanel Margin="0,12,0,0">
-                                                <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Name anzeigen" IsChecked="{Binding MapPinInfoCardShowName, Mode=TwoWay}" /></Border>
-                                                <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Auftragsnummer anzeigen" IsChecked="{Binding MapPinInfoCardShowOrderNumber, Mode=TwoWay}" /></Border>
-                                                <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Strasse anzeigen" IsChecked="{Binding MapPinInfoCardShowStreet, Mode=TwoWay}" /></Border>
-                                                <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="PLZ und Ort anzeigen" IsChecked="{Binding MapPinInfoCardShowPostalCodeCity, Mode=TwoWay}" /></Border>
-                                                <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Notizen anzeigen" IsChecked="{Binding MapPinInfoCardShowNotes, Mode=TwoWay}" /></Border>
-                                                <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Produkte anzeigen" IsChecked="{Binding MapPinInfoCardShowProducts, Mode=TwoWay}" /></Border>
-                                                <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Gesamtgewicht anzeigen" IsChecked="{Binding MapPinInfoCardShowTotalWeight, Mode=TwoWay}" /></Border>
-                                            </WrapPanel>
-                                            <TextBlock Margin="0,18,0,0" Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Zoomverhalten" />
-                                            <Slider Margin="0,12,0,0"
-                                                    Minimum="0.2"
-                                                    Maximum="4.0"
-                                                    SmallChange="0.1"
-                                                    LargeChange="0.2"
-                                                    TickFrequency="0.1"
-                                                    Value="{Binding PinInfoCardZoomBehaviorStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            <TextBlock Margin="0,8,0,0"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       Text="{Binding PinInfoCardZoomBehaviorStrength, StringFormat='{}Stärke: {0:0.00}x (0.2 = ruhig, 4.0 = dynamisch)'}" />
-                                        </StackPanel>
-                                    </Border>
+                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Style="{StaticResource SettingsInnerPanelStyle}" Margin="0,0,0,0">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Karten-Infokarten &amp; Filter" />
+                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                            ToolTip="Legt fest, wie Suchtreffer und Inhalte der kleinen Infokarten auf der Karte angezeigt werden.">
+                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <CheckBox Margin="0,14,0,0"
+                                                          Content="Nicht passende Suchtreffer ausgrauen statt ausblenden"
+                                                          IsChecked="{Binding MapSearchDimNonMatchingPins, Mode=TwoWay}" />
+                                                <TextBlock Margin="0,18,0,0" Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Sichtbare Felder" />
+                                                <WrapPanel Margin="0,12,0,0">
+                                                    <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Name anzeigen" IsChecked="{Binding MapPinInfoCardShowName, Mode=TwoWay}" /></Border>
+                                                    <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Auftragsnummer anzeigen" IsChecked="{Binding MapPinInfoCardShowOrderNumber, Mode=TwoWay}" /></Border>
+                                                    <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Strasse anzeigen" IsChecked="{Binding MapPinInfoCardShowStreet, Mode=TwoWay}" /></Border>
+                                                    <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="PLZ und Ort anzeigen" IsChecked="{Binding MapPinInfoCardShowPostalCodeCity, Mode=TwoWay}" /></Border>
+                                                    <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Notizen anzeigen" IsChecked="{Binding MapPinInfoCardShowNotes, Mode=TwoWay}" /></Border>
+                                                    <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Produkte anzeigen" IsChecked="{Binding MapPinInfoCardShowProducts, Mode=TwoWay}" /></Border>
+                                                    <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Gesamtgewicht anzeigen" IsChecked="{Binding MapPinInfoCardShowTotalWeight, Mode=TwoWay}" /></Border>
+                                                </WrapPanel>
+                                                <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Zoomverhalten" />
+                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                            ToolTip="{Binding PinInfoCardZoomBehaviorStrength, StringFormat='{}Steuert, wie stark Infokarten beim Zoomen mitwachsen. Aktuell: {0:0.00}x.'}">
+                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <Slider Margin="0,12,0,0"
+                                                        Minimum="0.2"
+                                                        Maximum="4.0"
+                                                        SmallChange="0.1"
+                                                        LargeChange="0.2"
+                                                        TickFrequency="0.1"
+                                                        Value="{Binding PinInfoCardZoomBehaviorStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Expander>
                                 </StackPanel>
 
                                 <StackPanel>
@@ -1094,16 +1218,20 @@
                                         </Border>
                                         <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Hinweis" />
-                                                <TextBlock Margin="0,10,0,0"
-                                                           Foreground="{DynamicResource Brush.TextMuted}"
-                                                           TextWrapping="Wrap"
-                                                           Text="Kartenstil, Traffic-Anzeige und Routing-Restriktionen werden direkt in den Map-Options der Karte gesteuert. Fahrzeugmaße kommen aus der Fahrzeugverwaltung." />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Hinweis" />
+                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                            ToolTip="Kartenstil, Traffic-Anzeige und Routing-Optionen werden direkt auf der Karte eingestellt. Fahrzeugmasse kommen aus der Fahrzeugverwaltung.">
+                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
                                     </Grid>
 
-                                    <Grid>
+                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <StackPanel>
+                                            <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
@@ -1118,11 +1246,13 @@
                                         </Border>
                                         <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Verwendung" />
-                                                <TextBlock Margin="0,10,0,0"
-                                                           Foreground="{DynamicResource Brush.TextMuted}"
-                                                           TextWrapping="Wrap"
-                                                           Text="Diese Kategorie enthält nur noch globale technische TomTom-Basiswerte. Die eigentlichen Kartenoptionen stellst du direkt auf der Karte ein." />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Verwendung" />
+                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                            ToolTip="Diese Werte gelten im Hintergrund für TomTom. Die sichtbaren Kartenoptionen stellst du direkt auf der Karte ein.">
+                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
                                     </Grid>
@@ -1157,7 +1287,7 @@
                                                 <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TomTomVehicleOnlyMaxSpeedKmh, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Border>
-                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,10">
                                             <StackPanel>
                                                 <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Max. Tempo mit Anhänger (km/h)" />
                                                 <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TomTomVehicleWithTrailerMaxSpeedKmh, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -1172,7 +1302,13 @@
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
                                             <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Verkehrsbewertung" />
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Verkehrsbewertung" />
+                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                            ToolTip="Legt fest, ab wann TomTom-Verkehrsdaten als leichte, mittlere oder starke Verzögerung gewertet werden.">
+                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
                                                 <ComboBox Style="{StaticResource SettingsComboBoxStyle}"
                                                           ItemsSource="{Binding TomTomTrafficSeverityOptions}"
                                                           SelectedItem="{Binding SelectedTomTomTrafficSeverityOption, Mode=TwoWay}">
@@ -1182,10 +1318,6 @@
                                                         </DataTemplate>
                                                     </ComboBox.ItemTemplate>
                                                 </ComboBox>
-                                                <TextBlock Margin="0,8,0,0"
-                                                           Foreground="{DynamicResource Brush.TextMuted}"
-                                                           TextWrapping="Wrap"
-                                                           Text="Legt fest, wie streng Verkehrssegmente aus TomTom intern als leicht, mittel oder schwer eingestuft werden." />
                                             </StackPanel>
                                         </Border>
                                         <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
@@ -1228,20 +1360,8 @@
                                         </Border>
                                     </Grid>
 
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource SettingsFieldCardStyle}">
-                                            <StackPanel>
-                                                <TextBlock Margin="0,8,0,0"
-                                                           Foreground="{DynamicResource Brush.TextMuted}"
-                                                           TextWrapping="Wrap"
-                                                           Text="Bis 30 Minuten Fahrzeit wird kein Stauzuschlag gerechnet. Ab 30 Minuten wird je nach Abfahrtszeit des Streckenabschnitts der passende Prozentwert einmalig als ETA-Puffer eingerechnet. Ausserhalb 05:00 bis 18:30 wird aktuell kein Zuschlag angewendet." />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
+                                        </StackPanel>
+                                    </Expander>
 
                                 </StackPanel>
 
@@ -1267,8 +1387,12 @@
                                                 <CheckBox Margin="0,14,0,0"
                                                           Content="GPS-Bereich in der Navigation anzeigen"
                                                           IsChecked="{Binding ShowGpsTool, Mode=TwoWay}" />
-                                                <TextBlock Margin="0,16,0,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="GPS Standard-Link" />
-                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding GpsToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="GPS Standard-Link" />
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding GpsToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Expander>
                                             </StackPanel>
                                         </Border>
                                         <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
@@ -1277,8 +1401,12 @@
                                                 <CheckBox Margin="0,14,0,0"
                                                           Content="Spediteur-Bereich in der Navigation anzeigen"
                                                           IsChecked="{Binding ShowSpediteurTool, Mode=TwoWay}" />
-                                                <TextBlock Margin="0,16,0,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Spediteur Standard-Link" />
-                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding SpediteurToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Spediteur Standard-Link" />
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding SpediteurToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Expander>
                                             </StackPanel>
                                         </Border>
                                     </Grid>
@@ -1297,13 +1425,14 @@
                                     </StackPanel.Style>
 
                                     <WrapPanel Margin="0,0,0,16">
-                                        <Button Width="160" Margin="0,0,10,10" Content="Backup erstellen" Command="{Binding CreateBackupCommand}" />
-                                        <Button Width="160" Margin="0,0,10,10" Content="Backup laden" Command="{Binding RestoreLatestBackupCommand}" />
-                                        <Button Width="180" Margin="0,0,0,10" Content="Backups bereinigen" Command="{Binding CleanupBackupsCommand}" />
+                                        <Button Width="150" Margin="0,0,8,8" Content="Backup erstellen" Command="{Binding CreateBackupCommand}" />
+                                        <Button Width="150" Margin="0,0,8,8" Content="Backup laden" Command="{Binding RestoreLatestBackupCommand}" />
+                                        <Button Width="164" Margin="0,0,0,8" Content="Backups bereinigen" Command="{Binding CleanupBackupsCommand}" />
                                     </WrapPanel>
 
-                                    <Border>
-                                        <Grid>
+                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border>
+                                            <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="190" />
                                                 <ColumnDefinition Width="*" />
@@ -1328,11 +1457,12 @@
                                             <CheckBox Grid.Row="4" Grid.Column="1" Margin="0,22,0,0" Content="Automatisch im Hintergrund erstellen" IsChecked="{Binding AutoBackupEnabled, Mode=TwoWay}" />
                                             <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Intervall (Tage)" />
                                             <TextBox Grid.Row="5" Grid.Column="1" Margin="0,18,0,0" Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding AutoBackupIntervalDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        </Grid>
-                                    </Border>
+                                            </Grid>
+                                        </Border>
+                                    </Expander>
 
                                     <WrapPanel Margin="0,18,0,0">
-                                        <Border Style="{StaticResource SettingsMetricCardStyle}" Width="360">
+                                        <Border Style="{StaticResource SettingsMetricCardStyle}" Width="320">
                                             <StackPanel>
                                                 <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Letzte vorhandene Sicherung" />
                                                 <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Text="{Binding LatestBackupModifiedText}" />
@@ -1358,19 +1488,22 @@
                                     </StackPanel.Style>
 
                                     <WrapPanel Margin="0,0,0,10">
-                                        <Button Width="170" Margin="0,0,10,10" Content="XML-Datei wählen" Command="{Binding BrowseXmlImportFileCommand}" />
-                                        <Button Width="220" Margin="0,0,10,10" Content="XML-Musterdatei herunterladen" Command="{Binding DownloadXmlTemplateCommand}" />
-                                        <Button Width="150" Margin="0,0,10,10" Content="XML prüfen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding PreviewXmlImportCommand}" />
-                                        <Button Width="170" Margin="0,0,0,10" Content="Import ausführen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ImportOrdersCommand}" />
+                                        <Button Width="150" Margin="0,0,8,8" Content="XML-Datei wählen" Command="{Binding BrowseXmlImportFileCommand}" />
+                                        <Button Width="202" Margin="0,0,8,8" Content="XML-Musterdatei herunterladen" Command="{Binding DownloadXmlTemplateCommand}" />
+                                        <Button Width="136" Margin="0,0,8,8" Content="XML prüfen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding PreviewXmlImportCommand}" />
+                                        <Button Width="154" Margin="0,0,0,8" Content="Import ausführen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ImportOrdersCommand}" />
                                     </WrapPanel>
 
-                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
-                                        <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="XML-Zuordnung" />
-                                            <TextBlock Margin="0,6,0,0"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       TextWrapping="Wrap"
-                                                       Text="Lege hier fest, welche XML-Bezeichnungen den Importfeldern entsprechen. Leere Werte fallen automatisch auf die Standardbezeichnungen der Musterdatei zurück." />
+                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="XML-Zuordnung" />
+                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                            ToolTip="Ordnet die Bezeichnungen aus deiner XML-Datei den Importfeldern zu. Leere Felder verwenden automatisch den Standard der Musterdatei.">
+                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
 
                                             <TextBlock Margin="0,18,0,8" FontWeight="SemiBold" Text="Struktur" />
                                             <ItemsControl ItemsSource="{Binding XmlImportStructureFields}">
@@ -1447,8 +1580,9 @@
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
-                                        </StackPanel>
-                                    </Border>
+                                            </StackPanel>
+                                        </Border>
+                                    </Expander>
 
                                     <Border Margin="0,0,0,16">
                                         <Grid>
@@ -1463,7 +1597,7 @@
                                                     Height="38"
                                                     Margin="0,0,10,0"
                                                     Padding="0"
-                                                    ToolTip="XML-Datei auswählen"
+                                                    ToolTip="XML-Datei für die Prüfung oder den Import auswählen"
                                                     Command="{Binding BrowseXmlImportFileCommand}">
                                                 <Image Source="pack://application:,,,/Assets/Ordner.png"
                                                        Width="20"
@@ -1703,8 +1837,10 @@
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
-                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
-                                        <Grid>
+                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <StackPanel>
+                                            <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                                <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="170" />
                                                 <ColumnDefinition Width="*" />
@@ -1726,11 +1862,11 @@
                                             <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,18,0,0" Text="{Binding AvailableUpdateVersion}" />
                                             <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Veröffentlicht" />
                                             <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,18,0,0" Text="{Binding UpdatePublishedAtText}" />
-                                        </Grid>
-                                    </Border>
+                                                </Grid>
+                                            </Border>
 
-                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
-                                        <Grid>
+                                            <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                                <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="170" />
                                                 <ColumnDefinition Width="*" />
@@ -1749,11 +1885,11 @@
                                             <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,18,0,0" Text="{Binding StartupLastStepText}" />
                                             <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Detail" />
                                             <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding StartupDetailText}" />
-                                        </Grid>
-                                    </Border>
+                                                </Grid>
+                                            </Border>
 
-                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
-                                        <Grid>
+                                            <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                                <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="170" />
                                                 <ColumnDefinition Width="*" />
@@ -1801,14 +1937,16 @@
                                             <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding CrashLogPath}" />
                                             <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzter Sync-Fehler" />
                                             <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding SyncErrorText}" />
-                                        </Grid>
-                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+                                    </Expander>
 
                                     <WrapPanel Margin="0,0,0,0">
-                                        <Button Width="210" Margin="0,0,10,10" Content="Jetzt nach Updates suchen" Command="{Binding CheckForUpdatesCommand}" />
-                                        <Button Width="170" Margin="0,0,10,10" Content="Konfiguration prüfen" Command="{Binding ValidateCommand}" />
-                                        <Button Width="180"
-                                                Margin="0,0,0,10"
+                                        <Button Width="190" Margin="0,0,8,8" Content="Jetzt nach Updates suchen" Command="{Binding CheckForUpdatesCommand}" />
+                                        <Button Width="154" Margin="0,0,8,8" Content="Konfiguration prüfen" Command="{Binding ValidateCommand}" />
+                                        <Button Width="164"
+                                                Margin="0,0,0,8"
                                                 Content="Update herunterladen"
                                                 Command="{Binding DownloadAvailableUpdateCommand}">
                                             <Button.Style>
@@ -1887,7 +2025,17 @@
                     </StackPanel>
                 </Border>
             </StackPanel>
-        </ScrollViewer>
+            </ScrollViewer>
+
+            <Button Width="150"
+                    Margin="0,0,18,18"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Panel.ZIndex="10"
+                    Content="Speichern"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Command="{Binding SaveCommand}" />
+        </Grid>
     </Grid>
 </UserControl>
 

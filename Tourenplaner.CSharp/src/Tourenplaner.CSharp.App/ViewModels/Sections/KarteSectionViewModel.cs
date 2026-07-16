@@ -36,13 +36,15 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private static readonly string[] PlannedTourOverlayPalette =
     [
         "#2563EB",
+        "#DC2626",
         "#16A34A",
-        "#D97706",
-        "#7C3AED",
+        "#9333EA",
+        "#EA580C",
         "#0891B2",
         "#DB2777",
-        "#0F766E",
-        "#4F46E5"
+        "#65A30D",
+        "#7C2D12",
+        "#0F172A"
     ];
     private static readonly IReadOnlyList<string> _orderStatusOptions =
     [

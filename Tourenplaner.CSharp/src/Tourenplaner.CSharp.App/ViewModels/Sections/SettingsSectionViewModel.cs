@@ -185,14 +185,14 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
         SettingsCategories =
         [
-            new SettingsCategoryNavigationItem("general", "Allgemein", "E-Mail, Startzeit, Standardverhalten und Firmendaten.", "\uE713"),
-            new SettingsCategoryNavigationItem("storage", "Datenspeicher", "Lokale JSON-Dateien oder PostgreSQL-Mehrbenutzerbetrieb.", "\uE8D4"),
-            new SettingsCategoryNavigationItem("map", "Karte & Kalender", "Farben, Kalenderwarnungen und Karteninfos.", "\uE787"),
-            new SettingsCategoryNavigationItem("tomtom", "TomTom Karte & Traffic", "Routing, Overlay und Verkehrslogik.", "\uE81E"),
-            new SettingsCategoryNavigationItem("tools", "Tools", "GPS- und Spediteur-Links und Sichtbarkeit.", "\uE90F"),
-            new SettingsCategoryNavigationItem("backup", "Backup & Restore", "Sicherungen, Aufbewahrung und Wiederherstellung.", "\uE72C"),
-            new SettingsCategoryNavigationItem("xml-import", "XML Import", "Import prüfen, Vorschau ansehen und sicher übernehmen.", "\uE9F9"),
-            new SettingsCategoryNavigationItem("updates", "Updates & Validierung", "Versionen, Prüfungen und Konfigurationsstatus.", "\uE895")
+            new SettingsCategoryNavigationItem("general", "Allgemein", "Grundwerte für E-Mail-Betreff, Tourstartzeit, Firmendaten und Aufenthaltszeiten.", "\uE713"),
+            new SettingsCategoryNavigationItem("storage", "Datenspeicher", "Legt fest, ob Daten lokal oder zentral im PostgreSQL-Mehrbenutzerbetrieb gespeichert werden.", "\uE8D4"),
+            new SettingsCategoryNavigationItem("map", "Karte & Kalender", "Farben, Tourlinien, Kalenderwarnungen und Verhalten der Karten-Infokarten.", "\uE787"),
+            new SettingsCategoryNavigationItem("tomtom", "TomTom Karte & Traffic", "API-Key und technische TomTom-Werte für Routing, Traffic und Karten-Cache.", "\uE81E"),
+            new SettingsCategoryNavigationItem("tools", "Tools", "Sichtbarkeit und Standard-Links für GPS- und Spediteur-Werkzeuge.", "\uE90F"),
+            new SettingsCategoryNavigationItem("backup", "Backup & Restore", "Sicherungen erstellen, Aufbewahrung festlegen und vorhandene Backups wiederherstellen.", "\uE72C"),
+            new SettingsCategoryNavigationItem("xml-import", "XML Import", "XML-Dateien prüfen, Zuordnung anpassen und Aufträge kontrolliert importieren.", "\uE9F9"),
+            new SettingsCategoryNavigationItem("updates", "Updates & Validierung", "Installierte Version, Updateprüfung, Startdiagnose und Synchronisationsstatus.", "\uE895")
         ];
         _selectedSettingsCategory = SettingsCategories.FirstOrDefault();
 
@@ -460,8 +460,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         : "Lokaler Dateibetrieb aktiv";
 
     public string StorageModeChangeHintText => IsPostgreSqlStorageMode
-        ? "PostgreSQL ist aktiv. Die Umstellung wird nach dem Speichern beim nächsten App-Start verwendet."
-        : "JSON-Dateien sind aktiv. Die Umstellung wird nach dem Speichern beim nächsten App-Start verwendet.";
+        ? "Nach dem Speichern startet die App beim nächsten Öffnen im PostgreSQL-Mehrbenutzerbetrieb."
+        : "Nach dem Speichern startet die App beim nächsten Öffnen mit lokalen JSON-Dateien.";
 
     public string PostgreSqlHost
     {

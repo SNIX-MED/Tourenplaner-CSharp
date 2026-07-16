@@ -78,11 +78,69 @@
                       ShadowDepth="0"
                       Opacity="0.1"
                       Color="#0F172A" />
+    <DropShadowEffect x:Key="Shadow.ToolTip"
+                      BlurRadius="18"
+                      ShadowDepth="2"
+                      Direction="270"
+                      Opacity="0.14"
+                      Color="#0F172A" />
     <DropShadowEffect x:Key="Shadow.GlassPanel"
                       BlurRadius="14"
                       ShadowDepth="0"
                       Opacity="0.12"
                       Color="#0F172A" />
+
+    <Style TargetType="{x:Type ToolTip}">
+        <Setter Property="FontFamily" Value="Bahnschrift" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Card}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="MaxWidth" Value="520" />
+        <Setter Property="HasDropShadow" Value="False" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        <Setter Property="ContentTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <TextBlock MaxWidth="500"
+                               Foreground="{DynamicResource Brush.TextPrimary}"
+                               FontFamily="Bahnschrift"
+                               FontSize="12.5"
+                               LineHeight="18"
+                               Text="{Binding}"
+                               TextWrapping="Wrap" />
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ToolTip}">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource Radius.ControlMd}"
+                            Effect="{StaticResource Shadow.ToolTip}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <Border.Resources>
+                            <Style TargetType="{x:Type TextBlock}">
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                <Setter Property="FontFamily" Value="Bahnschrift" />
+                                <Setter Property="FontSize" Value="12.5" />
+                                <Setter Property="TextWrapping" Value="Wrap" />
+                            </Style>
+                        </Border.Resources>
+                        <ContentPresenter RecognizesAccessKey="False" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <Style x:Key="SectionHeaderTitleTextStyle" TargetType="TextBlock" BasedOn="{StaticResource SectionTitleTextStyle}">
         <Setter Property="FontSize" Value="26" />
