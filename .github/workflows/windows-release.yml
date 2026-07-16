@@ -1,0 +1,88 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: Tourenplaner.CSharp
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: .NET einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Inno Setup installieren
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --yes --no-progress
+          }
+
+      - name: Tests ausfuehren
+        shell: pwsh
+        run: dotnet test tests/Tourenplaner.CSharp.Tests/Tourenplaner.CSharp.Tests.csproj -c Release
+
+      - name: Installer und Update-Manifest bauen
+        shell: pwsh
+        run: ./scripts/publish-windows.ps1 -BuildInstaller
+
+      - name: Release-Daten pruefen
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content Directory.Build.props
+          $version = [string]$props.Project.PropertyGroup.Version
+          if ($env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME stimmt nicht mit Version $version ueberein."
+          }
+
+          $manifest = Get-Content artifacts/installer/win-x64/update-manifest.json -Raw | ConvertFrom-Json
+          if ($manifest.version -ne $version) {
+            throw "Manifest-Version $($manifest.version) stimmt nicht mit Version $version ueberein."
+          }
+
+          $setupPath = "artifacts/installer/win-x64/GAWELA-Tourenplaner-Setup.exe"
+          $actualHash = (Get-FileHash $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($manifest.sha256 -ne $actualHash) {
+            throw "SHA-256-Pruefsumme des Installers stimmt nicht mit dem Manifest ueberein."
+          }
+
+      - name: GitHub Release veroeffentlichen
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $title = "Release $tag"
+          $notes = @"
+          - Einstellungen neu und uebersichtlich gegliedert
+          - TomTom API-Key aus dem Quellcode entfernt; lokal gespeicherte Keys bleiben erhalten
+          - Hinweisfenster und Einstellungsbeschreibungen verbessert
+          - Backup-Erstellung mit sicherem Standardordner und Ordnerauswahl korrigiert
+          "@
+
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --latest
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+          gh release upload $tag `
+            artifacts/installer/win-x64/GAWELA-Tourenplaner-Setup.exe `
+            artifacts/installer/win-x64/update-manifest.json `
+            --repo $env:GITHUB_REPOSITORY `
+            --clobber
