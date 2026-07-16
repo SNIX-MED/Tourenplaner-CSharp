@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Domain.Models;
@@ -61,17 +61,17 @@ public sealed class GpsSectionViewModel : SectionViewModelBase
         _webView2Available = Type.GetType("Microsoft.Web.WebView2.Wpf.WebView2, Microsoft.Web.WebView2.Wpf", throwOnError: false) is not null;
     }
 
-        private void Refresh()
-        {
-            LoadedUrl = _configuredUrl;
-            StatusText = _webView2Available
-                ? string.Empty
-                : "WebView2 nicht verfügbar. Bitte GPS im Browser öffnen.";
-        }
+    private void Refresh()
+    {
+        LoadedUrl = _configuredUrl;
+        StatusText = _webView2Available
+            ? string.Empty
+            : "WebView2 nicht verfügbar. Bitte GPS im Browser öffnen.";
+    }
 
     private void OpenInBrowser()
     {
-            if (!Uri.TryCreate((LoadedUrl ?? string.Empty).Trim(), UriKind.Absolute, out var uri))
+        if (!Uri.TryCreate((LoadedUrl ?? string.Empty).Trim(), UriKind.Absolute, out var uri))
         {
             StatusText = "Browser kann nicht geöffnet werden: URL ist ungültig.";
             return;

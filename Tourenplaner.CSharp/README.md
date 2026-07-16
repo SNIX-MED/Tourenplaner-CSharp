@@ -17,12 +17,31 @@ Der GAWELA Tourenplaner ist hier als .NET-8-WPF-Anwendung mit Layered Architectu
 - .NET 8 SDK
 - optional fuer den Installer-Build: `Inno Setup 6`
 
+## Qualitaetsstandards
+
+- Nullable Reference Types und Implicit Usings sind global aktiviert.
+- Compiler-Warnungen werden standardmaessig als Fehler behandelt.
+- Ausnahme: `NU1900` bleibt als nicht blockierende Paket-Metadatenwarnung zugelassen.
+- Formatierung und Zeilenenden werden ueber `.editorconfig` vereinheitlicht.
+
 ## Lokale Entwicklung
 
 Solution bauen:
 
 ```powershell
 dotnet build Tourenplaner.CSharp.sln
+```
+
+Formatierung pruefen:
+
+```powershell
+dotnet format whitespace Tourenplaner.CSharp.sln --verify-no-changes
+```
+
+Tests ausfuehren:
+
+```powershell
+dotnet test Tourenplaner.CSharp.sln
 ```
 
 App direkt starten:
@@ -159,6 +178,12 @@ Persistierte Daten im lokalen App-Datenordner:
 - `%LOCALAPPDATA%\Tourenplaner.CSharp\data\non_map_sql_orders.json`
 - `%LOCALAPPDATA%\Tourenplaner.CSharp\data\geocode_cache.json`
 - `%LOCALAPPDATA%\Tourenplaner.CSharp\data\logs\sql_import_geocode_failed_*.txt`
+
+## TomTom API Key
+
+Standardmaessig kann der TomTom-Key weiterhin aus den vorhandenen Defaultwerten geladen werden.
+Fuer sicherere lokale oder produktive Setups kann stattdessen die Umgebungsvariable
+`TOURENPLANER_TOMTOM_API_KEY` gesetzt werden. Diese hat Vorrang vor dem eingebetteten Default.
 
 ## Nuetzliche Befehle
 

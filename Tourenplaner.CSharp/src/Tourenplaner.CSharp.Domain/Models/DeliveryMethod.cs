@@ -1,4 +1,4 @@
-namespace Tourenplaner.CSharp.Domain.Models;
+﻿namespace Tourenplaner.CSharp.Domain.Models;
 
 /// <summary>
 /// Liefermethoden für die Klassifizierung von Aufträgen in Map/NonMap
@@ -9,7 +9,7 @@ public enum DeliveryMethodType
     Fracht_o_vert,           // Frei Bordsteinkante
     Fracht_m_vert,           // Mit Verteilung
     Fracht_m_vert_mont,      // Mit Verteilung & Montage
-    
+
     // Keine Karte (Non-Map Orders)
     Selbstabholung,          // Selbstabholung
     Fracht_mit_Spediteur,    // Fracht mit Spediteur

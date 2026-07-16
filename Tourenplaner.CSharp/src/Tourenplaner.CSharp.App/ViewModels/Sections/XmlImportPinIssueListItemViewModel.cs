@@ -1,4 +1,4 @@
-namespace Tourenplaner.CSharp.App.ViewModels.Sections;
+﻿namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class XmlImportPinIssueListItemViewModel
 {

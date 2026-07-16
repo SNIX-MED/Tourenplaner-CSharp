@@ -1,4 +1,4 @@
-namespace Tourenplaner.CSharp.App.Services;
+﻿namespace Tourenplaner.CSharp.App.Services;
 
 [Flags]
 public enum AppDataKind

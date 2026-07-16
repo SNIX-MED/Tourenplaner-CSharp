@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 
 namespace Tourenplaner.CSharp.App.Services;
 
@@ -283,21 +283,16 @@ public sealed class AppDataHistoryService : IDisposable
             captureCts = _captureCts;
         }
 
-        _ = Task.Run(async () =>
+        CaptureAfterDebounceAsync(captureCts).Forget();
+    }
+
+    private async Task CaptureAfterDebounceAsync(CancellationTokenSource captureCts)
+    {
+        await Task.Delay(CaptureDebounce, captureCts.Token);
+        if (!captureCts.IsCancellationRequested)
         {
-            try
-            {
-                await Task.Delay(CaptureDebounce, captureCts.Token);
-                if (!captureCts.IsCancellationRequested)
-                {
-                    CaptureIfChanged();
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Ignore superseded captures.
-            }
-        }, captureCts.Token);
+            CaptureIfChanged();
+        }
     }
 
     private void CaptureIfChanged()

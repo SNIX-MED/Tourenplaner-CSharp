@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Collections.Concurrent;
 using Microsoft.Web.WebView2.Core;
 

@@ -1,4 +1,4 @@
-namespace Tourenplaner.CSharp.App.Services;
+﻿namespace Tourenplaner.CSharp.App.Services;
 
 public interface IAppDataSyncBridge
 {

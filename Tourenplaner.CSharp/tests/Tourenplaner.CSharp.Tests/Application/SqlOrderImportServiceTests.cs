@@ -1,4 +1,4 @@
-using Tourenplaner.CSharp.Application.Abstractions;
+﻿using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
@@ -30,7 +30,7 @@ public class SqlOrderImportServiceTests
         Assert.Equal(1, result.UpdatedOrders);
         Assert.Equal(1, result.UnchangedOrders);
 
-        var updated = Assert.Single(result.Items.Where(x => x.Action == ImportPreviewAction.Update));
+        var updated = Assert.Single(result.Items, x => x.Action == ImportPreviewAction.Update);
         Assert.Equal("A-1", updated.OrderId);
         Assert.Contains(updated.Changes, x => x.Contains("Lieferart", StringComparison.Ordinal));
         Assert.Contains(updated.Changes, x => x.Contains("Notiz", StringComparison.Ordinal));
@@ -66,13 +66,13 @@ public class SqlOrderImportServiceTests
         Assert.Equal(1, result.UnchangedOrders);
         Assert.Equal(1, repository.SaveAllCalls);
 
-        var storedChanged = Assert.Single(repository.StoredOrders.Where(x => x.Id == "A-1"));
+        var storedChanged = Assert.Single(repository.StoredOrders, x => x.Id == "A-1");
         Assert.Equal("Hinweis neu", storedChanged.Notes);
         Assert.Equal("An Lager", storedChanged.Products[0].DeliveryStatus);
         Assert.Equal("Lieferant A", storedChanged.Products[0].Supplier);
         Assert.Equal("120x80", storedChanged.Products[0].Dimensions);
 
-        var storedUnchanged = Assert.Single(repository.StoredOrders.Where(x => x.Id == "A-2"));
+        var storedUnchanged = Assert.Single(repository.StoredOrders, x => x.Id == "A-2");
         Assert.Equal("Bleibt gleich", storedUnchanged.Notes);
         Assert.Equal("Auf dem Weg", storedUnchanged.Products[0].DeliveryStatus);
     }
@@ -136,7 +136,7 @@ public class SqlOrderImportServiceTests
                     Quantity = 2,
                     UnitWeightKg = 10,
                     WeightKg = 20,
-                    DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus
+                    DeliveryStatus = OrderProductInfo.OrderedStatus
                 }
             ],
             OrderStatus = Order.OrderedStatus
@@ -232,6 +232,7 @@ public class SqlOrderImportServiceTests
             OrderStatus = order.OrderStatus,
             AvisoStatus = order.AvisoStatus,
             Notes = order.Notes,
+            IstVorauszahlung = order.IstVorauszahlung,
             IsArchived = order.IsArchived
         };
     }

@@ -201,13 +201,19 @@
                            FontSize="34"
                            FontWeight="Bold"
                            Text="Kundenkartei" />
-                <ToggleButton Grid.Row="0"
-                              Grid.Column="1"
-                              VerticalAlignment="Center"
-                              Margin="12,0,0,0"
-                              Content="{Binding ArchiveToggleText}"
-                              Style="{StaticResource ArchiveToggleButtonStyle}"
-                              IsChecked="{Binding IsArchived, Mode=TwoWay}" />
+                <StackPanel Grid.Row="0"
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Margin="12,0,0,0">
+                    <CheckBox VerticalAlignment="Center"
+                              Margin="0,0,12,0"
+                              Content="Vorauszahlung"
+                              IsChecked="{Binding IstVorauszahlung, Mode=TwoWay}" />
+                    <ToggleButton Content="{Binding ArchiveToggleText}"
+                                  Style="{StaticResource ArchiveToggleButtonStyle}"
+                                  IsChecked="{Binding IsArchived, Mode=TwoWay}" />
+                </StackPanel>
                 <Grid Grid.Row="1"
                       Grid.Column="0"
                       Grid.ColumnSpan="2"

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Infrastructure.Repositories.Parity;

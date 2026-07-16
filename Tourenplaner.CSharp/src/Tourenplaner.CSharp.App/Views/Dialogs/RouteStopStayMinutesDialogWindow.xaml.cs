@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Windows;
 
 namespace Tourenplaner.CSharp.App.Views.Dialogs;

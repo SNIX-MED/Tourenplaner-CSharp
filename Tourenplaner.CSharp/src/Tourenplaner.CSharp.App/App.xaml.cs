@@ -175,7 +175,7 @@ public partial class App : System.Windows.Application
     {
         _historyService?.Dispose();
         _historyService = null;
-        _appDataSyncBridge?.Dispose();
+        _appDataSyncBridge?.DisposeAsync().AsTask().Forget();
         _appDataSyncBridge = null;
         base.OnExit(e);
     }
@@ -535,15 +535,7 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            var lines = new[]
-            {
-                "========================================",
-                DateTimeOffset.Now.ToString("O"),
-                source,
-                ex.ToString(),
-                string.Empty
-            };
-            File.AppendAllLines(_logPath, lines);
+            AppendLogLines(source, ex.ToString());
         }
         catch
         {
@@ -555,20 +547,25 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            var lines = new[]
-            {
-                "========================================",
-                DateTimeOffset.Now.ToString("O"),
-                source,
-                message,
-                string.Empty
-            };
-            File.AppendAllLines(_logPath, lines);
+            AppendLogLines(source, message);
         }
         catch
         {
             // Ignore logging failures to avoid recursive crashes.
         }
+    }
+
+    private void AppendLogLines(string source, string message)
+    {
+        var lines = new[]
+        {
+            "========================================",
+            DateTimeOffset.Now.ToString("O"),
+            source,
+            message,
+            string.Empty
+        };
+        File.AppendAllLines(_logPath, lines);
     }
 }
 

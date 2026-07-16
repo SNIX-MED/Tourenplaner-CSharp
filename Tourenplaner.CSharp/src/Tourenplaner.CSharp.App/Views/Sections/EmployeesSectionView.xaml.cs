@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.App.Views.Dialogs;

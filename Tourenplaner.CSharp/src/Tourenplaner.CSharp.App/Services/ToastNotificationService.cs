@@ -1,4 +1,4 @@
-namespace Tourenplaner.CSharp.App.Services;
+﻿namespace Tourenplaner.CSharp.App.Services;
 
 public sealed record ToastNotification(string Message, int DurationMs = 4000);
 

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 

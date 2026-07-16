@@ -1,4 +1,4 @@
-namespace Tourenplaner.CSharp.Application.Services;
+﻿namespace Tourenplaner.CSharp.Application.Services;
 
 public static class TrafficBufferService
 {

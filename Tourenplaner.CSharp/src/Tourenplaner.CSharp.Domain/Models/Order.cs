@@ -40,6 +40,7 @@ public sealed class Order
     public string DeliveryType { get; set; } = "Frei Bordsteinkante";
     public string OrderStatus { get; set; } = DefaultOrderStatus;
     public string AvisoStatus { get; set; } = "nicht avisiert";
+    public bool IstVorauszahlung { get; set; }
     public string Notes { get; set; } = string.Empty;
     public bool IsArchived { get; set; }
     public string? ConcurrencyToken { get; set; }
@@ -88,6 +89,12 @@ public sealed class Order
             return DefaultOrderStatus;
         }
 
+        if (normalizedStatuses.Any(x =>
+                string.Equals(x, OrderProductInfo.DefaultDeliveryStatus, StringComparison.OrdinalIgnoreCase)))
+        {
+            return DefaultOrderStatus;
+        }
+
         var allInStock = normalizedStatuses.All(x =>
             string.Equals(x, OrderProductInfo.InStockStatus, StringComparison.OrdinalIgnoreCase));
         if (allInStock)
@@ -126,8 +133,7 @@ public sealed class Order
         }
 
         if (normalizedStatuses.All(x =>
-                string.Equals(x, OrderProductInfo.OrderedStatus, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(x, OrderProductInfo.DefaultDeliveryStatus, StringComparison.OrdinalIgnoreCase)))
+                string.Equals(x, OrderProductInfo.OrderedStatus, StringComparison.OrdinalIgnoreCase)))
         {
             return OrderedStatus;
         }

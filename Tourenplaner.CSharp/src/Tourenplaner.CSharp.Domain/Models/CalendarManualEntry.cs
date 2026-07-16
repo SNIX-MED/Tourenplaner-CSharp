@@ -1,4 +1,4 @@
-namespace Tourenplaner.CSharp.Domain.Models;
+﻿namespace Tourenplaner.CSharp.Domain.Models;
 
 public sealed class CalendarManualEntry
 {

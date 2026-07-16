@@ -1103,6 +1103,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             OrderStatusBadgeForeground = palette.ForegroundHex,
             ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
             Notes = order.Notes ?? string.Empty,
+            IstVorauszahlung = order.IstVorauszahlung,
             IsArchived = order.IsArchived
         };
     }
@@ -1177,6 +1178,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             DeliveryType = source.DeliveryType,
             OrderStatus = source.OrderStatus,
             Notes = source.Notes,
+            IstVorauszahlung = source.IstVorauszahlung,
             IsArchived = source.IsArchived,
             ConcurrencyToken = source.ConcurrencyToken
         };

@@ -1,4 +1,4 @@
-namespace Tourenplaner.CSharp.Application.Common;
+﻿namespace Tourenplaner.CSharp.Application.Common;
 
 public enum ImportPreviewAction
 {

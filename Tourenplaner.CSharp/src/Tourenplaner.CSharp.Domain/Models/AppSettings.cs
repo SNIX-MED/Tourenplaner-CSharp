@@ -2,8 +2,11 @@
 
 public sealed class AppSettings
 {
+    private const string LegacyDefaultStatusColorNotSpecified = "#A3A3A3";
+
+    public const string TomTomApiKeyEnvironmentVariableName = "TOURENPLANER_TOMTOM_API_KEY";
     public const string DefaultAvisoEmailSubjectTemplate = "Lieferung von Auftrag X";
-    public const string DefaultStatusColorNotSpecified = "#A3A3A3";
+    public const string DefaultStatusColorNotSpecified = "#FFFFFF";
     public const string DefaultStatusColorOrdered = "#0EA5E9";
     public const string DefaultStatusColorOnTheWay = "#F59E0B";
     public const string DefaultStatusColorPendingPreparation = "#F97316";
@@ -75,7 +78,7 @@ public sealed class AppSettings
     public bool ShowSpediteurTool { get; set; } = true;
     public string SpediteurToolUrl { get; set; } = DefaultSpediteurToolUrl;
     public string TourDefaultStartTime { get; set; } = DefaultTourStartTime;
-    public string TomTomApiKey { get; set; } = "IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH";
+    public string TomTomApiKey { get; set; } = ResolveDefaultTomTomApiKey();
     public int TomTomTrafficRefreshSeconds { get; set; } = DefaultTomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs { get; set; } = DefaultTomTomRouteRecalcDebounceMs;
     public int TomTomVehicleOnlyMaxSpeedKmh { get; set; } = DefaultTomTomVehicleOnlyMaxSpeedKmh;
@@ -95,7 +98,7 @@ public sealed class AppSettings
     public Dictionary<string, UserAppPreference> UserPreferencesByUser { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public AppStorageMode StorageMode { get; set; } = AppStorageMode.JsonFiles;
     public PostgreSqlStorageSettings PostgreSqlStorage { get; set; } = new();
-    
+
     // SQL Server Import Settings
     public SqlConnectionSettings SqlImportSettings { get; set; } = new();
     public DateTime? LastSqlImportDate { get; set; }
@@ -109,7 +112,7 @@ public sealed class AppSettings
         var normalizedUserName = NormalizeUserName(userName);
         if (UserPreferencesByUser.TryGetValue(normalizedUserName, out var existing) && existing is not null)
         {
-            return NormalizeTrafficBufferProfile(existing.Clone());
+            return NormalizeUserPreference(existing.Clone());
         }
 
         return BuildLegacyUserPreference();
@@ -129,7 +132,7 @@ public sealed class AppSettings
 
     private UserAppPreference BuildLegacyUserPreference()
     {
-        return NormalizeTrafficBufferProfile(new UserAppPreference
+        return NormalizeUserPreference(new UserAppPreference
         {
             AppearanceMode = string.IsNullOrWhiteSpace(AppearanceMode) ? "Light" : AppearanceMode,
             AvisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(AvisoEmailSubjectTemplate) ? DefaultAvisoEmailSubjectTemplate : AvisoEmailSubjectTemplate,
@@ -201,6 +204,14 @@ public sealed class AppSettings
         };
     }
 
+    public static string ResolveDefaultTomTomApiKey()
+    {
+        var configuredValue = Environment.GetEnvironmentVariable(TomTomApiKeyEnvironmentVariableName);
+        return string.IsNullOrWhiteSpace(configuredValue)
+            ? "IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH"
+            : configuredValue.Trim();
+    }
+
     public int ResolveMapOrderStayMinutes(string? deliveryType)
     {
         return DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(deliveryType) switch
@@ -231,6 +242,24 @@ public sealed class AppSettings
         }
 
         return fallbackValue;
+    }
+
+    private static UserAppPreference NormalizeUserPreference(UserAppPreference preference)
+    {
+        preference.StatusColorNotSpecified = NormalizeNotSpecifiedStatusColor(preference.StatusColorNotSpecified);
+        return NormalizeTrafficBufferProfile(preference);
+    }
+
+    private static string NormalizeNotSpecifiedStatusColor(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized) ||
+            string.Equals(normalized, LegacyDefaultStatusColorNotSpecified, StringComparison.OrdinalIgnoreCase))
+        {
+            return DefaultStatusColorNotSpecified;
+        }
+
+        return normalized;
     }
 
     private static UserAppPreference NormalizeTrafficBufferProfile(UserAppPreference preference)

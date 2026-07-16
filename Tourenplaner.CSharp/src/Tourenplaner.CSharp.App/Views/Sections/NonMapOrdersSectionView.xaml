@@ -1,4 +1,4 @@
-<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.NonMapOrdersSectionView"
+﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.NonMapOrdersSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -46,6 +46,7 @@
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Opacity" Value="1" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{DynamicResource Brush.RowHover}" />
@@ -101,6 +102,23 @@
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
             <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="PrepaymentBadgeStyle" TargetType="Border">
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="Padding" Value="5,2" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="#111827" />
+            <Setter Property="CornerRadius" Value="5" />
+            <Setter Property="Visibility" Value="{Binding IstVorauszahlung, Converter={StaticResource BoolToVisibilityConverter}}" />
+        </Style>
+
+        <Style x:Key="PrepaymentBadgeTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Text" Value="VZ" />
         </Style>
 
         <Style x:Key="PrimaryTextStyle" TargetType="TextBlock">
@@ -663,22 +681,28 @@
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Grid VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Id}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="6,0,0,0"
-                                                   FontSize="17"
-                                                   FontWeight="SemiBold">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
-                                                            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                        <StackPanel Margin="6,0,0,0"
+                                                    Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Id}"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="17"
+                                                       FontWeight="SemiBold">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <Border Style="{StaticResource PrepaymentBadgeStyle}">
+                                                <TextBlock Style="{StaticResource PrepaymentBadgeTextStyle}" />
+                                            </Border>
+                                        </StackPanel>
                                     </Grid>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>

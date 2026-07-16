@@ -1,4 +1,4 @@
-using Tourenplaner.CSharp.Domain.Models;
+﻿using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Tests.Application;
 
@@ -42,6 +42,51 @@ public class OrderStatusDerivationTests
         Assert.Equal(Order.PendingPreparationStatus, Order.ResolveOrderStatusFromProducts(allPendingPreparation));
         Assert.Equal(Order.PartiallyPendingPreparationStatus, Order.ResolveOrderStatusFromProducts(mixedReadyFamily));
         Assert.Equal(Order.PartiallyPendingPreparationStatus, Order.ResolveOrderStatusFromProducts(mixedReadyAndPendingPreparation));
+    }
+
+    [Fact]
+    public void ResolveOrderStatusFromProducts_KeepsNotSpecifiedProductStatus()
+    {
+        var notSpecifiedProducts = new[]
+        {
+            new OrderProductInfo { Name = "Produkt A", DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus }
+        };
+
+        var mixedWithOrderedProducts = new[]
+        {
+            new OrderProductInfo { Name = "Produkt A", DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus },
+            new OrderProductInfo { Name = "Produkt B", DeliveryStatus = OrderProductInfo.OrderedStatus }
+        };
+
+        var mixedWithPendingPreparationProducts = new[]
+        {
+            new OrderProductInfo { Name = "Produkt A", DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus },
+            new OrderProductInfo { Name = "Produkt B", DeliveryStatus = OrderProductInfo.PendingPreparationStatus }
+        };
+
+        var mixedWithInStockProducts = new[]
+        {
+            new OrderProductInfo { Name = "Produkt A", DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus },
+            new OrderProductInfo { Name = "Produkt B", DeliveryStatus = OrderProductInfo.InStockStatus }
+        };
+
+        var mixedWithInTransitProducts = new[]
+        {
+            new OrderProductInfo { Name = "Produkt A", DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus },
+            new OrderProductInfo { Name = "Produkt B", DeliveryStatus = OrderProductInfo.InTransitStatus }
+        };
+
+        Assert.Equal(Order.DefaultOrderStatus, Order.ResolveOrderStatusFromProducts(notSpecifiedProducts));
+        Assert.Equal(Order.DefaultOrderStatus, Order.ResolveOrderStatusFromProducts(mixedWithOrderedProducts));
+        Assert.Equal(Order.DefaultOrderStatus, Order.ResolveOrderStatusFromProducts(mixedWithPendingPreparationProducts));
+        Assert.Equal(Order.DefaultOrderStatus, Order.ResolveOrderStatusFromProducts(mixedWithInStockProducts));
+        Assert.Equal(Order.DefaultOrderStatus, Order.ResolveOrderStatusFromProducts(mixedWithInTransitProducts));
+    }
+
+    [Fact]
+    public void DefaultNotSpecifiedStatusColor_IsWhite()
+    {
+        Assert.Equal("#FFFFFF", AppSettings.DefaultStatusColorNotSpecified);
     }
 
     [Fact]

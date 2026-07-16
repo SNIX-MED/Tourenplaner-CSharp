@@ -1,4 +1,4 @@
-using Tourenplaner.CSharp.Domain.Models;
+﻿using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Tests.Application;
 
@@ -50,6 +50,23 @@ public class AppSettingsTests
         Assert.Equal(30, resolved.TrafficBufferPercentFrom1530To1830);
     }
 
+    [Fact]
+    public void ResolveUserPreference_MigratesLegacyNotSpecifiedStatusColorToWhite()
+    {
+        var settings = new AppSettings();
+        var preference = new UserAppPreference
+        {
+            StatusColorNotSpecified = "#A3A3A3"
+        };
+
+        settings.SetUserPreference("tester", preference);
+
+        var resolved = settings.ResolveUserPreference("tester");
+
+        Assert.Equal(AppSettings.DefaultStatusColorNotSpecified, resolved.StatusColorNotSpecified);
+        Assert.Equal("#FFFFFF", resolved.StatusColorNotSpecified);
+    }
+
     [Theory]
     [InlineData(DeliveryMethodExtensions.FreiBordsteinkante, 10)]
     [InlineData(DeliveryMethodExtensions.MitVerteilung, 20)]
@@ -81,5 +98,43 @@ public class AppSettingsTests
         Assert.Equal(AppSettings.DefaultStayMinutesFreiBordsteinkante, settings.ResolveMapOrderStayMinutes(DeliveryMethodExtensions.FreiBordsteinkante));
         Assert.Equal(AppSettings.DefaultStayMinutesMitVerteilung, settings.ResolveMapOrderStayMinutes(DeliveryMethodExtensions.MitVerteilung));
         Assert.Equal(AppSettings.DefaultStayMinutesMitVerteilungMontage, settings.ResolveMapOrderStayMinutes(DeliveryMethodExtensions.MitVerteilungMontage));
+    }
+
+    [Fact]
+    public void ResolveDefaultTomTomApiKey_UsesEnvironmentVariableWhenPresent()
+    {
+        var originalValue = Environment.GetEnvironmentVariable(AppSettings.TomTomApiKeyEnvironmentVariableName);
+
+        try
+        {
+            Environment.SetEnvironmentVariable(AppSettings.TomTomApiKeyEnvironmentVariableName, " env-key ");
+
+            var resolved = AppSettings.ResolveDefaultTomTomApiKey();
+
+            Assert.Equal("env-key", resolved);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppSettings.TomTomApiKeyEnvironmentVariableName, originalValue);
+        }
+    }
+
+    [Fact]
+    public void ResolveDefaultTomTomApiKey_FallsBackToEmbeddedDefaultWhenEnvironmentVariableMissing()
+    {
+        var originalValue = Environment.GetEnvironmentVariable(AppSettings.TomTomApiKeyEnvironmentVariableName);
+
+        try
+        {
+            Environment.SetEnvironmentVariable(AppSettings.TomTomApiKeyEnvironmentVariableName, null);
+
+            var resolved = AppSettings.ResolveDefaultTomTomApiKey();
+
+            Assert.Equal("IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH", resolved);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppSettings.TomTomApiKeyEnvironmentVariableName, originalValue);
+        }
     }
 }

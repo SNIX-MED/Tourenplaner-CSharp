@@ -1,0 +1,21 @@
+root = true
+
+[*.{cs,csproj,props,targets,sln,xaml,md,json}]
+charset = utf-8-bom
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+[*.{csproj,props,targets}]
+indent_style = space
+indent_size = 2
+
+[*.{json,md}]
+indent_style = space
+indent_size = 2

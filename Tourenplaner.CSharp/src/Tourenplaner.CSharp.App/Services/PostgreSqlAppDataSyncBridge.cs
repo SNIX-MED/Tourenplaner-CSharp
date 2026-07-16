@@ -1,11 +1,11 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Npgsql;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Services;
 
 namespace Tourenplaner.CSharp.App.Services;
 
-public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposable
+public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposable, IAsyncDisposable
 {
     private const string ChannelName = "tourenplaner_app_data_sync";
 
@@ -47,15 +47,24 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
     public void Dispose()
     {
         _shutdownCts.Cancel();
+        _listenerTask.Forget();
+        _shutdownCts.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _shutdownCts.Cancel();
         try
         {
-            _listenerTask.Wait(TimeSpan.FromSeconds(2));
+            await _listenerTask.ConfigureAwait(false);
         }
-        catch
+        catch (OperationCanceledException)
         {
         }
-
-        _shutdownCts.Dispose();
+        finally
+        {
+            _shutdownCts.Dispose();
+        }
     }
 
     private async Task ListenLoopAsync()

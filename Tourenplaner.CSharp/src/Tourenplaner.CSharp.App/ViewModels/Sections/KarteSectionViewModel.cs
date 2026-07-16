@@ -926,6 +926,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         get => _selectedOrder;
         set
         {
+            var productSelectionToRestore = string.Equals(_selectedOrder?.OrderId, value?.OrderId, StringComparison.OrdinalIgnoreCase)
+                ? _selectedDetailProductIndices.OrderBy(x => x).ToList()
+                : null;
             if (SetProperty(ref _selectedOrder, value))
             {
                 var wasDetailsOpen = IsDetailsOpen;
@@ -948,7 +951,17 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                     _suppressDetailStatusSave = false;
                     _suppressDetailAvisoStatusSave = false;
                 }
-                ResetDetailProductSelectionForCurrentOrder(raiseDetailItemsChanged: false);
+                if (productSelectionToRestore is not null)
+                {
+                    RestoreDetailProductSelection(
+                        productSelectionToRestore,
+                        FindSelectedOrderModel()?.Products ?? [],
+                        raiseDetailItemsChanged: false);
+                }
+                else
+                {
+                    ResetDetailProductSelectionForCurrentOrder(raiseDetailItemsChanged: false);
+                }
                 OnPropertyChanged(nameof(DetailAddress));
                 OnPropertyChanged(nameof(DetailCustomer));
                 OnPropertyChanged(nameof(DetailOrderNumber));
@@ -1222,16 +1235,16 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             ? null
             : new CompanyMarkerInfo(_companyName, _companyAddress, _companyLocation.Latitude, _companyLocation.Longitude);
 
-public string TomTomApiKey => _tomTomApiKey;
-public bool TomTomShowTrafficFlow => _tomTomShowTrafficFlow;
-public bool TomTomShowTrafficIncidents => _tomTomShowTrafficIncidents;
-public bool TomTomShowRoadLabels => _tomTomShowRoadLabels;
-public bool TomTomShowPoi => _tomTomShowPoi;
-public bool TomTomUseVehicleDimensions => _tomTomUseVehicleDimensions;
-public bool TomTomUseVehicleWeightRestrictions => _tomTomUseVehicleWeightRestrictions;
-public bool TomTomUseDepartAtTraffic => _tomTomUseDepartAtTraffic;
-public string TomTomMapOverlayStyle => _tomTomMapOverlayStyle;
-public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
+    public string TomTomApiKey => _tomTomApiKey;
+    public bool TomTomShowTrafficFlow => _tomTomShowTrafficFlow;
+    public bool TomTomShowTrafficIncidents => _tomTomShowTrafficIncidents;
+    public bool TomTomShowRoadLabels => _tomTomShowRoadLabels;
+    public bool TomTomShowPoi => _tomTomShowPoi;
+    public bool TomTomUseVehicleDimensions => _tomTomUseVehicleDimensions;
+    public bool TomTomUseVehicleWeightRestrictions => _tomTomUseVehicleWeightRestrictions;
+    public bool TomTomUseDepartAtTraffic => _tomTomUseDepartAtTraffic;
+    public string TomTomMapOverlayStyle => _tomTomMapOverlayStyle;
+    public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs => _tomTomRouteRecalcDebounceMs;
     public int TomTomVehicleOnlyMaxSpeedKmh => _tomTomVehicleOnlyMaxSpeedKmh;
     public int TomTomVehicleWithTrailerMaxSpeedKmh => _tomTomVehicleWithTrailerMaxSpeedKmh;
@@ -1307,17 +1320,17 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         return RouteStops
             .Where(IsOrderStop)
             .Select(x => new RouteStopItem
-        {
-            Position = x.Position,
-            DisplayIndex = x.DisplayIndex,
-            OrderId = x.OrderId,
-            Customer = x.Customer,
-            Address = x.Address,
-            Latitude = x.Latitude,
-            Longitude = x.Longitude,
-            PlannedStayMinutes = x.PlannedStayMinutes,
-            EmployeeInfoText = x.EmployeeInfoText
-        })
+            {
+                Position = x.Position,
+                DisplayIndex = x.DisplayIndex,
+                OrderId = x.OrderId,
+                Customer = x.Customer,
+                Address = x.Address,
+                Latitude = x.Latitude,
+                Longitude = x.Longitude,
+                PlannedStayMinutes = x.PlannedStayMinutes,
+                EmployeeInfoText = x.EmployeeInfoText
+            })
             .ToList();
     }
 
@@ -1332,6 +1345,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 IsAssigned: false,
                 AvisoStatusLabel: "nicht avisiert",
                 HasPendingPreparation: false,
+                IstVorauszahlung: false,
                 StatusColorHex: ResolveOrderStatusColor((string?)null, isAssigned: false));
         }
 
@@ -1342,6 +1356,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             IsAssigned: isAssigned,
             AvisoStatusLabel: NormalizeAvisoStatus(order.AvisoStatus),
             HasPendingPreparation: HasPendingPreparationProduct(order.Products),
+            IstVorauszahlung: order.IstVorauszahlung,
             StatusColorHex: ResolveOrderStatusColor(order, isAssigned));
     }
 
@@ -2705,74 +2720,74 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     {
         try
         {
-        if (!RouteStops.Any(x => !IsCompanyStop(x)))
-        {
-            return;
-        }
+            if (!RouteStops.Any(x => !IsCompanyStop(x)))
+            {
+                return;
+            }
 
-        var availabilityError = await BuildAvailabilityErrorAsync(routeDate, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
-        if (!string.IsNullOrWhiteSpace(availabilityError))
-        {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
+            var availabilityError = await BuildAvailabilityErrorAsync(routeDate, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
+            if (!string.IsNullOrWhiteSpace(availabilityError))
+            {
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
-        if (!ConfirmCapacityWarning(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId))
-        {
-            return;
-        }
+            if (!ConfirmCapacityWarning(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId))
+            {
+                return;
+            }
 
-        var tours = (await _tourRepository.LoadAsync()).ToList();
-        var nextId = _mapRouteService.DetermineNextTourId(tours);
-        var tour = _mapRouteService.BuildTour(
-            ToMapRouteStops(),
-            nextId,
-            routeName,
-            routeDate,
-            startTime,
-            _companyName,
-            _companyAddress,
-            _companyLocation,
-            defaultServiceMinutes: _stayMinutesFreiBordsteinkante);
-        ApplyCurrentRouteTravelTimeCaches(tour);
-        tour.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
-        tour.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
-        tour.SecondaryVehicleId = string.IsNullOrWhiteSpace(secondaryVehicleId) ? null : secondaryVehicleId.Trim();
-        tour.SecondaryTrailerId = string.IsNullOrWhiteSpace(secondaryTrailerId) ? null : secondaryTrailerId.Trim();
-        tour.EmployeeIds = (employeeIds ?? [])
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(2)
-            .ToList();
+            var tours = (await _tourRepository.LoadAsync()).ToList();
+            var nextId = _mapRouteService.DetermineNextTourId(tours);
+            var tour = _mapRouteService.BuildTour(
+                ToMapRouteStops(),
+                nextId,
+                routeName,
+                routeDate,
+                startTime,
+                _companyName,
+                _companyAddress,
+                _companyLocation,
+                defaultServiceMinutes: _stayMinutesFreiBordsteinkante);
+            ApplyCurrentRouteTravelTimeCaches(tour);
+            tour.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
+            tour.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
+            tour.SecondaryVehicleId = string.IsNullOrWhiteSpace(secondaryVehicleId) ? null : secondaryVehicleId.Trim();
+            tour.SecondaryTrailerId = string.IsNullOrWhiteSpace(secondaryTrailerId) ? null : secondaryTrailerId.Trim();
+            tour.EmployeeIds = (employeeIds ?? [])
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(2)
+                .ToList();
 
-        var previewTours = tours.ToList();
-        previewTours.Add(tour);
-        if (!ConfirmAssignmentConflictWarning(previewTours, tour.Id))
-        {
-            return;
-        }
+            var previewTours = tours.ToList();
+            previewTours.Add(tour);
+            if (!ConfirmAssignmentConflictWarning(previewTours, tour.Id))
+            {
+                return;
+            }
 
-        var routeOrderIds = _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops());
-        tours.Add(tour);
-        RemoveRouteOrderStopsFromOtherTours(tours, routeOrderIds, nextId);
+            var routeOrderIds = _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops());
+            tours.Add(tour);
+            RemoveRouteOrderStopsFromOtherTours(tours, routeOrderIds, nextId);
 
-        await _tourRepository.SaveAsync(tours);
-        _dataSyncService.PublishTours(_instanceId, nextId.ToString(CultureInfo.InvariantCulture), nextId.ToString(CultureInfo.InvariantCulture));
+            await _tourRepository.SaveAsync(tours);
+            _dataSyncService.PublishTours(_instanceId, nextId.ToString(CultureInfo.InvariantCulture), nextId.ToString(CultureInfo.InvariantCulture));
 
-        foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
-        {
-            order.AssignedTourId = nextId.ToString();
-        }
+            foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
+            {
+                order.AssignedTourId = nextId.ToString();
+            }
 
-        await _orderRepository.SaveAllAsync(_allOrders);
-        _dataSyncService.PublishOrders(_instanceId);
-        await RefreshAsync();
-        await FocusTourAsync(nextId);
-        SetRouteChanged(false);
-        ClearDraftRouteStopRemovalUndoHistory();
-        StatusText = "Route gespeichert und auf Karte geladen.";
-        ToastNotificationService.ShowInfo($"Neue Tour {nextId} wurde erstellt.");
+            await _orderRepository.SaveAllAsync(_allOrders);
+            _dataSyncService.PublishOrders(_instanceId);
+            await RefreshAsync();
+            await FocusTourAsync(nextId);
+            SetRouteChanged(false);
+            ClearDraftRouteStopRemovalUndoHistory();
+            StatusText = "Route gespeichert und auf Karte geladen.";
+            ToastNotificationService.ShowInfo($"Neue Tour {nextId} wurde erstellt.");
         }
         catch (IOException ioEx)
         {
@@ -2798,128 +2813,128 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     {
         try
         {
-        var hasDraftRouteStops = RouteStops.Any(x => !IsCompanyStop(x));
-        var isOverviewEdit = !hasDraftRouteStops && _activeTourId <= 0 && _selectedTourOverviewId == tourId;
+            var hasDraftRouteStops = RouteStops.Any(x => !IsCompanyStop(x));
+            var isOverviewEdit = !hasDraftRouteStops && _activeTourId <= 0 && _selectedTourOverviewId == tourId;
 
-        var tours = (await _tourRepository.LoadAsync()).ToList();
-        var index = tours.FindIndex(x => x.Id == tourId);
-        if (index < 0)
-        {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                "Die Tour konnte nicht mehr gefunden werden.",
-                "Tour bearbeiten",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
-            await RefreshAsync();
-            return;
-        }
-
-        var existingTour = tours[index];
-        if (!hasDraftRouteStops && !isOverviewEdit)
-        {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                "Bitte zuerst mindestens einen Auftrag zur Route hinzufügen.",
-                "Tour bearbeiten",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Information);
-            return;
-        }
-
-        var availabilityError = await BuildAvailabilityErrorAsync(routeDate, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
-        if (!string.IsNullOrWhiteSpace(availabilityError))
-        {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        if (!ConfirmCapacityWarning(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId))
-        {
-            return;
-        }
-
-        TourRecord updated;
-        if (hasDraftRouteStops)
-        {
-            updated = _mapRouteService.BuildTour(
-                ToMapRouteStops(),
-                tourId,
-                routeName,
-                routeDate,
-                startTime,
-                _companyName,
-                _companyAddress,
-                _companyLocation,
-                defaultServiceMinutes: _stayMinutesFreiBordsteinkante);
-            ApplyCurrentRouteTravelTimeCaches(updated);
-            _scheduleService.ApplySchedule(updated);
-        }
-        else
-        {
-            updated = CloneTourRecord(existingTour);
-            updated.Name = string.IsNullOrWhiteSpace(routeName) ? $"Tour {tourId}" : routeName.Trim();
-            updated.Date = (routeDate ?? string.Empty).Trim();
-            updated.StartTime = string.IsNullOrWhiteSpace(startTime) ? "08:00" : startTime.Trim();
-        }
-
-        updated.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
-        updated.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
-        updated.SecondaryVehicleId = string.IsNullOrWhiteSpace(secondaryVehicleId) ? null : secondaryVehicleId.Trim();
-        updated.SecondaryTrailerId = string.IsNullOrWhiteSpace(secondaryTrailerId) ? null : secondaryTrailerId.Trim();
-        updated.EmployeeIds = (employeeIds ?? [])
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(2)
-            .ToList();
-
-        var previewTours = tours.ToList();
-        previewTours[index] = updated;
-        if (!ConfirmAssignmentConflictWarning(previewTours, updated.Id))
-        {
-            return;
-        }
-
-        var routeOrderIds = hasDraftRouteStops
-            ? _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops())
-            : ExtractNonCompanyTourOrderIds(existingTour);
-        tours[index] = updated;
-        RemoveRouteOrderStopsFromOtherTours(tours, routeOrderIds, tourId);
-
-        await _tourRepository.SaveAsync(tours);
-        _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
-
-        var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
-        foreach (var order in _allOrders.Where(o => string.Equals(o.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase)))
-        {
-            if (routeOrderIds.Contains(order.Id))
+            var tours = (await _tourRepository.LoadAsync()).ToList();
+            var index = tours.FindIndex(x => x.Id == tourId);
+            if (index < 0)
             {
-                continue;
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                    "Die Tour konnte nicht mehr gefunden werden.",
+                    "Tour bearbeiten",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Warning);
+                await RefreshAsync();
+                return;
             }
 
-            order.AssignedTourId = string.Empty;
-            order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
-        }
+            var existingTour = tours[index];
+            if (!hasDraftRouteStops && !isOverviewEdit)
+            {
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                    "Bitte zuerst mindestens einen Auftrag zur Route hinzufügen.",
+                    "Tour bearbeiten",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Information);
+                return;
+            }
 
-        foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
-        {
-            order.AssignedTourId = tourKey;
-        }
+            var availabilityError = await BuildAvailabilityErrorAsync(routeDate, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
+            if (!string.IsNullOrWhiteSpace(availabilityError))
+            {
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
-        await _orderRepository.SaveAllAsync(_allOrders);
-        _dataSyncService.PublishOrders(_instanceId);
-        await RefreshAsync();
-        SetRouteChanged(false);
-        ClearDraftRouteStopRemovalUndoHistory();
-        if (isOverviewEdit)
-        {
-            SelectTourOverviewById(tourId);
-            StatusText = "Tour aktualisiert.";
-        }
-        else
-        {
-            await FocusTourAsync(tourId);
-            StatusText = "Tour aktualisiert und auf Karte geladen.";
-        }
+            if (!ConfirmCapacityWarning(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId))
+            {
+                return;
+            }
+
+            TourRecord updated;
+            if (hasDraftRouteStops)
+            {
+                updated = _mapRouteService.BuildTour(
+                    ToMapRouteStops(),
+                    tourId,
+                    routeName,
+                    routeDate,
+                    startTime,
+                    _companyName,
+                    _companyAddress,
+                    _companyLocation,
+                    defaultServiceMinutes: _stayMinutesFreiBordsteinkante);
+                ApplyCurrentRouteTravelTimeCaches(updated);
+                _scheduleService.ApplySchedule(updated);
+            }
+            else
+            {
+                updated = CloneTourRecord(existingTour);
+                updated.Name = string.IsNullOrWhiteSpace(routeName) ? $"Tour {tourId}" : routeName.Trim();
+                updated.Date = (routeDate ?? string.Empty).Trim();
+                updated.StartTime = string.IsNullOrWhiteSpace(startTime) ? "08:00" : startTime.Trim();
+            }
+
+            updated.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
+            updated.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
+            updated.SecondaryVehicleId = string.IsNullOrWhiteSpace(secondaryVehicleId) ? null : secondaryVehicleId.Trim();
+            updated.SecondaryTrailerId = string.IsNullOrWhiteSpace(secondaryTrailerId) ? null : secondaryTrailerId.Trim();
+            updated.EmployeeIds = (employeeIds ?? [])
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(2)
+                .ToList();
+
+            var previewTours = tours.ToList();
+            previewTours[index] = updated;
+            if (!ConfirmAssignmentConflictWarning(previewTours, updated.Id))
+            {
+                return;
+            }
+
+            var routeOrderIds = hasDraftRouteStops
+                ? _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops())
+                : ExtractNonCompanyTourOrderIds(existingTour);
+            tours[index] = updated;
+            RemoveRouteOrderStopsFromOtherTours(tours, routeOrderIds, tourId);
+
+            await _tourRepository.SaveAsync(tours);
+            _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
+
+            var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
+            foreach (var order in _allOrders.Where(o => string.Equals(o.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase)))
+            {
+                if (routeOrderIds.Contains(order.Id))
+                {
+                    continue;
+                }
+
+                order.AssignedTourId = string.Empty;
+                order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
+            }
+
+            foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
+            {
+                order.AssignedTourId = tourKey;
+            }
+
+            await _orderRepository.SaveAllAsync(_allOrders);
+            _dataSyncService.PublishOrders(_instanceId);
+            await RefreshAsync();
+            SetRouteChanged(false);
+            ClearDraftRouteStopRemovalUndoHistory();
+            if (isOverviewEdit)
+            {
+                SelectTourOverviewById(tourId);
+                StatusText = "Tour aktualisiert.";
+            }
+            else
+            {
+                await FocusTourAsync(tourId);
+                StatusText = "Tour aktualisiert und auf Karte geladen.";
+            }
         }
         catch (IOException ioEx)
         {
@@ -5525,6 +5540,45 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         RaiseCommandStates();
     }
 
+    private void RestoreDetailProductSelection(
+        IEnumerable<int> productIndices,
+        IReadOnlyList<OrderProductInfo> products,
+        bool raiseDetailItemsChanged = true)
+    {
+        _selectedDetailProductIndices.Clear();
+        foreach (var index in productIndices.Distinct().OrderBy(x => x))
+        {
+            if (index < 0 || index >= products.Count)
+            {
+                continue;
+            }
+
+            var product = products[index];
+            if (product is null || string.IsNullOrWhiteSpace(product.Name))
+            {
+                continue;
+            }
+
+            _selectedDetailProductIndices.Add(index);
+        }
+
+        if (_selectedDetailProductIndices.Count == 0)
+        {
+            EnsureDetailProductSelection(raiseDetailItemsChanged);
+            return;
+        }
+
+        if (raiseDetailItemsChanged)
+        {
+            OnPropertyChanged(nameof(DetailProductItems));
+        }
+
+        SyncDetailSelectedProductStatusFromSelection();
+        OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(DetailSelectedProductsSummary));
+        RaiseCommandStates();
+    }
+
     private void SyncDetailSelectedProductStatusFromSelection()
     {
         string? nextStatus = null;
@@ -5592,10 +5646,11 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return;
         }
 
+        var selectedProductIndices = _selectedDetailProductIndices.OrderBy(x => x).ToList();
         order.OrderStatus = Order.ResolveOrderStatusFromProducts(products);
         await _orderRepository.SaveAllAsync(_allOrders);
         RebuildOrderGrid(order.Id);
-        EnsureDetailProductSelection(raiseDetailItemsChanged: false);
+        RestoreDetailProductSelection(selectedProductIndices, products, raiseDetailItemsChanged: false);
         OnPropertyChanged(nameof(DetailProducts));
         OnPropertyChanged(nameof(DetailProductItems));
         OnPropertyChanged(nameof(DetailOrderStatus));
@@ -6598,27 +6653,26 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
         };
     }
 
-    private async void RequestRouteGeometryRebuild()
+    private void RequestRouteGeometryRebuild()
     {
         _routeRebuildDebounceCts?.Cancel();
         _routeRebuildDebounceCts?.Dispose();
         _routeRebuildDebounceCts = new CancellationTokenSource();
-        var token = _routeRebuildDebounceCts.Token;
-        var debounceMs = Math.Clamp(_tomTomRouteRecalcDebounceMs, 100, 10000);
-        try
-        {
-            await Task.Delay(debounceMs, token);
-            if (token.IsCancellationRequested)
-            {
-                return;
-            }
+        RequestRouteGeometryRebuildAsync(_routeRebuildDebounceCts.Token).Forget(ex =>
+            Debug.WriteLine($"Route geometry rebuild failed: {ex.Message}"));
+    }
 
-            // Intentionally stay on UI context because we touch bindable state.
-            await RebuildRouteGeometryAsync(token);
-        }
-        catch (OperationCanceledException)
+    private async Task RequestRouteGeometryRebuildAsync(CancellationToken token)
+    {
+        var debounceMs = Math.Clamp(_tomTomRouteRecalcDebounceMs, 100, 10000);
+        await Task.Delay(debounceMs, token);
+        if (token.IsCancellationRequested)
         {
+            return;
         }
+
+        // Intentionally stay on UI context because we touch bindable state.
+        await RebuildRouteGeometryAsync(token);
     }
 
     private async Task RebuildRouteGeometryAsync(CancellationToken cancellationToken = default)
@@ -6660,51 +6714,51 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
                 }
                 else
                 {
-                var loadedFromPersistentCache = TryLoadRouteComputationCache(routeSignature, trafficDeparture, out var cachedGeometry, out var cachedLegs, out var cachedTrafficSegments, out var cachedSource);
-                if (loadedFromPersistentCache)
-                {
-                    geometry = cachedGeometry;
-                    legs = cachedLegs;
-                    trafficSegments = cachedTrafficSegments;
-                    routingSource = $"Cache ({cachedSource})";
-                    _lastRouteSignature = routeSignature;
-                    _lastRouteProviderCallUtc = DateTime.UtcNow;
-                }
-                else
-                {
-                    var needsRemoteRefresh = !string.Equals(routeSignature, _lastRouteSignature, StringComparison.Ordinal) ||
-                                             DateTime.UtcNow - _lastRouteProviderCallUtc >= TimeSpan.FromSeconds(Math.Max(15, _tomTomTrafficRefreshSeconds)) ||
-                                             _routeTrafficSegments.Count == 0;
-
-                    if (needsRemoteRefresh)
+                    var loadedFromPersistentCache = TryLoadRouteComputationCache(routeSignature, trafficDeparture, out var cachedGeometry, out var cachedLegs, out var cachedTrafficSegments, out var cachedSource);
+                    if (loadedFromPersistentCache)
                     {
-                        var tomTomResult = await activeRoutingService.TryBuildRouteWithLegsAsync(waypoints, trafficDeparture, cancellationToken);
-                        if (tomTomResult.GeometryPoints.Count >= 2 && tomTomResult.Legs.Count == waypoints.Count - 1)
-                        {
-                            geometry = tomTomResult.GeometryPoints;
-                            legs = tomTomResult.Legs;
-                            trafficSegments = tomTomResult.TrafficSegments ?? Array.Empty<OsrmRouteTrafficSegment>();
-                            routingSource = "TomTom";
-                        }
-                        else
-                        {
-                            geometry = waypoints;
-                            legs = BuildEstimatedLegs(waypoints);
-                            trafficSegments = Array.Empty<OsrmRouteTrafficSegment>();
-                            routingSource = "TomTom keine Route (Schaetzung)";
-                        }
-
-                        _lastRouteProviderCallUtc = DateTime.UtcNow;
+                        geometry = cachedGeometry;
+                        legs = cachedLegs;
+                        trafficSegments = cachedTrafficSegments;
+                        routingSource = $"Cache ({cachedSource})";
                         _lastRouteSignature = routeSignature;
+                        _lastRouteProviderCallUtc = DateTime.UtcNow;
                     }
                     else
                     {
-                        geometry = _routeGeometryPoints.Count >= 2 ? _routeGeometryPoints.ToList() : waypoints;
-                        legs = _routeLegs.Count == waypoints.Count - 1 ? _routeLegs.ToList() : BuildEstimatedLegs(waypoints);
-                        trafficSegments = _routeTrafficSegments.Count > 0 ? _routeTrafficSegments.ToList() : Array.Empty<OsrmRouteTrafficSegment>();
-                        routingSource = "Cache";
+                        var needsRemoteRefresh = !string.Equals(routeSignature, _lastRouteSignature, StringComparison.Ordinal) ||
+                                                 DateTime.UtcNow - _lastRouteProviderCallUtc >= TimeSpan.FromSeconds(Math.Max(15, _tomTomTrafficRefreshSeconds)) ||
+                                                 _routeTrafficSegments.Count == 0;
+
+                        if (needsRemoteRefresh)
+                        {
+                            var tomTomResult = await activeRoutingService.TryBuildRouteWithLegsAsync(waypoints, trafficDeparture, cancellationToken);
+                            if (tomTomResult.GeometryPoints.Count >= 2 && tomTomResult.Legs.Count == waypoints.Count - 1)
+                            {
+                                geometry = tomTomResult.GeometryPoints;
+                                legs = tomTomResult.Legs;
+                                trafficSegments = tomTomResult.TrafficSegments ?? Array.Empty<OsrmRouteTrafficSegment>();
+                                routingSource = "TomTom";
+                            }
+                            else
+                            {
+                                geometry = waypoints;
+                                legs = BuildEstimatedLegs(waypoints);
+                                trafficSegments = Array.Empty<OsrmRouteTrafficSegment>();
+                                routingSource = "TomTom keine Route (Schaetzung)";
+                            }
+
+                            _lastRouteProviderCallUtc = DateTime.UtcNow;
+                            _lastRouteSignature = routeSignature;
+                        }
+                        else
+                        {
+                            geometry = _routeGeometryPoints.Count >= 2 ? _routeGeometryPoints.ToList() : waypoints;
+                            legs = _routeLegs.Count == waypoints.Count - 1 ? _routeLegs.ToList() : BuildEstimatedLegs(waypoints);
+                            trafficSegments = _routeTrafficSegments.Count > 0 ? _routeTrafficSegments.ToList() : Array.Empty<OsrmRouteTrafficSegment>();
+                            routingSource = "Cache";
+                        }
                     }
-                }
                 }
 
                 if (geometry.Count < 2 || legs.Count != waypoints.Count - 1)
@@ -7302,6 +7356,7 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             AvisoStatusLabel = NormalizeAvisoStatus(order.AvisoStatus),
             TourStatusLabel = ResolveTourStatus(order),
             HasPendingPreparation = HasPendingPreparationProduct(order.Products),
+            IstVorauszahlung = order.IstVorauszahlung,
             IsDimmed = isDimmed,
             IsBatchSelected = _selectedBatchOrderIds.Contains(order.Id)
         };
@@ -7629,6 +7684,15 @@ public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
             return ResolveOrderStatusColor((string?)null, isAssigned);
         }
 
+        if ((order.Products ?? []).Any(product =>
+                string.Equals(
+                    OrderProductInfo.NormalizeDeliveryStatus(product?.DeliveryStatus),
+                    OrderProductInfo.DefaultDeliveryStatus,
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            return _statusColorNotSpecified;
+        }
+
         var normalizedStatus = NormalizeOrderStatus(order.OrderStatus);
         if (string.Equals(normalizedStatus, Order.PartiallyPendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
         {
@@ -7820,6 +7884,7 @@ public sealed class MapOrderItem
     public string AvisoStatusLabel { get; set; } = "nicht avisiert";
     public string TourStatusLabel { get; set; } = "Offen";
     public bool HasPendingPreparation { get; set; }
+    public bool IstVorauszahlung { get; set; }
     public bool IsDimmed { get; set; }
     public bool IsBatchSelected { get; set; }
 }
@@ -8264,7 +8329,7 @@ public sealed class RouteStopItem : ObservableObject
     }
 }
 
-public sealed record MapOrderVisualInfo(string DeliveryLabel, string StatusLabel, bool IsAssigned, string AvisoStatusLabel, bool HasPendingPreparation, string StatusColorHex);
+public sealed record MapOrderVisualInfo(string DeliveryLabel, string StatusLabel, bool IsAssigned, string AvisoStatusLabel, bool HasPendingPreparation, bool IstVorauszahlung, string StatusColorHex);
 
 public sealed record CompanyMarkerInfo(string Name, string Address, double Latitude, double Longitude);
 

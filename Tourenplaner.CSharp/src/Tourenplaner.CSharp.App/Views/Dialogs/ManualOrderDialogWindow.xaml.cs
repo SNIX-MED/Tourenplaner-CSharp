@@ -204,6 +204,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _selectedDeliveryType = string.Empty;
     private string _selectedStatus = Statuses[0];
     private string _notes = string.Empty;
+    private bool _istVorauszahlung;
     private bool _isArchived;
 
     private GeoPoint? _existingLocation;
@@ -379,6 +380,12 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         set => SetProperty(ref _notes, value);
     }
 
+    public bool IstVorauszahlung
+    {
+        get => _istVorauszahlung;
+        set => SetProperty(ref _istVorauszahlung, value);
+    }
+
     public bool IsArchived
     {
         get => _isArchived;
@@ -465,6 +472,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(
                 (SelectedDeliveryType ?? _deliveryTypes[0]).Trim()),
             OrderStatus = Order.ResolveOrderStatusFromProducts(products),
+            IstVorauszahlung = IstVorauszahlung,
             Notes = (Notes ?? string.Empty).Trim(),
             AssignedTourId = _existingAssignedTourId,
             Location = _existingLocation,
@@ -556,6 +564,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             ? _deliveryTypes.First(x => string.Equals(x, normalizedDeliveryType, StringComparison.OrdinalIgnoreCase))
             : _deliveryTypes[0];
         Notes = existingOrder.Notes ?? string.Empty;
+        IstVorauszahlung = existingOrder.IstVorauszahlung;
         IsArchived = existingOrder.IsArchived;
 
         ProductLines.Clear();

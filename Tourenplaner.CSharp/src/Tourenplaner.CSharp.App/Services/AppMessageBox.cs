@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using Tourenplaner.CSharp.App.Views.Dialogs;
 
 namespace Tourenplaner.CSharp.App.Services;

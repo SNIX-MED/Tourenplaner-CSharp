@@ -1,4 +1,4 @@
-using System.Windows.Input;
+﻿using System.Windows.Input;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Commands;
 

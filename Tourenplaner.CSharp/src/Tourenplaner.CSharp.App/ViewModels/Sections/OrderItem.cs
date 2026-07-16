@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using Tourenplaner.CSharp.Domain.Models;
 
@@ -33,6 +33,7 @@ public sealed class OrderItem : ObservableObject
     private string _orderStatusBadgeForeground = "#2563EB";
     private string _productsSummary = string.Empty;
     private string _notes = string.Empty;
+    private bool _istVorauszahlung;
     private bool _isArchived;
 
     public string Id
@@ -255,6 +256,12 @@ public sealed class OrderItem : ObservableObject
     {
         get => _notes;
         set => SetProperty(ref _notes, value);
+    }
+
+    public bool IstVorauszahlung
+    {
+        get => _istVorauszahlung;
+        set => SetProperty(ref _istVorauszahlung, value);
     }
 
     public bool IsArchived

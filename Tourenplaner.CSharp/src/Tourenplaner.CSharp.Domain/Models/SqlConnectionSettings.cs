@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,7 +19,7 @@ public class SqlConnectionSettings
     public string Password { get; set; } = "";
     public int CommandTimeoutSeconds { get; set; } = 30;
     public int ConnectionTimeoutSeconds { get; set; } = 4;
-    
+
     public string GetConnectionString()
     {
         var server = string.IsNullOrWhiteSpace(Server) ? DefaultServer : Server.Trim();
@@ -159,7 +159,7 @@ public class SqlOrderImportData
     public DateTime AuftragsDatum { get; set; }
     public bool Archiviert { get; set; }
     public bool Gesperrt { get; set; }
-    
+
     // Kundenadresse
     public string KundeFirma { get; set; } = string.Empty;
     public string KundeNachname { get; set; } = string.Empty;
@@ -172,7 +172,7 @@ public class SqlOrderImportData
     public string KundeEmail { get; set; } = string.Empty;
     public string KundeTelefon { get; set; } = string.Empty;
     public string KundeKontaktperson { get; set; } = string.Empty;
-    
+
     // Lieferadresse
     public string LieferFirma { get; set; } = string.Empty;
     public string LieferNachname { get; set; } = string.Empty;
@@ -185,13 +185,13 @@ public class SqlOrderImportData
     public string LieferEmail { get; set; } = string.Empty;
     public string LieferTelefon { get; set; } = string.Empty;
     public string LieferKontaktperson { get; set; } = string.Empty;
-    
+
     // Liefermethode
     public string Lieferbedingung { get; set; } = "Selbstabholung";
-    
+
     // Positionen (Produkte)
     public List<SqlOrderProductData> Produkte { get; set; } = new();
-    
+
     // Zusätzlich
     public decimal NettoTotal { get; set; }
     public decimal BruttoTotal { get; set; }

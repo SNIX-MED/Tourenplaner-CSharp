@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;

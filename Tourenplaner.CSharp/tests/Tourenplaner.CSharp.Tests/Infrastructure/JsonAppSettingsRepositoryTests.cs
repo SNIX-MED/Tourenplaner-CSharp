@@ -1,4 +1,4 @@
-using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
+﻿using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.Tests.Infrastructure;
 
