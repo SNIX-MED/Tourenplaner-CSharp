@@ -249,7 +249,23 @@
                          ItemContainerStyle="{StaticResource SettingsCategoryListBoxItemStyle}">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <TextBlock Style="{StaticResource SidebarNavigationTextStyle}" Text="{Binding Title}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="30" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           FontFamily="Segoe Fluent Icons"
+                                           FontSize="15"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                           Text="{Binding IconGlyph}" />
+                                <TextBlock Grid.Column="1"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource SidebarNavigationTextStyle}"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding Title}" />
+                            </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
@@ -497,14 +513,11 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource SettingsSectionTitleStyle}"
-                                               Text="{Binding SelectedSettingsCategoryTitle}" />
-                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
-                                            ToolTip="{Binding SelectedSettingsCategoryDescription}">
-                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
-                                    </Border>
-                                </StackPanel>
+                                <TextBlock Style="{StaticResource SettingsSectionTitleStyle}"
+                                           Text="{Binding SelectedSettingsCategoryTitle}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource SettingsSectionSubtitleStyle}"
+                                           Text="{Binding SelectedSettingsCategoryDescription}" />
                                 <Border Margin="0,10,0,0"
                                         Padding="10,8"
                                         CornerRadius="12"
@@ -539,7 +552,7 @@
                                         <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="updates">
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="system">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -559,9 +572,23 @@
                                                 <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="general">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tour-planning">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="general">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -647,8 +674,20 @@
                                             </Grid>
                                         </StackPanel>
                                     </Border>
+                                    </StackPanel>
 
-                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tour-planning">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                    <Expander Header="Aufenthaltszeiten" IsExpanded="True" Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                         <Border Style="{StaticResource SettingsInnerPanelStyle}">
                                             <StackPanel>
                                                 <StackPanel Orientation="Horizontal">
@@ -693,6 +732,7 @@
                                             </StackPanel>
                                         </Border>
                                     </Expander>
+                                    </StackPanel>
                                 </StackPanel>
 
                                 <StackPanel>
@@ -700,7 +740,7 @@
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="storage">
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="data-sync">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -875,6 +915,37 @@
                                             </Expander>
                                         </StackPanel>
                                     </Border>
+
+                                    <Expander Header="Synchronisationsstatus" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="170" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Sync-Modus" />
+                                                <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding SyncModeText}" />
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Sync-Status" />
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding SyncStatusText}" />
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte Statusänderung" />
+                                                <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastSyncStatusChangeText}" />
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte externe Änderung" />
+                                                <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastRemoteSyncText}" />
+                                                <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte lokale Änderung" />
+                                                <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastLocalSyncText}" />
+                                                <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte Aktivität" />
+                                                <TextBlock Grid.Row="5" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastSyncActivityText}" />
+                                            </Grid>
+                                        </Border>
+                                    </Expander>
                                 </StackPanel>
 
                                 <StackPanel>
@@ -882,13 +953,27 @@
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="map">
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="map-display">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tour-planning">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
 
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="map-display">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
                                     <Grid Margin="0,0,0,12">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -1057,7 +1142,19 @@
                                             </WrapPanel>
                                         </StackPanel>
                                     </Border>
+                                    </StackPanel>
 
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tour-planning">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
                                     <Border>
                                         <StackPanel>
                                             <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Kalender &amp; Kapazität" />
@@ -1151,7 +1248,19 @@
                                             </Grid>
                                         </StackPanel>
                                     </Border>
+                                    </StackPanel>
 
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="map-display">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
                                     <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                         <Border Style="{StaticResource SettingsInnerPanelStyle}" Margin="0,0,0,0">
                                             <StackPanel>
@@ -1192,6 +1301,7 @@
                                             </StackPanel>
                                         </Border>
                                     </Expander>
+                                    </StackPanel>
                                 </StackPanel>
 
                                 <StackPanel>
@@ -1199,12 +1309,26 @@
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tomtom">
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tomtom-routing">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tour-planning">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tomtom-routing">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -1228,7 +1352,19 @@
                                             </StackPanel>
                                         </Border>
                                     </Grid>
+                                    </StackPanel>
 
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tomtom-routing">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
                                     <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                         <StackPanel>
                                             <Grid>
@@ -1275,6 +1411,26 @@
                                             </StackPanel>
                                         </Border>
                                     </Grid>
+
+                                        </StackPanel>
+                                    </Expander>
+                                    </StackPanel>
+
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tour-planning">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                    <Expander Header="Routingprofil &amp; Staupuffer"
+                                              IsExpanded="True"
+                                              Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <StackPanel>
 
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -1362,6 +1518,7 @@
 
                                         </StackPanel>
                                     </Expander>
+                                    </StackPanel>
 
                                 </StackPanel>
 
@@ -1370,7 +1527,7 @@
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="tools">
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="general">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -1448,7 +1605,21 @@
                                             <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Backups aktiv" />
                                             <CheckBox Grid.Row="0" Grid.Column="1" Content="Sicherungssystem verwenden" IsChecked="{Binding BackupsEnabled, Mode=TwoWay}" />
                                             <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Backup-Verzeichnis" />
-                                            <TextBox Grid.Row="1" Grid.Column="1" Margin="0,18,0,0" Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding BackupDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Grid Grid.Row="1" Grid.Column="1" Margin="0,18,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox Grid.Column="0"
+                                                         Margin="0"
+                                                         Style="{StaticResource SettingsTextBoxStyle}"
+                                                         Text="{Binding BackupDir, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <Button Grid.Column="1"
+                                                        Width="110"
+                                                        Margin="8,0,0,0"
+                                                        Content="Auswählen"
+                                                        Command="{Binding BrowseBackupDirectoryCommand}" />
+                                            </Grid>
                                             <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Backup-Modus" />
                                             <ComboBox Grid.Row="2" Grid.Column="1" Margin="0,18,0,0" Style="{StaticResource SettingsComboBoxStyle}" ItemsSource="{Binding BackupModes}" SelectedItem="{Binding BackupModeDefault, Mode=TwoWay}" />
                                             <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Aufbewahrung (Tage)" />
@@ -1480,7 +1651,7 @@
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="xml-import">
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="imports">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -1831,7 +2002,7 @@
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="updates">
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="system">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -1887,35 +2058,6 @@
                                             <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding StartupDetailText}" />
                                                 </Grid>
                                             </Border>
-
-                                            <Border Style="{StaticResource SettingsInnerPanelStyle}">
-                                                <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="170" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-                                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Sync-Modus" />
-                                            <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding SyncModeText}" />
-                                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Sync-Status" />
-                                            <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,18,0,0" TextWrapping="Wrap" Text="{Binding SyncStatusText}" />
-                                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte Statusänderung" />
-                                            <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastSyncStatusChangeText}" />
-                                            <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte externe Änderung" />
-                                            <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastRemoteSyncText}" />
-                                            <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte lokale Änderung" />
-                                            <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastLocalSyncText}" />
-                                            <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte Aktivität" />
-                                            <TextBlock Grid.Row="5" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastSyncActivityText}" />
-                                        </Grid>
-                                    </Border>
 
                                     <Border Style="{StaticResource SettingsInnerPanelStyle}">
                                         <Grid>

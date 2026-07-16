@@ -124,7 +124,6 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="{StaticResource Radius.ControlMd}"
-                            Effect="{StaticResource Shadow.ToolTip}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
                         <Border.Resources>

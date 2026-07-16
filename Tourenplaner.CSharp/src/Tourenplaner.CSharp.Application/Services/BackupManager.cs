@@ -42,6 +42,11 @@ public sealed class BackupManager
         string mode,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(backupDirectory))
+        {
+            throw new ArgumentException("Backup directory must not be empty.", nameof(backupDirectory));
+        }
+
         var normalizedMode = string.Equals(mode, "incremental", StringComparison.OrdinalIgnoreCase) ? "incremental" : "full";
         var context = new BackupContext(appName, configDirectory, dataDirectory, backupDirectory);
 

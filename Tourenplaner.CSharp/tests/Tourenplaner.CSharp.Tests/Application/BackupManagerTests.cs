@@ -6,6 +6,17 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class BackupManagerTests
 {
     [Fact]
+    public async Task CreateBackupAsync_RejectsEmptyBackupDirectory()
+    {
+        var manager = new BackupManager();
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            manager.CreateBackupAsync("gawela", "config", "data", string.Empty, "full"));
+
+        Assert.Equal("backupDirectory", exception.ParamName);
+    }
+
+    [Fact]
     public async Task CreateBackupAsync_CreatesArchiveWithManifest()
     {
         var root = CreateTempRoot();

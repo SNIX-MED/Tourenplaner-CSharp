@@ -162,6 +162,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService;
         _dataRoot = dataRoot;
+        _backupDir = GetDefaultBackupDirectory();
         _activeStorageMode = activeStorageMode;
 
         BackupModes =
@@ -185,14 +186,14 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
         SettingsCategories =
         [
-            new SettingsCategoryNavigationItem("general", "Allgemein", "Grundwerte für E-Mail-Betreff, Tourstartzeit, Firmendaten und Aufenthaltszeiten.", "\uE713"),
-            new SettingsCategoryNavigationItem("storage", "Datenspeicher", "Legt fest, ob Daten lokal oder zentral im PostgreSQL-Mehrbenutzerbetrieb gespeichert werden.", "\uE8D4"),
-            new SettingsCategoryNavigationItem("map", "Karte & Kalender", "Farben, Tourlinien, Kalenderwarnungen und Verhalten der Karten-Infokarten.", "\uE787"),
-            new SettingsCategoryNavigationItem("tomtom", "TomTom Karte & Traffic", "API-Key und technische TomTom-Werte für Routing, Traffic und Karten-Cache.", "\uE81E"),
-            new SettingsCategoryNavigationItem("tools", "Tools", "Sichtbarkeit und Standard-Links für GPS- und Spediteur-Werkzeuge.", "\uE90F"),
-            new SettingsCategoryNavigationItem("backup", "Backup & Restore", "Sicherungen erstellen, Aufbewahrung festlegen und vorhandene Backups wiederherstellen.", "\uE72C"),
-            new SettingsCategoryNavigationItem("xml-import", "XML Import", "XML-Dateien prüfen, Zuordnung anpassen und Aufträge kontrolliert importieren.", "\uE9F9"),
-            new SettingsCategoryNavigationItem("updates", "Updates & Validierung", "Installierte Version, Updateprüfung, Startdiagnose und Synchronisationsstatus.", "\uE895")
+            new SettingsCategoryNavigationItem("general", "Allgemein", "Firmendaten, E-Mail-Vorlagen, Standard-Startzeit und eingeblendete Werkzeuge.", "\uE713"),
+            new SettingsCategoryNavigationItem("map-display", "Karte & Darstellung", "Farben, Tourlinien, Karten-Infokarten, Filter und Zoomverhalten.", "\uE787"),
+            new SettingsCategoryNavigationItem("tour-planning", "Touren & Planung", "Aufenthaltszeiten, Kapazitätswarnungen, Geschwindigkeiten und Staupuffer.", "\uE8F1"),
+            new SettingsCategoryNavigationItem("tomtom-routing", "TomTom & Routing", "API-Key, Karten-Cache und technische Aktualisierungswerte für TomTom.", "\uE81E"),
+            new SettingsCategoryNavigationItem("data-sync", "Datenquelle & Sync", "Lokale oder zentrale Datenspeicherung, PostgreSQL-Verbindung und Synchronisationsstatus.", "\uE8D4"),
+            new SettingsCategoryNavigationItem("imports", "Importe", "XML-Dateien prüfen, Feldzuordnung anpassen und Aufträge kontrolliert importieren.", "\uE9F9"),
+            new SettingsCategoryNavigationItem("backup", "Backup", "Sicherungen erstellen, Aufbewahrung festlegen und vorhandene Backups wiederherstellen.", "\uE72C"),
+            new SettingsCategoryNavigationItem("system", "System", "Installierte Version, Updates, Startdiagnose, Protokolle und Konfigurationsprüfung.", "\uE895")
         ];
         _selectedSettingsCategory = SettingsCategories.FirstOrDefault();
 
@@ -251,6 +252,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         CreateBackupCommand = new AsyncCommand(CreateBackupAsync);
         RestoreLatestBackupCommand = new AsyncCommand(RestoreLatestBackupAsync);
         CleanupBackupsCommand = new DelegateCommand(CleanupBackups);
+        BrowseBackupDirectoryCommand = new DelegateCommand(BrowseBackupDirectory);
         CheckForUpdatesCommand = new AsyncCommand(CheckForUpdatesAsync);
         DownloadAvailableUpdateCommand = new DelegateCommand(DownloadAvailableUpdate, () => CanDownloadAvailableUpdate);
         TestPostgreSqlConnectionCommand = new AsyncCommand(
@@ -327,6 +329,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     public ICommand RestoreLatestBackupCommand { get; }
 
     public ICommand CleanupBackupsCommand { get; }
+
+    public ICommand BrowseBackupDirectoryCommand { get; }
 
     public AsyncCommand CheckForUpdatesCommand { get; }
 
@@ -1075,7 +1079,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             ApplyModel(settings);
             OnPropertyChanged(nameof(ActiveStorageModeDisplayName));
             OnPropertyChanged(nameof(ActiveStorageModeDetailText));
-            UpdateBackupStatus(settings.BackupDir);
+            UpdateBackupStatus(BackupDir);
             ValidationSummary = string.Empty;
             StatusText = string.Empty;
             await CheckForUpdatesCoreAsync(showToastWhenUpToDate: false);
@@ -1239,6 +1243,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     public async Task CreateBackupAsync()
     {
         var model = BuildModel(await _repository.LoadAsync());
+        BackupDir = model.BackupDir;
         var validation = _validator.Validate(model);
         if (!validation.IsValid)
         {
@@ -1247,20 +1252,28 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var backupPath = await _backupManager.CreateBackupAsync(
-            "GAWELA_Tourenplaner",
-            _dataRoot,
-            _dataRoot,
-            model.BackupDir,
-            model.BackupModeDefault);
+        try
+        {
+            var backupPath = await _backupManager.CreateBackupAsync(
+                "GAWELA_Tourenplaner",
+                _dataRoot,
+                _dataRoot,
+                model.BackupDir,
+                model.BackupModeDefault);
 
-        model.LastBackupIso = DateTimeOffset.Now.ToString("O");
-        LastBackupIso = model.LastBackupIso;
-        await _repository.SaveAsync(model);
-        UpdateBackupStatus(model.BackupDir);
+            model.LastBackupIso = DateTimeOffset.Now.ToString("O");
+            LastBackupIso = model.LastBackupIso;
+            await _repository.SaveAsync(model);
+            UpdateBackupStatus(model.BackupDir);
 
-        StatusText = $"Backup created: {Path.GetFileName(backupPath)}";
-        ValidationSummary = string.Empty;
+            StatusText = $"Backup erstellt: {Path.GetFileName(backupPath)}";
+            ValidationSummary = string.Empty;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            StatusText = "Backup konnte nicht erstellt werden.";
+            ValidationSummary = $"Das Backup-Verzeichnis konnte nicht verwendet werden: {ex.Message}";
+        }
     }
 
     public async Task RestoreLatestBackupAsync()
@@ -1600,7 +1613,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             model.MapOverlayPreferencesByUser ?? _mapOverlayPreferencesByUser ?? new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase),
             StringComparer.OrdinalIgnoreCase);
         model.BackupsEnabled = BackupsEnabled;
-        model.BackupDir = (BackupDir ?? string.Empty).Trim();
+        model.BackupDir = ResolveBackupDirectory(BackupDir);
         model.BackupModeDefault = (BackupModeDefault ?? string.Empty).Trim();
         model.BackupRetentionDays = BackupRetentionDays;
         model.AutoBackupEnabled = AutoBackupEnabled;
@@ -1698,7 +1711,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             settings.MapOverlayPreferencesByUser ?? new Dictionary<string, MapOverlayUserPreference>(StringComparer.OrdinalIgnoreCase),
             StringComparer.OrdinalIgnoreCase);
         BackupsEnabled = settings.BackupsEnabled;
-        BackupDir = settings.BackupDir;
+        BackupDir = ResolveBackupDirectory(settings.BackupDir);
         BackupModeDefault = settings.BackupModeDefault;
         BackupRetentionDays = settings.BackupRetentionDays;
         AutoBackupEnabled = settings.AutoBackupEnabled;
@@ -1963,6 +1976,35 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         return value.HasValue
             ? value.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")
             : fallback;
+    }
+
+    private string ResolveBackupDirectory(string? configuredDirectory)
+    {
+        return string.IsNullOrWhiteSpace(configuredDirectory)
+            ? GetDefaultBackupDirectory()
+            : configuredDirectory.Trim();
+    }
+
+    private string GetDefaultBackupDirectory()
+    {
+        var normalizedDataRoot = Path.GetFullPath(_dataRoot);
+        var applicationRoot = Directory.GetParent(normalizedDataRoot)?.FullName ?? normalizedDataRoot;
+        return Path.Combine(applicationRoot, "backups");
+    }
+
+    private void BrowseBackupDirectory()
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Backup-Verzeichnis auswählen",
+            InitialDirectory = Directory.Exists(BackupDir) ? BackupDir : GetDefaultBackupDirectory(),
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            BackupDir = dialog.FolderName;
+        }
     }
 
     private void UpdateBackupStatus(string? backupDir)

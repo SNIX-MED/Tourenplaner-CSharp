@@ -208,7 +208,7 @@ public sealed class AppSettings
     {
         var configuredValue = Environment.GetEnvironmentVariable(TomTomApiKeyEnvironmentVariableName);
         return string.IsNullOrWhiteSpace(configuredValue)
-            ? "IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH"
+            ? string.Empty
             : configuredValue.Trim();
     }
 

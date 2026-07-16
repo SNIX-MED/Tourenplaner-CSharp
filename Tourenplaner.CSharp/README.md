@@ -181,9 +181,9 @@ Persistierte Daten im lokalen App-Datenordner:
 
 ## TomTom API Key
 
-Standardmaessig kann der TomTom-Key weiterhin aus den vorhandenen Defaultwerten geladen werden.
-Fuer sicherere lokale oder produktive Setups kann stattdessen die Umgebungsvariable
-`TOURENPLANER_TOMTOM_API_KEY` gesetzt werden. Diese hat Vorrang vor dem eingebetteten Default.
+Standardmaessig wird kein TomTom-Key mehr im Repository mitgeliefert.
+Der Key kann lokal in den Einstellungen gespeichert oder ueber die Umgebungsvariable
+`TOURENPLANER_TOMTOM_API_KEY` bereitgestellt werden.
 
 ## Nuetzliche Befehle
 

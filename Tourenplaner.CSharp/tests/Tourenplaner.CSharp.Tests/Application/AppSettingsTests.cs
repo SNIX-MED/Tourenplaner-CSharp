@@ -120,7 +120,7 @@ public class AppSettingsTests
     }
 
     [Fact]
-    public void ResolveDefaultTomTomApiKey_FallsBackToEmbeddedDefaultWhenEnvironmentVariableMissing()
+    public void ResolveDefaultTomTomApiKey_ReturnsEmptyStringWhenEnvironmentVariableMissing()
     {
         var originalValue = Environment.GetEnvironmentVariable(AppSettings.TomTomApiKeyEnvironmentVariableName);
 
@@ -130,7 +130,7 @@ public class AppSettingsTests
 
             var resolved = AppSettings.ResolveDefaultTomTomApiKey();
 
-            Assert.Equal("IkfQGXF6uvRllgzgL79SWuSzRQqJHYzH", resolved);
+            Assert.Equal(string.Empty, resolved);
         }
         finally
         {
