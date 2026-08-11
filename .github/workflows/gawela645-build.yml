@@ -80,6 +80,7 @@ jobs:
         shell: bash
         run: |
           MODULE=smartstore/src/Smartstore.Web/Modules/Gawela.ColorConfigurator
+          SOURCE=smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator
           test -f "$MODULE/Gawela.ColorConfigurator.dll"
           test -f "$MODULE/module.json"
           test -f "$MODULE/wwwroot/gawela-color.js"
@@ -87,8 +88,9 @@ jobs:
           test -f "$MODULE/Views/GawelaColorAdmin/Configure.cshtml"
           grep -q '"Version": "6.4.5"' "$MODULE/module.json"
           grep -q 'Farben / RAL' "$MODULE/Views/GawelaColorAdmin/Configure.cshtml"
-          strings "$MODULE/Gawela.ColorConfigurator.dll" | grep -q 'palette.json'
-          strings "$MODULE/Gawela.ColorConfigurator.dll" | grep -q 'SavePalette'
+          grep -q 'palette.json' "$SOURCE/Services/GawelaPaletteStore.cs"
+          grep -q 'SavePalette' "$SOURCE/Controllers/GawelaColorAdminController.cs"
+          grep -q 'IActionResult Palette' "$SOURCE/Controllers/GawelaColorController.cs"
           echo 'Compiled 6.4.5 module verified.'
 
       - name: Create Smartstore package helper
