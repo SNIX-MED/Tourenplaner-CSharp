@@ -154,24 +154,24 @@ s = s.replace(
     '<div class="alert alert-info"><strong>Universeller GAWELA Produktkonfigurator:</strong> Produkt laden, relevante Smartstore-Attribute als Farbebenen auswählen und pro Ebene eine pixelgenaue PNG-Maske hinterlegen. Die verwendeten RAL-Bildschirmwerte können im Reiter <strong>Farben / RAL</strong> zentral gepflegt werden.</div>',
     '<div class="alert alert-info"><strong>Universeller GAWELA Produktkonfigurator:</strong> Die Zuordnung ist produktbezogen. Dieselben Smartstore-Attribute können deshalb auf beliebig vielen Produkten verwendet werden. Ein Attribut darf bei Bedarf sogar mehrere Masken desselben Produkts steuern. Die RAL-Bildschirmwerte werden im Reiter <strong>Farben / RAL</strong> zentral gepflegt.</div>'
 )
-old = '''@if(Model.ProductId>0)
-{
-<form id="gawela-config-form" asp-action="Configure" method="post" enctype="multipart/form-data">'''
-new = '''@if(Model.ProductId>0)
-{
-@if(Model.ConfiguredProducts.Any(x => x.ProductId != Model.ProductId))
-{
-  <div class="card mb-3"><div class="card-body py-3">
-    <form asp-action="Configure" method="get" class="row align-items-end">
-      <input type="hidden" name="productId" value="@Model.ProductId"/>
-      <input type="hidden" name="tab" value="products"/>
-      <div class="col-md-8"><label>Zuordnung von bestehendem Produkt übernehmen</label><select name="copyFromProductId" class="form-control"><option value="">– Vorlage wählen –</option>@foreach(var p in Model.ConfiguredProducts.Where(x => x.ProductId != Model.ProductId)){<option value="@p.ProductId">@p.Sku – @p.ProductName (ID @p.ProductId)</option>}</select><small class="text-muted">Übernommen werden Ebenennamen, Attribut-Zuordnung sowie Basis-/Fallback-RAL. Bilder und Masken werden nie kopiert.</small></div>
-      <div class="col-md-4"><button type="submit" class="btn btn-outline-primary"><i class="fa fa-copy"></i> Zuordnung übernehmen</button></div>
-    </form>
-  </div></div>
-}
-@if(!string.IsNullOrWhiteSpace(Model.TemplateMessage)){<div class="alert alert-info">@Model.TemplateMessage</div>}
-<form id="gawela-config-form" asp-action="Configure" method="post" enctype="multipart/form-data">'''
+old = '''  @if(Model.ProductId>0)
+  {
+  <form id="gawela-config-form" asp-action="Configure" method="post" enctype="multipart/form-data">'''
+new = '''  @if(Model.ProductId>0)
+  {
+  @if(Model.ConfiguredProducts.Any(x => x.ProductId != Model.ProductId))
+  {
+    <div class="card mb-3"><div class="card-body py-3">
+      <form asp-action="Configure" method="get" class="row align-items-end">
+        <input type="hidden" name="productId" value="@Model.ProductId"/>
+        <input type="hidden" name="tab" value="products"/>
+        <div class="col-md-8"><label>Zuordnung von bestehendem Produkt übernehmen</label><select name="copyFromProductId" class="form-control"><option value="">– Vorlage wählen –</option>@foreach(var p in Model.ConfiguredProducts.Where(x => x.ProductId != Model.ProductId)){<option value="@p.ProductId">@p.Sku – @p.ProductName (ID @p.ProductId)</option>}</select><small class="text-muted">Übernommen werden Ebenennamen, Attribut-Zuordnung sowie Basis-/Fallback-RAL. Bilder und Masken werden nie kopiert.</small></div>
+        <div class="col-md-4"><button type="submit" class="btn btn-outline-primary"><i class="fa fa-copy"></i> Zuordnung übernehmen</button></div>
+      </form>
+    </div></div>
+  }
+  @if(!string.IsNullOrWhiteSpace(Model.TemplateMessage)){<div class="alert alert-info">@Model.TemplateMessage</div>}
+  <form id="gawela-config-form" asp-action="Configure" method="post" enctype="multipart/form-data">'''
 if old not in s:
     raise SystemExit('Product form insertion point not found')
 s = s.replace(old, new, 1)
