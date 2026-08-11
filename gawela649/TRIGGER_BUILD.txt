@@ -1,0 +1,1 @@
+Trigger build for GAWELA ColorConfigurator 6.4.9.
