@@ -1,0 +1,44 @@
+name: Export GAWELA 6.4.1 source for 6.4.2
+
+on:
+  push:
+    branches: [gawela-colorconfig-642-build]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 6.4.2 branch
+        uses: actions/checkout@v4
+
+      - name: Checkout verified 6.4.0 source chunks
+        uses: actions/checkout@v4
+        with:
+          repository: SNIX-MED/Tourenplaner-CSharp
+          ref: gawela-colorconfig-build
+          path: legacy
+
+      - name: Restore 6.4.0 source and apply 6.4.1 patch
+        shell: bash
+        run: |
+          cat legacy/gawela-build/chunks/part*.txt | tr -d '\r\n' > "$RUNNER_TEMP/module.b64"
+          base64 -d "$RUNNER_TEMP/module.b64" > "$RUNNER_TEMP/module.zip"
+          echo "a34f06fc6668a2fd7faff1748a44e68073b9a52fef0204bcb59f02972b3958b9  $RUNNER_TEMP/module.zip" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/src"
+          unzip -q "$RUNNER_TEMP/module.zip" -d "$RUNNER_TEMP/src"
+          python3 gawela641/apply_patch.py "$RUNNER_TEMP/src/Gawela.ColorConfigurator"
+          sed -i '1i using Smartstore;' "$RUNNER_TEMP/src/Gawela.ColorConfigurator/Startup.cs"
+          cd "$RUNNER_TEMP/src"
+          zip -qr "$GITHUB_WORKSPACE/Gawela.ColorConfigurator.6.4.1-source.zip" Gawela.ColorConfigurator
+          unzip -t "$GITHUB_WORKSPACE/Gawela.ColorConfigurator.6.4.1-source.zip"
+
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gawela.ColorConfigurator.6.4.1-source
+          path: Gawela.ColorConfigurator.6.4.1-source.zip
+          if-no-files-found: error
