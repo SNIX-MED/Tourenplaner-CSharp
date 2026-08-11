@@ -69,10 +69,9 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Einstellungen neu und uebersichtlich gegliedert
-          - TomTom API-Key aus dem Quellcode entfernt; lokal gespeicherte Keys bleiben erhalten
-          - Hinweisfenster und Einstellungsbeschreibungen verbessert
-          - Backup-Erstellung mit sicherem Standardordner und Ordnerauswahl korrigiert
+          - Mehrfachauswahl in Auftragsliste und Liefertouren zum Archivieren oder Löschen
+          - Lieferdatum und Option für frühere Lieferung in Auftrag, Karte und Pin-Infokarte
+          - XML-Import für das neue Beleg-Exportformat sowie Windows-1252-Kodierung erweitert
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

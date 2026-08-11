@@ -122,8 +122,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         NextFromMonthCommand = new DelegateCommand(ShowNextFromMonth);
         PreviousToMonthCommand = new DelegateCommand(ShowPreviousToMonth);
         NextToMonthCommand = new DelegateCommand(ShowNextToMonth);
-        DeleteTourCommand = new AsyncCommand(DeleteSelectedTourAsync, () => SelectedTour is not null);
-        ToggleArchiveTourCommand = new AsyncCommand(ToggleArchiveSelectedTourAsync, () => SelectedTour is not null);
+        DeleteTourCommand = new AsyncCommand(DeleteSelectedToursAsync, () => SelectedTours.Count > 0);
+        ToggleArchiveTourCommand = new AsyncCommand(ToggleArchiveSelectedToursAsync, () => SelectedTours.Count > 0);
         ShowActiveToursCommand = new DelegateCommand(() => ShowArchivedTours = false);
         ShowArchivedToursCommand = new DelegateCommand(() => ShowArchivedTours = true);
         ShowListLayoutCommand = new DelegateCommand(() => ShowCalendarLayout = false);
@@ -139,6 +139,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     }
 
     public ObservableCollection<TourOverviewItem> Tours { get; } = new();
+    public ObservableCollection<TourOverviewItem> SelectedTours { get; } = new();
 
     public ObservableCollection<TourStopOverviewItem> SelectedTourStops { get; } = new();
 
@@ -607,6 +608,22 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 RaiseCommandStates();
             }
         }
+    }
+
+    public void UpdateSelectedTours(IEnumerable<TourOverviewItem> tours)
+    {
+        SelectedTours.Clear();
+        foreach (var tour in tours)
+        {
+            SelectedTours.Add(tour);
+        }
+
+        if (SelectedTours.Count > 0 && (SelectedTour is null || !SelectedTours.Contains(SelectedTour)))
+        {
+            SelectedTour = SelectedTours.Last();
+        }
+
+        RaiseCommandStates();
     }
 
     public TourStopOverviewItem? SelectedTourStop
@@ -1433,6 +1450,26 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         ToastNotificationService.ShowInfo($"Tour {label} wurde {action}.{orderInfo}");
     }
 
+    private async Task ToggleArchiveSelectedToursAsync()
+    {
+        var targets = SelectedTours.ToList();
+        if (targets.Count == 0 && SelectedTour is not null)
+        {
+            targets.Add(SelectedTour);
+        }
+
+        foreach (var tour in targets)
+        {
+            if (!_loadedTours.Any(x => x.Id == tour.TourId))
+            {
+                continue;
+            }
+
+            SelectedTour = Tours.FirstOrDefault(x => x.TourId == tour.TourId);
+            await ToggleArchiveSelectedTourAsync();
+        }
+    }
+
     private async Task DeleteSelectedTourAsync()
     {
         if (SelectedTour is null)
@@ -1470,6 +1507,63 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         RebuildTourRowsWithCurrentFilter();
         var deletedTourLabel = string.IsNullOrWhiteSpace(target.Name) ? target.Id.ToString(CultureInfo.InvariantCulture) : target.Name.Trim();
         ToastNotificationService.ShowInfo($"Tour {deletedTourLabel} wurde gelöscht.");
+    }
+
+    private async Task DeleteSelectedToursAsync()
+    {
+        var targets = SelectedTours.ToList();
+        if (targets.Count == 0 && SelectedTour is not null)
+        {
+            targets.Add(SelectedTour);
+        }
+
+        var deleted = 0;
+
+        if (targets.Count > 1)
+        {
+            var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Sollen die {targets.Count} markierten Touren wirklich gelöscht werden?",
+                "Touren löschen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                return;
+            }
+        }
+
+        foreach (var tour in targets)
+        {
+            var target = _loadedTours.FirstOrDefault(x => x.Id == tour.TourId);
+            if (target is null)
+            {
+                continue;
+            }
+
+            if (targets.Count == 1)
+            {
+                SelectedTour = Tours.FirstOrDefault(x => x.TourId == target.Id);
+                await DeleteSelectedTourAsync();
+                continue;
+            }
+
+            if (!await DeleteTourAsync(target.Id, target.ConcurrencyToken))
+            {
+                continue;
+            }
+
+            _loadedTours.Remove(target);
+            await ClearAssignedTourReferencesAsync(target.Id);
+            _dataSyncService.PublishTours(_instanceId, target.Id.ToString(CultureInfo.InvariantCulture), null);
+            _dataSyncService.PublishOrders(_instanceId);
+            deleted++;
+        }
+
+        if (targets.Count > 1)
+        {
+            RebuildTourRowsWithCurrentFilter();
+            ToastNotificationService.ShowInfo($"{deleted} Touren wurden gelöscht.");
+        }
     }
 
     private async Task OpenSelectedTourOnMapAsync()
@@ -1866,6 +1960,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private void RebuildTourRows(IEnumerable<TourRecord> tours, int? keepSelectionTourId)
     {
+        SelectedTours.Clear();
         var tourList = tours.ToList();
         var conflicts = _conflictService.FindAssignmentConflicts(tourList)
             .GroupBy(c => c.TourIdA)

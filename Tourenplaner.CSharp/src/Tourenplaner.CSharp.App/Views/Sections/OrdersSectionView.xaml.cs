@@ -51,6 +51,14 @@ public partial class OrdersSectionView : UserControl
             static (vm, item) => vm.SelectedOrder = item);
     }
 
+    private void OrdersGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is OrdersSectionViewModel vm)
+        {
+            vm.UpdateSelectedOrders(OrdersGrid.SelectedItems.OfType<OrderItem>());
+        }
+    }
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BindViewModel(DataContext as OrdersSectionViewModel);

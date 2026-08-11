@@ -187,6 +187,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private ProductLineInput? _selectedProductLine;
     private string _orderNumber = string.Empty;
     private string _orderDateText = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+    private string _deliveryDateText = string.Empty;
+    private bool _deliveryCanOccurEarlier;
     private string _orderAddressName = string.Empty;
     private string _orderAddressContactPerson = string.Empty;
     private string _orderAddressStreet = string.Empty;
@@ -262,6 +264,18 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     {
         get => _orderDateText;
         set => SetProperty(ref _orderDateText, value);
+    }
+
+    public string DeliveryDateText
+    {
+        get => _deliveryDateText;
+        set => SetProperty(ref _deliveryDateText, value);
+    }
+
+    public bool DeliveryCanOccurEarlier
+    {
+        get => _deliveryCanOccurEarlier;
+        set => SetProperty(ref _deliveryCanOccurEarlier, value);
     }
 
     public string OrderAddressName
@@ -434,6 +448,19 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             return false;
         }
 
+        var normalizedDeliveryDateText = (DeliveryDateText ?? string.Empty).Trim();
+        DateOnly? deliveryDate = null;
+        if (!string.IsNullOrWhiteSpace(normalizedDeliveryDateText))
+        {
+            if (!DateTime.TryParseExact(normalizedDeliveryDateText, "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDeliveryDate))
+            {
+                error = "Bitte ein gültiges Lieferdatum im Format DD.MM.YYYY eingeben.";
+                return false;
+            }
+
+            deliveryDate = DateOnly.FromDateTime(parsedDeliveryDate);
+        }
+
         var deliveryStreetLine = BuildStreetLine(deliveryStreet, deliveryHouseNumber);
 
         var products = ProductLines
@@ -445,6 +472,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         {
             Id = id,
             ScheduledDate = DateOnly.FromDateTime(parsedOrderDate),
+            DeliveryDate = deliveryDate,
+            DeliveryCanOccurEarlier = DeliveryCanOccurEarlier,
             Type = _defaultOrderType,
             CustomerName = deliveryName,
             Address = $"{deliveryStreetLine}, {deliveryPostalCode} {deliveryCity}",
@@ -541,6 +570,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         _existingAssignedTourId = existingOrder.AssignedTourId;
         OrderNumber = existingOrder.Id;
         OrderDateText = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        DeliveryDateText = existingOrder.DeliveryDate?.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+        DeliveryCanOccurEarlier = existingOrder.DeliveryCanOccurEarlier;
         OrderAddressName = existingOrder.OrderAddress?.Name ?? string.Empty;
         OrderAddressContactPerson = existingOrder.OrderAddress?.ContactPerson ?? string.Empty;
         OrderAddressStreet = existingOrder.OrderAddress?.Street ?? string.Empty;

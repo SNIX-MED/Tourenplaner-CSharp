@@ -354,6 +354,8 @@
                                   CellStyle="{StaticResource ToursGridCellStyle}"
                                   ColumnHeaderStyle="{StaticResource ToursGridHeaderStyle}"
                                   SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
+                                  SelectionMode="Extended"
+                                  SelectionChanged="ToursGrid_SelectionChanged"
                                   PreviewMouseRightButtonDown="ToursGrid_PreviewMouseRightButtonDown"
                                   DragOver="ToursGrid_DragOver"
                                   DragLeave="ToursGrid_DragLeave"

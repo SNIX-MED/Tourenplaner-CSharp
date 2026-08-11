@@ -69,10 +69,24 @@ public partial class ToursSectionView : UserControl
             return;
         }
 
-        ToursGrid.SelectedItem = item;
+        if (!ToursGrid.SelectedItems.Contains(item))
+        {
+            ToursGrid.SelectedItems.Clear();
+            ToursGrid.SelectedItems.Add(item);
+        }
+
+        ToursGrid.CurrentItem = item;
         if (DataContext is ToursSectionViewModel vm)
         {
             vm.SelectedTour = item;
+        }
+    }
+
+    private void ToursGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is ToursSectionViewModel vm)
+        {
+            vm.UpdateSelectedTours(ToursGrid.SelectedItems.OfType<TourOverviewItem>());
         }
     }
 

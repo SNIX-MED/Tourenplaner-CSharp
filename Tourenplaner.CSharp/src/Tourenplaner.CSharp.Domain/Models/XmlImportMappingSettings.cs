@@ -27,6 +27,7 @@ public sealed class XmlImportMappingSettings
     public const string DefaultOrderDeliveryAddressId = "LieferadressID";
     public const string DefaultOrderDeliveryCondition = "LiefKondID";
     public const string DefaultOrderDeliveryDate = "Lieferdatum";
+    public const string DefaultOrderDeliveryCanOccurEarlier = "LieferdatumFrueher";
     public const string DefaultOrderArchived = "Archiviert";
     public const string DefaultOrderLocked = "";
     public const string DefaultOrderNote = "Notiz";
@@ -62,6 +63,7 @@ public sealed class XmlImportMappingSettings
     public string OrderDeliveryAddressId { get; set; } = DefaultOrderDeliveryAddressId;
     public string OrderDeliveryCondition { get; set; } = DefaultOrderDeliveryCondition;
     public string OrderDeliveryDate { get; set; } = DefaultOrderDeliveryDate;
+    public string OrderDeliveryCanOccurEarlier { get; set; } = DefaultOrderDeliveryCanOccurEarlier;
     public string OrderArchived { get; set; } = DefaultOrderArchived;
     public string OrderLocked { get; set; } = DefaultOrderLocked;
     public string OrderNote { get; set; } = DefaultOrderNote;
@@ -104,6 +106,7 @@ public sealed class XmlImportMappingSettings
             OrderDeliveryAddressId = Normalize(OrderDeliveryAddressId, DefaultOrderDeliveryAddressId),
             OrderDeliveryCondition = Normalize(OrderDeliveryCondition, DefaultOrderDeliveryCondition),
             OrderDeliveryDate = Normalize(OrderDeliveryDate, DefaultOrderDeliveryDate),
+            OrderDeliveryCanOccurEarlier = Normalize(OrderDeliveryCanOccurEarlier, DefaultOrderDeliveryCanOccurEarlier),
             OrderArchived = Normalize(OrderArchived, DefaultOrderArchived),
             OrderLocked = Normalize(OrderLocked, DefaultOrderLocked),
             OrderNote = Normalize(OrderNote, DefaultOrderNote),

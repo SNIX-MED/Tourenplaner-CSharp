@@ -61,7 +61,29 @@ internal static class OrderSectionViewHelpers
             return;
         }
 
-        grid.SelectedItem = item;
+        if (!grid.SelectedItems.Contains(item))
+        {
+            grid.SelectedItems.Clear();
+            grid.SelectedItems.Add(item);
+        }
+        else
+        {
+            // DataGrid clears an extended selection during its own right-click handling.
+            // Restore it after that internal handling, before the context-menu command runs.
+            var preservedSelection = grid.SelectedItems.Cast<object>().ToList();
+            _ = grid.Dispatcher.BeginInvoke(() =>
+            {
+                grid.SelectedItems.Clear();
+                foreach (var selectedItem in preservedSelection)
+                {
+                    grid.SelectedItems.Add(selectedItem);
+                }
+
+                grid.CurrentItem = item;
+            }, System.Windows.Threading.DispatcherPriority.Input);
+        }
+
+        grid.CurrentItem = item;
         setSelection(vm, item);
     }
 

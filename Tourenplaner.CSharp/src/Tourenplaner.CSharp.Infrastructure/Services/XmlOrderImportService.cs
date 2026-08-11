@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Text;
 using System.Xml.Linq;
 using Tourenplaner.CSharp.Domain.Models;
 
@@ -13,6 +14,11 @@ public interface IXmlOrderImportService
 
 public sealed class XmlOrderImportService : IXmlOrderImportService
 {
+    static XmlOrderImportService()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
     public List<SqlOrderImportData> LoadOrdersFromFile(string xmlFilePath, XmlImportMappingSettings? mapping = null)
     {
         var result = LoadOrdersFromFileDetailed(xmlFilePath, mapping);
@@ -34,6 +40,11 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         var document = XDocument.Load(xmlFilePath);
         var result = new XmlOrderImportLoadResult();
         var effectiveMapping = (mapping ?? XmlImportMappingSettings.CreateDefault()).WithDefaults();
+
+        if (!document.Descendants(effectiveMapping.OrderRecordElement).Any() && document.Descendants("beleg").Any())
+        {
+            effectiveMapping = CreateBelegExportMapping();
+        }
 
         var addressElements = document.Descendants(effectiveMapping.AddressRecordElement).ToList();
         var orderElements = document.Descendants(effectiveMapping.OrderRecordElement).ToList();
@@ -80,6 +91,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     Gesperrt = ReadBool(orderElement, effectiveMapping.OrderLocked),
                     Lieferbedingung = ReadString(orderElement, effectiveMapping.OrderDeliveryCondition, "Selbstabholung"),
                     Lieferdatum = ReadNullableDate(orderElement, effectiveMapping.OrderDeliveryDate),
+                    LieferungKannFrueherErfolgen = ReadBool(orderElement, effectiveMapping.OrderDeliveryCanOccurEarlier),
                     Notiz = ReadString(orderElement, effectiveMapping.OrderNote)
                 };
 
@@ -93,6 +105,11 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                 if (addressesById.TryGetValue(deliveryAddressId, out var deliveryAddressElement))
                 {
                     ApplyAddress(order, deliveryAddressElement, effectiveMapping, isDeliveryAddress: true);
+                }
+                else if (string.Equals(effectiveMapping.OrderRecordElement, "beleg", StringComparison.OrdinalIgnoreCase))
+                {
+                    ApplyExportAddressBlock(order, ReadString(orderElement, "adresskopfrechnung"), isDeliveryAddress: false);
+                    ApplyExportAddressBlock(order, ReadString(orderElement, "adresskopflieferung"), isDeliveryAddress: true);
                 }
 
                 var orderId = ReadString(orderElement, effectiveMapping.OrderId);
@@ -220,6 +237,32 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         order.KundeEmail = ReadString(addressElement, mapping.AddressEmail);
         order.KundeTelefon = ReadString(addressElement, mapping.AddressPhone);
         order.KundeKontaktperson = ReadString(addressElement, mapping.AddressContactPerson);
+    }
+
+    private static XmlImportMappingSettings CreateBelegExportMapping() => new()
+    {
+        OrderRecordElement = "beleg", ProductRecordElement = "position", OrderId = "ident", OrderNumber = "kopf",
+        OrderType = "typ", OrderDate = "datum", OrderDeliveryCondition = "versandart", OrderDeliveryDate = "lieferdatum",
+        OrderDeliveryCanOccurEarlier = "lieferdatumfrüher", OrderArchived = "archiv", OrderLocked = "sperre", OrderNote = "notiz",
+        ProductOrderId = "kopfid", ProductArticleNumber = "artikel", ProductDescription = "bezeichnung", ProductQuantity = "menge", ProductWeight = "gewicht"
+    };
+
+    private static void ApplyExportAddressBlock(SqlOrderImportData order, string value, bool isDeliveryAddress)
+    {
+        var lines = (value ?? string.Empty).Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (lines.Length == 0) return;
+        var name = string.Join(' ', lines.Take(Math.Max(1, lines.Length - 2)));
+        var street = lines.Length >= 2 ? lines[^2] : string.Empty;
+        var postalCity = lines.Length >= 1 ? lines[^1] : string.Empty;
+        var postalParts = postalCity.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        if (isDeliveryAddress)
+        {
+            order.LieferFirma = name; order.LieferStrasse = street; order.LieferPLZ = postalParts.ElementAtOrDefault(0) ?? string.Empty; order.LieferOrt = postalParts.ElementAtOrDefault(1) ?? string.Empty;
+        }
+        else
+        {
+            order.KundeFirma = name; order.KundeStrasse = street; order.KundePLZ = postalParts.ElementAtOrDefault(0) ?? string.Empty; order.KundeOrt = postalParts.ElementAtOrDefault(1) ?? string.Empty;
+        }
     }
 
     private static string ReadString(XElement parent, string name, string fallback = "")

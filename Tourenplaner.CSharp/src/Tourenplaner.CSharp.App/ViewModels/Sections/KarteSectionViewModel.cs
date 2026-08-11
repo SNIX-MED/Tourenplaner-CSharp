@@ -978,6 +978,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(DetailEmail));
                 OnPropertyChanged(nameof(DetailPhone));
                 OnPropertyChanged(nameof(DetailDeliveryType));
+                OnPropertyChanged(nameof(DetailDeliveryDate));
+                OnPropertyChanged(nameof(DetailDeliveryCanOccurEarlier));
                 OnPropertyChanged(nameof(DetailNotes));
                 RaiseCommandStates();
             }
@@ -1230,6 +1232,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public string DetailEmail => FindSelectedOrderModel()?.Email ?? "n/a";
     public string DetailPhone => FindSelectedOrderModel()?.Phone ?? "n/a";
     public string DetailDeliveryType => FindSelectedOrderModel()?.DeliveryType ?? SelectedOrder?.DeliveryLabel ?? "Frei Bordsteinkante";
+    public string DetailDeliveryDate => FindSelectedOrderModel()?.DeliveryDate?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+    public bool DetailDeliveryCanOccurEarlier => FindSelectedOrderModel()?.DeliveryCanOccurEarlier == true;
     public string DetailNotes => NormalizeUiText(FindSelectedOrderModel()?.Notes);
 
     public CompanyMarkerInfo? CompanyMarker =>
@@ -7348,6 +7352,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             ProductLines = BuildProductLineItems(order.Products),
             TotalWeightKgText = totalWeightKg.ToString("0.##", CultureInfo.CurrentCulture),
             ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
+            DeliveryDate = order.DeliveryDate?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? string.Empty,
+            DeliveryCanOccurEarlier = order.DeliveryCanOccurEarlier,
             AssignedTourId = order.AssignedTourId ?? string.Empty,
             IsAssigned = isAssigned,
             Latitude = order.Location?.Latitude ?? double.NaN,
@@ -7876,6 +7882,8 @@ public sealed class MapOrderItem
     public List<string> ProductLines { get; set; } = new();
     public string TotalWeightKgText { get; set; } = string.Empty;
     public string ScheduledDate { get; set; } = string.Empty;
+    public string DeliveryDate { get; set; } = string.Empty;
+    public bool DeliveryCanOccurEarlier { get; set; }
     public string AssignedTourId { get; set; } = string.Empty;
     public bool IsAssigned { get; set; }
     public double Latitude { get; set; }

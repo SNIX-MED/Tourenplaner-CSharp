@@ -552,6 +552,8 @@
                               SnapsToDevicePixels="True"
                               ItemsSource="{Binding MapOrders}"
                               SelectedItem="{Binding SelectedOrder, Mode=TwoWay}"
+                              SelectionMode="Extended"
+                              SelectionChanged="OrdersGrid_SelectionChanged"
                               PreviewMouseRightButtonDown="OrdersGrid_PreviewMouseRightButtonDown"
                               Style="{StaticResource OrdersGridStyle}"
                               ColumnHeaderStyle="{StaticResource OrdersGridHeaderStyle}"

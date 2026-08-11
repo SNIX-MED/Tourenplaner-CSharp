@@ -197,6 +197,8 @@ public class SqlOrderImportService : ISqlOrderImportService
             CustomerName = BuildCustomerName(sqlOrder),
             Address = $"{auftragsAdresse}, {sqlOrder.KundePLZ} {sqlOrder.KundeOrt}".Trim(' ', ','),
             ScheduledDate = DateOnly.FromDateTime(sqlOrder.AuftragsDatum),
+            DeliveryDate = sqlOrder.Lieferdatum is null ? null : DateOnly.FromDateTime(sqlOrder.Lieferdatum.Value),
+            DeliveryCanOccurEarlier = sqlOrder.LieferungKannFrueherErfolgen,
             Type = isMapOrder ? OrderType.Map : OrderType.NonMap,
             OrderAddress = new OrderAddressInfo
             {
@@ -263,6 +265,8 @@ public class SqlOrderImportService : ISqlOrderImportService
         existingOrder.CustomerName = importedOrder.CustomerName;
         existingOrder.Address = importedOrder.Address;
         existingOrder.ScheduledDate = importedOrder.ScheduledDate;
+        existingOrder.DeliveryDate = importedOrder.DeliveryDate;
+        existingOrder.DeliveryCanOccurEarlier = importedOrder.DeliveryCanOccurEarlier;
         existingOrder.Type = importedOrder.Type;
         existingOrder.OrderAddress = importedOrder.OrderAddress;
         existingOrder.DeliveryAddress = importedOrder.DeliveryAddress;

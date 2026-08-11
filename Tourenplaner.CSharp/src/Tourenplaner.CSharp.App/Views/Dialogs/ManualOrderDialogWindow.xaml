@@ -219,8 +219,9 @@
                       Grid.ColumnSpan="2"
                       Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="240" />
                         <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="230" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
@@ -232,7 +233,15 @@
                         <controls:ModernDatePickerField Margin="0,4,10,0"
                                                         SelectedDateText="{Binding OrderDateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
-                    <Grid Grid.Column="2" Margin="10,0,0,0">
+                    <StackPanel Grid.Column="2">
+                        <TextBlock FontWeight="SemiBold" Text="Lieferdatum" />
+                        <controls:ModernDatePickerField Margin="0,4,10,0"
+                                                        SelectedDateText="{Binding DeliveryDateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <CheckBox Margin="0,8,0,0"
+                                  Content="Lieferung kann auch früher erfolgen"
+                                  IsChecked="{Binding DeliveryCanOccurEarlier, Mode=TwoWay}" />
+                    </StackPanel>
+                    <Grid Grid.Column="3" Margin="10,0,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />

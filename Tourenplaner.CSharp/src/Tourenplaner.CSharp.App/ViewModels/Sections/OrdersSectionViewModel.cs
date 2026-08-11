@@ -90,9 +90,9 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         SetSelectedOrderStatusPartiallyInTransitCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.PartiallyInTransitStatus), () => SelectedOrder is not null);
         SetSelectedOrderStatusPartiallyReadyCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.PartiallyReadyStatus), () => SelectedOrder is not null);
         SetSelectedOrderStatusReadyCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.ReadyToDeliverStatus), () => SelectedOrder is not null);
-        ToggleArchiveSelectedOrderCommand = new AsyncCommand(ToggleArchiveSelectedOrderAsync, () => SelectedOrder is not null);
+        ToggleArchiveSelectedOrderCommand = new AsyncCommand(ToggleArchiveSelectedOrderAsync, () => SelectedOrders.Count > 0);
         UndoDeleteCommand = new AsyncCommand(UndoDeleteAsync, () => _lastDeletedOrder is not null);
-        RemoveCommand = new AsyncCommand(RemoveSelectedOrderAsync, () => SelectedOrder is not null);
+        RemoveCommand = new AsyncCommand(RemoveSelectedOrderAsync, () => SelectedOrders.Count > 0);
         ShowActiveOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = false);
         ShowArchivedOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = true);
         ToggleArchiveModeCommand = new DelegateCommand(() => ShowArchivedOrders = !ShowArchivedOrders);
@@ -103,6 +103,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     }
 
     public ObservableCollection<OrderItem> MapOrders { get; } = new();
+    public ObservableCollection<OrderItem> SelectedOrders { get; } = new();
     public ObservableCollection<string> DeliveryTypeFilterOptions { get; } = [];
     public ObservableCollection<string> StatusFilterOptions { get; } = [];
     public ObservableCollection<MapOrderFilterOption> OrderStatusFilters { get; } = new();
@@ -254,6 +255,22 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 RaiseCommandStates();
             }
         }
+    }
+
+    public void UpdateSelectedOrders(IEnumerable<OrderItem> orders)
+    {
+        SelectedOrders.Clear();
+        foreach (var order in orders)
+        {
+            SelectedOrders.Add(order);
+        }
+
+        if (SelectedOrders.Count > 0 && (SelectedOrder is null || !SelectedOrders.Contains(SelectedOrder)))
+        {
+            SelectedOrder = SelectedOrders.Last();
+        }
+
+        RaiseCommandStates();
     }
 
     public async Task RefreshAsync()
@@ -439,32 +456,40 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private async Task ToggleArchiveSelectedOrderAsync()
     {
-        if (SelectedOrder is null)
+        var selectedOrderIds = SelectedOrders.Select(x => x.Id).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (selectedOrderIds.Count == 0 && SelectedOrder is not null)
+        {
+            selectedOrderIds.Add(SelectedOrder.Id);
+        }
+
+        var targets = _allOrders.Where(x => selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase)).ToList();
+        if (targets.Count == 0)
         {
             return;
         }
 
-        var target = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
-        if (target is null)
+        var nextIsArchived = !targets[0].IsArchived;
+        foreach (var target in targets)
         {
-            return;
+            if (!await ConfirmManualArchiveForAssignedActiveTourAsync(target, nextIsArchived))
+            {
+                return;
+            }
         }
 
-        var nextIsArchived = !target.IsArchived;
-        if (!await ConfirmManualArchiveForAssignedActiveTourAsync(target, nextIsArchived))
+        var changed = 0;
+        foreach (var target in targets)
         {
-            return;
+            target.IsArchived = nextIsArchived;
+            if (await SaveOrderAsync(target))
+            {
+                changed++;
+                PublishOrderChange(target.Id, target.Id);
+            }
         }
 
-        target.IsArchived = nextIsArchived;
-        if (!await SaveOrderAsync(target))
-        {
-            return;
-        }
-        await RefreshFromRepositoryAsync(target.Id);
-        SelectOrderById(target.Id);
-        PublishOrderChange(target.Id, target.Id);
-        StatusText = $"Auftrag {target.Id} wurde {(target.IsArchived ? "archiviert" : "reaktiviert")}.";
+        await RefreshFromRepositoryAsync();
+        StatusText = $"{changed} Auftrag/Aufträge wurden {(nextIsArchived ? "archiviert" : "reaktiviert")}.";
         ToastNotificationService.ShowInfo(StatusText);
     }
 
@@ -556,14 +581,24 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private async Task RemoveSelectedOrderAsync()
     {
-        if (SelectedOrder is null)
+        var selectedOrderIds = SelectedOrders.Select(x => x.Id).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (selectedOrderIds.Count == 0 && SelectedOrder is not null)
+        {
+            selectedOrderIds.Add(SelectedOrder.Id);
+        }
+
+        var targets = _allOrders
+            .Where(x => x.Type == OrderType.Map && selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        if (targets.Count == 0)
         {
             return;
         }
 
-        var orderId = SelectedOrder.Id;
         var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-            $"Soll der Auftrag {orderId} wirklich gelöscht werden?",
+            targets.Count == 1
+                ? $"Soll der Auftrag {targets[0].Id} wirklich gelöscht werden?"
+                : $"Sollen die {targets.Count} markierten Aufträge wirklich gelöscht werden?",
             "Auftrag löschen",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
@@ -572,35 +607,33 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var index = _allOrders.FindIndex(x =>
-            x.Type == OrderType.Map &&
-            string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
-        if (index < 0)
+        var deleted = 0;
+        foreach (var target in targets)
         {
-            return;
+            var index = _allOrders.IndexOf(target);
+            if (index < 0 || !await DeleteOrderAsync(target.Id, target.ConcurrencyToken))
+            {
+                continue;
+            }
+
+            _lastDeletedOrder = CloneOrder(target);
+            _lastDeletedIndex = index;
+            _allOrders.RemoveAt(index);
+            PublishOrderChange(target.Id, null);
+            deleted++;
         }
 
-        var removedOrderId = orderId;
-        _lastDeletedOrder = CloneOrder(_allOrders[index]);
-        _lastDeletedIndex = index;
-        _allOrders.RemoveAt(index);
-
-        if (!await DeleteOrderAsync(removedOrderId, _lastDeletedOrder?.ConcurrencyToken))
-        {
-            _lastDeletedOrder = null;
-            _lastDeletedIndex = -1;
-            RaiseCommandStates();
-            return;
-        }
         await RefreshFromRepositoryAsync();
-        PublishOrderChange(removedOrderId, null);
-        StatusText = $"Auftrag {removedOrderId} wurde gelöscht. Mit 'Zurück' wiederherstellen.";
-        ToastNotificationService.ShowInfo($"Auftrag {removedOrderId} wurde gelöscht.");
+        StatusText = deleted == 1
+            ? "1 Auftrag wurde gelöscht. Mit 'Zurück' wiederherstellen."
+            : $"{deleted} Aufträge wurden gelöscht. Mit 'Zurück' den zuletzt gelöschten Auftrag wiederherstellen.";
+        ToastNotificationService.ShowInfo(StatusText);
         RaiseCommandStates();
     }
 
     private void RebuildGrid(string? preferredSelectedId = null)
     {
+        SelectedOrders.Clear();
         var selectedOrderId = string.IsNullOrWhiteSpace(preferredSelectedId)
             ? SelectedOrder?.Id
             : preferredSelectedId;

@@ -2299,6 +2299,10 @@
                                 <StackPanel Grid.Row="2" Margin="0,0,0,10">
                                     <TextBlock FontWeight="SemiBold" Text="Lieferart:" />
                                     <TextBlock Text="{Binding DetailDeliveryType}" />
+                                    <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Text="Lieferdatum:" />
+                                    <TextBlock Text="{Binding DetailDeliveryDate}" />
+                                    <TextBlock Margin="0,4,0,0" Text="Lieferung kann auch früher erfolgen"
+                                               Visibility="{Binding DetailDeliveryCanOccurEarlier, Converter={StaticResource BoolToVisibilityConverter}}" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="3" Margin="0,0,0,8">

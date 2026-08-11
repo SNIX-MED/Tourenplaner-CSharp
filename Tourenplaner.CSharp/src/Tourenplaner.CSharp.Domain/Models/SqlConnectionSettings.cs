@@ -196,6 +196,7 @@ public class SqlOrderImportData
     public decimal NettoTotal { get; set; }
     public decimal BruttoTotal { get; set; }
     public DateTime? Lieferdatum { get; set; }
+    public bool LieferungKannFrueherErfolgen { get; set; }
     public string Notiz { get; set; } = string.Empty;
 }
 
