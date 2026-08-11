@@ -1,0 +1,59 @@
+@model GawelaAssetAdminModel
+@{ Layout = "_ConfigureModule"; }
+
+@if (TempData["GawelaColor.Success"] is string success){<div class="alert alert-success">@success</div>}
+<div class="alert alert-info"><strong>Universeller GAWELA Produktkonfigurator:</strong> Produkt laden, relevante Smartstore-Attribute als Farbebenen auswählen und pro Ebene eine pixelgenaue PNG-Maske hinterlegen. Bestehende Korpus-/Tür-Konfigurationen werden beim Upgrade weiterhin erkannt.</div>
+
+<form asp-action="Configure" method="get" class="mb-4">
+  <div class="input-group" style="max-width:760px"><input name="productReference" class="form-control" value="@Model.ProductReference" placeholder="Artikelnummer oder Product-ID"/><button class="btn btn-primary" type="submit"><i class="fa fa-search"></i> Produkt laden</button></div>
+</form>
+
+@if(Model.ProductId>0)
+{
+<form id="gawela-config-form" asp-action="Configure" method="post" enctype="multipart/form-data">
+<input type="hidden" asp-for="ProductId"/><input type="hidden" asp-for="ProductReference"/>
+<div asp-validation-summary="All" class="text-danger mb-3"></div>
+<div class="card mb-4"><div class="card-body">
+<h3 class="h5">@Model.ProductSku – @Model.ProductName</h3>
+<div class="form-group"><label asp-for="ThumbnailLabel">Galerie-Bezeichnung</label><input asp-for="ThumbnailLabel" class="form-control" style="max-width:420px"/></div>
+<div class="form-group"><label asp-for="BaseImage">Basisbild (.webp)</label><input asp-for="BaseImage" type="file" accept=".webp,image/webp" class="form-control"/><small class="text-muted">Bei bestehendem Basisbild leer lassen, wenn es nicht ersetzt werden soll.</small></div>
+</div></div>
+
+<h3 class="h5">Visualisierungsebenen</h3>
+<p class="text-muted">Für jeden unabhängig einfärbbaren Bereich eine Ebene anlegen. Beispiel: Gestell, Sitz, Rückenlehne. Maximal 8 Ebenen empfohlen.</p>
+<div id="layer-list">
+@for(var i=0;i<Model.Layers.Count;i++)
+{
+ var l=Model.Layers[i];
+ <div class="card mb-3 gawela-layer" data-index="@i"><div class="card-body">
+  <div class="row">
+   <div class="col-md-3"><label>Ebene</label><input name="Layers[@i].Name" value="@l.Name" class="form-control" placeholder="z.B. Gestell"/></div>
+   <div class="col-md-4"><label>Smartstore-Attribut</label><select name="Layers[@i].ProductVariantAttributeId" class="form-control">@foreach(var a in Model.AvailableAttributes){<option value="@a.Id" selected="@(a.Id==l.ProductVariantAttributeId)">@a.Name</option>}</select></div>
+   <div class="col-md-2"><label>Basis-RAL</label><input name="Layers[@i].BaseRal" value="@l.BaseRal" class="form-control" maxlength="4"/></div>
+   <div class="col-md-2"><label>Fallback-RAL</label><input name="Layers[@i].DefaultRal" value="@l.DefaultRal" class="form-control" maxlength="4"/></div>
+   <div class="col-md-1 d-flex align-items-end"><button type="button" class="btn btn-outline-danger remove-layer">×</button></div>
+  </div>
+  <div class="mt-3"><label>Maske (.png) @(l.HasExistingMask?"– vorhanden":"– erforderlich")</label><input name="Layers[@i].Mask" type="file" accept=".png,image/png" class="form-control"/><small class="text-muted">Weiss = einfärben, Schwarz = unverändert. Muss exakt dieselben Pixelmasse wie das Basisbild haben.</small></div>
+ </div></div>
+}
+</div>
+<button type="button" id="add-layer" class="btn btn-secondary mb-3"><i class="fa fa-plus"></i> Ebene hinzufügen</button>
+<div><button type="submit" class="btn btn-warning"><i class="fa fa-save"></i> Konfigurator speichern</button></div>
+</form>
+<script>
+(function(){
+ const list=document.getElementById('layer-list'), add=document.getElementById('add-layer');
+ const attrs=@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableAttributes));
+ function reindex(){[...list.querySelectorAll('.gawela-layer')].forEach((el,i)=>{el.dataset.index=i;el.querySelectorAll('[name]').forEach(x=>x.name=x.name.replace(/Layers\[\d+\]/,'Layers['+i+']'));});}
+ function row(){const i=list.querySelectorAll('.gawela-layer').length;if(i>=8)return;const opts=attrs.map(a=>'<option value="'+a.Id+'">'+a.Name.replace(/</g,'&lt;')+'</option>').join('');const d=document.createElement('div');d.className='card mb-3 gawela-layer';d.innerHTML='<div class="card-body"><div class="row"><div class="col-md-3"><label>Ebene</label><input name="Layers['+i+'].Name" class="form-control" placeholder="z.B. Gestell"/></div><div class="col-md-4"><label>Smartstore-Attribut</label><select name="Layers['+i+'].ProductVariantAttributeId" class="form-control">'+opts+'</select></div><div class="col-md-2"><label>Basis-RAL</label><input name="Layers['+i+'].BaseRal" value="7035" class="form-control" maxlength="4"/></div><div class="col-md-2"><label>Fallback-RAL</label><input name="Layers['+i+'].DefaultRal" value="7035" class="form-control" maxlength="4"/></div><div class="col-md-1 d-flex align-items-end"><button type="button" class="btn btn-outline-danger remove-layer">×</button></div></div><div class="mt-3"><label>Maske (.png) – erforderlich</label><input name="Layers['+i+'].Mask" type="file" accept=".png,image/png" class="form-control"/></div></div>';list.appendChild(d)}
+ add?.addEventListener('click',row);list?.addEventListener('click',e=>{if(e.target.closest('.remove-layer')){e.target.closest('.gawela-layer').remove();reindex();}});
+ if(list&&list.children.length===0&&attrs.length)row();
+})();
+</script>
+}
+
+<hr/><h3 class="h5 mb-3">Bereits konfigurierte Produkte</h3>
+@if(Model.ConfiguredProducts.Count==0){<div class="text-muted">Noch keine Produkte hinterlegt.</div>}else{
+<div class="table-responsive"><table class="table table-striped"><thead><tr><th>ID</th><th>Artikelnummer</th><th>Produkt</th><th>Basis</th><th>Ebenen</th><th>Typ</th><th>Status</th><th></th></tr></thead><tbody>
+@foreach(var item in Model.ConfiguredProducts){<tr><td>@item.ProductId</td><td>@item.Sku</td><td>@item.ProductName</td><td>@(item.HasBaseImage?"✓":"–")</td><td>@item.LayerCount</td><td>@(item.IsLegacy?"Legacy 6.4.1":"Universell")</td><td>@if(item.IsComplete){<span class="badge badge-success">bereit</span>}else{<span class="badge badge-warning">unvollständig</span>}</td><td class="text-nowrap"><a asp-action="Configure" asp-route-productId="@item.ProductId" class="btn btn-sm btn-primary">Bearbeiten</a> <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Konfigurator dieses Produkts wirklich löschen?');"><input type="hidden" name="productId" value="@item.ProductId"/><button class="btn btn-sm btn-danger">Löschen</button></form></td></tr>}
+</tbody></table></div>}
