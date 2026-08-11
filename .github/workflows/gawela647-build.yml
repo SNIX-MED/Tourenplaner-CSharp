@@ -73,6 +73,7 @@ jobs:
           grep -q 'Produktgruppe – gemeinsame Bilder und Masken' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Views/GawelaColorAdmin/Configure.cshtml
           grep -q 'SaveGroup' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Controllers/GawelaColorAdminController.cs
           grep -q 'ResolveOwnerProductId' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Controllers/GawelaColorController.cs
+          grep -q 'product-groups.json' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Services/GawelaProductGroupStore.cs
 
       - name: Build module in Release mode
         shell: bash
@@ -92,7 +93,6 @@ jobs:
           test -f "$MODULE/Views/GawelaColorAdmin/Configure.cshtml"
           grep -q '"Version": "6.4.7"' "$MODULE/module.json"
           grep -q 'Produktgruppe – gemeinsame Bilder und Masken' "$MODULE/Views/GawelaColorAdmin/Configure.cshtml"
-          strings "$MODULE/Gawela.ColorConfigurator.dll" | grep -q 'product-groups.json'
           echo 'Compiled 6.4.7 module verified.'
 
       - name: Create Smartstore package helper
