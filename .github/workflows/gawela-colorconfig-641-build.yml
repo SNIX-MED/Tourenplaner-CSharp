@@ -63,12 +63,13 @@ jobs:
         shell: bash
         run: |
           MODULE=smartstore/src/Smartstore.Web/Modules/Gawela.ColorConfigurator
+          find "$MODULE" -type f -print | sort
           test -f "$MODULE/Gawela.ColorConfigurator.dll"
           test -f "$MODULE/module.json"
-          test -f "$MODULE/gawela-color.js"
-          test -f "$MODULE/gawela-color.css"
+          test -f "$MODULE/wwwroot/gawela-color.js"
+          test -f "$MODULE/wwwroot/gawela-color.css"
           grep -q '"Version": "6.4.1"' "$MODULE/module.json"
-          grep -q 'gawela-gallery-slide' "$MODULE/gawela-color.js"
+          grep -q 'gawela-gallery-slide' "$MODULE/wwwroot/gawela-color.js"
           echo 'Compiled module verified.'
 
       - name: Create Smartstore package helper
@@ -119,7 +120,9 @@ jobs:
           dotnet run --project tools/GawelaPackager/GawelaPackager.csproj -c Release -- \
             "$GITHUB_WORKSPACE/smartstore/src/Smartstore.Web" \
             "$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.1.zip"
+          test -s "$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.1.zip"
           unzip -t "$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.1.zip"
+          unzip -l "$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.1.zip"
           sha256sum "$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.1.zip"
 
       - name: Upload installable module
