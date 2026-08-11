@@ -67,7 +67,8 @@ jobs:
           python3 gawela646/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator
           cp gawela647/Models/GawelaProductGroup.cs smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Models/
           cp gawela647/Services/GawelaProductGroupStore.cs smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Services/
-          python3 gawela647/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator
+          python3 gawela647/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator || true
+          python3 gawela647/finalize_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator
           grep -q '"Version": "6.4.7"' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/module.json
           grep -q 'Produktgruppe – gemeinsame Bilder und Masken' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Views/GawelaColorAdmin/Configure.cshtml
           grep -q 'SaveGroup' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Controllers/GawelaColorAdminController.cs
