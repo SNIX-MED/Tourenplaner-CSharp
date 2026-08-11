@@ -1,0 +1,136 @@
+name: Build GAWELA universal configurator 6.4.2
+
+on:
+  push:
+    branches: [gawela-colorconfig-642-build]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout 6.4.2 branch
+        uses: actions/checkout@v4
+
+      - name: Checkout verified GAWELA 6.4.0 source chunks
+        uses: actions/checkout@v4
+        with:
+          repository: SNIX-MED/Tourenplaner-CSharp
+          ref: gawela-colorconfig-build
+          path: legacy
+
+      - name: Checkout Smartstore 6.4.0
+        uses: actions/checkout@v4
+        with:
+          repository: smartstore/Smartstore
+          ref: 6.4.0
+          path: smartstore
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore 6.4.1 source and overlay 6.4.2 universal files
+        shell: bash
+        run: |
+          cat legacy/gawela-build/chunks/part*.txt | tr -d '\r\n' > "$RUNNER_TEMP/module.b64"
+          base64 -d "$RUNNER_TEMP/module.b64" > "$RUNNER_TEMP/module.zip"
+          echo "a34f06fc6668a2fd7faff1748a44e68073b9a52fef0204bcb59f02972b3958b9  $RUNNER_TEMP/module.zip" | sha256sum -c -
+          unzip -t "$RUNNER_TEMP/module.zip"
+          mkdir -p "$RUNNER_TEMP/module-src"
+          unzip -q "$RUNNER_TEMP/module.zip" -d "$RUNNER_TEMP/module-src"
+          rm -rf smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator
+          cp -R "$RUNNER_TEMP/module-src/Gawela.ColorConfigurator" smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator
+          python3 gawela641/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator
+          sed -i '1i using Smartstore;' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Startup.cs
+          cp -R gawela642/Models smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/
+          cp -R gawela642/Services smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/
+          cp -R gawela642/Controllers smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/
+          cp -R gawela642/Views smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/
+          cp -R gawela642/wwwroot smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/
+          cp gawela642/module.json smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/module.json
+          grep -q '"Version": "6.4.2"' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/module.json
+          test -f smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Models/GawelaProductConfig.cs
+
+      - name: Build module in Release mode
+        shell: bash
+        working-directory: smartstore
+        run: |
+          dotnet restore src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj
+          dotnet build src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj -c Release --no-restore
+
+      - name: Verify compiled universal module
+        shell: bash
+        run: |
+          MODULE=smartstore/src/Smartstore.Web/Modules/Gawela.ColorConfigurator
+          test -f "$MODULE/Gawela.ColorConfigurator.dll"
+          test -f "$MODULE/module.json"
+          test -f "$MODULE/wwwroot/gawela-color.js"
+          grep -q '"Version": "6.4.2"' "$MODULE/module.json"
+          grep -q 'cfg.layers' "$MODULE/wwwroot/gawela-color.js"
+          test -f "$MODULE/Views/GawelaColorAdmin/Configure.cshtml"
+          echo 'Compiled universal module verified.'
+
+      - name: Create Smartstore package helper
+        shell: bash
+        run: |
+          mkdir -p smartstore/tools/GawelaPackager
+          cat > smartstore/tools/GawelaPackager/GawelaPackager.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+            <ItemGroup><ProjectReference Include="../../src/Smartstore.Core/Smartstore.Core.csproj" /></ItemGroup>
+          </Project>
+          EOF
+          cat > smartstore/tools/GawelaPackager/Program.cs <<'EOF'
+          using Microsoft.Extensions.FileProviders;
+          using Smartstore.Core.Packaging;
+          using Smartstore.Engine.Modularity;
+          using Smartstore.IO;
+          if (args.Length != 2) return 2;
+          var root = Path.GetFullPath(args[0]);
+          var outputFile = Path.GetFullPath(args[1]);
+          Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+          var builder = new PackageBuilder(new LocalFileSystem(root));
+          var package = await builder.BuildPackageAsync(new Descriptor(root));
+          await using var output = File.Create(outputFile);
+          await package.ArchiveStream.CopyToAsync(output);
+          return 0;
+          sealed class Descriptor : IExtensionDescriptor, IExtensionLocation
+          {
+              private readonly string _root; public Descriptor(string root) => _root = root;
+              public string Name => "Gawela.ColorConfigurator";
+              public ExtensionType ExtensionType => ExtensionType.Module;
+              public string FriendlyName => "GAWELA Universeller Produktkonfigurator";
+              public string Description => "Attributgesteuerte dynamische RAL-Farbvorschau mit frei konfigurierbaren Produktebenen als Smartstore-Galerie-Slide.";
+              public string Group => "CMS"; public string Author => "GAWELA GmbH"; public string ProjectUrl => string.Empty;
+              public string Tags => "GAWELA,RAL,Produktkonfigurator,Produktgalerie";
+              public Version Version => new(6,4,2); public Version MinAppVersion => new(6,4,0);
+              public string Path => "/Modules/Gawela.ColorConfigurator";
+              public string PhysicalPath => System.IO.Path.Combine(_root,"Modules","Gawela.ColorConfigurator");
+              public IFileSystem ContentRoot => new LocalFileSystem(PhysicalPath);
+              public IFileProvider WebRoot => new NullFileProvider();
+          }
+          EOF
+
+      - name: Package and verify installable module
+        shell: bash
+        working-directory: smartstore
+        run: |
+          dotnet run --project tools/GawelaPackager/GawelaPackager.csproj -c Release -- \
+            "$GITHUB_WORKSPACE/smartstore/src/Smartstore.Web" \
+            "$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.2.zip"
+          test -s "$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.2.zip"
+          unzip -t "$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.2.zip"
+          sha256sum "$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.2.zip"
+
+      - name: Upload installable module
+        uses: actions/upload-artifact@v4
+        with:
+          name: Smartstore.Module.Gawela.ColorConfigurator.6.4.2
+          path: Smartstore.Module.Gawela.ColorConfigurator.6.4.2.zip
+          if-no-files-found: error
