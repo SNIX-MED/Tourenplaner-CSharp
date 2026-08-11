@@ -47,6 +47,7 @@ jobs:
           rm -rf smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator
           cp -R "$RUNNER_TEMP/module-src/Gawela.ColorConfigurator" smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator
           python3 gawela641/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator
+          sed -i '1i using Smartstore;' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Startup.cs
           grep -q '"Version": "6.4.1"' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/module.json
           test -f smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Filters/GawelaProductDetailFilter.cs
           test -f smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Views/Shared/Components/GawelaColorHost/Default.cshtml
