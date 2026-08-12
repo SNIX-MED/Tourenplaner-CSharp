@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Xml.Linq;
 using Tourenplaner.CSharp.Domain.Models;
@@ -41,9 +42,16 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         var result = new XmlOrderImportLoadResult();
         var effectiveMapping = (mapping ?? XmlImportMappingSettings.CreateDefault()).WithDefaults();
 
-        if (!document.Descendants(effectiveMapping.OrderRecordElement).Any() && document.Descendants("beleg").Any())
+        if (!document.Descendants(effectiveMapping.OrderRecordElement).Any())
         {
-            effectiveMapping = CreateBelegExportMapping();
+            if (document.Descendants("beleg").Any())
+            {
+                effectiveMapping = CreateBelegExportMapping(effectiveMapping);
+            }
+            else if (document.Descendants(XmlImportMappingSettings.LegacyOrderRecordElement).Any())
+            {
+                effectiveMapping = CreateLegacyMapping(effectiveMapping);
+            }
         }
 
         var addressElements = document.Descendants(effectiveMapping.AddressRecordElement).ToList();
@@ -82,6 +90,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
             var orderElement = orderElements[index];
             try
             {
+                var explicitDeliveryCondition = ReadString(orderElement, effectiveMapping.OrderDeliveryCondition, string.Empty);
                 var order = new SqlOrderImportData
                 {
                     AuftragNr = ReadString(orderElement, effectiveMapping.OrderNumber),
@@ -89,7 +98,6 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     AuftragsDatum = ReadDate(orderElement, effectiveMapping.OrderDate, DateTime.Today),
                     Archiviert = ReadBool(orderElement, effectiveMapping.OrderArchived),
                     Gesperrt = ReadBool(orderElement, effectiveMapping.OrderLocked),
-                    Lieferbedingung = ReadString(orderElement, effectiveMapping.OrderDeliveryCondition, "Selbstabholung"),
                     Lieferdatum = ReadNullableDate(orderElement, effectiveMapping.OrderDeliveryDate),
                     LieferungKannFrueherErfolgen = ReadBool(orderElement, effectiveMapping.OrderDeliveryCanOccurEarlier),
                     Notiz = ReadString(orderElement, effectiveMapping.OrderNote)
@@ -101,27 +109,45 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     ApplyAddress(order, customerAddressElement, effectiveMapping, isDeliveryAddress: false);
                 }
 
+                var hasDeliveryAddress = false;
                 var deliveryAddressId = ReadString(orderElement, effectiveMapping.OrderDeliveryAddressId);
                 if (addressesById.TryGetValue(deliveryAddressId, out var deliveryAddressElement))
                 {
                     ApplyAddress(order, deliveryAddressElement, effectiveMapping, isDeliveryAddress: true);
+                    hasDeliveryAddress = HasDeliveryAddress(order);
                 }
                 else if (string.Equals(effectiveMapping.OrderRecordElement, "beleg", StringComparison.OrdinalIgnoreCase))
                 {
-                    ApplyExportAddressBlock(order, ReadString(orderElement, "adresskopfrechnung"), isDeliveryAddress: false);
-                    ApplyExportAddressBlock(order, ReadString(orderElement, "adresskopflieferung"), isDeliveryAddress: true);
+                    ApplyExportAddressBlock(order, ReadString(orderElement, effectiveMapping.OrderBillingAddressBlock), isDeliveryAddress: false);
+                    hasDeliveryAddress = ApplyExportAddressBlock(order, ReadString(orderElement, effectiveMapping.OrderDeliveryAddressBlock), isDeliveryAddress: true);
                 }
 
                 var orderId = ReadString(orderElement, effectiveMapping.OrderId);
                 if (!string.IsNullOrWhiteSpace(orderId) &&
                     productsByOrderId.TryGetValue(orderId, out var matchedProducts))
                 {
+                    var deliveryConditionResult = DetermineOrderDeliveryCondition(matchedProducts, explicitDeliveryCondition, effectiveMapping);
+                    order.Lieferbedingung = deliveryConditionResult.Label;
+                    if (!deliveryConditionResult.WasRecognized)
+                    {
+                        AddWarning(result, order, index, "keine Lieferart erkannt. Es wird Selbstabholung verwendet.");
+                    }
+
+                    var logicalProductIndex = 0;
+                    var skippedProductCount = 0;
                     for (var productIndex = 0; productIndex < matchedProducts.Count; productIndex++)
                     {
                         var productElement = matchedProducts[productIndex];
+                        if (ShouldSkipProductPosition(productElement, effectiveMapping))
+                        {
+                            skippedProductCount++;
+                            continue;
+                        }
+
+                        logicalProductIndex++;
                         order.Produkte.Add(new SqlOrderProductData
                         {
-                            PosNummer = productIndex + 1,
+                            PosNummer = logicalProductIndex,
                             ArtikelNummer = ReadString(productElement, effectiveMapping.ProductArticleNumber),
                             Bezeichnung = ReadString(productElement, effectiveMapping.ProductDescription),
                             Menge = ReadDecimal(productElement, effectiveMapping.ProductQuantity),
@@ -129,12 +155,37 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                             Bruttogewicht = 0m
                         });
                     }
+
+                    if (matchedProducts.Count > 0 && order.Produkte.Count == 0)
+                    {
+                        AddWarning(result, order, index, "alle Produktpositionen wurden durch Lieferarten- oder Produktausschlussregeln herausgefiltert.");
+                    }
+                    else if (skippedProductCount > 0)
+                    {
+                        AddWarning(result, order, index, $"{skippedProductCount} Produktposition(en) wurden durch Lieferarten- oder Produktausschlussregeln herausgefiltert.");
+                    }
+                }
+                else
+                {
+                    order.Lieferbedingung = ResolveExplicitDeliveryCondition(explicitDeliveryCondition);
+                    if (string.Equals(order.Lieferbedingung, DeliveryMethodExtensions.SelbstabholungLabel, StringComparison.OrdinalIgnoreCase) &&
+                        string.IsNullOrWhiteSpace(explicitDeliveryCondition))
+                    {
+                        AddWarning(result, order, index, "keine Lieferart erkannt. Es wird Selbstabholung verwendet.");
+                    }
+
+                    AddWarning(result, order, index, "keine Produktpositionen zum Auftrag gefunden.");
                 }
 
                 if (string.IsNullOrWhiteSpace(order.AuftragNr))
                 {
                     result.Errors.Add($"Auftrag #{index + 1}: AuftragNr fehlt.");
                     continue;
+                }
+
+                if (!hasDeliveryAddress)
+                {
+                    AddWarning(result, order, index, "keine Lieferadresse gefunden.");
                 }
 
                 result.Orders.Add(order);
@@ -152,54 +203,36 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
     {
         var doc = new XDocument(
             new XDeclaration("1.0", "Windows-1252", null),
-            new XElement("NewDataSet",
-                new XElement("AVE_Stamm",
-                    new XElement("Adresse", "0000101"),
-                    new XElement("Firma", "Muster AG"),
-                    new XElement("Nachname", "Muster"),
-                    new XElement("Vorname", "Max"),
-                    new XElement("Strasse", "Musterstrasse 10"),
-                    new XElement("PLZ", "8000"),
-                    new XElement("Ort", "Zuerich"),
-                    new XElement("Land", "CH"),
-                    new XElement("Email", "kunde@example.com"),
-                    new XElement("Telefon", "+41 44 000 00 00"),
-                    new XElement("Kontaktperson", "Max Muster"),
-                    new XElement("KontaktEmail", "max.muster@example.com"),
-                    new XElement("KontaktTelefon", "+41 44 000 00 11")),
-                new XElement("AVE_Stamm",
-                    new XElement("Adresse", "0000102"),
-                    new XElement("Firma", "Empfaenger GmbH"),
-                    new XElement("Nachname", "Empfaenger"),
-                    new XElement("Vorname", "Erika"),
-                    new XElement("Strasse", "Lieferweg 5"),
-                    new XElement("PLZ", "9000"),
-                    new XElement("Ort", "St. Gallen"),
-                    new XElement("Land", "CH"),
-                    new XElement("Email", "lieferung@example.com"),
-                    new XElement("Telefon", "+41 71 000 00 00"),
-                    new XElement("Kontaktperson", "Erika Empfaenger"),
-                    new XElement("KontaktEmail", "erika.empfaenger@example.com"),
-                    new XElement("KontaktTelefon", "+41 71 000 00 11")),
-                new XElement("WW_Kopf",
-                    new XElement("Ident", "6c2752b7-9720-5f72-8445-16b5c8693835"),
-                    new XElement("AuftragNr", "A-10001"),
-                    new XElement("Typ", "SALES"),
-                    new XElement("Datum", "2026-05-28T00:00:00"),
-                    new XElement("AdressID", "0000101"),
-                    new XElement("LieferadressID", "0000102"),
-                    new XElement("LiefKondID", "Lieferung"),
-                    new XElement("Lieferdatum", "2026-05-29T00:00:00"),
-                    new XElement("Archiviert", "false"),
-                    new XElement("Notiz", "Musterdatensatz")),
-                new XElement("WW_Pos",
-                    new XElement("KopfID", "6c2752b7-9720-5f72-8445-16b5c8693835"),
-                    new XElement("PosCode", "ART"),
-                    new XElement("ArtikelID", "PRODUKT-A"),
-                    new XElement("Menge", "2.000000"),
-                    new XElement("Bezeichnung", "Produkt A"),
-                    new XElement("Lieferant", "Test-Lieferant"),
-                    new XElement("Gewicht", "10.5 kg"))));
+            new XElement("belege",
+                new XElement("beleg",
+                    new XElement("ident", "6c2752b7-9720-5f72-8445-16b5c8693835"),
+                    new XElement("typ", "SALES"),
+                    new XElement("kopf", "A-10001"),
+                    new XElement("datum", "28.05.2026 00:00:00"),
+                    new XElement("adressid", "0000101"),
+                    new XElement("notiz", "Musterdatensatz"),
+                    new XElement("sperre", "False"),
+                    new XElement("lieferdatum", "29.05.2026 00:00:00"),
+                    new XElement("lieferdatumfrüher", "False"),
+                    new XElement("archiv", "False"),
+                    new XElement("adresskopfrechnung", "Muster AG\nMusterstrasse 10\n8000 Zuerich"),
+                    new XElement("adresskopflieferung", "Empfaenger GmbH\nLieferweg 5\n9000 St. Gallen"),
+                    new XElement("versandart", "Post"),
+                    new XElement("positionen",
+                        new XElement("position",
+                            new XElement("ident", "6c2752b7-9720-5f72-8445-16b5c8693836"),
+                            new XElement("kopfid", "6c2752b7-9720-5f72-8445-16b5c8693835"),
+                            new XElement("menge", "2"),
+                            new XElement("bezeichnung", "Produkt A"),
+                            new XElement("gewicht", "10.5"),
+                            new XElement("artikel", "PRODUKT-A")),
+                        new XElement("position",
+                            new XElement("ident", "6c2752b7-9720-5f72-8445-16b5c8693837"),
+                            new XElement("kopfid", "6c2752b7-9720-5f72-8445-16b5c8693835"),
+                            new XElement("menge", "1"),
+                            new XElement("bezeichnung", "Frachtposition"),
+                            new XElement("gewicht", "0"),
+                            new XElement("artikel", "FRACHT-M-VERT"))))));
 
         return doc.ToString();
     }
@@ -239,18 +272,243 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         order.KundeKontaktperson = ReadString(addressElement, mapping.AddressContactPerson);
     }
 
-    private static XmlImportMappingSettings CreateBelegExportMapping() => new()
+    private static XmlImportMappingSettings CreateBelegExportMapping(XmlImportMappingSettings sourceMapping) => new()
     {
-        OrderRecordElement = "beleg", ProductRecordElement = "position", OrderId = "ident", OrderNumber = "kopf",
-        OrderType = "typ", OrderDate = "datum", OrderDeliveryCondition = "versandart", OrderDeliveryDate = "lieferdatum",
-        OrderDeliveryCanOccurEarlier = "lieferdatumfrüher", OrderArchived = "archiv", OrderLocked = "sperre", OrderNote = "notiz",
-        ProductOrderId = "kopfid", ProductArticleNumber = "artikel", ProductDescription = "bezeichnung", ProductQuantity = "menge", ProductWeight = "gewicht"
+        OrderRecordElement = "beleg",
+        ProductRecordElement = "position",
+        OrderId = "ident",
+        OrderNumber = "kopf",
+        OrderType = "typ",
+        OrderDate = "datum",
+        OrderDeliveryCondition = "versandart",
+        OrderDeliveryDate = "lieferdatum",
+        OrderDeliveryCanOccurEarlier = "lieferdatumfrüher",
+        OrderArchived = "archiv",
+        OrderLocked = "sperre",
+        OrderNote = "notiz",
+        ProductOrderId = "kopfid",
+        ProductArticleNumber = "artikel",
+        ProductDescription = "bezeichnung",
+        ProductQuantity = "menge",
+        ProductWeight = "gewicht",
+        OrderBillingAddressBlock = sourceMapping.OrderBillingAddressBlock,
+        OrderDeliveryAddressBlock = sourceMapping.OrderDeliveryAddressBlock,
+        ExcludedProductArticleNumbers = sourceMapping.ExcludedProductArticleNumbers,
+        ExcludedProductDescriptions = sourceMapping.ExcludedProductDescriptions,
+        DeliveryTypeFreiBordsteinkanteArticleNumbers = sourceMapping.DeliveryTypeFreiBordsteinkanteArticleNumbers,
+        DeliveryTypeMitVerteilungArticleNumbers = sourceMapping.DeliveryTypeMitVerteilungArticleNumbers,
+        DeliveryTypeMitVerteilungMontageArticleNumbers = sourceMapping.DeliveryTypeMitVerteilungMontageArticleNumbers,
+        DeliveryTypeSpediteurArticleNumbers = sourceMapping.DeliveryTypeSpediteurArticleNumbers,
+        DeliveryTypePostArticleNumbers = sourceMapping.DeliveryTypePostArticleNumbers,
+        DeliveryTypeTresorBordsteinArticleNumbers = sourceMapping.DeliveryTypeTresorBordsteinArticleNumbers,
+        DeliveryTypeTresorVerwendungArticleNumbers = sourceMapping.DeliveryTypeTresorVerwendungArticleNumbers,
+        DeliveryTypeSelbstabholungArticleNumbers = sourceMapping.DeliveryTypeSelbstabholungArticleNumbers
     };
 
-    private static void ApplyExportAddressBlock(SqlOrderImportData order, string value, bool isDeliveryAddress)
+    private static XmlImportMappingSettings CreateLegacyMapping(XmlImportMappingSettings sourceMapping) => new()
+    {
+        AddressRecordElement = XmlImportMappingSettings.LegacyAddressRecordElement,
+        OrderRecordElement = XmlImportMappingSettings.LegacyOrderRecordElement,
+        ProductRecordElement = XmlImportMappingSettings.LegacyProductRecordElement,
+        AddressId = XmlImportMappingSettings.LegacyAddressId,
+        AddressCompany = XmlImportMappingSettings.LegacyAddressCompany,
+        AddressLastName = XmlImportMappingSettings.LegacyAddressLastName,
+        AddressFirstName = XmlImportMappingSettings.LegacyAddressFirstName,
+        AddressStreet = XmlImportMappingSettings.LegacyAddressStreet,
+        AddressHouseNumber = XmlImportMappingSettings.LegacyAddressHouseNumber,
+        AddressPostalCode = XmlImportMappingSettings.LegacyAddressPostalCode,
+        AddressCity = XmlImportMappingSettings.LegacyAddressCity,
+        AddressCountry = XmlImportMappingSettings.LegacyAddressCountry,
+        AddressEmail = XmlImportMappingSettings.LegacyAddressEmail,
+        AddressPhone = XmlImportMappingSettings.LegacyAddressPhone,
+        AddressContactPerson = XmlImportMappingSettings.LegacyAddressContactPerson,
+        OrderId = XmlImportMappingSettings.LegacyOrderId,
+        OrderNumber = XmlImportMappingSettings.LegacyOrderNumber,
+        OrderType = XmlImportMappingSettings.LegacyOrderType,
+        OrderDate = XmlImportMappingSettings.LegacyOrderDate,
+        OrderAddressId = XmlImportMappingSettings.LegacyOrderAddressId,
+        OrderDeliveryAddressId = XmlImportMappingSettings.LegacyOrderDeliveryAddressId,
+        OrderDeliveryCondition = XmlImportMappingSettings.LegacyOrderDeliveryCondition,
+        OrderDeliveryDate = XmlImportMappingSettings.LegacyOrderDeliveryDate,
+        OrderDeliveryCanOccurEarlier = XmlImportMappingSettings.LegacyOrderDeliveryCanOccurEarlier,
+        OrderArchived = XmlImportMappingSettings.LegacyOrderArchived,
+        OrderLocked = XmlImportMappingSettings.LegacyOrderLocked,
+        OrderNote = XmlImportMappingSettings.LegacyOrderNote,
+        ProductOrderId = XmlImportMappingSettings.LegacyProductOrderId,
+        ProductArticleNumber = XmlImportMappingSettings.LegacyProductArticleNumber,
+        ProductDescription = XmlImportMappingSettings.LegacyProductDescription,
+        ProductQuantity = XmlImportMappingSettings.LegacyProductQuantity,
+        ProductWeight = XmlImportMappingSettings.LegacyProductWeight,
+        ExcludedProductArticleNumbers = sourceMapping.ExcludedProductArticleNumbers,
+        ExcludedProductDescriptions = sourceMapping.ExcludedProductDescriptions,
+        DeliveryTypeFreiBordsteinkanteArticleNumbers = sourceMapping.DeliveryTypeFreiBordsteinkanteArticleNumbers,
+        DeliveryTypeMitVerteilungArticleNumbers = sourceMapping.DeliveryTypeMitVerteilungArticleNumbers,
+        DeliveryTypeMitVerteilungMontageArticleNumbers = sourceMapping.DeliveryTypeMitVerteilungMontageArticleNumbers,
+        DeliveryTypeSpediteurArticleNumbers = sourceMapping.DeliveryTypeSpediteurArticleNumbers,
+        DeliveryTypePostArticleNumbers = sourceMapping.DeliveryTypePostArticleNumbers,
+        DeliveryTypeTresorBordsteinArticleNumbers = sourceMapping.DeliveryTypeTresorBordsteinArticleNumbers,
+        DeliveryTypeTresorVerwendungArticleNumbers = sourceMapping.DeliveryTypeTresorVerwendungArticleNumbers,
+        DeliveryTypeSelbstabholungArticleNumbers = sourceMapping.DeliveryTypeSelbstabholungArticleNumbers
+    };
+
+    private static DeliveryConditionResult DetermineOrderDeliveryCondition(
+        IReadOnlyList<XElement> matchedProducts,
+        string explicitDeliveryCondition,
+        XmlImportMappingSettings mapping)
+    {
+        var productDeliveryCondition = ParseDeliveryConditionFromProductArticleNumbers(matchedProducts, mapping);
+        if (!string.IsNullOrWhiteSpace(productDeliveryCondition))
+        {
+            return new DeliveryConditionResult(productDeliveryCondition, true);
+        }
+
+        if (!string.IsNullOrWhiteSpace(explicitDeliveryCondition))
+        {
+            return new DeliveryConditionResult(explicitDeliveryCondition.Trim(), true);
+        }
+
+        return new DeliveryConditionResult(DeliveryMethodExtensions.SelbstabholungLabel, false);
+    }
+
+    private static string ResolveExplicitDeliveryCondition(string explicitDeliveryCondition)
+    {
+        return !string.IsNullOrWhiteSpace(explicitDeliveryCondition)
+            ? explicitDeliveryCondition.Trim()
+            : DeliveryMethodExtensions.SelbstabholungLabel;
+    }
+
+    private static string? ParseDeliveryConditionFromProductArticleNumbers(
+        IReadOnlyList<XElement> matchedProducts,
+        XmlImportMappingSettings mapping)
+    {
+        var rules = GetDeliveryTypeRules(mapping);
+        if (rules.Count == 0)
+        {
+            return null;
+        }
+
+        var matchedRules = new List<DeliveryTypeRule>();
+        foreach (var productElement in matchedProducts)
+        {
+            var productArticleNumber = GetDeliveryTypeMatchArticleNumber(productElement, mapping);
+            if (string.IsNullOrWhiteSpace(productArticleNumber))
+            {
+                continue;
+            }
+
+            foreach (var rule in rules)
+            {
+                if (rule.MatchValues.Contains(productArticleNumber))
+                {
+                    matchedRules.Add(rule);
+                }
+            }
+        }
+
+        if (matchedRules.Count == 0)
+        {
+            return null;
+        }
+
+        return matchedRules
+            .OrderByDescending(x => x.Priority)
+            .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+            .First().Label;
+    }
+
+    private static string GetDeliveryTypeMatchArticleNumber(XElement productElement, XmlImportMappingSettings mapping)
+    {
+        return NormalizeDeliveryTypeArticleNumber(ReadString(productElement, mapping.ProductArticleNumber));
+    }
+
+    private static IReadOnlyList<DeliveryTypeRule> GetDeliveryTypeRules(XmlImportMappingSettings mapping)
+    {
+        return new List<DeliveryTypeRule>
+        {
+            new(DeliveryMethodExtensions.MitVerteilungMontage, CreateDeliveryTypeMatchValues(mapping.DeliveryTypeMitVerteilungMontageArticleNumbers, DeliveryMethodExtensions.MitVerteilungMontage), 900),
+            new(DeliveryMethodExtensions.MitVerteilung, CreateDeliveryTypeMatchValues(mapping.DeliveryTypeMitVerteilungArticleNumbers, DeliveryMethodExtensions.MitVerteilung), 500),
+            new(DeliveryMethodExtensions.FreiBordsteinkante, CreateDeliveryTypeMatchValues(mapping.DeliveryTypeFreiBordsteinkanteArticleNumbers, DeliveryMethodExtensions.FreiBordsteinkante), 400),
+            new(DeliveryMethodExtensions.Spediteur, CreateDeliveryTypeMatchValues(mapping.DeliveryTypeSpediteurArticleNumbers, DeliveryMethodExtensions.Spediteur), 700),
+            new(DeliveryMethodExtensions.Post, CreateDeliveryTypeMatchValues(mapping.DeliveryTypePostArticleNumbers, DeliveryMethodExtensions.Post), 700),
+            new(DeliveryMethodExtensions.TresorBordstein, CreateDeliveryTypeMatchValues(mapping.DeliveryTypeTresorBordsteinArticleNumbers, DeliveryMethodExtensions.TresorBordstein), 700),
+            new(DeliveryMethodExtensions.TresorVerwendung, CreateDeliveryTypeMatchValues(mapping.DeliveryTypeTresorVerwendungArticleNumbers, DeliveryMethodExtensions.TresorVerwendung), 700),
+            new(DeliveryMethodExtensions.SelbstabholungLabel, CreateDeliveryTypeMatchValues(mapping.DeliveryTypeSelbstabholungArticleNumbers, DeliveryMethodExtensions.SelbstabholungLabel), 300)
+        };
+    }
+
+    private static IReadOnlySet<string> CreateDeliveryTypeMatchValues(string? articleNumbers, string deliveryTypeLabel)
+    {
+        var values = new HashSet<string>(ParseDelimitedDeliveryTypeArticleNumbers(articleNumbers), StringComparer.OrdinalIgnoreCase)
+        {
+            NormalizeDeliveryTypeArticleNumber(deliveryTypeLabel)
+        };
+
+        return values;
+    }
+
+    private static IReadOnlySet<string> ParseDelimitedDeliveryTypeArticleNumbers(string? articleNumbers)
+    {
+        return (articleNumbers ?? string.Empty)
+            .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(NormalizeDeliveryTypeArticleNumber)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDeliveryTypeMarker(XElement productElement, XmlImportMappingSettings mapping)
+    {
+        var productArticleNumber = GetDeliveryTypeMatchArticleNumber(productElement, mapping);
+        return !string.IsNullOrWhiteSpace(productArticleNumber) &&
+               GetDeliveryTypeRules(mapping).Any(rule => rule.MatchValues.Contains(productArticleNumber));
+    }
+
+    private static bool ShouldSkipProductPosition(XElement productElement, XmlImportMappingSettings mapping)
+    {
+        if (IsDeliveryTypeMarker(productElement, mapping))
+        {
+            return true;
+        }
+
+        var articleNumber = NormalizeProductExclusionValue(ReadString(productElement, mapping.ProductArticleNumber));
+        if (!string.IsNullOrWhiteSpace(articleNumber) &&
+            ParseDelimitedProductExclusionValues(mapping.ExcludedProductArticleNumbers).Contains(articleNumber))
+        {
+            return true;
+        }
+
+        var description = NormalizeProductExclusionValue(ReadString(productElement, mapping.ProductDescription));
+        return !string.IsNullOrWhiteSpace(description) &&
+               ParseDelimitedProductExclusionValues(mapping.ExcludedProductDescriptions)
+                   .Any(pattern => description.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeDeliveryTypeArticleNumber(string? value)
+    {
+        return (value ?? string.Empty).Trim();
+    }
+
+    private static IReadOnlySet<string> ParseDelimitedProductExclusionValues(string? values)
+    {
+        return (values ?? string.Empty)
+            .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(NormalizeProductExclusionValue)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeProductExclusionValue(string? value)
+    {
+        return (value ?? string.Empty).Trim();
+    }
+
+    private sealed record DeliveryConditionResult(string Label, bool WasRecognized);
+
+    private sealed record DeliveryTypeRule(string Label, IReadOnlySet<string> MatchValues, int Priority);
+
+    private static bool ApplyExportAddressBlock(SqlOrderImportData order, string value, bool isDeliveryAddress)
     {
         var lines = (value ?? string.Empty).Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (lines.Length == 0) return;
+        if (lines.Length == 0) return false;
         var name = string.Join(' ', lines.Take(Math.Max(1, lines.Length - 2)));
         var street = lines.Length >= 2 ? lines[^2] : string.Empty;
         var postalCity = lines.Length >= 1 ? lines[^1] : string.Empty;
@@ -263,6 +521,44 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         {
             order.KundeFirma = name; order.KundeStrasse = street; order.KundePLZ = postalParts.ElementAtOrDefault(0) ?? string.Empty; order.KundeOrt = postalParts.ElementAtOrDefault(1) ?? string.Empty;
         }
+
+        return isDeliveryAddress ? HasDeliveryAddress(order) : HasCustomerAddress(order);
+    }
+
+    private static bool HasDeliveryAddress(SqlOrderImportData order)
+    {
+        return HasAnyValue(
+            order.LieferFirma,
+            order.LieferNachname,
+            order.LieferVorname,
+            order.LieferStrasse,
+            order.LieferPLZ,
+            order.LieferOrt);
+    }
+
+    private static bool HasCustomerAddress(SqlOrderImportData order)
+    {
+        return HasAnyValue(
+            order.KundeFirma,
+            order.KundeNachname,
+            order.KundeVorname,
+            order.KundeStrasse,
+            order.KundePLZ,
+            order.KundeOrt);
+    }
+
+    private static bool HasAnyValue(params string?[] values)
+    {
+        return values.Any(x => !string.IsNullOrWhiteSpace(x));
+    }
+
+    private static void AddWarning(XmlOrderImportLoadResult result, SqlOrderImportData order, int orderIndex, string message)
+    {
+        var orderLabel = !string.IsNullOrWhiteSpace(order.AuftragNr)
+            ? order.AuftragNr.Trim()
+            : $"#{orderIndex + 1}";
+
+        result.Warnings.Add($"Auftrag {orderLabel}: {message}");
     }
 
     private static string ReadString(XElement parent, string name, string fallback = "")

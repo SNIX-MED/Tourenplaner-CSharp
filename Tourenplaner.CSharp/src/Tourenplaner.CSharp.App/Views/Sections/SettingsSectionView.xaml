@@ -226,6 +226,26 @@
             <Setter Property="Padding" Value="10,9" />
             <Setter Property="Margin" Value="0,4,0,0" />
         </Style>
+        <DataTemplate x:Key="XmlImportMappingFieldTemplate">
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="170" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Margin="0,9,12,0"
+                           Style="{StaticResource SettingsFieldLabelStyle}"
+                           Text="{Binding ProgramField}" />
+                <StackPanel Grid.Column="1">
+                    <TextBox Style="{StaticResource SettingsTextBoxStyle}"
+                             Text="{Binding XmlName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Margin="0,5,0,0"
+                               Foreground="{DynamicResource Brush.TextMuted}"
+                               Text="{Binding DefaultXmlName, StringFormat='{}Standard: {0}'}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
@@ -1658,143 +1678,167 @@
                                         </Style>
                                     </StackPanel.Style>
 
-                                    <WrapPanel Margin="0,0,0,10">
-                                        <Button Width="150" Margin="0,0,8,8" Content="XML-Datei wählen" Command="{Binding BrowseXmlImportFileCommand}" />
-                                        <Button Width="202" Margin="0,0,8,8" Content="XML-Musterdatei herunterladen" Command="{Binding DownloadXmlTemplateCommand}" />
-                                        <Button Width="136" Margin="0,0,8,8" Content="XML prüfen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding PreviewXmlImportCommand}" />
-                                        <Button Width="154" Margin="0,0,0,8" Content="Import ausführen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ImportOrdersCommand}" />
-                                    </WrapPanel>
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
 
-                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Grid.Column="0" Style="{StaticResource SettingsInnerPanelStyle}" Margin="0,0,10,0">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="XML-Datei" />
+                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                            ToolTip="Datei auswählen, prüfen und danach die geprüften Aufträge importieren.">
+                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <Grid Margin="0,14,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Grid.Column="0"
+                                                            Width="38"
+                                                            Height="38"
+                                                            Margin="0,6,10,0"
+                                                            Padding="0"
+                                                            ToolTip="XML-Datei auswählen"
+                                                            Command="{Binding BrowseXmlImportFileCommand}">
+                                                        <Image Source="pack://application:,,,/Assets/Ordner.png"
+                                                               Width="20"
+                                                               Height="20"
+                                                               Stretch="Uniform" />
+                                                    </Button>
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Dateipfad" />
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding XmlImportFilePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                                <WrapPanel Margin="0,14,0,0">
+                                                    <Button Width="202" Margin="0,0,8,8" Content="XML-Musterdatei herunterladen" Command="{Binding DownloadXmlTemplateCommand}" />
+                                                    <Button Width="136" Margin="0,0,8,8" Content="XML prüfen" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding PreviewXmlImportCommand}" />
+                                                    <Button Width="154" Margin="0,0,0,8" Content="Import ausführen" Style="{StaticResource SuccessButtonStyle}" Command="{Binding ImportOrdersCommand}" />
+                                                </WrapPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Grid.Column="1" Style="{StaticResource SettingsInnerPanelStyle}" Margin="0,0,0,0">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Status" />
+                                                <TextBlock Margin="0,10,0,0"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                           Text="{Binding XmlImportPreviewSummary}"
+                                                           TextWrapping="Wrap">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasXmlImportPreview}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Margin="0,10,0,0"
+                                                           Text="{Binding ImportStatusMessage}"
+                                                           TextWrapping="Wrap">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding ImportStatusMessage}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding ImportStatusMessage}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Margin="0,10,0,0"
+                                                           Foreground="{DynamicResource Brush.TextMuted}"
+                                                           Text="{Binding XmlImportPreviewHiddenItemsText}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasXmlImportPreviewHiddenItems}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <Expander Header="XML-Zuordnung" IsExpanded="True" Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                         <Border Style="{StaticResource SettingsInnerPanelStyle}">
                                             <StackPanel>
                                                 <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="XML-Zuordnung" />
+                                                    <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Feldzuordnung" />
                                                     <Border Style="{StaticResource SettingsInfoIconStyle}"
                                                             ToolTip="Ordnet die Bezeichnungen aus deiner XML-Datei den Importfeldern zu. Leere Felder verwenden automatisch den Standard der Musterdatei.">
                                                         <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
                                                     </Border>
                                                 </StackPanel>
 
-                                            <TextBlock Margin="0,18,0,8" FontWeight="SemiBold" Text="Struktur" />
-                                            <ItemsControl ItemsSource="{Binding XmlImportStructureFields}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Grid Margin="0,0,0,10">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="220" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <TextBlock Grid.Column="0" Margin="0,10,14,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="{Binding ProgramField}" />
-                                                            <StackPanel Grid.Column="1">
-                                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding XmlName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                                <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DefaultXmlName, StringFormat='{}Standard: {0}'}" />
-                                                            </StackPanel>
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
+                                                <Grid Margin="0,14,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
 
-                                            <TextBlock Margin="0,12,0,8" FontWeight="SemiBold" Text="Adressfelder" />
-                                            <ItemsControl ItemsSource="{Binding XmlImportAddressFields}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Grid Margin="0,0,0,10">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="220" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <TextBlock Grid.Column="0" Margin="0,10,14,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="{Binding ProgramField}" />
-                                                            <StackPanel Grid.Column="1">
-                                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding XmlName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                                <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DefaultXmlName, StringFormat='{}Standard: {0}'}" />
-                                                            </StackPanel>
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
+                                                    <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Produkte" />
+                                                            <ItemsControl Margin="0,12,0,0" ItemTemplate="{StaticResource XmlImportMappingFieldTemplate}" ItemsSource="{Binding XmlImportProductFields}" />
+                                                        </StackPanel>
+                                                    </Border>
 
-                                            <TextBlock Margin="0,12,0,8" FontWeight="SemiBold" Text="Auftragsfelder" />
-                                            <ItemsControl ItemsSource="{Binding XmlImportOrderFields}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Grid Margin="0,0,0,10">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="220" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <TextBlock Grid.Column="0" Margin="0,10,14,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="{Binding ProgramField}" />
-                                                            <StackPanel Grid.Column="1">
-                                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding XmlName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                                <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DefaultXmlName, StringFormat='{}Standard: {0}'}" />
-                                                            </StackPanel>
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
+                                                    <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,10">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Aufträge" />
+                                                            <ItemsControl Margin="0,12,0,0" ItemTemplate="{StaticResource XmlImportMappingFieldTemplate}" ItemsSource="{Binding XmlImportOrderFields}" />
+                                                        </StackPanel>
+                                                    </Border>
 
-                                            <TextBlock Margin="0,12,0,8" FontWeight="SemiBold" Text="Produktfelder" />
-                                            <ItemsControl ItemsSource="{Binding XmlImportProductFields}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Grid Margin="0,0,0,10">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="220" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <TextBlock Grid.Column="0" Margin="0,10,14,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="{Binding ProgramField}" />
-                                                            <StackPanel Grid.Column="1">
-                                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding XmlName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                                <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DefaultXmlName, StringFormat='{}Standard: {0}'}" />
-                                                            </StackPanel>
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
+                                                    <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource SettingsFieldCardStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Adressen" />
+                                                            <ItemsControl Margin="0,12,0,0" ItemTemplate="{StaticResource XmlImportMappingFieldTemplate}" ItemsSource="{Binding XmlImportAddressFields}" />
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Grid.Row="2" Grid.ColumnSpan="2" Style="{StaticResource SettingsFieldCardStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Produktausschlüsse" />
+                                                            <TextBlock Margin="0,6,0,12" Foreground="{DynamicResource Brush.TextMuted}" Text="Mehrere Werte mit Semikolon trennen. Artikelnummern werden exakt verglichen, Bezeichnungen als Teiltext." TextWrapping="Wrap" />
+                                                            <ItemsControl ItemTemplate="{StaticResource XmlImportMappingFieldTemplate}" ItemsSource="{Binding XmlImportProductExclusionFields}" />
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Grid.Row="3" Grid.ColumnSpan="2" Style="{StaticResource SettingsFieldCardStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Lieferarten nach Artikelnummer" />
+                                                            <TextBlock Margin="0,6,0,12" Foreground="{DynamicResource Brush.TextMuted}" Text="Mehrere Artikelnummern mit Semikolon trennen. Verglichen wird mit der Artikelnummer der Position im XML." TextWrapping="Wrap" />
+                                                            <ItemsControl ItemTemplate="{StaticResource XmlImportMappingFieldTemplate}" ItemsSource="{Binding XmlImportDeliveryTypeFields}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Grid>
                                             </StackPanel>
                                         </Border>
                                     </Expander>
-
-                                    <Border Margin="0,0,0,16">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="150" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="XML-Dateipfad" />
-                                            <Button Grid.Column="1"
-                                                    Width="38"
-                                                    Height="38"
-                                                    Margin="0,0,10,0"
-                                                    Padding="0"
-                                                    ToolTip="XML-Datei für die Prüfung oder den Import auswählen"
-                                                    Command="{Binding BrowseXmlImportFileCommand}">
-                                                <Image Source="pack://application:,,,/Assets/Ordner.png"
-                                                       Width="20"
-                                                       Height="20"
-                                                       Stretch="Uniform" />
-                                            </Button>
-                                            <TextBox Grid.Column="2" Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding XmlImportFilePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        </Grid>
-                                    </Border>
-
-                                    <Border>
-                                        <Border.Style>
-                                            <Style TargetType="Border" BasedOn="{StaticResource SettingsInnerPanelStyle}">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ImportStatusMessage}" Value="">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding ImportStatusMessage}" Value="{x:Null}">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <TextBlock Text="{Binding ImportStatusMessage}" TextWrapping="Wrap" />
-                                    </Border>
 
                                     <Border Padding="18"
                                             CornerRadius="22"
@@ -1966,6 +2010,33 @@
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
                                             </ScrollViewer>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Padding="18"
+                                            CornerRadius="22"
+                                            Background="#FEF3C7"
+                                            BorderBrush="#F59E0B"
+                                            BorderThickness="1">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasXmlImportPreviewWarnings}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Warnungen" />
+                                            <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding XmlImportPreviewWarnings}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Margin="0,0,0,6" TextWrapping="Wrap" Text="{Binding}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
                                         </StackPanel>
                                     </Border>
 

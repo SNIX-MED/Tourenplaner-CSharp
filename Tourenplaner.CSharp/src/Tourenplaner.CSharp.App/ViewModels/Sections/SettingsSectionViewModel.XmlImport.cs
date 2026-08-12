@@ -60,11 +60,14 @@ public sealed partial class SettingsSectionViewModel
                 .Concat(preview.Errors)
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
+            var previewWarnings = loadResult.Warnings
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
 
-            ApplyXmlImportPreview(loadResult.Orders, preview, previewErrors, fileInfo);
+            ApplyXmlImportPreview(loadResult.Orders, preview, previewErrors, previewWarnings, fileInfo);
 
             var invalidCount = previewErrors.Count;
-            ImportStatusMessage = BuildXmlImportPreviewStatusMessage(preview, invalidCount);
+            ImportStatusMessage = BuildXmlImportPreviewStatusMessage(preview, invalidCount, previewWarnings.Count);
             StatusText = preview.ValidOrders > 0
                 ? "XML Import Vorschau erstellt."
                 : "XML Import Vorschau: keine gültigen Aufträge gefunden.";
@@ -191,6 +194,7 @@ public sealed partial class SettingsSectionViewModel
         IReadOnlyList<SqlOrderImportData> previewOrders,
         ImportPreviewResult preview,
         IReadOnlyList<string> previewErrors,
+        IReadOnlyList<string> previewWarnings,
         FileInfo fileInfo)
     {
         _previewedXmlOrders.Clear();
@@ -199,7 +203,7 @@ public sealed partial class SettingsSectionViewModel
         _xmlImportPreviewFileLength = fileInfo.Length;
         _hasPendingXmlImportPreview = _previewedXmlOrders.Count > 0;
         _xmlImportPreviewHiddenItemCount = Math.Max(0, preview.Items.Count - MaxXmlImportPreviewItems);
-        XmlImportPreviewSummary = BuildXmlImportPreviewSummary(preview, previewErrors.Count);
+        XmlImportPreviewSummary = BuildXmlImportPreviewSummary(preview, previewErrors.Count, previewWarnings.Count);
 
         XmlImportPreviewItems.Clear();
         foreach (var item in preview.Items.Take(MaxXmlImportPreviewItems))
@@ -211,6 +215,12 @@ public sealed partial class SettingsSectionViewModel
         foreach (var error in previewErrors)
         {
             XmlImportPreviewErrors.Add(error);
+        }
+
+        XmlImportPreviewWarnings.Clear();
+        foreach (var warning in previewWarnings)
+        {
+            XmlImportPreviewWarnings.Add(warning);
         }
 
         RaiseXmlImportPreviewStateChanged();
@@ -226,6 +236,7 @@ public sealed partial class SettingsSectionViewModel
         XmlImportPreviewSummary = string.Empty;
         XmlImportPreviewItems.Clear();
         XmlImportPreviewErrors.Clear();
+        XmlImportPreviewWarnings.Clear();
         XmlImportPinIssueSummary = string.Empty;
         XmlImportPinIssueItems.Clear();
 
@@ -332,6 +343,7 @@ public sealed partial class SettingsSectionViewModel
         OnPropertyChanged(nameof(HasXmlImportPreview));
         OnPropertyChanged(nameof(HasXmlImportPreviewItems));
         OnPropertyChanged(nameof(HasXmlImportPreviewErrors));
+        OnPropertyChanged(nameof(HasXmlImportPreviewWarnings));
         OnPropertyChanged(nameof(HasXmlImportPinIssues));
         OnPropertyChanged(nameof(HasXmlImportPinIssueSummary));
         OnPropertyChanged(nameof(HasXmlImportPreviewHiddenItems));
@@ -362,16 +374,17 @@ public sealed partial class SettingsSectionViewModel
                fileInfo.LastWriteTimeUtc == _xmlImportPreviewLastWriteUtc;
     }
 
-    private static string BuildXmlImportPreviewSummary(ImportPreviewResult preview, int invalidCount)
+    private static string BuildXmlImportPreviewSummary(ImportPreviewResult preview, int invalidCount, int warningCount)
     {
         return $"{preview.ValidOrders} gültige Aufträge geprüft | " +
                $"{preview.CreatedOrders} neu | " +
                $"{preview.UpdatedOrders} mit Änderungen | " +
                $"{preview.UnchangedOrders} unverändert | " +
-               $"{invalidCount} fehlerhaft";
+               $"{invalidCount} fehlerhaft | " +
+               $"{warningCount} Warnung(en)";
     }
 
-    private static string BuildXmlImportPreviewStatusMessage(ImportPreviewResult preview, int invalidCount)
+    private static string BuildXmlImportPreviewStatusMessage(ImportPreviewResult preview, int invalidCount, int warningCount)
     {
         if (preview.ValidOrders == 0)
         {
@@ -384,6 +397,11 @@ public sealed partial class SettingsSectionViewModel
         if (invalidCount > 0)
         {
             message += $" {invalidCount} Eintrag/Einträge werden wegen Fehlern übersprungen.";
+        }
+
+        if (warningCount > 0)
+        {
+            message += $" {warningCount} Warnung(en) bitte prüfen.";
         }
 
         return message;

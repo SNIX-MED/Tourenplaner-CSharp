@@ -274,16 +274,21 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
         XmlImportPreviewItems = [];
         XmlImportPreviewErrors = [];
+        XmlImportPreviewWarnings = [];
         XmlImportPinIssueItems = [];
         XmlImportStructureFields = CreateXmlImportStructureFields();
         XmlImportAddressFields = CreateXmlImportAddressFields();
         XmlImportOrderFields = CreateXmlImportOrderFields();
         XmlImportProductFields = CreateXmlImportProductFields();
+        XmlImportProductExclusionFields = CreateXmlImportProductExclusionFields();
+        XmlImportDeliveryTypeFields = CreateXmlImportDeliveryTypeFields();
 
         AttachXmlImportFieldHandlers(XmlImportStructureFields);
         AttachXmlImportFieldHandlers(XmlImportAddressFields);
         AttachXmlImportFieldHandlers(XmlImportOrderFields);
         AttachXmlImportFieldHandlers(XmlImportProductFields);
+        AttachXmlImportFieldHandlers(XmlImportProductExclusionFields);
+        AttachXmlImportFieldHandlers(XmlImportDeliveryTypeFields);
         if (_dataSyncService is not null)
         {
             _dataSyncService.StatusChanged += OnSyncStatusChanged;
@@ -352,6 +357,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
     public ObservableCollection<string> XmlImportPreviewErrors { get; }
 
+    public ObservableCollection<string> XmlImportPreviewWarnings { get; }
+
     public ObservableCollection<XmlImportPinIssueListItemViewModel> XmlImportPinIssueItems { get; }
 
     public ObservableCollection<XmlImportMappingFieldViewModel> XmlImportStructureFields { get; }
@@ -361,6 +368,10 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     public ObservableCollection<XmlImportMappingFieldViewModel> XmlImportOrderFields { get; }
 
     public ObservableCollection<XmlImportMappingFieldViewModel> XmlImportProductFields { get; }
+
+    public ObservableCollection<XmlImportMappingFieldViewModel> XmlImportProductExclusionFields { get; }
+
+    public ObservableCollection<XmlImportMappingFieldViewModel> XmlImportDeliveryTypeFields { get; }
 
     public string StatusText
     {
@@ -1044,6 +1055,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     public bool HasXmlImportPreviewItems => XmlImportPreviewItems.Count > 0;
 
     public bool HasXmlImportPreviewErrors => XmlImportPreviewErrors.Count > 0;
+
+    public bool HasXmlImportPreviewWarnings => XmlImportPreviewWarnings.Count > 0;
 
     public bool HasXmlImportPinIssues => XmlImportPinIssueItems.Count > 0;
 
@@ -1771,17 +1784,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     {
         return
         [
-            new XmlImportMappingFieldViewModel("Adress-ID", XmlImportMappingSettings.DefaultAddressId, XmlImportMappingSettings.DefaultAddressId),
-            new XmlImportMappingFieldViewModel("Firma", XmlImportMappingSettings.DefaultAddressCompany, XmlImportMappingSettings.DefaultAddressCompany),
-            new XmlImportMappingFieldViewModel("Nachname", XmlImportMappingSettings.DefaultAddressLastName, XmlImportMappingSettings.DefaultAddressLastName),
-            new XmlImportMappingFieldViewModel("Vorname", XmlImportMappingSettings.DefaultAddressFirstName, XmlImportMappingSettings.DefaultAddressFirstName),
-            new XmlImportMappingFieldViewModel("Strasse", XmlImportMappingSettings.DefaultAddressStreet, XmlImportMappingSettings.DefaultAddressStreet),
-            new XmlImportMappingFieldViewModel("PLZ", XmlImportMappingSettings.DefaultAddressPostalCode, XmlImportMappingSettings.DefaultAddressPostalCode),
-            new XmlImportMappingFieldViewModel("Ort", XmlImportMappingSettings.DefaultAddressCity, XmlImportMappingSettings.DefaultAddressCity),
-            new XmlImportMappingFieldViewModel("Land", XmlImportMappingSettings.DefaultAddressCountry, XmlImportMappingSettings.DefaultAddressCountry),
-            new XmlImportMappingFieldViewModel("E-Mail", XmlImportMappingSettings.DefaultAddressEmail, XmlImportMappingSettings.DefaultAddressEmail),
-            new XmlImportMappingFieldViewModel("Telefon", XmlImportMappingSettings.DefaultAddressPhone, XmlImportMappingSettings.DefaultAddressPhone),
-            new XmlImportMappingFieldViewModel("Kontaktperson", XmlImportMappingSettings.DefaultAddressContactPerson, XmlImportMappingSettings.DefaultAddressContactPerson)
+            new XmlImportMappingFieldViewModel("Rechnungsadresse", XmlImportMappingSettings.DefaultOrderBillingAddressBlock, XmlImportMappingSettings.DefaultOrderBillingAddressBlock),
+            new XmlImportMappingFieldViewModel("Lieferadresse", XmlImportMappingSettings.DefaultOrderDeliveryAddressBlock, XmlImportMappingSettings.DefaultOrderDeliveryAddressBlock)
         ];
     }
 
@@ -1789,16 +1793,16 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     {
         return
         [
+            new XmlImportMappingFieldViewModel("Auftrags-ID", XmlImportMappingSettings.DefaultOrderId, XmlImportMappingSettings.DefaultOrderId),
             new XmlImportMappingFieldViewModel("Auftragsnummer", XmlImportMappingSettings.DefaultOrderNumber, XmlImportMappingSettings.DefaultOrderNumber),
             new XmlImportMappingFieldViewModel("Typ", XmlImportMappingSettings.DefaultOrderType, XmlImportMappingSettings.DefaultOrderType),
             new XmlImportMappingFieldViewModel("Auftragsdatum", XmlImportMappingSettings.DefaultOrderDate, XmlImportMappingSettings.DefaultOrderDate),
-            new XmlImportMappingFieldViewModel("Kunden-Adress-ID", XmlImportMappingSettings.DefaultOrderAddressId, XmlImportMappingSettings.DefaultOrderAddressId),
-            new XmlImportMappingFieldViewModel("Liefer-Adress-ID", XmlImportMappingSettings.DefaultOrderDeliveryAddressId, XmlImportMappingSettings.DefaultOrderDeliveryAddressId),
+            new XmlImportMappingFieldViewModel("Adress-ID", XmlImportMappingSettings.DefaultOrderAddressId, XmlImportMappingSettings.DefaultOrderAddressId),
             new XmlImportMappingFieldViewModel("Lieferbedingung", XmlImportMappingSettings.DefaultOrderDeliveryCondition, XmlImportMappingSettings.DefaultOrderDeliveryCondition),
             new XmlImportMappingFieldViewModel("Lieferdatum", XmlImportMappingSettings.DefaultOrderDeliveryDate, XmlImportMappingSettings.DefaultOrderDeliveryDate),
             new XmlImportMappingFieldViewModel("Lieferung kann früher erfolgen", XmlImportMappingSettings.DefaultOrderDeliveryCanOccurEarlier, XmlImportMappingSettings.DefaultOrderDeliveryCanOccurEarlier),
             new XmlImportMappingFieldViewModel("Archiviert", XmlImportMappingSettings.DefaultOrderArchived, XmlImportMappingSettings.DefaultOrderArchived),
-            new XmlImportMappingFieldViewModel("Gesperrt", "(kein Standardwert)", XmlImportMappingSettings.DefaultOrderLocked),
+            new XmlImportMappingFieldViewModel("Gesperrt", XmlImportMappingSettings.DefaultOrderLocked, XmlImportMappingSettings.DefaultOrderLocked),
             new XmlImportMappingFieldViewModel("Notiz", XmlImportMappingSettings.DefaultOrderNote, XmlImportMappingSettings.DefaultOrderNote)
         ];
     }
@@ -1812,6 +1816,30 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             new XmlImportMappingFieldViewModel("Bezeichnung", XmlImportMappingSettings.DefaultProductDescription, XmlImportMappingSettings.DefaultProductDescription),
             new XmlImportMappingFieldViewModel("Menge", XmlImportMappingSettings.DefaultProductQuantity, XmlImportMappingSettings.DefaultProductQuantity),
             new XmlImportMappingFieldViewModel("Gewicht", XmlImportMappingSettings.DefaultProductWeight, XmlImportMappingSettings.DefaultProductWeight)
+        ];
+    }
+
+    private ObservableCollection<XmlImportMappingFieldViewModel> CreateXmlImportProductExclusionFields()
+    {
+        return
+        [
+            new XmlImportMappingFieldViewModel("Artikelnummern", "(keine)", XmlImportMappingSettings.DefaultExcludedProductArticleNumbers),
+            new XmlImportMappingFieldViewModel("Bezeichnungen", XmlImportMappingSettings.DefaultExcludedProductDescriptions, XmlImportMappingSettings.DefaultExcludedProductDescriptions)
+        ];
+    }
+
+    private ObservableCollection<XmlImportMappingFieldViewModel> CreateXmlImportDeliveryTypeFields()
+    {
+        return
+        [
+            new XmlImportMappingFieldViewModel("Lieferart: Frei Bordsteinkante Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers),
+            new XmlImportMappingFieldViewModel("Lieferart: Mit Verteilung Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungArticleNumbers),
+            new XmlImportMappingFieldViewModel("Lieferart: Mit Verteilung & Montage Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungMontageArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungMontageArticleNumbers),
+            new XmlImportMappingFieldViewModel("Lieferart: Spediteur Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeSpediteurArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeSpediteurArticleNumbers),
+            new XmlImportMappingFieldViewModel("Lieferart: Post Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypePostArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypePostArticleNumbers),
+            new XmlImportMappingFieldViewModel("Lieferart: Tresor-Bordstein Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeTresorBordsteinArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeTresorBordsteinArticleNumbers),
+            new XmlImportMappingFieldViewModel("Lieferart: Tresor-Verwendung Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeTresorVerwendungArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeTresorVerwendungArticleNumbers),
+            new XmlImportMappingFieldViewModel("Lieferart: Selbstabholung Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeSelbstabholungArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeSelbstabholungArticleNumbers)
         ];
     }
 
@@ -1847,24 +1875,14 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             AddressRecordElement = XmlImportStructureFields[0].XmlName,
             OrderRecordElement = XmlImportStructureFields[1].XmlName,
             ProductRecordElement = XmlImportStructureFields[2].XmlName,
-            AddressId = XmlImportAddressFields[0].XmlName,
-            AddressCompany = XmlImportAddressFields[1].XmlName,
-            AddressLastName = XmlImportAddressFields[2].XmlName,
-            AddressFirstName = XmlImportAddressFields[3].XmlName,
-            AddressStreet = XmlImportAddressFields[4].XmlName,
-            AddressHouseNumber = string.Empty,
-            AddressPostalCode = XmlImportAddressFields[5].XmlName,
-            AddressCity = XmlImportAddressFields[6].XmlName,
-            AddressCountry = XmlImportAddressFields[7].XmlName,
-            AddressEmail = XmlImportAddressFields[8].XmlName,
-            AddressPhone = XmlImportAddressFields[9].XmlName,
-            AddressContactPerson = XmlImportAddressFields[10].XmlName,
-            OrderId = XmlImportMappingSettings.DefaultOrderId,
-            OrderNumber = XmlImportOrderFields[0].XmlName,
-            OrderType = XmlImportOrderFields[1].XmlName,
-            OrderDate = XmlImportOrderFields[2].XmlName,
-            OrderAddressId = XmlImportOrderFields[3].XmlName,
-            OrderDeliveryAddressId = XmlImportOrderFields[4].XmlName,
+            OrderBillingAddressBlock = XmlImportAddressFields[0].XmlName,
+            OrderDeliveryAddressBlock = XmlImportAddressFields[1].XmlName,
+            OrderId = XmlImportOrderFields[0].XmlName,
+            OrderNumber = XmlImportOrderFields[1].XmlName,
+            OrderType = XmlImportOrderFields[2].XmlName,
+            OrderDate = XmlImportOrderFields[3].XmlName,
+            OrderAddressId = XmlImportOrderFields[4].XmlName,
+            OrderDeliveryAddressId = XmlImportMappingSettings.DefaultOrderDeliveryAddressId,
             OrderDeliveryCondition = XmlImportOrderFields[5].XmlName,
             OrderDeliveryDate = XmlImportOrderFields[6].XmlName,
             OrderDeliveryCanOccurEarlier = XmlImportOrderFields[7].XmlName,
@@ -1875,7 +1893,17 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             ProductArticleNumber = XmlImportProductFields[1].XmlName,
             ProductDescription = XmlImportProductFields[2].XmlName,
             ProductQuantity = XmlImportProductFields[3].XmlName,
-            ProductWeight = XmlImportProductFields[4].XmlName
+            ProductWeight = XmlImportProductFields[4].XmlName,
+            ExcludedProductArticleNumbers = XmlImportProductExclusionFields[0].XmlName,
+            ExcludedProductDescriptions = XmlImportProductExclusionFields[1].XmlName,
+            DeliveryTypeFreiBordsteinkanteArticleNumbers = XmlImportDeliveryTypeFields[0].XmlName,
+            DeliveryTypeMitVerteilungArticleNumbers = XmlImportDeliveryTypeFields[1].XmlName,
+            DeliveryTypeMitVerteilungMontageArticleNumbers = XmlImportDeliveryTypeFields[2].XmlName,
+            DeliveryTypeSpediteurArticleNumbers = XmlImportDeliveryTypeFields[3].XmlName,
+            DeliveryTypePostArticleNumbers = XmlImportDeliveryTypeFields[4].XmlName,
+            DeliveryTypeTresorBordsteinArticleNumbers = XmlImportDeliveryTypeFields[5].XmlName,
+            DeliveryTypeTresorVerwendungArticleNumbers = XmlImportDeliveryTypeFields[6].XmlName,
+            DeliveryTypeSelbstabholungArticleNumbers = XmlImportDeliveryTypeFields[7].XmlName
         };
     }
 
@@ -1890,23 +1918,14 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             XmlImportStructureFields[1].XmlName = effective.OrderRecordElement;
             XmlImportStructureFields[2].XmlName = effective.ProductRecordElement;
 
-            XmlImportAddressFields[0].XmlName = effective.AddressId;
-            XmlImportAddressFields[1].XmlName = effective.AddressCompany;
-            XmlImportAddressFields[2].XmlName = effective.AddressLastName;
-            XmlImportAddressFields[3].XmlName = effective.AddressFirstName;
-            XmlImportAddressFields[4].XmlName = effective.AddressStreet;
-            XmlImportAddressFields[5].XmlName = effective.AddressPostalCode;
-            XmlImportAddressFields[6].XmlName = effective.AddressCity;
-            XmlImportAddressFields[7].XmlName = effective.AddressCountry;
-            XmlImportAddressFields[8].XmlName = effective.AddressEmail;
-            XmlImportAddressFields[9].XmlName = effective.AddressPhone;
-            XmlImportAddressFields[10].XmlName = effective.AddressContactPerson;
+            XmlImportAddressFields[0].XmlName = effective.OrderBillingAddressBlock;
+            XmlImportAddressFields[1].XmlName = effective.OrderDeliveryAddressBlock;
 
-            XmlImportOrderFields[0].XmlName = effective.OrderNumber;
-            XmlImportOrderFields[1].XmlName = effective.OrderType;
-            XmlImportOrderFields[2].XmlName = effective.OrderDate;
-            XmlImportOrderFields[3].XmlName = effective.OrderAddressId;
-            XmlImportOrderFields[4].XmlName = effective.OrderDeliveryAddressId;
+            XmlImportOrderFields[0].XmlName = effective.OrderId;
+            XmlImportOrderFields[1].XmlName = effective.OrderNumber;
+            XmlImportOrderFields[2].XmlName = effective.OrderType;
+            XmlImportOrderFields[3].XmlName = effective.OrderDate;
+            XmlImportOrderFields[4].XmlName = effective.OrderAddressId;
             XmlImportOrderFields[5].XmlName = effective.OrderDeliveryCondition;
             XmlImportOrderFields[6].XmlName = effective.OrderDeliveryDate;
             XmlImportOrderFields[7].XmlName = effective.OrderDeliveryCanOccurEarlier;
@@ -1919,6 +1938,18 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             XmlImportProductFields[2].XmlName = effective.ProductDescription;
             XmlImportProductFields[3].XmlName = effective.ProductQuantity;
             XmlImportProductFields[4].XmlName = effective.ProductWeight;
+
+            XmlImportProductExclusionFields[0].XmlName = effective.ExcludedProductArticleNumbers;
+            XmlImportProductExclusionFields[1].XmlName = effective.ExcludedProductDescriptions;
+
+            XmlImportDeliveryTypeFields[0].XmlName = effective.DeliveryTypeFreiBordsteinkanteArticleNumbers;
+            XmlImportDeliveryTypeFields[1].XmlName = effective.DeliveryTypeMitVerteilungArticleNumbers;
+            XmlImportDeliveryTypeFields[2].XmlName = effective.DeliveryTypeMitVerteilungMontageArticleNumbers;
+            XmlImportDeliveryTypeFields[3].XmlName = effective.DeliveryTypeSpediteurArticleNumbers;
+            XmlImportDeliveryTypeFields[4].XmlName = effective.DeliveryTypePostArticleNumbers;
+            XmlImportDeliveryTypeFields[5].XmlName = effective.DeliveryTypeTresorBordsteinArticleNumbers;
+            XmlImportDeliveryTypeFields[6].XmlName = effective.DeliveryTypeTresorVerwendungArticleNumbers;
+            XmlImportDeliveryTypeFields[7].XmlName = effective.DeliveryTypeSelbstabholungArticleNumbers;
         }
         finally
         {
