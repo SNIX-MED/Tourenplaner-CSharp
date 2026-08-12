@@ -5,6 +5,7 @@ public sealed class XmlImportPinIssueListItemViewModel
     private XmlImportPinIssueListItemViewModel(
         string issueLabel,
         string issueBackground,
+        string issueBorder,
         string issueForeground,
         string orderId,
         string customerName,
@@ -14,6 +15,7 @@ public sealed class XmlImportPinIssueListItemViewModel
     {
         IssueLabel = issueLabel;
         IssueBackground = issueBackground;
+        IssueBorder = issueBorder;
         IssueForeground = issueForeground;
         OrderId = orderId;
         CustomerName = customerName;
@@ -24,6 +26,7 @@ public sealed class XmlImportPinIssueListItemViewModel
 
     public string IssueLabel { get; }
     public string IssueBackground { get; }
+    public string IssueBorder { get; }
     public string IssueForeground { get; }
     public string OrderId { get; }
     public string CustomerName { get; }
@@ -38,8 +41,9 @@ public sealed class XmlImportPinIssueListItemViewModel
     {
         return new XmlImportPinIssueListItemViewModel(
             "Keine Zuordnung",
-            "#FEE2E2",
-            "#991B1B",
+            "#FEF2F2",
+            "#FECACA",
+            "#B91C1C",
             orderId,
             customerName,
             addressLine,
@@ -60,8 +64,9 @@ public sealed class XmlImportPinIssueListItemViewModel
 
         return new XmlImportPinIssueListItemViewModel(
             "Ungefaehr",
-            "#FEF3C7",
-            "#92400E",
+            "#FFFBEB",
+            "#FDE68A",
+            "#B45309",
             orderId,
             customerName,
             addressLine,

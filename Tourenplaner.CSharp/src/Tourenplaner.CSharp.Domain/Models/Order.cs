@@ -45,6 +45,8 @@ public sealed class Order
     public bool IstVorauszahlung { get; set; }
     public string Notes { get; set; } = string.Empty;
     public bool IsArchived { get; set; }
+    /// <summary>Indicates that this order was last created or synchronized through the XML ERP import.</summary>
+    public bool IsXmlImported { get; set; }
     public string? ConcurrencyToken { get; set; }
 
     public static string NormalizeOrderStatus(string? value)

@@ -99,10 +99,6 @@ public sealed class AppSettings
     public AppStorageMode StorageMode { get; set; } = AppStorageMode.JsonFiles;
     public PostgreSqlStorageSettings PostgreSqlStorage { get; set; } = new();
 
-    // SQL Server Import Settings
-    public SqlConnectionSettings SqlImportSettings { get; set; } = new();
-    public DateTime? LastSqlImportDate { get; set; }
-    public bool SqlImportEnabled { get; set; } = false;
     public string XmlImportFilePath { get; set; } = string.Empty;
     public DateTime? LastXmlImportDate { get; set; }
     public XmlImportMappingSettings XmlImportMapping { get; set; } = XmlImportMappingSettings.CreateDefault();

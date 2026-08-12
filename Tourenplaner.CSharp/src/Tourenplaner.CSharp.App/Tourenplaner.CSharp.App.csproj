@@ -43,6 +43,7 @@
     <Resource Include="Assets\Pin.png" />
     <Resource Include="Assets\Touren-ausblenden.png" />
     <Resource Include="Assets\Touren-einblenden.png" />
+    <Resource Include="Assets\XmlImportLock.png" />
   </ItemGroup>
 
 </Project>

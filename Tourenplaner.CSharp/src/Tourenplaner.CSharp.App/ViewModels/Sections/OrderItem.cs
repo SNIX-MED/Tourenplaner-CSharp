@@ -35,6 +35,7 @@ public sealed class OrderItem : ObservableObject
     private string _notes = string.Empty;
     private bool _istVorauszahlung;
     private bool _isArchived;
+    private bool _isXmlImported;
 
     public string Id
     {
@@ -268,6 +269,12 @@ public sealed class OrderItem : ObservableObject
     {
         get => _isArchived;
         set => SetProperty(ref _isArchived, value);
+    }
+
+    public bool IsXmlImported
+    {
+        get => _isXmlImported;
+        set => SetProperty(ref _isXmlImported, value);
     }
 
     private static string BuildStreetLine(string? street, string? houseNumber)

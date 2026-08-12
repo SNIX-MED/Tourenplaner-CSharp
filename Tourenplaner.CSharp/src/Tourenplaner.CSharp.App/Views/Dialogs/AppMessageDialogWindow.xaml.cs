@@ -5,7 +5,13 @@ namespace Tourenplaner.CSharp.App.Views.Dialogs;
 
 public partial class AppMessageDialogWindow : Window
 {
-    public AppMessageDialogWindow(string message, string caption, MessageBoxButton buttons, MessageBoxImage image)
+    public AppMessageDialogWindow(
+        string message,
+        string caption,
+        MessageBoxButton buttons,
+        MessageBoxImage image,
+        string? primaryButtonText = null,
+        string? secondaryButtonText = null)
     {
         InitializeComponent();
 
@@ -14,18 +20,18 @@ public partial class AppMessageDialogWindow : Window
         Title = CaptionTextBlock.Text;
 
         ConfigureVisuals(image);
-        ConfigureButtons(buttons);
+        ConfigureButtons(buttons, primaryButtonText, secondaryButtonText);
     }
 
     public MessageBoxResult Result { get; private set; } = MessageBoxResult.None;
 
-    private void ConfigureButtons(MessageBoxButton buttons)
+    private void ConfigureButtons(MessageBoxButton buttons, string? primaryButtonText, string? secondaryButtonText)
     {
         if (buttons == MessageBoxButton.YesNo)
         {
             SecondaryButton.Visibility = Visibility.Visible;
-            SecondaryButton.Content = "Nein";
-            PrimaryButton.Content = "Ja";
+            SecondaryButton.Content = string.IsNullOrWhiteSpace(secondaryButtonText) ? "Nein" : secondaryButtonText;
+            PrimaryButton.Content = string.IsNullOrWhiteSpace(primaryButtonText) ? "Ja" : primaryButtonText;
             PrimaryButton.Style = (Style)FindResource("SuccessButtonStyle");
             return;
         }

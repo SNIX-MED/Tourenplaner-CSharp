@@ -548,7 +548,6 @@ public class XmlOrderImportServiceTests
             Assert.Equal("A-305", result.Orders[0].AuftragNr);
             Assert.Empty(result.Orders[0].Produkte);
             Assert.Contains(result.Warnings, warning => warning.Contains("keine Lieferart erkannt", StringComparison.OrdinalIgnoreCase));
-            Assert.Contains(result.Warnings, warning => warning.Contains("alle Produktpositionen", StringComparison.OrdinalIgnoreCase));
             Assert.Contains(result.Warnings, warning => warning.Contains("keine Lieferadresse gefunden", StringComparison.OrdinalIgnoreCase));
             Assert.Empty(result.Errors);
         }

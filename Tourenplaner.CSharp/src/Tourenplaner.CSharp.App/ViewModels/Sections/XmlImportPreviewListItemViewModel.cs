@@ -7,6 +7,7 @@ public sealed class XmlImportPreviewListItemViewModel
     private XmlImportPreviewListItemViewModel(
         string actionLabel,
         string actionBackground,
+        string actionBorder,
         string actionForeground,
         string orderId,
         string customerName,
@@ -16,6 +17,7 @@ public sealed class XmlImportPreviewListItemViewModel
     {
         ActionLabel = actionLabel;
         ActionBackground = actionBackground;
+        ActionBorder = actionBorder;
         ActionForeground = actionForeground;
         OrderId = orderId;
         CustomerName = customerName;
@@ -26,6 +28,7 @@ public sealed class XmlImportPreviewListItemViewModel
 
     public string ActionLabel { get; }
     public string ActionBackground { get; }
+    public string ActionBorder { get; }
     public string ActionForeground { get; }
     public string OrderId { get; }
     public string CustomerName { get; }
@@ -42,11 +45,11 @@ public sealed class XmlImportPreviewListItemViewModel
 
     public static XmlImportPreviewListItemViewModel FromPreviewItem(ImportPreviewItem item)
     {
-        var (label, background, foreground) = item.Action switch
+        var (label, background, border, foreground) = item.Action switch
         {
-            ImportPreviewAction.Create => ("Neu", "#DCFCE7", "#166534"),
-            ImportPreviewAction.Update => ("Update", "#EDE9FE", "#5B21B6"),
-            _ => ("Unveraendert", "#E2E8F0", "#334155")
+            ImportPreviewAction.Create => ("Neu", "#ECFDF3", "#BBF7D0", "#15803D"),
+            ImportPreviewAction.Update => ("Update", "#EDE9FE", "#C4B5FD", "#6D28D9"),
+            _ => ("Unveraendert", "#F1F5F9", "#CBD5E1", "#475569")
         };
 
         var changeSummary = item.Changes.Count == 0
@@ -56,6 +59,7 @@ public sealed class XmlImportPreviewListItemViewModel
         return new XmlImportPreviewListItemViewModel(
             label,
             background,
+            border,
             foreground,
             (item.OrderId ?? string.Empty).Trim(),
             (item.CustomerName ?? string.Empty).Trim(),

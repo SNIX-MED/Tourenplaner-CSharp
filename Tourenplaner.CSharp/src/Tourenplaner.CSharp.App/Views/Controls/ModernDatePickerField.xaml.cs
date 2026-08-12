@@ -35,6 +35,13 @@ public partial class ModernDatePickerField : UserControl, INotifyPropertyChanged
             typeof(ModernDatePickerField),
             new PropertyMetadata("Datum auswählen", OnPlaceholderChanged));
 
+    public static readonly DependencyProperty IsReadOnlyProperty =
+        DependencyProperty.Register(
+            nameof(IsReadOnly),
+            typeof(bool),
+            typeof(ModernDatePickerField),
+            new PropertyMetadata(false));
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<ModernDatePickerDayItem> CalendarDays { get; }
@@ -49,6 +56,12 @@ public partial class ModernDatePickerField : UserControl, INotifyPropertyChanged
     {
         get => (string)GetValue(PlaceholderTextProperty);
         set => SetValue(PlaceholderTextProperty, value);
+    }
+
+    public bool IsReadOnly
+    {
+        get => (bool)GetValue(IsReadOnlyProperty);
+        set => SetValue(IsReadOnlyProperty, value);
     }
 
     public string DisplayText

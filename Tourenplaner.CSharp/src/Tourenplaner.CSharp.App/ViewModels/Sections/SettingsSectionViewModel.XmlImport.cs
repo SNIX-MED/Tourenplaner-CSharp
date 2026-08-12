@@ -53,7 +53,7 @@ public sealed partial class SettingsSectionViewModel
             var fileInfo = new FileInfo(XmlImportFilePath);
             var xmlService = new XmlOrderImportService();
             var loadResult = xmlService.LoadOrdersFromFileDetailed(XmlImportFilePath, BuildXmlImportMapping());
-            var importService = new SqlOrderImportService();
+            var importService = new OrderImportService();
             var preview = await importService.PreviewImportAsync(loadResult.Orders, _orderRepository);
 
             var previewErrors = loadResult.Errors
@@ -114,11 +114,11 @@ public sealed partial class SettingsSectionViewModel
                 throw new InvalidOperationException("Es liegt keine gültige Importvorschau vor.");
             }
 
-            var importService = new SqlOrderImportService();
+            var importService = new OrderImportService();
             var result = await importService.ImportOrdersAsync(
                 _previewedXmlOrders.ToList(),
                 _orderRepository,
-                _settingsRepository);
+                markAsXmlImported: true);
 
             var parserErrorCount = XmlImportPreviewErrors.Count;
             if (result.Errors.Any())
@@ -191,7 +191,7 @@ public sealed partial class SettingsSectionViewModel
     }
 
     private void ApplyXmlImportPreview(
-        IReadOnlyList<SqlOrderImportData> previewOrders,
+        IReadOnlyList<XmlOrderImportData> previewOrders,
         ImportPreviewResult preview,
         IReadOnlyList<string> previewErrors,
         IReadOnlyList<string> previewWarnings,

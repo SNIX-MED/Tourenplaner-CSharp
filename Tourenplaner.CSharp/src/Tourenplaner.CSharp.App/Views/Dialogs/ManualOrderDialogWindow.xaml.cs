@@ -66,6 +66,19 @@ public partial class ManualOrderDialogWindow : Window
         Close();
     }
 
+    private void OnXmlImportLockClicked(object sender, RoutedEventArgs e)
+    {
+        if (AppMessageBox.ShowConfirmation(
+                this,
+                "Auftragsdaten müssen immer mit dem ERP übereinstimmen",
+                "ERP-Auftrag bearbeiten",
+                "Abbrechen",
+                "Trotzdem bearbeiten") == MessageBoxResult.Yes)
+        {
+            ViewModel.UnlockEditing();
+        }
+    }
+
     private void OnAddProductClicked(object sender, RoutedEventArgs e)
     {
         var dialog = new OrderProductDialogWindow
@@ -208,6 +221,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _notes = string.Empty;
     private bool _istVorauszahlung;
     private bool _isArchived;
+    private bool _isXmlImported;
+    private bool _isEditingEnabled = true;
 
     private GeoPoint? _existingLocation;
     private string? _existingAssignedTourId;
@@ -240,6 +255,24 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     public IReadOnlyList<string> StatusOptions => Statuses;
 
+    public bool IsXmlImported
+    {
+        get => _isXmlImported;
+        private set => SetProperty(ref _isXmlImported, value);
+    }
+
+    public bool IsEditingEnabled
+    {
+        get => _isEditingEnabled;
+        private set
+        {
+            if (SetProperty(ref _isEditingEnabled, value))
+            {
+                OnPropertyChanged(nameof(CanEditOrRemoveProductLine));
+            }
+        }
+    }
+
     public ProductLineInput? SelectedProductLine
     {
         get => _selectedProductLine;
@@ -252,7 +285,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool CanEditOrRemoveProductLine => SelectedProductLine is not null;
+    public bool CanEditOrRemoveProductLine => IsEditingEnabled && SelectedProductLine is not null;
 
     public string OrderNumber
     {
@@ -505,7 +538,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Notes = (Notes ?? string.Empty).Trim(),
             AssignedTourId = _existingAssignedTourId,
             Location = _existingLocation,
-            IsArchived = IsArchived
+            IsArchived = IsArchived,
+            IsXmlImported = IsXmlImported
         };
 
         return true;
@@ -559,6 +593,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         DeliveryCity = (OrderAddressCity ?? string.Empty).Trim();
     }
 
+    public void UnlockEditing() => IsEditingEnabled = true;
+
     private void ApplyExistingOrder(Order? existingOrder)
     {
         if (existingOrder is null)
@@ -568,6 +604,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
         _existingLocation = existingOrder.Location;
         _existingAssignedTourId = existingOrder.AssignedTourId;
+        IsXmlImported = existingOrder.IsXmlImported;
+        IsEditingEnabled = !IsXmlImported;
         OrderNumber = existingOrder.Id;
         OrderDateText = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         DeliveryDateText = existingOrder.DeliveryDate?.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? string.Empty;

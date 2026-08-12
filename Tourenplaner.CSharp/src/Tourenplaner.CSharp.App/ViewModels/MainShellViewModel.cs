@@ -119,7 +119,6 @@ public sealed partial class MainShellViewModel : ObservableObject
         var employees = new EmployeesSectionViewModel(repositories.EmployeeDataStore, repositories.TourRecordStore, dataSyncService);
         var vehicles = new VehiclesSectionViewModel(repositories.VehicleDataStore, repositories.TourRecordStore, dataSyncService);
 
-        // Repositories für SQL Import
         var settings = new SettingsSectionViewModel(
             repositories.AppSettingsStore,
             repositories.DataRootPath,

@@ -47,4 +47,27 @@ public static class AppMessageBox
         _ = dialog.ShowDialog();
         return dialog.Result;
     }
+
+    public static MessageBoxResult ShowConfirmation(
+        Window? owner,
+        string messageBoxText,
+        string caption,
+        string cancelButtonText,
+        string confirmButtonText,
+        MessageBoxImage icon = MessageBoxImage.Warning)
+    {
+        var dialog = new AppMessageDialogWindow(
+            messageBoxText,
+            caption,
+            MessageBoxButton.YesNo,
+            icon,
+            confirmButtonText,
+            cancelButtonText)
+        {
+            Owner = owner ?? System.Windows.Application.Current?.MainWindow
+        };
+
+        _ = dialog.ShowDialog();
+        return dialog.Result;
+    }
 }

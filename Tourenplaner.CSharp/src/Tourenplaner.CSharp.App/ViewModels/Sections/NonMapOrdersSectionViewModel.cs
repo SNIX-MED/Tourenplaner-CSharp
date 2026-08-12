@@ -1107,7 +1107,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             ProductsSummary = OrderProductFormatter.BuildSummary(order.Products),
             Notes = order.Notes ?? string.Empty,
             IstVorauszahlung = order.IstVorauszahlung,
-            IsArchived = order.IsArchived
+            IsArchived = order.IsArchived,
+            IsXmlImported = order.IsXmlImported
         };
     }
 
@@ -1183,6 +1184,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             Notes = source.Notes,
             IstVorauszahlung = source.IstVorauszahlung,
             IsArchived = source.IsArchived,
+            IsXmlImported = source.IsXmlImported,
             ConcurrencyToken = source.ConcurrencyToken
         };
     }

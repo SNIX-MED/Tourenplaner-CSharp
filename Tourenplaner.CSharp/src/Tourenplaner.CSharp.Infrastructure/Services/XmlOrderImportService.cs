@@ -8,7 +8,7 @@ namespace Tourenplaner.CSharp.Infrastructure.Services;
 
 public interface IXmlOrderImportService
 {
-    List<SqlOrderImportData> LoadOrdersFromFile(string xmlFilePath, XmlImportMappingSettings? mapping = null);
+    List<XmlOrderImportData> LoadOrdersFromFile(string xmlFilePath, XmlImportMappingSettings? mapping = null);
     XmlOrderImportLoadResult LoadOrdersFromFileDetailed(string xmlFilePath, XmlImportMappingSettings? mapping = null);
     string CreateTemplateXml();
 }
@@ -20,7 +20,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    public List<SqlOrderImportData> LoadOrdersFromFile(string xmlFilePath, XmlImportMappingSettings? mapping = null)
+    public List<XmlOrderImportData> LoadOrdersFromFile(string xmlFilePath, XmlImportMappingSettings? mapping = null)
     {
         var result = LoadOrdersFromFileDetailed(xmlFilePath, mapping);
         if (result.Errors.Count > 0)
@@ -90,16 +90,26 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
             var orderElement = orderElements[index];
             try
             {
-                var explicitDeliveryCondition = ReadString(orderElement, effectiveMapping.OrderDeliveryCondition, string.Empty);
-                var order = new SqlOrderImportData
+                var orderNumber = ReadString(orderElement, effectiveMapping.OrderNumber);
+                var orderDate = ReadNullableDate(orderElement, effectiveMapping.OrderDate);
+                if (!orderDate.HasValue)
                 {
-                    AuftragNr = ReadString(orderElement, effectiveMapping.OrderNumber),
+                    var orderLabel = string.IsNullOrWhiteSpace(orderNumber) ? $"#{index + 1}" : orderNumber;
+                    result.Errors.Add($"Auftrag {orderLabel}: Auftragsdatum im XML-Feld '{effectiveMapping.OrderDate}' fehlt oder ist ungültig.");
+                    continue;
+                }
+
+                var explicitDeliveryCondition = ReadString(orderElement, effectiveMapping.OrderDeliveryCondition, string.Empty);
+                var order = new XmlOrderImportData
+                {
+                    AuftragNr = orderNumber,
                     Typ = ReadString(orderElement, effectiveMapping.OrderType),
-                    AuftragsDatum = ReadDate(orderElement, effectiveMapping.OrderDate, DateTime.Today),
+                    AuftragsDatum = orderDate.Value,
                     Archiviert = ReadBool(orderElement, effectiveMapping.OrderArchived),
                     Gesperrt = ReadBool(orderElement, effectiveMapping.OrderLocked),
                     Lieferdatum = ReadNullableDate(orderElement, effectiveMapping.OrderDeliveryDate),
                     LieferungKannFrueherErfolgen = ReadBool(orderElement, effectiveMapping.OrderDeliveryCanOccurEarlier),
+                    Lieferzeit = ReadString(orderElement, effectiveMapping.OrderDeliveryTime),
                     Notiz = ReadString(orderElement, effectiveMapping.OrderNote)
                 };
 
@@ -134,18 +144,16 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     }
 
                     var logicalProductIndex = 0;
-                    var skippedProductCount = 0;
                     for (var productIndex = 0; productIndex < matchedProducts.Count; productIndex++)
                     {
                         var productElement = matchedProducts[productIndex];
                         if (ShouldSkipProductPosition(productElement, effectiveMapping))
                         {
-                            skippedProductCount++;
                             continue;
                         }
 
                         logicalProductIndex++;
-                        order.Produkte.Add(new SqlOrderProductData
+                        order.Produkte.Add(new XmlOrderProductData
                         {
                             PosNummer = logicalProductIndex,
                             ArtikelNummer = ReadString(productElement, effectiveMapping.ProductArticleNumber),
@@ -154,15 +162,6 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                             Gewicht = ReadDecimal(productElement, effectiveMapping.ProductWeight),
                             Bruttogewicht = 0m
                         });
-                    }
-
-                    if (matchedProducts.Count > 0 && order.Produkte.Count == 0)
-                    {
-                        AddWarning(result, order, index, "alle Produktpositionen wurden durch Lieferarten- oder Produktausschlussregeln herausgefiltert.");
-                    }
-                    else if (skippedProductCount > 0)
-                    {
-                        AddWarning(result, order, index, $"{skippedProductCount} Produktposition(en) wurden durch Lieferarten- oder Produktausschlussregeln herausgefiltert.");
                     }
                 }
                 else
@@ -238,7 +237,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
     }
 
     private static void ApplyAddress(
-        SqlOrderImportData order,
+        XmlOrderImportData order,
         XElement addressElement,
         XmlImportMappingSettings mapping,
         bool isDeliveryAddress)
@@ -283,6 +282,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         OrderDeliveryCondition = "versandart",
         OrderDeliveryDate = "lieferdatum",
         OrderDeliveryCanOccurEarlier = "lieferdatumfrüher",
+        OrderDeliveryTime = sourceMapping.OrderDeliveryTime,
         OrderArchived = "archiv",
         OrderLocked = "sperre",
         OrderNote = "notiz",
@@ -331,6 +331,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         OrderDeliveryCondition = XmlImportMappingSettings.LegacyOrderDeliveryCondition,
         OrderDeliveryDate = XmlImportMappingSettings.LegacyOrderDeliveryDate,
         OrderDeliveryCanOccurEarlier = XmlImportMappingSettings.LegacyOrderDeliveryCanOccurEarlier,
+        OrderDeliveryTime = sourceMapping.OrderDeliveryTime,
         OrderArchived = XmlImportMappingSettings.LegacyOrderArchived,
         OrderLocked = XmlImportMappingSettings.LegacyOrderLocked,
         OrderNote = XmlImportMappingSettings.LegacyOrderNote,
@@ -505,7 +506,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
 
     private sealed record DeliveryTypeRule(string Label, IReadOnlySet<string> MatchValues, int Priority);
 
-    private static bool ApplyExportAddressBlock(SqlOrderImportData order, string value, bool isDeliveryAddress)
+    private static bool ApplyExportAddressBlock(XmlOrderImportData order, string value, bool isDeliveryAddress)
     {
         var lines = (value ?? string.Empty).Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (lines.Length == 0) return false;
@@ -525,7 +526,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         return isDeliveryAddress ? HasDeliveryAddress(order) : HasCustomerAddress(order);
     }
 
-    private static bool HasDeliveryAddress(SqlOrderImportData order)
+    private static bool HasDeliveryAddress(XmlOrderImportData order)
     {
         return HasAnyValue(
             order.LieferFirma,
@@ -536,7 +537,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
             order.LieferOrt);
     }
 
-    private static bool HasCustomerAddress(SqlOrderImportData order)
+    private static bool HasCustomerAddress(XmlOrderImportData order)
     {
         return HasAnyValue(
             order.KundeFirma,
@@ -552,7 +553,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         return values.Any(x => !string.IsNullOrWhiteSpace(x));
     }
 
-    private static void AddWarning(XmlOrderImportLoadResult result, SqlOrderImportData order, int orderIndex, string message)
+    private static void AddWarning(XmlOrderImportLoadResult result, XmlOrderImportData order, int orderIndex, string message)
     {
         var orderLabel = !string.IsNullOrWhiteSpace(order.AuftragNr)
             ? order.AuftragNr.Trim()
@@ -623,13 +624,21 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         return 0m;
     }
 
-    private static DateTime ReadDate(XElement parent, string name, DateTime fallback)
-        => string.IsNullOrWhiteSpace(name) || !DateTime.TryParse(parent.Element(name)?.Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var value)
-            ? fallback
-            : value;
-
     private static DateTime? ReadNullableDate(XElement parent, string name)
-        => string.IsNullOrWhiteSpace(name) || !DateTime.TryParse(parent.Element(name)?.Value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var value)
-            ? null
-            : value;
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var raw = (parent.Element(name)?.Value ?? string.Empty).Trim();
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var value) ||
+            DateTime.TryParse(raw, CultureInfo.GetCultureInfo("de-CH"), DateTimeStyles.AssumeLocal, out value) ||
+            DateTime.TryParse(raw, CultureInfo.GetCultureInfo("de-DE"), DateTimeStyles.AssumeLocal, out value))
+        {
+            return value;
+        }
+
+        return null;
+    }
 }

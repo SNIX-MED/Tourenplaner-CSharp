@@ -69,6 +69,7 @@ public sealed class XmlImportMappingSettings
     public const string DefaultOrderDeliveryCondition = "versandart";
     public const string DefaultOrderDeliveryDate = "lieferdatum";
     public const string DefaultOrderDeliveryCanOccurEarlier = "lieferdatumfrüher";
+    public const string DefaultOrderDeliveryTime = "zus_lieferzeit";
     public const string DefaultOrderArchived = "archiv";
     public const string DefaultOrderLocked = "sperre";
     public const string DefaultOrderNote = "notiz";
@@ -118,6 +119,7 @@ public sealed class XmlImportMappingSettings
     public string OrderDeliveryCondition { get; set; } = DefaultOrderDeliveryCondition;
     public string OrderDeliveryDate { get; set; } = DefaultOrderDeliveryDate;
     public string OrderDeliveryCanOccurEarlier { get; set; } = DefaultOrderDeliveryCanOccurEarlier;
+    public string OrderDeliveryTime { get; set; } = DefaultOrderDeliveryTime;
     public string OrderArchived { get; set; } = DefaultOrderArchived;
     public string OrderLocked { get; set; } = DefaultOrderLocked;
     public string OrderNote { get; set; } = DefaultOrderNote;
@@ -174,6 +176,7 @@ public sealed class XmlImportMappingSettings
             OrderDeliveryCondition = Normalize(OrderDeliveryCondition, DefaultOrderDeliveryCondition),
             OrderDeliveryDate = Normalize(OrderDeliveryDate, DefaultOrderDeliveryDate),
             OrderDeliveryCanOccurEarlier = Normalize(OrderDeliveryCanOccurEarlier, DefaultOrderDeliveryCanOccurEarlier),
+            OrderDeliveryTime = Normalize(OrderDeliveryTime, DefaultOrderDeliveryTime),
             OrderArchived = Normalize(OrderArchived, DefaultOrderArchived),
             OrderLocked = Normalize(OrderLocked, DefaultOrderLocked),
             OrderNote = Normalize(OrderNote, DefaultOrderNote),
@@ -210,6 +213,7 @@ public sealed class XmlImportMappingSettings
             effective.OrderDeliveryCondition = DefaultOrderDeliveryCondition;
             effective.OrderDeliveryDate = DefaultOrderDeliveryDate;
             effective.OrderDeliveryCanOccurEarlier = DefaultOrderDeliveryCanOccurEarlier;
+            effective.OrderDeliveryTime = DefaultOrderDeliveryTime;
             effective.OrderArchived = DefaultOrderArchived;
             effective.OrderLocked = DefaultOrderLocked;
             effective.OrderNote = DefaultOrderNote;

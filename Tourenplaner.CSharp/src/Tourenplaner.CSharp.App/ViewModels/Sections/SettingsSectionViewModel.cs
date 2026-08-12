@@ -46,7 +46,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private string _xmlImportPinIssueSummary = string.Empty;
     private int _xmlImportPreviewHiddenItemCount;
     private bool _hasPendingXmlImportPreview;
-    private readonly List<SqlOrderImportData> _previewedXmlOrders = new();
+    private readonly List<XmlOrderImportData> _previewedXmlOrders = new();
     private DateTime _xmlImportPreviewLastWriteUtc;
     private long _xmlImportPreviewFileLength;
 
@@ -1801,6 +1801,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             new XmlImportMappingFieldViewModel("Lieferbedingung", XmlImportMappingSettings.DefaultOrderDeliveryCondition, XmlImportMappingSettings.DefaultOrderDeliveryCondition),
             new XmlImportMappingFieldViewModel("Lieferdatum", XmlImportMappingSettings.DefaultOrderDeliveryDate, XmlImportMappingSettings.DefaultOrderDeliveryDate),
             new XmlImportMappingFieldViewModel("Lieferung kann früher erfolgen", XmlImportMappingSettings.DefaultOrderDeliveryCanOccurEarlier, XmlImportMappingSettings.DefaultOrderDeliveryCanOccurEarlier),
+            new XmlImportMappingFieldViewModel("Lieferzeit / Produktstatus", XmlImportMappingSettings.DefaultOrderDeliveryTime, XmlImportMappingSettings.DefaultOrderDeliveryTime),
             new XmlImportMappingFieldViewModel("Archiviert", XmlImportMappingSettings.DefaultOrderArchived, XmlImportMappingSettings.DefaultOrderArchived),
             new XmlImportMappingFieldViewModel("Gesperrt", XmlImportMappingSettings.DefaultOrderLocked, XmlImportMappingSettings.DefaultOrderLocked),
             new XmlImportMappingFieldViewModel("Notiz", XmlImportMappingSettings.DefaultOrderNote, XmlImportMappingSettings.DefaultOrderNote)
@@ -1832,14 +1833,14 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     {
         return
         [
-            new XmlImportMappingFieldViewModel("Lieferart: Frei Bordsteinkante Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers),
-            new XmlImportMappingFieldViewModel("Lieferart: Mit Verteilung Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungArticleNumbers),
-            new XmlImportMappingFieldViewModel("Lieferart: Mit Verteilung & Montage Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungMontageArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungMontageArticleNumbers),
-            new XmlImportMappingFieldViewModel("Lieferart: Spediteur Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeSpediteurArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeSpediteurArticleNumbers),
-            new XmlImportMappingFieldViewModel("Lieferart: Post Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypePostArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypePostArticleNumbers),
-            new XmlImportMappingFieldViewModel("Lieferart: Tresor-Bordstein Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeTresorBordsteinArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeTresorBordsteinArticleNumbers),
-            new XmlImportMappingFieldViewModel("Lieferart: Tresor-Verwendung Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeTresorVerwendungArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeTresorVerwendungArticleNumbers),
-            new XmlImportMappingFieldViewModel("Lieferart: Selbstabholung Artikelnummer", XmlImportMappingSettings.DefaultDeliveryTypeSelbstabholungArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeSelbstabholungArticleNumbers)
+            new XmlImportMappingFieldViewModel("Frei Bordsteinkante", XmlImportMappingSettings.DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers),
+            new XmlImportMappingFieldViewModel("Mit Verteilung", XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungArticleNumbers),
+            new XmlImportMappingFieldViewModel("Mit Verteilung & Montage", XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungMontageArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeMitVerteilungMontageArticleNumbers),
+            new XmlImportMappingFieldViewModel("Spediteur", XmlImportMappingSettings.DefaultDeliveryTypeSpediteurArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeSpediteurArticleNumbers),
+            new XmlImportMappingFieldViewModel("Post", XmlImportMappingSettings.DefaultDeliveryTypePostArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypePostArticleNumbers),
+            new XmlImportMappingFieldViewModel("Tresor-Bordstein", XmlImportMappingSettings.DefaultDeliveryTypeTresorBordsteinArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeTresorBordsteinArticleNumbers),
+            new XmlImportMappingFieldViewModel("Tresor-Verwendung", XmlImportMappingSettings.DefaultDeliveryTypeTresorVerwendungArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeTresorVerwendungArticleNumbers),
+            new XmlImportMappingFieldViewModel("Selbstabholung", XmlImportMappingSettings.DefaultDeliveryTypeSelbstabholungArticleNumbers, XmlImportMappingSettings.DefaultDeliveryTypeSelbstabholungArticleNumbers)
         ];
     }
 
@@ -1886,9 +1887,10 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             OrderDeliveryCondition = XmlImportOrderFields[5].XmlName,
             OrderDeliveryDate = XmlImportOrderFields[6].XmlName,
             OrderDeliveryCanOccurEarlier = XmlImportOrderFields[7].XmlName,
-            OrderArchived = XmlImportOrderFields[8].XmlName,
-            OrderLocked = XmlImportOrderFields[9].XmlName,
-            OrderNote = XmlImportOrderFields[10].XmlName,
+            OrderDeliveryTime = XmlImportOrderFields[8].XmlName,
+            OrderArchived = XmlImportOrderFields[9].XmlName,
+            OrderLocked = XmlImportOrderFields[10].XmlName,
+            OrderNote = XmlImportOrderFields[11].XmlName,
             ProductOrderId = XmlImportProductFields[0].XmlName,
             ProductArticleNumber = XmlImportProductFields[1].XmlName,
             ProductDescription = XmlImportProductFields[2].XmlName,
@@ -1929,9 +1931,10 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             XmlImportOrderFields[5].XmlName = effective.OrderDeliveryCondition;
             XmlImportOrderFields[6].XmlName = effective.OrderDeliveryDate;
             XmlImportOrderFields[7].XmlName = effective.OrderDeliveryCanOccurEarlier;
-            XmlImportOrderFields[8].XmlName = effective.OrderArchived;
-            XmlImportOrderFields[9].XmlName = effective.OrderLocked;
-            XmlImportOrderFields[10].XmlName = effective.OrderNote;
+            XmlImportOrderFields[8].XmlName = effective.OrderDeliveryTime;
+            XmlImportOrderFields[9].XmlName = effective.OrderArchived;
+            XmlImportOrderFields[10].XmlName = effective.OrderLocked;
+            XmlImportOrderFields[11].XmlName = effective.OrderNote;
 
             XmlImportProductFields[0].XmlName = effective.ProductOrderId;
             XmlImportProductFields[1].XmlName = effective.ProductArticleNumber;
@@ -2183,7 +2186,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         return fallback;
     }
 
-    private async Task<int> GeocodeMapOrdersAfterSqlImportAsync()
+    private async Task<int> GeocodeMapOrdersAfterXmlImportAsync()
     {
         if (_orderRepository is null)
         {
@@ -2235,7 +2238,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     {
         try
         {
-            var geocoded = await GeocodeMapOrdersAfterSqlImportAsync();
+            var geocoded = await GeocodeMapOrdersAfterXmlImportAsync();
             if (geocoded > 0)
             {
                 _dataSyncService?.PublishOrders(_instanceId);

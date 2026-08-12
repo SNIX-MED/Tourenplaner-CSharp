@@ -5,7 +5,7 @@ using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Tests.Application;
 
-public class SqlOrderImportServiceTests
+public class OrderImportServiceTests
 {
     [Fact]
     public async Task PreviewImportAsync_ClassifiesCreatedUpdatedAndUnchangedOrders()
@@ -15,7 +15,7 @@ public class SqlOrderImportServiceTests
             CreateOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis alt"),
             CreateOrder("A-2", "Kunde Zwei", "Frei Bordsteinkante", "Bleibt gleich")
         ]);
-        var service = new SqlOrderImportService();
+        var service = new OrderImportService();
 
         var result = await service.PreviewImportAsync(
         [
@@ -37,7 +37,7 @@ public class SqlOrderImportServiceTests
     }
 
     [Fact]
-    public async Task ImportOrdersAsync_PreservesManualProductState_AndSkipsUnchangedOrders()
+    public async Task ImportOrdersAsync_AppliesDeliveryTimeProductStatus_AndPreservesProductMetadata()
     {
         var existingChangedOrder = CreateOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis alt");
         existingChangedOrder.Products[0].DeliveryStatus = "An Lager";
@@ -50,20 +50,18 @@ public class SqlOrderImportServiceTests
         existingUnchangedOrder.OrderStatus = Order.ResolveOrderStatusFromProducts(existingUnchangedOrder.Products);
 
         var repository = new FakeOrderRepository([existingChangedOrder, existingUnchangedOrder]);
-        var settingsRepository = new FakeSettingsRepository();
-        var service = new SqlOrderImportService();
+        var service = new OrderImportService();
 
         var result = await service.ImportOrdersAsync(
         [
-            CreateSqlOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis neu"),
+            CreateSqlOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis neu", "ab Lager (Zwischenverkauf vorbehalten)"),
             CreateSqlOrder("A-2", "Kunde Zwei", "Frei Bordsteinkante", "Bleibt gleich")
         ],
-        repository,
-        settingsRepository);
+        repository);
 
         Assert.Equal(0, result.CreatedOrders);
-        Assert.Equal(1, result.UpdatedOrders);
-        Assert.Equal(1, result.UnchangedOrders);
+        Assert.Equal(2, result.UpdatedOrders);
+        Assert.Equal(0, result.UnchangedOrders);
         Assert.Equal(1, repository.SaveAllCalls);
 
         var storedChanged = Assert.Single(repository.StoredOrders, x => x.Id == "A-1");
@@ -74,12 +72,35 @@ public class SqlOrderImportServiceTests
 
         var storedUnchanged = Assert.Single(repository.StoredOrders, x => x.Id == "A-2");
         Assert.Equal("Bleibt gleich", storedUnchanged.Notes);
-        Assert.Equal("Auf dem Weg", storedUnchanged.Products[0].DeliveryStatus);
+        Assert.Equal(OrderProductInfo.OrderedStatus, storedUnchanged.Products[0].DeliveryStatus);
     }
 
-    private static SqlOrderImportData CreateSqlOrder(string id, string customerName, string deliveryType, string notes)
+    [Fact]
+    public async Task ImportOrdersAsync_WhenMarkedAsXmlImport_MarksCreatedAndUpdatedOrders()
     {
-        return new SqlOrderImportData
+        var existingOrder = CreateOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis alt");
+        var repository = new FakeOrderRepository([existingOrder]);
+        var service = new OrderImportService();
+
+        await service.ImportOrdersAsync(
+        [
+            CreateSqlOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis neu", "ab Lager (Zwischenverkauf vorbehalten)"),
+            CreateSqlOrder("A-2", "Kunde Zwei", "Frei Bordsteinkante", "Neu")
+        ],
+        repository,
+        markAsXmlImported: true);
+
+        Assert.All(repository.StoredOrders, order => Assert.True(order.IsXmlImported));
+    }
+
+    private static XmlOrderImportData CreateSqlOrder(
+        string id,
+        string customerName,
+        string deliveryType,
+        string notes,
+        string? deliveryTime = null)
+    {
+        return new XmlOrderImportData
         {
             AuftragNr = id,
             AuftragsDatum = new DateTime(2026, 6, 10),
@@ -89,10 +110,11 @@ public class SqlOrderImportServiceTests
             KundePLZ = "8000",
             KundeOrt = "Zuerich",
             Lieferbedingung = deliveryType,
+            Lieferzeit = deliveryTime ?? string.Empty,
             Notiz = notes,
             Produkte =
             [
-                new SqlOrderProductData
+                new XmlOrderProductData
                 {
                     PosNummer = 1,
                     Bezeichnung = "Produkt A",
@@ -233,7 +255,8 @@ public class SqlOrderImportServiceTests
             AvisoStatus = order.AvisoStatus,
             Notes = order.Notes,
             IstVorauszahlung = order.IstVorauszahlung,
-            IsArchived = order.IsArchived
+            IsArchived = order.IsArchived,
+            IsXmlImported = order.IsXmlImported
         };
     }
 }

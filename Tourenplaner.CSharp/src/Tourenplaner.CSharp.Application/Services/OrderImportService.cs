@@ -14,27 +14,27 @@ public class ImportResult
     public DateTime ImportedAt { get; set; }
 }
 
-public interface ISqlOrderImportService
+public interface IOrderImportService
 {
     Task<ImportResult> ImportOrdersAsync(
-        List<SqlOrderImportData> sqlOrders,
+        List<XmlOrderImportData> xmlOrders,
         IOrderRepository orderRepository,
-        ISettingsRepository settingsRepository);
+        bool markAsXmlImported = false);
 
     Task<ImportPreviewResult> PreviewImportAsync(
-        List<SqlOrderImportData> sqlOrders,
+        List<XmlOrderImportData> xmlOrders,
         IOrderRepository orderRepository);
 }
 
-public class SqlOrderImportService : ISqlOrderImportService
+public class OrderImportService : IOrderImportService
 {
     public async Task<ImportPreviewResult> PreviewImportAsync(
-        List<SqlOrderImportData> sqlOrders,
+        List<XmlOrderImportData> xmlOrders,
         IOrderRepository orderRepository)
     {
         var preview = new ImportPreviewResult
         {
-            InputOrderCount = sqlOrders?.Count ?? 0
+            InputOrderCount = xmlOrders?.Count ?? 0
         };
 
         var existingOrders = (await orderRepository.GetAllAsync()).ToList();
@@ -43,11 +43,11 @@ public class SqlOrderImportService : ISqlOrderImportService
             .GroupBy(x => x.Id.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
 
-        foreach (var sqlOrder in sqlOrders ?? [])
+        foreach (var xmlOrder in xmlOrders ?? [])
         {
             try
             {
-                var previewItem = BuildPreviewItem(sqlOrder, existingById);
+                var previewItem = BuildPreviewItem(xmlOrder, existingById);
                 preview.Items.Add(previewItem);
 
                 switch (previewItem.Action)
@@ -65,7 +65,7 @@ public class SqlOrderImportService : ISqlOrderImportService
             }
             catch (Exception ex)
             {
-                preview.Errors.Add(BuildOrderErrorMessage(sqlOrder.AuftragNr, ex));
+                preview.Errors.Add(BuildOrderErrorMessage(xmlOrder.AuftragNr, ex));
             }
         }
 
@@ -73,13 +73,12 @@ public class SqlOrderImportService : ISqlOrderImportService
     }
 
     public async Task<ImportResult> ImportOrdersAsync(
-        List<SqlOrderImportData> sqlOrders,
+        List<XmlOrderImportData> sqlOrders,
         IOrderRepository orderRepository,
-        ISettingsRepository settingsRepository)
+        bool markAsXmlImported = false)
     {
         var result = new ImportResult { ImportedAt = DateTime.Now };
         var existingOrders = (await orderRepository.GetAllAsync()).ToList();
-        var settings = await settingsRepository.GetAsync();
 
         foreach (var sqlOrder in sqlOrders ?? [])
         {
@@ -93,7 +92,7 @@ public class SqlOrderImportService : ISqlOrderImportService
 
                 if (existingOrder is null)
                 {
-                    var createdOrder = CreateImportedOrder(sqlOrder, isMapOrder);
+                    var createdOrder = CreateImportedOrder(sqlOrder, isMapOrder, markAsXmlImported: markAsXmlImported);
                     existingOrders.Add(createdOrder);
                     result.CreatedOrders++;
                     if (!string.IsNullOrWhiteSpace(createdOrder.Id))
@@ -103,7 +102,7 @@ public class SqlOrderImportService : ISqlOrderImportService
                     continue;
                 }
 
-                var importedOrder = CreateImportedOrder(sqlOrder, isMapOrder, existingOrder);
+                var importedOrder = CreateImportedOrder(sqlOrder, isMapOrder, existingOrder, markAsXmlImported);
                 var changes = DescribeDifferences(existingOrder, importedOrder);
                 if (changes.Count == 0)
                 {
@@ -127,15 +126,13 @@ public class SqlOrderImportService : ISqlOrderImportService
         if (result.CreatedOrders > 0 || result.UpdatedOrders > 0)
         {
             await orderRepository.SaveAllAsync(existingOrders);
-            settings.LastSqlImportDate = DateTime.Now;
-            await settingsRepository.SaveAsync(settings);
         }
 
         return result;
     }
 
     private ImportPreviewItem BuildPreviewItem(
-        SqlOrderImportData sqlOrder,
+        XmlOrderImportData sqlOrder,
         IReadOnlyDictionary<string, Order> existingById)
     {
         var deliveryMethod = DeliveryMethodExtensions.ParseDeliveryMethod(sqlOrder.Lieferbedingung);
@@ -173,9 +170,10 @@ public class SqlOrderImportService : ISqlOrderImportService
     }
 
     private Order CreateImportedOrder(
-        SqlOrderImportData sqlOrder,
+        XmlOrderImportData sqlOrder,
         bool isMapOrder,
-        Order? existingOrder = null)
+        Order? existingOrder = null,
+        bool markAsXmlImported = false)
     {
         var deliveryAddress = ResolveDeliveryAddress(sqlOrder);
         var resolvedEmail = ResolvePreferredContact(sqlOrder.LieferEmail, sqlOrder.KundeEmail);
@@ -220,11 +218,12 @@ public class SqlOrderImportService : ISqlOrderImportService
             },
             Email = resolvedEmail,
             Phone = resolvedPhone,
-            Products = BuildProducts(sqlOrder.Produkte, existingOrder?.Products),
+            Products = BuildProducts(sqlOrder.Produkte, existingOrder?.Products, sqlOrder.Lieferzeit),
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
             OrderStatus = Order.DefaultOrderStatus,
             Notes = sqlOrder.Notiz,
-            IsArchived = sqlOrder.Archiviert
+            IsArchived = sqlOrder.Archiviert,
+            IsXmlImported = markAsXmlImported || existingOrder?.IsXmlImported == true
         };
 
         order.OrderStatus = Order.ResolveOrderStatusFromProducts(order.Products);
@@ -232,8 +231,9 @@ public class SqlOrderImportService : ISqlOrderImportService
     }
 
     private static List<OrderProductInfo> BuildProducts(
-        IReadOnlyList<SqlOrderProductData>? sqlProducts,
-        IReadOnlyList<OrderProductInfo>? existingProducts)
+        IReadOnlyList<XmlOrderProductData>? sqlProducts,
+        IReadOnlyList<OrderProductInfo>? existingProducts,
+        string? deliveryTime)
     {
         var existing = existingProducts ?? [];
         var products = new List<OrderProductInfo>();
@@ -251,13 +251,19 @@ public class SqlOrderImportService : ISqlOrderImportService
                 UnitWeightKg = (double)sqlProduct.Gewicht,
                 WeightKg = (double)(sqlProduct.Gewicht * sqlProduct.Menge),
                 Dimensions = previousProduct?.Dimensions ?? string.Empty,
-                DeliveryStatus = previousProduct is null
-                    ? OrderProductInfo.DefaultDeliveryStatus
-                    : OrderProductInfo.NormalizeDeliveryStatus(previousProduct.DeliveryStatus)
+                DeliveryStatus = ResolveImportedProductDeliveryStatus(deliveryTime)
             });
         }
 
         return products;
+    }
+
+    private static string ResolveImportedProductDeliveryStatus(string? deliveryTime)
+    {
+        return (deliveryTime ?? string.Empty).Trim()
+            .StartsWith("ab Lager", StringComparison.OrdinalIgnoreCase)
+                ? OrderProductInfo.InStockStatus
+                : OrderProductInfo.OrderedStatus;
     }
 
     private static void ApplyImportedData(Order existingOrder, Order importedOrder)
@@ -277,6 +283,7 @@ public class SqlOrderImportService : ISqlOrderImportService
         existingOrder.OrderStatus = importedOrder.OrderStatus;
         existingOrder.Notes = importedOrder.Notes;
         existingOrder.IsArchived = importedOrder.IsArchived;
+        existingOrder.IsXmlImported = importedOrder.IsXmlImported;
     }
 
     private static List<string> DescribeDifferences(Order existingOrder, Order importedOrder)
@@ -293,6 +300,7 @@ public class SqlOrderImportService : ISqlOrderImportService
         AddChange(changes, "Telefon", existingOrder.Phone, importedOrder.Phone);
         AddChange(changes, "Notiz", existingOrder.Notes, importedOrder.Notes);
         AddChange(changes, "Archiviert", FormatBool(existingOrder.IsArchived), FormatBool(importedOrder.IsArchived));
+        AddChange(changes, "XML-Import", FormatBool(existingOrder.IsXmlImported), FormatBool(importedOrder.IsXmlImported));
         AddProductChange(changes, existingOrder.Products, importedOrder.Products);
         AddChange(changes, "Status", Order.NormalizeOrderStatus(existingOrder.OrderStatus), Order.NormalizeOrderStatus(importedOrder.OrderStatus));
 
@@ -336,7 +344,7 @@ public class SqlOrderImportService : ISqlOrderImportService
         }
     }
 
-    private (string Name, string ContactPerson, string Street, string HouseNumber, string PostalCode, string City) ResolveDeliveryAddress(SqlOrderImportData sqlOrder)
+    private (string Name, string ContactPerson, string Street, string HouseNumber, string PostalCode, string City) ResolveDeliveryAddress(XmlOrderImportData sqlOrder)
     {
         var hasSeparateDeliveryAddress =
             !string.IsNullOrWhiteSpace(sqlOrder.LieferStrasse) ||
@@ -385,7 +393,7 @@ public class SqlOrderImportService : ISqlOrderImportService
             City: sqlOrder.KundeOrt);
     }
 
-    private string BuildCustomerName(SqlOrderImportData sqlOrder)
+    private string BuildCustomerName(XmlOrderImportData sqlOrder)
     {
         var parts = new List<string>();
 
@@ -407,7 +415,7 @@ public class SqlOrderImportService : ISqlOrderImportService
         return string.Join(" ", parts).Trim();
     }
 
-    private string BuildContactPersonName(SqlOrderImportData sqlOrder)
+    private string BuildContactPersonName(XmlOrderImportData sqlOrder)
     {
         var parts = new List<string>();
 
