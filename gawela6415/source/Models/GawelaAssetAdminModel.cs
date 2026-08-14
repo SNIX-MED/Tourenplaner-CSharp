@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Smartstore.Web.Modelling;
 
 namespace Gawela.ColorConfigurator.Models;
 
