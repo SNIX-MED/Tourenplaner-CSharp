@@ -1,0 +1,207 @@
+(function () {
+    'use strict';
+
+    const MOBILE_QUERY = '(max-width: 767.98px)';
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const norm = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const ralFrom = value => {
+        const match = (value || '').match(/RAL\s*[-:]?\s*(\d{4})/i) || (value || '').match(/\b(\d{4})\b/);
+        return match ? match[1] : null;
+    };
+
+    function isMobile() {
+        return window.matchMedia ? window.matchMedia(MOBILE_QUERY).matches : window.innerWidth < 768;
+    }
+
+    function productId() {
+        const element = document.querySelector('#main-update-container[data-id]');
+        const id = parseInt(element && element.dataset.id, 10);
+        return Number.isFinite(id) && id > 0 ? id : null;
+    }
+
+    function choice(label) {
+        const wanted = norm(label);
+        for (const element of document.querySelectorAll('.pd-variants .choice')) {
+            const actual = norm(element.querySelector('.choice-label')?.textContent);
+            if (actual && (actual === wanted || actual.includes(wanted) || wanted.includes(actual))) {
+                return element;
+            }
+        }
+        return null;
+    }
+
+    function choiceText(element) {
+        if (!element) return '';
+        const select = element.querySelector('select');
+        if (select) {
+            return [select.selectedOptions?.[0]?.textContent, select.value].join(' ');
+        }
+
+        const input = element.querySelector('input[type=radio]:checked,input[type=checkbox]:checked');
+        if (!input) return '';
+        const label = input.id ? element.querySelector('label[for="' + CSS.escape(input.id) + '"]') : null;
+        return [
+            input.getAttribute('aria-label'),
+            input.title,
+            input.value,
+            label?.textContent,
+            label?.getAttribute('title'),
+            label?.querySelector('[title]')?.getAttribute('title')
+        ].join(' ');
+    }
+
+    function selected(layer) {
+        return ralFrom(choiceText(choice(layer.attributeLabel))) || layer.defaultRal;
+    }
+
+    function assetUrl(endpoint, id, kind) {
+        return endpoint + (endpoint.includes('?') ? '&' : '?') +
+            'productId=' + id + '&kind=' + encodeURIComponent(kind) + '&v=' + Date.now();
+    }
+
+    function loadImage(src) {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error('Bild konnte nicht geladen werden: ' + src));
+            image.src = src;
+        });
+    }
+
+    async function json(src) {
+        const response = await fetch(src, { credentials: 'same-origin' });
+        if (!response.ok) throw new Error('Konfiguration nicht verfügbar.');
+        return response.json();
+    }
+
+    async function palette(src) {
+        const data = await json(src);
+        return data.colors || data;
+    }
+
+    function pixels(image, width, height) {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        context.drawImage(image, 0, 0, width, height);
+        return context.getImageData(0, 0, width, height);
+    }
+
+    const luminance = (r, g, b) => .2126 * r + .7152 * g + .0722 * b;
+    const clamp = value => Math.max(0, Math.min(255, Math.round(value)));
+
+    function strength(mask, index) {
+        return ((mask[index] + mask[index + 1] + mask[index + 2]) / 765) * (mask[index + 3] / 255);
+    }
+
+    function averageLuma(base, mask) {
+        let sum = 0;
+        let weight = 0;
+        for (let i = 0; i < base.length; i += 4) {
+            const amount = strength(mask, i);
+            if (amount > .01) {
+                sum += luminance(base[i], base[i + 1], base[i + 2]) * amount;
+                weight += amount;
+            }
+        }
+        return weight ? sum / weight : 180;
+    }
+
+    function tinted(basePixel, rgb, reference) {
+        const factor = Math.max(.35, Math.min(1.65,
+            luminance(basePixel[0], basePixel[1], basePixel[2]) / Math.max(reference, 1)));
+        return [clamp(rgb[0] * factor), clamp(rgb[1] * factor), clamp(rgb[2] * factor)];
+    }
+
+    function draw(state) {
+        const base = state.base.data;
+        const output = new ImageData(new Uint8ClampedArray(base), state.w, state.h);
+        const data = output.data;
+        const labels = [];
+
+        for (const layer of state.layers) {
+            let ral = selected(layer);
+            if (!state.colors[ral]) ral = layer.defaultRal;
+            if (!state.colors[ral]) continue;
+
+            const color = state.colors[ral];
+            const mask = layer.mask.data;
+            labels.push(layer.name + ': RAL ' + ral + (color.name ? ' ' + color.name : ''));
+
+            if (ral === layer.baseRal) continue;
+
+            for (let i = 0; i < base.length; i += 4) {
+                const amount = strength(mask, i);
+                if (amount <= .01) continue;
+                const target = tinted(
+                    [base[i], base[i + 1], base[i + 2]],
+                    color.rgb,
+                    layer.refLuma
+                );
+                data[i] = clamp(data[i] * (1 - amount) + target[0] * amount);
+                data[i + 1] = clamp(data[i + 1] * (1 - amount) + target[1] * amount);
+                data[i + 2] = clamp(data[i + 2] * (1 - amount) + target[2] * amount);
+            }
+        }
+
+        state.ctx.putImageData(output, 0, 0);
+        if (state.info) state.info.textContent = labels.join(' · ');
+        state.currentLabel = labels.join(' · ');
+        updateMobilePreview(state);
+    }
+
+    function gallery() {
+        const root = document.querySelector('#pd-gallery');
+        const $ = window.jQuery;
+        if (!root || !$) return null;
+        const instance = $(root).data('smartGallery');
+        if (!instance || !instance.gallery) return null;
+        const main = root.querySelector('.gal');
+        const nav = root.querySelector('.gal-nav .gal-track');
+        return main && nav ? { root, instance, main, nav } : null;
+    }
+
+    function createSlide(state) {
+        const item = document.createElement('div');
+        item.className = 'gal-item gawela-gallery-slide';
+        item.setAttribute('role', 'listitem');
+
+        const viewport = document.createElement('div');
+        viewport.className = 'gal-item-viewport gawela-gallery-viewport';
+
+        const stage = document.createElement('div');
+        stage.className = 'gawela-color-stage';
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'gawela-color-canvas';
+        canvas.width = state.w;
+        canvas.height = state.h;
+        stage.appendChild(canvas);
+
+        const badge = document.createElement('div');
+        badge.className = 'gawela-config-badge';
+        badge.innerHTML = '<i class="fa fa-palette"></i><span>' + state.thumb + '</span>';
+        stage.appendChild(badge);
+        viewport.appendChild(stage);
+
+        const footer = document.createElement('div');
+        footer.className = 'gawela-color-footer';
+
+        const info = document.createElement('div');
+        info.className = 'gawela-color-meta';
+        footer.appendChild(info);
+
+        const disclaimer = document.createElement('small');
+        disclaimer.className = 'gawela-color-disclaimer';
+        disclaimer.textContent = 'Bildschirmdarstellung unverbindlich. Farbabweichungen sind möglich. Die Abbildung dient der Farb- und Höhenvisualisierung; Breite, Tiefe, Proportionen, Details und die tatsächliche Ausführung können vom dargestellten Bild abweichen.';
+        footer.appendChild(disclaimer);
+        viewport.appendChild(footer);
+        item.appendChild(viewport);
+
+        state.ctx = canvas.getContext('2d', { willReadFrequently: true });
+        state.info = info;
+        return item;
+    }
+
+    function createThumb
