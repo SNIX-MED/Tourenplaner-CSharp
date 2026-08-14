@@ -22,10 +22,15 @@ files = [
 for rel in files:
     src = source / rel
     dst = root / rel
-    if not src.exists():
-        raise SystemExit(f'Missing 6.4.15 source file: {rel}')
     dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dst)
+    if src.exists():
+        shutil.copy2(src, dst)
+        continue
+    part_dir = source / (rel + '.parts')
+    parts = sorted(part_dir.glob('part*.txt')) if part_dir.exists() else []
+    if not parts:
+        raise SystemExit(f'Missing 6.4.15 source file: {rel}')
+    dst.write_text(''.join(x.read_text(encoding='utf-8') for x in parts), encoding='utf-8')
 
 module = root / 'module.json'
 text = module.read_text(encoding='utf-8')
@@ -34,6 +39,7 @@ if '"Version": "6.4.11"' not in text:
 text = text.replace('"Version": "6.4.11"', '"Version": "6.4.15"', 1)
 module.write_text(text, encoding='utf-8')
 
+# Static safety checks so the CI fails before compiling if a key part was lost.
 checks = {
     'Models/GawelaProductConfig.cs': ['BaseMediaFileId', 'MaskMediaFileId', 'public string Name'],
     'Models/GawelaAssetAdminModel.cs': ['UIHint("Media")', 'ConfiguratorName', 'GawelaConfiguratorOverviewModel'],
