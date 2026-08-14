@@ -1,0 +1,203 @@
+(state) {
+        const item = document.createElement('div');
+        item.className = 'gal-item gawela-gallery-thumb';
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'gal-item-viewport gawela-gallery-thumb-button';
+        button.title = state.thumb;
+        button.setAttribute('aria-label', state.thumb);
+        button.setAttribute('role', 'option');
+
+        const image = document.createElement('img');
+        image.className = 'gal-item-content gawela-gallery-thumb-image';
+        image.src = state.baseUrl;
+        image.alt = state.thumb;
+        button.appendChild(image);
+
+        const icon = document.createElement('span');
+        icon.className = 'gawela-gallery-thumb-icon';
+        icon.innerHTML = '<i class="fa fa-palette"></i>';
+        button.appendChild(icon);
+        item.appendChild(button);
+        return item;
+    }
+
+    function install(state) {
+        let currentGallery = gallery();
+        if (!currentGallery) return false;
+
+        const existing = currentGallery.root.querySelector('.gawela-gallery-slide:not(.slick-cloned)');
+        if (existing) {
+            const index = parseInt(existing.getAttribute('data-slick-index'), 10);
+            if (Number.isFinite(index)) state.index = index;
+            return true;
+        }
+
+        const currentIndex = Number.isFinite(currentGallery.instance.currentIndex)
+            ? currentGallery.instance.currentIndex
+            : 0;
+
+        currentGallery.instance.reset();
+
+        const root = document.querySelector('#pd-gallery');
+        const main = root?.querySelector('.gal');
+        const nav = root?.querySelector('.gal-nav .gal-track');
+        if (!main || !nav) return false;
+
+        main.querySelectorAll(':scope > .gawela-gallery-slide').forEach(x => x.remove());
+        nav.querySelectorAll(':scope > .gawela-gallery-thumb').forEach(x => x.remove());
+
+        const count = main.querySelectorAll(':scope > .gal-item').length;
+        main.appendChild(createSlide(state));
+        nav.appendChild(createThumb(state));
+        state.index = count;
+
+        // When a colour change is pending, make the configurator the active
+        // gallery slide on every device. On mobile the document itself is not
+        // scrolled; only the gallery's internal selection changes.
+        const jumpToConfigurator = state.pending;
+        currentGallery.instance.options.startIndex = jumpToConfigurator
+            ? count
+            : Math.min(currentIndex, Math.max(count - 1, 0));
+
+        currentGallery.instance.init();
+        root.querySelector('.gal-nav-cell')?.classList.remove('gal-nav-hidden');
+        draw(state);
+        refreshMobilePreviewObservers(state);
+        return true;
+    }
+
+    function jump(state) {
+        const currentGallery = gallery();
+        if (currentGallery && Number.isFinite(state.index)) {
+            try {
+                currentGallery.instance.goTo(state.index);
+            } catch (error) {
+                console.debug('GAWELA:', error);
+            }
+        }
+    }
+
+    function selectConfiguratorSilently(state) {
+        // Mobile UX 6.4.14: select the configurator slide in the gallery without
+        // moving the customer's document scroll position away from the options.
+        // This means that manual scrolling back to the gallery always reveals
+        // the current configured image instead of the last normal product photo.
+        if (!isMobile()) {
+            jump(state);
+            return;
+        }
+
+        const x = window.scrollX;
+        const y = window.scrollY;
+        jump(state);
+
+        const restore = () => {
+            if (Math.abs(window.scrollX - x) > 1 || Math.abs(window.scrollY - y) > 1) {
+                window.scrollTo({ left: x, top: y, behavior: 'auto' });
+            }
+        };
+        restore();
+        requestAnimationFrame(restore);
+    }
+
+    async function waitForGallery(state, attempts = 60) {
+        for (let i = 0; i < attempts; i++) {
+            if (install(state)) return true;
+            await sleep(50);
+        }
+        return false;
+    }
+
+    function relevant(state, element) {
+        const label = norm(element.querySelector('.choice-label')?.textContent);
+        return state.layers.some(layer => {
+            const wanted = norm(layer.attributeLabel);
+            return label === wanted || label.includes(wanted) || wanted.includes(label);
+        });
+    }
+
+    function unfreeze(state) {
+        if (state.freeze) {
+            state.freeze.remove();
+            state.freeze = null;
+        }
+    }
+
+    function freeze(state) {
+        // The freeze overlay is a desktop-only transition aid. On mobile the
+        // user stays at the variants and sees the dedicated sticky live preview.
+        if (isMobile()) return;
+
+        unfreeze(state);
+        const currentGallery = gallery();
+        if (!currentGallery || !Number.isFinite(state.index) || currentGallery.instance.currentIndex !== state.index) return;
+
+        const source = currentGallery.root.querySelector('.gawela-gallery-slide.slick-current:not(.slick-cloned) .gawela-gallery-viewport') ||
+            currentGallery.root.querySelector('.gawela-gallery-slide:not(.slick-cloned) .gawela-gallery-viewport');
+        if (!source) return;
+
+        const rect = currentGallery.main.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'gawela-color-freeze';
+        overlay.style.left = rect.left + 'px';
+        overlay.style.top = rect.top + 'px';
+        overlay.style.width = rect.width + 'px';
+        overlay.style.height = rect.height + 'px';
+
+        const clone = source.cloneNode(true);
+        const sourceCanvas = source.querySelector('canvas');
+        const destinationCanvas = clone.querySelector('canvas');
+        if (sourceCanvas && destinationCanvas) {
+            const image = document.createElement('img');
+            image.className = 'gawela-color-canvas';
+            try { image.src = sourceCanvas.toDataURL('image/png'); } catch { }
+            destinationCanvas.replaceWith(image);
+        }
+
+        overlay.appendChild(clone);
+        document.body.appendChild(overlay);
+        state.freeze = overlay;
+    }
+
+    function finish(state) {
+        if (isMobile()) selectConfiguratorSilently(state);
+        else jump(state);
+        requestAnimationFrame(() => requestAnimationFrame(() => unfreeze(state)));
+        state.pending = false;
+        updateMobilePreview(state);
+        updateMobilePreviewVisibility(state);
+    }
+
+    // ---------------------------------------------------------------------
+    // Mobile UX (6.4.14)
+    // ---------------------------------------------------------------------
+    function ensureMobilePreview(state) {
+        if (state.mobilePreview?.isConnected) return state.mobilePreview;
+
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'gawela-mobile-preview';
+        card.hidden = true;
+        card.setAttribute('aria-label', 'Aktuelle Farbvorschau öffnen');
+        card.setAttribute('aria-live', 'polite');
+
+        const imageWrap = document.createElement('span');
+        imageWrap.className = 'gawela-mobile-preview-image';
+        const canvas = document.createElement('canvas');
+        const scale = 240 / Math.max(state.w, state.h);
+        canvas.width = Math.max(1, Math.round(state.w * scale));
+        canvas.height = Math.max(1, Math.round(state.h * scale));
+        imageWrap.appendChild(canvas);
+        card.appendChild(imageWrap);
+
+        const text = document.createElement('span');
+        text.className = 'gawela-mobile-preview-copy';
+        const title = document.createElement('strong');
+        title.className = 'gawela-mobile-preview-title';
+        title.textContent = 'Live-Farbvorschau';
+        const meta = document.createElement('span');
+        meta.className
