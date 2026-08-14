@@ -1,0 +1,195 @@
+ = 'gawela-mobile-preview-meta';
+        text.appendChild(title);
+        text.appendChild(meta);
+        card.appendChild(text);
+
+        const icon = document.createElement('span');
+        icon.className = 'gawela-mobile-preview-open';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.innerHTML = '<i class="fa fa-expand-alt"></i>';
+        card.appendChild(icon);
+
+        card.addEventListener('click', async () => {
+            await waitForGallery(state, 20);
+            jump(state);
+            const target = document.querySelector('#pd-gallery-container') || document.querySelector('#pd-gallery');
+            target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+
+        document.body.appendChild(card);
+        state.mobilePreview = card;
+        state.mobilePreviewCanvas = canvas;
+        state.mobilePreviewCtx = canvas.getContext('2d');
+        state.mobilePreviewMeta = meta;
+        return card;
+    }
+
+    function updateMobilePreview(state) {
+        if (!isMobile() && !state.mobilePreview) return;
+        const card = ensureMobilePreview(state);
+        if (!state.mobilePreviewCtx || !state.ctx?.canvas) return;
+
+        const canvas = state.mobilePreviewCanvas;
+        const context = state.mobilePreviewCtx;
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(state.ctx.canvas, 0, 0, canvas.width, canvas.height);
+        state.mobilePreviewMeta.textContent = state.currentLabel || 'Aktuelle Farbauswahl';
+        card.dataset.ready = 'true';
+    }
+
+    function updateMobilePreviewTopOffset(card) {
+        let bottom = 0;
+        for (const element of document.querySelectorAll('header, .header, .navbar, .nav-main, .site-header')) {
+            if (element === card || card.contains(element)) continue;
+            const style = window.getComputedStyle(element);
+            if (style.position !== 'fixed' && style.position !== 'sticky') continue;
+            const rect = element.getBoundingClientRect();
+            if (rect.width < window.innerWidth * .5 || rect.height <= 0 || rect.height > 180) continue;
+            if (rect.top <= 4 && rect.bottom > 0) bottom = Math.max(bottom, rect.bottom);
+        }
+        card.style.top = Math.max(7, Math.round(bottom + 7)) + 'px';
+    }
+
+    function updateMobilePreviewVisibility(state) {
+        const card = state.mobilePreview;
+        if (!card) return;
+
+        if (!isMobile()) {
+            card.hidden = true;
+            return;
+        }
+
+        updateMobilePreviewTopOffset(card);
+        const galleryContainer = document.querySelector('#pd-gallery-container') || document.querySelector('#pd-gallery');
+        const form = document.querySelector('#pd-form') || document.querySelector('#main-update-container');
+        if (!galleryContainer || !form) {
+            card.hidden = true;
+            return;
+        }
+
+        const galleryRect = galleryContainer.getBoundingClientRect();
+        const formRect = form.getBoundingClientRect();
+        const hasPassedGallery = galleryRect.bottom <= 8;
+        const stillInsideProductForm = formRect.bottom > 80;
+        const ready = card.dataset.ready === 'true';
+
+        card.hidden = !(ready && hasPassedGallery && stillInsideProductForm);
+    }
+
+    function refreshMobilePreviewObservers(state) {
+        ensureMobilePreview(state);
+
+        if (state.mobileObserver) state.mobileObserver.disconnect();
+        const targets = [
+            document.querySelector('#pd-gallery-container') || document.querySelector('#pd-gallery'),
+            document.querySelector('#pd-form') || document.querySelector('#main-update-container')
+        ].filter(Boolean);
+
+        if ('IntersectionObserver' in window && targets.length) {
+            state.mobileObserver = new IntersectionObserver(() => {
+                updateMobilePreviewVisibility(state);
+            }, { threshold: [0, .01, .25, 1] });
+            targets.forEach(target => state.mobileObserver.observe(target));
+        }
+
+        if (!state.mobileScrollBound) {
+            let scheduled = false;
+            const refresh = () => {
+                if (scheduled) return;
+                scheduled = true;
+                requestAnimationFrame(() => {
+                    scheduled = false;
+                    updateMobilePreviewVisibility(state);
+                });
+            };
+            window.addEventListener('scroll', refresh, { passive: true });
+            window.addEventListener('resize', refresh, { passive: true });
+            if (window.matchMedia) {
+                const media = window.matchMedia(MOBILE_QUERY);
+                if (media.addEventListener) media.addEventListener('change', refresh);
+                else if (media.addListener) media.addListener(refresh);
+            }
+            state.mobileScrollBound = true;
+        }
+
+        updateMobilePreview(state);
+        updateMobilePreviewVisibility(state);
+    }
+
+    function bind(state) {
+        document.addEventListener('change', event => {
+            const element = event.target.closest?.('.pd-variants .choice');
+            if (!element || !relevant(state, element)) return;
+
+            state.pending = true;
+
+            if (isMobile()) {
+                // Mobile: stay exactly where the customer is configuring, but
+                // silently activate the configurator slide in the gallery. The
+                // sticky mini preview remains the immediate visual feedback.
+                draw(state);
+                selectConfiguratorSilently(state);
+                updateMobilePreviewVisibility(state);
+                setTimeout(() => {
+                    install(state);
+                    draw(state);
+                    selectConfiguratorSilently(state);
+                    updateMobilePreviewVisibility(state);
+                }, 250);
+                setTimeout(async () => {
+                    if (!state.pending) return;
+                    await waitForGallery(state, 30);
+                    draw(state);
+                    finish(state);
+                }, 3000);
+                return;
+            }
+
+            // Desktop behaviour remains unchanged.
+            jump(state);
+            draw(state);
+            requestAnimationFrame(() => freeze(state));
+            setTimeout(() => {
+                install(state);
+                draw(state);
+                jump(state);
+            }, 250);
+            setTimeout(async () => {
+                if (!state.pending) return;
+                await waitForGallery(state, 30);
+                draw(state);
+                finish(state);
+            }, 3000);
+        }, true);
+
+        if (window.jQuery) {
+            window.jQuery('#main-update-container')
+                .off('updated.gawela6414')
+                .on('updated.gawela6414', async () => {
+                    await waitForGallery(state, 30);
+                    draw(state);
+                    if (state.pending && isMobile()) selectConfiguratorSilently(state);
+                    refreshMobilePreviewObservers(state);
+                    if (state.pending) finish(state);
+                });
+        }
+    }
+
+    function pick(object, name) {
+        if (!object) return undefined;
+        const pascal = name.charAt(0).toUpperCase() + name.slice(1);
+        return object[name] !== undefined ? object[name] : object[pascal];
+    }
+
+    function normalizeConfig(raw) {
+        const layers = (pick(raw, 'layers') || []).map(layer => ({
+            key: pick(layer, 'key'),
+            name: pick(layer, 'name') || 'Ebene',
+            productVariantAttributeId: pick(layer, 'productVariantAttributeId'),
+            attributeLabel: pick(layer, 'attributeLabel') || '',
+            assetKind: pick(layer, 'assetKind') || '',
+            baseRal: String(pick(layer, 'baseRal') || '7035'),
+            defaultRal: String(pick(layer, 'defaultRal') || '7035')
+        }));
+        return {
+            thumbnailLabel: pick(raw, 'thumbnailLabel') || 'Farbe konfigurieren',
