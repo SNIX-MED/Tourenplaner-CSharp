@@ -1,0 +1,120 @@
+@model GawelaAssetAdminModel
+@{ Layout = "_ConfigureModule"; var colorsTab = Model.ActiveTab == "colors"; }
+
+@if (TempData["GawelaColor.Success"] is string success){<div class="alert alert-success">@success</div>}
+@if (TempData["GawelaColor.Error"] is string error){<div class="alert alert-danger">@error</div>}
+
+<ul class="nav nav-tabs mb-4">
+  <li class="nav-item"><a class="nav-link @(!colorsTab ? "active" : "")" asp-action="Configure" asp-route-tab="products"><i class="fa fa-palette mr-1"></i> Farbkonfiguratoren</a></li>
+  <li class="nav-item"><a class="nav-link @(colorsTab ? "active" : "")" asp-action="Configure" asp-route-tab="colors"><i class="fa fa-swatchbook mr-1"></i> Farben / RAL</a></li>
+</ul>
+
+@if(colorsTab)
+{
+  <div class="alert alert-info">
+    <strong>Zentrale RAL-Farbtabelle:</strong> Die RAL-Nummer und Bezeichnung bilden die feste Basis. Sie können die Bildschirmwerte über HEX oder RGB anpassen. Gespeicherte Änderungen gelten für alle Farbkonfiguratoren.
+  </div>
+  <form asp-action="SavePalette" method="post" id="gawela-palette-form">
+    <div asp-validation-summary="All" class="text-danger mb-3"></div>
+    <div class="table-responsive">
+      <table class="table table-striped table-hover align-middle">
+        <thead><tr><th style="width:80px">Farbe</th><th style="width:105px">RAL</th><th>Bezeichnung</th><th style="width:150px">HEX</th><th style="width:105px">R</th><th style="width:105px">G</th><th style="width:105px">B</th></tr></thead>
+        <tbody>
+        @for(var i=0;i<Model.Palette.Colors.Count;i++)
+        {
+          var c = Model.Palette.Colors[i];
+          <tr class="gawela-ral-row">
+            <td><span class="gawela-ral-swatch" style="display:inline-block;width:42px;height:30px;border:1px solid rgba(0,0,0,.2);border-radius:4px;background:@c.Hex"></span></td>
+            <td><strong>RAL @c.Ral</strong><input type="hidden" name="Palette.Colors[@i].Ral" value="@c.Ral"/></td>
+            <td>@c.Name<input type="hidden" name="Palette.Colors[@i].Name" value="@c.Name"/></td>
+            <td><input class="form-control gawela-hex" name="Palette.Colors[@i].Hex" value="@c.Hex" maxlength="7" pattern="#?[0-9A-Fa-f]{6}" autocomplete="off"/></td>
+            <td><input class="form-control gawela-rgb gawela-r" type="number" name="Palette.Colors[@i].R" value="@c.R" min="0" max="255"/></td>
+            <td><input class="form-control gawela-rgb gawela-g" type="number" name="Palette.Colors[@i].G" value="@c.G" min="0" max="255"/></td>
+            <td><input class="form-control gawela-rgb gawela-b" type="number" name="Palette.Colors[@i].B" value="@c.B" min="0" max="255"/></td>
+          </tr>
+        }
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <button type="submit" class="btn btn-warning"><i class="fa fa-save"></i> RAL-Farbwerte speichern</button>
+    </div>
+  </form>
+  <form asp-action="ResetPalette" method="post" class="mt-3" onsubmit="return confirm('Alle angepassten RGB/HEX-Werte auf die mitgelieferten Standardwerte zurücksetzen?');">
+    <button type="submit" class="btn btn-outline-secondary"><i class="fa fa-undo"></i> Standardwerte wiederherstellen</button>
+  </form>
+  <p class="text-muted mt-3 mb-0"><small>Hinweis: RGB- und HEX-Werte sind Bildschirmwerte und keine verbindliche Farbreferenz. Für die endgültige Farbwirkung bleiben physische RAL-Muster bzw. die von GAWELA festgelegte Referenz massgebend.</small></p>
+
+  <script>
+  (function(){
+    function clamp(v){v=parseInt(v,10);return isNaN(v)?0:Math.max(0,Math.min(255,v));}
+    function toHex(v){return clamp(v).toString(16).padStart(2,'0').toUpperCase();}
+    function rgbHex(r,g,b){return '#'+toHex(r)+toHex(g)+toHex(b);}
+    function parseHex(v){v=(v||'').trim().replace(/^#/,'');if(!/^[0-9a-fA-F]{6}$/.test(v))return null;return[parseInt(v.slice(0,2),16),parseInt(v.slice(2,4),16),parseInt(v.slice(4,6),16)];}
+    document.querySelectorAll('.gawela-ral-row').forEach(function(row){
+      const hex=row.querySelector('.gawela-hex'), r=row.querySelector('.gawela-r'), g=row.querySelector('.gawela-g'), b=row.querySelector('.gawela-b'), sw=row.querySelector('.gawela-ral-swatch');
+      function paint(){const h=rgbHex(r.value,g.value,b.value);hex.value=h;if(sw)sw.style.backgroundColor=h;}
+      [r,g,b].forEach(function(el){el.addEventListener('input',paint);el.addEventListener('change',paint);});
+      hex.addEventListener('input',function(){const x=parseHex(hex.value);if(!x)return;r.value=x[0];g.value=x[1];b.value=x[2];if(sw)sw.style.backgroundColor=rgbHex(x[0],x[1],x[2]);});
+      hex.addEventListener('blur',function(){const x=parseHex(hex.value);if(x){hex.value=rgbHex(x[0],x[1],x[2]);}});
+    });
+  })();
+  </script>
+}
+else if(!Model.IsEditor)
+{
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
+    <div>
+      <h2 class="h4 mb-1">Farbkonfiguratoren</h2>
+      <p class="text-muted mb-0">Jeder Konfigurator besitzt einen eigenen Namen, einen Basis-Artikel, gemeinsame Visualisierungsebenen und optional weitere zugeordnete Artikel.</p>
+    </div>
+    <a asp-action="Configure" asp-route-tab="products" asp-route-add="true" class="btn btn-primary btn-flat">
+      <i class="fa fa-plus"></i> Hinzufügen
+    </a>
+  </div>
+
+  <div class="alert alert-info">
+    <strong>Neue Verwaltung ab 6.4.15:</strong> Ein Farbkonfigurator wird als eigene Einheit verwaltet. Basis-Artikel und weitere Artikel werden über den Smartstore-Produktkatalog gewählt; Basisbild und Masken über den Smartstore-Medienkatalog.
+  </div>
+
+  @if(Model.Configurators.Count==0)
+  {
+    <div class="card"><div class="card-body text-center py-5">
+      <i class="fa fa-palette fa-3x text-muted mb-3"></i>
+      <h3 class="h5">Noch kein Farbkonfigurator vorhanden</h3>
+      <p class="text-muted">Legen Sie den ersten Konfigurator über <strong>Hinzufügen</strong> an.</p>
+      <a asp-action="Configure" asp-route-tab="products" asp-route-add="true" class="btn btn-primary"><i class="fa fa-plus"></i> Farbkonfigurator hinzufügen</a>
+    </div></div>
+  }
+  else
+  {
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Konfigurator</th>
+              <th>Basis-Artikel</th>
+              <th class="text-center">Artikel</th>
+              <th class="text-center">Ebenen</th>
+              <th>Bildquelle</th>
+              <th>Status</th>
+              <th class="text-right"></th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach(var item in Model.Configurators)
+          {
+            <tr>
+              <td>
+                <strong>@item.Name</strong>
+                @if(item.IsLegacy){<div><span class="badge badge-secondary mt-1">Altbestand – beim Speichern wird die neue Struktur übernommen</span></div>}
+              </td>
+              <td><strong>@item.MasterSku</strong><div class="text-muted small">@item.MasterProductName · ID @item.MasterProductId</div></td>
+              <td class="text-center"><span class="badge badge-light">@item.ProductCount</span></td>
+              <td class="text-center"><span class="badge badge-light">@item.LayerCount</span></td>
+              <td>@if(item.UsesSmartstoreMedia){<span class="badge badge-info">Smartstore Medien</span>}else{<span class="badge badge-light">lokaler Altbestand</span>}</td>
+              <td>@if(item.IsComplete){<span class="badge badge-success">bereit</span>}else{<span class="badge badge-warning">unvollständig</span>}</td>
+              <td class="text-right text-nowrap">
+                <a asp-action="Configure" asp-route-tab="products" asp-route-configuratorId="@item.MasterProductId" class="btn btn-sm btn-primary"><i class="fa fa-pen"></i> Bearbeiten</a>
+                <form asp-action="DeleteConfigurator" method="post" class="d-inline" onsubmit="return confirm('Farbkonfigurator „@item.Name“ wirklich löschen? Dateien im Smartstore-Medienkatalog werden n
