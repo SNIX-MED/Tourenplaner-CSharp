@@ -1,0 +1,175 @@
+.R, x.G, x.B));
+        await _paletteStore.SaveAsync(entries);
+        TempData["GawelaColor.Success"] = "RAL-Farbwerte wurden gespeichert. Die Änderungen gelten zentral für alle Farbkonfiguratoren.";
+        return RedirectToAction(nameof(Configure), new { tab = "colors" });
+    }
+
+    [HttpPost]
+    public IActionResult ResetPalette()
+    {
+        _paletteStore.Reset();
+        TempData["GawelaColor.Success"] = "RAL-Farbwerte wurden auf die mitgelieferten Standardwerte zurückgesetzt.";
+        return RedirectToAction(nameof(Configure), new { tab = "colors" });
+    }
+
+    private async Task<GawelaAssetAdminModel> BuildOverviewAsync()
+    {
+        var model = new GawelaAssetAdminModel { ActiveTab = "products" };
+        var groups = _groupStore.Load().ToList();
+        var allGroupMemberIds = groups.SelectMany(x => x.ProductIds ?? new List<int>()).ToHashSet();
+        var configuredIds = _assetStore.GetConfiguredProductIds().Distinct().ToHashSet();
+
+        var masterIds = groups.Select(x => x.MasterProductId)
+            .Concat(configuredIds.Where(x => !allGroupMemberIds.Contains(x)))
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray();
+
+        var productRows = masterIds.Length == 0
+            ? new List<ProductLookupResult>()
+            : await _db.Products.AsNoTracking()
+                .Where(x => masterIds.Contains(x.Id))
+                .Select(x => new ProductLookupResult { Id = x.Id, Sku = x.Sku, Name = x.Name })
+                .ToListAsync();
+        var productMap = productRows.ToDictionary(x => x.Id);
+
+        foreach (var masterId in masterIds)
+        {
+            var group = groups.FirstOrDefault(x => x.MasterProductId == masterId);
+            var config = _assetStore.LoadEffectiveConfig(masterId);
+            productMap.TryGetValue(masterId, out var product);
+
+            var displayName = FirstValue(config?.Name, group?.Name, !string.IsNullOrWhiteSpace(product?.Sku) ? $"Farbkonfigurator – {product.Sku}" : $"Farbkonfigurator {masterId}");
+            model.Configurators.Add(new GawelaConfiguratorOverviewModel
+            {
+                Name = displayName,
+                MasterProductId = masterId,
+                MasterSku = product?.Sku ?? "(Produkt fehlt)",
+                MasterProductName = product?.Name ?? string.Empty,
+                ProductCount = Math.Max(1, group?.ProductIds?.Distinct().Count() ?? 1),
+                LayerCount = config?.Layers?.Count ?? 0,
+                HasBaseImage = _assetStore.HasBaseReference(masterId, config),
+                UsesSmartstoreMedia = config?.BaseMediaFileId.GetValueOrDefault() > 0 || (config?.Layers?.Any(x => x.MaskMediaFileId.GetValueOrDefault() > 0) ?? false),
+                IsComplete = _assetStore.IsComplete(masterId),
+                IsLegacy = _assetStore.LoadConfig(masterId) == null || string.IsNullOrWhiteSpace(_assetStore.LoadConfig(masterId)?.Name)
+            });
+        }
+
+        model.Configurators = model.Configurators
+            .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(x => x.MasterSku, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        return model;
+    }
+
+    private async Task<GawelaAssetAdminModel> BuildNewEditorAsync(int productId, string name)
+    {
+        var product = await FindProductByIdAsync(productId);
+        if (product == null) return new GawelaAssetAdminModel { ActiveTab = "products" };
+
+        var attrs = await GetAttributesAsync(product.Id);
+        var layers = attrs
+            .Where(x => LooksLikeColorAttribute(x.Name))
+            .Take(MaxLayers)
+            .Select(x => new GawelaLayerAdminModel
+            {
+                IsActive = true,
+                Key = null,
+                Name = FriendlyLayerName(x.Name),
+                ProductVariantAttributeId = x.Id,
+                BaseRal = "7035",
+                DefaultRal = "7035"
+            })
+            .ToList();
+        EnsureLayerSlots(layers);
+
+        return new GawelaAssetAdminModel
+        {
+            ActiveTab = "products",
+            IsEditor = true,
+            IsNew = true,
+            ProductId = product.Id,
+            ProductSku = product.Sku,
+            ProductName = product.Name,
+            ConfiguratorName = string.IsNullOrWhiteSpace(name) ? SuggestedConfiguratorName(product) : name.Trim(),
+            ThumbnailLabel = "Farbe konfigurieren",
+            AvailableAttributes = attrs,
+            Layers = layers,
+            HasExistingBaseImage = false,
+            HasLocalBaseImage = false
+        };
+    }
+
+    private async Task<GawelaAssetAdminModel> BuildExistingEditorAsync(int requestedId)
+    {
+        var membership = _groupStore.FindByProduct(requestedId);
+        var masterId = membership?.MasterProductId ?? requestedId;
+        var product = await FindProductByIdAsync(masterId);
+        var config = _assetStore.LoadEffectiveConfig(masterId);
+        if (product == null || config == null)
+            return new GawelaAssetAdminModel { ActiveTab = "products" };
+
+        var group = _groupStore.FindByMaster(masterId);
+        var attrs = await GetAttributesAsync(masterId);
+        var layers = new List<GawelaLayerAdminModel>();
+
+        foreach (var sourceLayer in config.Layers.Take(MaxLayers))
+        {
+            var match = sourceLayer.ProductVariantAttributeId > 0
+                ? attrs.FirstOrDefault(x => x.Id == sourceLayer.ProductVariantAttributeId)
+                : null;
+            match ??= attrs.FirstOrDefault(x => NamesMatch(x.Name, sourceLayer.AttributeLabel));
+            if (match == null) continue;
+
+            layers.Add(new GawelaLayerAdminModel
+            {
+                IsActive = true,
+                Key = sourceLayer.Key,
+                Name = sourceLayer.Name,
+                ProductVariantAttributeId = match.Id,
+                BaseRal = NormalizeRal(sourceLayer.BaseRal, "7035"),
+                DefaultRal = NormalizeRal(sourceLayer.DefaultRal, NormalizeRal(sourceLayer.BaseRal, "7035")),
+                MaskMediaFileId = sourceLayer.MaskMediaFileId,
+                HasExistingMask = _assetStore.HasLayerMaskReference(masterId, sourceLayer),
+                HasLocalMask = _assetStore.Exists(masterId, sourceLayer.AssetKind)
+            });
+        }
+        EnsureLayerSlots(layers);
+
+        var additionalIds = (group?.ProductIds ?? new List<int> { masterId })
+            .Where(x => x != masterId)
+            .Distinct()
+            .ToList();
+
+        return new GawelaAssetAdminModel
+        {
+            ActiveTab = "products",
+            IsEditor = true,
+            IsNew = false,
+            OriginalMasterProductId = masterId,
+            ProductId = masterId,
+            ProductSku = product.Sku,
+            ProductName = product.Name,
+            ConfiguratorName = FirstValue(config.Name, group?.Name, SuggestedConfiguratorName(product)),
+            ThumbnailLabel = string.IsNullOrWhiteSpace(config.ThumbnailLabel) ? "Farbe konfigurieren" : config.ThumbnailLabel,
+            BaseMediaFileId = config.BaseMediaFileId,
+            HasExistingBaseImage = _assetStore.HasBaseReference(masterId, config),
+            HasLocalBaseImage = _assetStore.Exists(masterId, "base"),
+            AdditionalProductIds = string.Join(',', additionalIds),
+            AdditionalProductIdStrings = additionalIds.Select(x => x.ToString()).ToArray(),
+            AssignedProducts = await LoadAssignedProductsAsync(additionalIds),
+            AvailableAttributes = attrs,
+            Layers = layers
+        };
+    }
+
+    private async Task<GawelaAssetAdminModel> RebuildPostedEditorAsync(GawelaAssetAdminModel model)
+    {
+        var product = await FindProductByIdAsync(model.ProductId);
+        if (product != null)
+        {
+            model.ProductSku = product.Sku;
+            model.ProductName = product.Name;
+            model.AvailableAttributes = await GetAttributesAsync(product.Id);
+            var config = _assetStore.LoadEffectiveConfig(prod
