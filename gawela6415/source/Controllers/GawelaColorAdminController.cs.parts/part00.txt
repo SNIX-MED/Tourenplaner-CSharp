@@ -1,0 +1,183 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Smartstore.Core.Content.Media;
+using Smartstore.Core.Data;
+using Smartstore.Web.Controllers;
+using Gawela.ColorConfigurator.Models;
+using Gawela.ColorConfigurator.Services;
+
+namespace Gawela.ColorConfigurator.Controllers;
+
+public class GawelaColorAdminController : AdminController
+{
+    private const int MaxLayers = 8;
+
+    private readonly SmartDbContext _db;
+    private readonly IMediaService _mediaService;
+    private readonly GawelaAssetStore _assetStore;
+    private readonly GawelaPaletteStore _paletteStore;
+    private readonly GawelaProductGroupStore _groupStore;
+
+    public GawelaColorAdminController(
+        SmartDbContext db,
+        IMediaService mediaService,
+        GawelaAssetStore assetStore,
+        GawelaPaletteStore paletteStore,
+        GawelaProductGroupStore groupStore)
+    {
+        _db = db;
+        _mediaService = mediaService;
+        _assetStore = assetStore;
+        _paletteStore = paletteStore;
+        _groupStore = groupStore;
+    }
+
+    public async Task<IActionResult> Configure(
+        string tab = "products",
+        int? configuratorId = null,
+        bool add = false,
+        int? productId = null,
+        string configuratorName = null)
+    {
+        var normalizedTab = NormalizeTab(tab);
+        if (normalizedTab == "colors")
+        {
+            var paletteModel = new GawelaAssetAdminModel
+            {
+                ActiveTab = "colors",
+                Palette = BuildPaletteAdminModel()
+            };
+            return View(paletteModel);
+        }
+
+        // Compatibility for older admin links that used ?productId=...
+        if (!add && !configuratorId.HasValue && productId.GetValueOrDefault() > 0)
+        {
+            var membership = _groupStore.FindByProduct(productId.Value);
+            configuratorId = membership?.MasterProductId ?? productId.Value;
+        }
+
+        GawelaAssetAdminModel model;
+        if (add)
+        {
+            if (productId.GetValueOrDefault() > 0)
+            {
+                var existingGroup = _groupStore.FindByProduct(productId.Value);
+                var existingConfig = _assetStore.LoadEffectiveConfig(productId.Value);
+                if (existingGroup != null || existingConfig != null)
+                {
+                    var ownerId = existingGroup?.MasterProductId ?? productId.Value;
+                    TempData["GawelaColor.Error"] = "Der gewählte Basis-Artikel gehört bereits zu einem Farbkonfigurator. Der bestehende Konfigurator wurde geöffnet.";
+                    return RedirectToAction(nameof(Configure), new { configuratorId = ownerId, tab = "products" });
+                }
+
+                model = await BuildNewEditorAsync(productId.Value, configuratorName);
+            }
+            else
+            {
+                model = new GawelaAssetAdminModel
+                {
+                    ActiveTab = "products",
+                    IsEditor = true,
+                    IsNew = true,
+                    ConfiguratorName = configuratorName
+                };
+            }
+        }
+        else if (configuratorId.GetValueOrDefault() > 0)
+        {
+            model = await BuildExistingEditorAsync(configuratorId.Value);
+            if (!model.IsEditor)
+            {
+                TempData["GawelaColor.Error"] = "Der gewünschte Farbkonfigurator wurde nicht gefunden.";
+                return RedirectToAction(nameof(Configure), new { tab = "products" });
+            }
+        }
+        else
+        {
+            model = await BuildOverviewAsync();
+        }
+
+        model.ActiveTab = "products";
+        model.Palette = BuildPaletteAdminModel();
+        return View(model);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SaveConfigurator(GawelaAssetAdminModel model)
+    {
+        model.ActiveTab = "products";
+        model.IsEditor = true;
+
+        var master = await FindProductByIdAsync(model.ProductId);
+        if (master == null)
+        {
+            ModelState.AddModelError(nameof(model.ProductId), "Der Basis-Artikel wurde nicht gefunden.");
+            return View("Configure", await RebuildPostedEditorAsync(model));
+        }
+
+        if (model.OriginalMasterProductId > 0 && model.OriginalMasterProductId != master.Id)
+        {
+            ModelState.AddModelError(nameof(model.ProductId), "Der Basis-Artikel eines bestehenden Farbkonfigurators kann nicht geändert werden. Legen Sie dafür bitte einen neuen Konfigurator an.");
+        }
+
+        model.ConfiguratorName = (model.ConfiguratorName ?? string.Empty).Trim();
+        if (model.ConfiguratorName.Length == 0)
+            ModelState.AddModelError(nameof(model.ConfiguratorName), "Bitte einen eindeutigen Namen für den Farbkonfigurator eingeben.");
+        else if (model.ConfiguratorName.Length > 160)
+            ModelState.AddModelError(nameof(model.ConfiguratorName), "Der Name darf maximal 160 Zeichen lang sein.");
+
+        model.ThumbnailLabel = string.IsNullOrWhiteSpace(model.ThumbnailLabel) ? "Farbe konfigurieren" : model.ThumbnailLabel.Trim();
+        var attrs = await GetAttributesAsync(master.Id);
+        model.AvailableAttributes = attrs;
+
+        var existingConfig = _assetStore.LoadConfig(master.Id) ?? _assetStore.LoadEffectiveConfig(master.Id);
+        var currentGroup = _groupStore.FindByMaster(master.Id);
+        var currentMemberIds = (currentGroup?.ProductIds ?? new List<int> { master.Id }).ToHashSet();
+
+        MediaFileInfo baseMedia = null;
+        if (model.BaseMediaFileId.GetValueOrDefault() > 0)
+        {
+            baseMedia = await ValidateMediaAsync(model.BaseMediaFileId, ".webp", nameof(model.BaseMediaFileId), "Basisbild");
+        }
+        else if (!_assetStore.Exists(master.Id, "base"))
+        {
+            ModelState.AddModelError(nameof(model.BaseMediaFileId), "Bitte ein WebP-Basisbild aus dem Smartstore-Medienkatalog auswählen oder hochladen.");
+        }
+
+        var submittedLayers = (model.Layers ?? new List<GawelaLayerAdminModel>())
+            .Where(x => x.IsActive && x.ProductVariantAttributeId > 0)
+            .Take(MaxLayers + 1)
+            .ToList();
+
+        if (submittedLayers.Count == 0)
+            ModelState.AddModelError(nameof(model.Layers), "Mindestens eine Visualisierungsebene ist erforderlich.");
+        if (submittedLayers.Count > MaxLayers)
+            ModelState.AddModelError(nameof(model.Layers), $"Maximal {MaxLayers} Visualisierungsebenen sind zulässig.");
+
+        var allowedRals = _paletteStore.Load().Select(x => x.Ral).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var usedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var configLayers = new List<GawelaLayerConfig>();
+
+        foreach (var layer in submittedLayers.Take(MaxLayers))
+        {
+            var attr = attrs.FirstOrDefault(x => x.Id == layer.ProductVariantAttributeId);
+            if (attr == null)
+            {
+                ModelState.AddModelError(nameof(model.Layers), "Eine ausgewählte Visualisierungsebene verweist auf ein Attribut, das nicht zum Basis-Artikel gehört.");
+                continue;
+            }
+
+            layer.Key = CreateLayerKey(layer.Key, attr.Id, usedKeys);
+            layer.Name = string.IsNullOrWhiteSpace(layer.Name) ? attr.Name : layer.Name.Trim();
+            layer.BaseRal = NormalizeRal(layer.BaseRal, "7035");
+            layer.DefaultRal = NormalizeRal(layer.DefaultRal, layer.BaseRal);
+
+            if (!allowedRals.Contains(layer.BaseRal))
+                ModelState.AddModelError(nameof(model.Layers), $"Basis-RAL {layer.BaseRal} ist in der zentralen RAL-Liste nicht vorhanden.");
+            if (!allowedRals.Contains(layer.DefaultRal))
+                ModelState.AddModelError(nameof(model.Layers), $"Fallback-RAL {layer.DefaultRal} ist in der zentralen RAL-Liste nicht vorhanden.");
+
+            var assetKind = "layer-" + layer.Key;
+            MediaFileInfo maskMedia = null;
+            if (layer.MaskMediaFileId.GetValueOrDefault() > 0)
