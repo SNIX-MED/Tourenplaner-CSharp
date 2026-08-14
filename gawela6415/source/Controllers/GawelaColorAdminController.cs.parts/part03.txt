@@ -1,0 +1,171 @@
+uct.Id);
+            model.HasExistingBaseImage = _assetStore.HasBaseReference(product.Id, config);
+            model.HasLocalBaseImage = _assetStore.Exists(product.Id, "base");
+
+            foreach (var layer in model.Layers ?? new List<GawelaLayerAdminModel>())
+            {
+                if (!layer.IsActive || layer.ProductVariantAttributeId <= 0) continue;
+                var kind = "layer-" + GawelaAssetStore.NormalizeKey(layer.Key);
+                layer.HasLocalMask = _assetStore.Exists(product.Id, kind);
+                layer.HasExistingMask = layer.MaskMediaFileId.GetValueOrDefault() > 0 || layer.HasLocalMask;
+            }
+        }
+
+        model.Layers ??= new List<GawelaLayerAdminModel>();
+        model.AdditionalProductIdStrings = ParseProductIds(model.AdditionalProductIds).Select(x => x.ToString()).ToArray();
+        model.AssignedProducts = await LoadAssignedProductsAsync(ParseProductIds(model.AdditionalProductIds).ToList());
+        model.Palette = BuildPaletteAdminModel();
+        EnsureLayerSlots(model.Layers);
+        return model;
+    }
+
+    private async Task<List<GawelaAssignedProductAdminModel>> LoadAssignedProductsAsync(IReadOnlyCollection<int> ids)
+    {
+        if (ids == null || ids.Count == 0) return new List<GawelaAssignedProductAdminModel>();
+        var rows = await _db.Products.AsNoTracking()
+            .Where(x => ids.Contains(x.Id))
+            .Select(x => new GawelaAssignedProductAdminModel { ProductId = x.Id, Sku = x.Sku, ProductName = x.Name })
+            .ToListAsync();
+        var order = ids.Select((id, index) => new { id, index }).ToDictionary(x => x.id, x => x.index);
+        return rows.OrderBy(x => order.TryGetValue(x.ProductId, out var i) ? i : int.MaxValue).ToList();
+    }
+
+    private async Task<MediaFileInfo> ValidateMediaAsync(int? mediaFileId, string requiredExtension, string fieldName, string label)
+    {
+        if (mediaFileId.GetValueOrDefault() <= 0) return null;
+        var file = await _mediaService.GetFileByIdAsync(mediaFileId.Value);
+        if (file == null)
+        {
+            ModelState.AddModelError(fieldName, $"{label}: Die ausgewählte Datei wurde im Smartstore-Medienkatalog nicht gefunden.");
+            return null;
+        }
+
+        if (!string.Equals(file.Extension, requiredExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            ModelState.AddModelError(fieldName, $"{label}: Erforderlich ist eine {requiredExtension.ToUpperInvariant()}-Datei. Ausgewählt wurde „{file.Name}“.");
+            return null;
+        }
+
+        return file;
+    }
+
+    private GawelaPaletteAdminModel BuildPaletteAdminModel()
+    {
+        var model = new GawelaPaletteAdminModel();
+        foreach (var c in _paletteStore.Load())
+        {
+            model.Colors.Add(new GawelaRalColorAdminModel
+            {
+                Ral = c.Ral,
+                Name = c.Name,
+                Hex = c.Hex,
+                R = c.R,
+                G = c.G,
+                B = c.B
+            });
+        }
+        return model;
+    }
+
+    private async Task<List<GawelaAttributeOptionModel>> GetAttributesAsync(int productId)
+    {
+        var rows = await _db.ProductVariantAttributes.AsNoTracking().Include(x => x.ProductAttribute)
+            .Where(x => x.ProductId == productId)
+            .OrderBy(x => x.DisplayOrder)
+            .ToListAsync();
+
+        return rows.Select(x => new GawelaAttributeOptionModel
+        {
+            Id = x.Id,
+            Name = (!string.IsNullOrWhiteSpace(x.TextPrompt) ? x.TextPrompt : x.ProductAttribute?.Name) ?? ($"Attribut {x.Id}")
+        }).ToList();
+    }
+
+    private async Task<ProductLookupResult> FindProductByIdAsync(int productId)
+    {
+        if (productId <= 0) return null;
+        return await _db.Products.AsNoTracking()
+            .Where(x => x.Id == productId)
+            .Select(x => new ProductLookupResult { Id = x.Id, Sku = x.Sku, Name = x.Name })
+            .FirstOrDefaultAsync();
+    }
+
+    private static void EnsureLayerSlots(List<GawelaLayerAdminModel> layers)
+    {
+        layers ??= new List<GawelaLayerAdminModel>();
+        while (layers.Count < MaxLayers)
+            layers.Add(new GawelaLayerAdminModel { IsActive = false, BaseRal = "7035", DefaultRal = "7035" });
+        if (layers.Count > MaxLayers) layers.RemoveRange(MaxLayers, layers.Count - MaxLayers);
+    }
+
+    private static IEnumerable<int> ParseProductIds(string value)
+    {
+        return (value ?? string.Empty)
+            .Split(new[] { ',', ';', '\r', '\n', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => int.TryParse(x, out var id) ? id : 0)
+            .Where(x => x > 0);
+    }
+
+    private static string NormalizeTab(string value)
+        => value?.Equals("colors", StringComparison.OrdinalIgnoreCase) == true ? "colors" : "products";
+
+    private static string NormalizeRal(string value, string fallback)
+    {
+        var s = (value ?? string.Empty).Trim();
+        if (s.StartsWith("RAL ", StringComparison.OrdinalIgnoreCase)) s = s[4..].Trim();
+        return s.Length == 4 && s.All(char.IsDigit) ? s : fallback;
+    }
+
+    private static string CreateLayerKey(string current, int attributeId, HashSet<string> used)
+    {
+        var baseKey = string.IsNullOrWhiteSpace(current) ? "a" + attributeId : GawelaAssetStore.NormalizeKey(current);
+        if (string.IsNullOrWhiteSpace(baseKey) || baseKey == "layer") baseKey = "a" + attributeId;
+        var key = baseKey;
+        var suffix = 2;
+        while (!used.Add(key)) key = baseKey + "-" + suffix++;
+        return key;
+    }
+
+    private static bool LooksLikeColorAttribute(string name)
+    {
+        var n = (name ?? string.Empty).Trim().ToLowerInvariant();
+        return n.Contains("farbe") || n.Contains("farb") || n.Contains(" ral") || n.StartsWith("ral") || n.Contains("color") || n.Contains("colour");
+    }
+
+    private static string FriendlyLayerName(string attributeName)
+    {
+        var n = (attributeName ?? string.Empty).Trim();
+        if (n.Contains("Korpus", StringComparison.OrdinalIgnoreCase) || n.Contains("Gestell", StringComparison.OrdinalIgnoreCase)) return "Korpus / Gestell";
+        if (n.Contains("Tür", StringComparison.OrdinalIgnoreCase) || n.Contains("Tuer", StringComparison.OrdinalIgnoreCase) || n.Contains("Schubl", StringComparison.OrdinalIgnoreCase)) return "Türen / Schubladen";
+        return n;
+    }
+
+    private static string LegacyKind(string name)
+    {
+        var n = (name ?? string.Empty).ToLowerInvariant();
+        if (n.Contains("korpus") || n.Contains("gestell")) return "corpus";
+        if (n.Contains("tür") || n.Contains("tuer") || n.Contains("schubl")) return "doors";
+        return null;
+    }
+
+    private static bool NamesMatch(string a, string b)
+    {
+        var x = (a ?? string.Empty).Trim().ToLowerInvariant();
+        var y = (b ?? string.Empty).Trim().ToLowerInvariant();
+        if (x.Length == 0 || y.Length == 0) return false;
+        return x == y || x.Contains(y) || y.Contains(x);
+    }
+
+    private static string FirstValue(params string[] values)
+        => values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim() ?? string.Empty;
+
+    private static string SuggestedConfiguratorName(ProductLookupResult product)
+        => product == null ? "Neuer Farbkonfigurator" : $"{product.Sku} – {product.Name}";
+
+    private sealed class ProductLookupResult
+    {
+        public int Id { get; set; }
+        public string Sku { get; set; }
+        public string Name { get; set; }
+    }
+}
