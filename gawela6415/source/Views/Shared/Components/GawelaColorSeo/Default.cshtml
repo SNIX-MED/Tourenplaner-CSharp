@@ -1,0 +1,34 @@
+@using Gawela.ColorConfigurator.Models
+@model GawelaSeoModel
+@{
+    var layerText = Model.LayerNames.Count switch
+    {
+        0 => "die konfigurierbaren Farbbereiche",
+        1 => Model.LayerNames[0],
+        2 => $"{Model.LayerNames[0]} und {Model.LayerNames[1]}",
+        _ => string.Join(", ", Model.LayerNames.Take(Model.LayerNames.Count - 1)) + " und " + Model.LayerNames.Last()
+    };
+}
+<section class="gawela-configurator-seo" aria-labelledby="gawela-configurator-seo-title-@Model.ProductId" data-gawela-seo="true" data-resolution="@Model.ResolutionMode">
+    <h2 id="gawela-configurator-seo-title-@Model.ProductId" class="gawela-configurator-seo-title">RAL-Farbkonfigurator</h2>
+    <p class="gawela-configurator-seo-text">
+        @layerText direkt online gestalten:
+        <span itemprop="additionalProperty" itemscope itemtype="https://schema.org/PropertyValue">
+            <meta itemprop="name" content="RAL-Farben für die Bildschirmvorschau" />
+            <strong itemprop="value">@Model.ColorCount</strong> RAL-Farben
+        </span>
+        @if (Model.CombinationCount > 0 && Model.LayerCount > 1)
+        {
+            <text> · </text>
+            <span itemprop="additionalProperty" itemscope itemtype="https://schema.org/PropertyValue">
+                <meta itemprop="name" content="Mögliche Farbkombinationen in der Vorschau" />
+                <strong itemprop="value">bis zu @Model.CombinationCount</strong> Farbkombinationen
+            </span>
+        }
+        <span itemprop="additionalProperty" itemscope itemtype="https://schema.org/PropertyValue">
+            <meta itemprop="name" content="Interaktiver RAL-Farbkonfigurator" />
+            <meta itemprop="value" content="verfügbar" />
+        </span>
+    </p>
+    <p class="gawela-configurator-seo-note">Bildschirmdarstellung unverbindlich; Farbe, Proportionen, Details und Ausführung können abweichen.</p>
+</section>
