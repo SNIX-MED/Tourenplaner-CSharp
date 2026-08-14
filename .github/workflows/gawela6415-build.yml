@@ -1,0 +1,71 @@
+name: Build GAWELA universal configurator 6.4.15
+
+on:
+  push:
+    branches: [gawela-colorconfig-6415-build]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout 6.4.15 branch
+        uses: actions/checkout@v4
+
+      - name: Checkout verified GAWELA 6.4.0 source chunks
+        uses: actions/checkout@v4
+        with:
+          repository: SNIX-MED/Tourenplaner-CSharp
+          ref: gawela-colorconfig-build
+          path: legacy
+
+      - name: Checkout Smartstore 6.4.0
+        uses: actions/checkout@v4
+        with:
+          repository: smartstore/Smartstore
+          ref: 6.4.0
+          path: smartstore
+
+      - name: Setup exact .NET SDK 10.0.302
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.302'
+
+      - name: Build, package and verify 6.4.15
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('gawela6410/build.sh').read_text(encoding='utf-8')
+          needle = 'python3 gawela6410/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator\n'
+          if needle not in src:
+              raise SystemExit('6.4.10 patch insertion point missing')
+          src = src.replace(needle, needle + 'python3 gawela6411/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator\npython3 gawela6415/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator\n', 1)
+          src = src.replace("grep -q '\"Version\": \"6.4.10\"' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/module.json", "grep -q '\"Version\": \"6.4.15\"' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/module.json")
+          src = src.replace("grep -q '\"Version\": \"6.4.10\"' \"$MODULE/module.json\"", "grep -q '\"Version\": \"6.4.15\"' \"$MODULE/module.json\"")
+          src = src.replace('Smartstore.Module.Gawela.ColorConfigurator.6.4.10.zip', 'Smartstore.Module.Gawela.ColorConfigurator.6.4.15.zip')
+          src = src.replace('public Version Version => new(6,4,10);', 'public Version Version => new(6,4,15);')
+          src = src.replace('Attributgesteuerte dynamische RAL-Farbvorschau mit wiederverwendbaren Bildgruppen/Höhenvorlagen, zentral pflegbaren RGB/HEX-Werten und Smartstore-Galerie-Slide.', 'GAWELA RAL-Farbkonfigurator mit benannten, produktübergreifenden Konfiguratoren, Smartstore Produkt-/Medienauswahl, mobilen Live-Vorschauen, Höhenvorlagen und SEO/KI-Produktinformationen.')
+          verify = "grep -q 'Bildgruppe / Höhenvorlage' \"$MODULE/Views/GawelaColorAdmin/Configure.cshtml\"\n"
+          replacement = """grep -q 'Farbkonfiguratoren' \"$MODULE/Views/GawelaColorAdmin/Configure.cshtml\"\ngrep -q 'Basis-Artikel auswählen' \"$MODULE/Views/GawelaColorAdmin/Configure.cshtml\"\ngrep -q '<editor asp-for=\\\"BaseMediaFileId\\\"' \"$MODULE/Views/GawelaColorAdmin/Configure.cshtml\"\ngrep -q 'IMediaService' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Controllers/GawelaColorAdminController.cs\ngrep -q 'MaskMediaFileId' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Models/GawelaProductConfig.cs\ngrep -q 'v=6.4.15' \"$MODULE/Views/Shared/Components/GawelaColorHost/Default.cshtml\"\ngrep -q 'gawela-mobile-preview' \"$MODULE/wwwroot/gawela-color.js\"\n"""
+          if verify in src:
+              src = src.replace(verify, replacement, 1)
+          else:
+              marker = "grep -q 'public IActionResult Palette()' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Controllers/GawelaColorController.cs\n"
+              if marker not in src:
+                  raise SystemExit('Verification insertion point missing')
+              src = src.replace(marker, marker + replacement, 1)
+          Path('/tmp/gawela6415-build.sh').write_text(src, encoding='utf-8')
+          PY
+          bash /tmp/gawela6415-build.sh
+
+      - name: Upload installable module
+        uses: actions/upload-artifact@v4
+        with:
+          name: Smartstore.Module.Gawela.ColorConfigurator.6.4.15
+          path: Smartstore.Module.Gawela.ColorConfigurator.6.4.15.zip
+          if-no-files-found: error
