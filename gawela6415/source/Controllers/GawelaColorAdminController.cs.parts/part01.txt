@@ -1,0 +1,166 @@
+          {
+                maskMedia = await ValidateMediaAsync(layer.MaskMediaFileId, ".png", nameof(model.Layers), $"Maske „{layer.Name}“");
+            }
+            else if (!_assetStore.Exists(master.Id, assetKind))
+            {
+                var legacyKind = LegacyKind(attr.Name);
+                if (legacyKind != null && _assetStore.Exists(master.Id, legacyKind))
+                    _assetStore.CopyLegacyMaskIfNeeded(master.Id, legacyKind, layer.Key);
+            }
+
+            if (layer.MaskMediaFileId.GetValueOrDefault() <= 0 && !_assetStore.Exists(master.Id, assetKind))
+                ModelState.AddModelError(nameof(model.Layers), $"Für Ebene „{layer.Name}“ bitte eine PNG-Maske aus dem Smartstore-Medienkatalog auswählen oder hochladen.");
+
+            if (baseMedia != null && maskMedia != null
+                && baseMedia.Size.Width > 0 && baseMedia.Size.Height > 0
+                && maskMedia.Size.Width > 0 && maskMedia.Size.Height > 0
+                && (baseMedia.Size.Width != maskMedia.Size.Width || baseMedia.Size.Height != maskMedia.Size.Height))
+            {
+                ModelState.AddModelError(nameof(model.Layers), $"Die Maske „{layer.Name}“ hat {maskMedia.Size.Width}×{maskMedia.Size.Height} Pixel, das Basisbild aber {baseMedia.Size.Width}×{baseMedia.Size.Height} Pixel. Beide müssen exakt gleich gross sein.");
+            }
+
+            configLayers.Add(new GawelaLayerConfig
+            {
+                Key = layer.Key,
+                Name = layer.Name,
+                ProductVariantAttributeId = attr.Id,
+                AttributeLabel = attr.Name,
+                AssetKind = assetKind,
+                BaseRal = layer.BaseRal,
+                DefaultRal = layer.DefaultRal,
+                MaskMediaFileId = layer.MaskMediaFileId
+            });
+        }
+
+        var additionalIds = ParseProductIds(model.AdditionalProductIds)
+            .Where(x => x != master.Id)
+            .Distinct()
+            .ToList();
+
+        var memberRows = additionalIds.Count == 0
+            ? new List<ProductLookupResult>()
+            : await _db.Products.AsNoTracking()
+                .Where(x => additionalIds.Contains(x.Id))
+                .Select(x => new ProductLookupResult { Id = x.Id, Sku = x.Sku, Name = x.Name })
+                .ToListAsync();
+
+        var missingIds = additionalIds.Except(memberRows.Select(x => x.Id)).ToList();
+        if (missingIds.Count > 0)
+            ModelState.AddModelError(nameof(model.AdditionalProductIds), "Mindestens ein ausgewählter weiterer Artikel wurde nicht gefunden.");
+
+        var otherGroups = _groupStore.Load().Where(x => x.MasterProductId != master.Id).ToList();
+        foreach (var member in memberRows)
+        {
+            var conflictingGroup = otherGroups.FirstOrDefault(x => (x.ProductIds ?? new List<int>()).Contains(member.Id));
+            if (conflictingGroup != null)
+            {
+                ModelState.AddModelError(nameof(model.AdditionalProductIds), $"{member.Sku} gehört bereits zum Farbkonfigurator „{conflictingGroup.Name}“.");
+                continue;
+            }
+
+            if (!currentMemberIds.Contains(member.Id) && _assetStore.LoadEffectiveConfig(member.Id) != null)
+            {
+                ModelState.AddModelError(nameof(model.AdditionalProductIds), $"{member.Sku} besitzt bereits einen eigenen Farbkonfigurator. Ein Produkt kann nur einem Farbkonfigurator zugeordnet sein.");
+                continue;
+            }
+
+            var memberAttrs = await GetAttributesAsync(member.Id);
+            var missing = configLayers
+                .Where(layer => !memberAttrs.Any(a => NamesMatch(a.Name, layer.AttributeLabel)))
+                .Select(layer => layer.AttributeLabel ?? layer.Name)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (missing.Count > 0)
+                ModelState.AddModelError(nameof(model.AdditionalProductIds), $"{member.Sku}: folgende benötigten Attribute des Basis-Artikels fehlen: {string.Join(", ", missing)}.");
+        }
+
+        if (!ModelState.IsValid)
+            return View("Configure", await RebuildPostedEditorAsync(model));
+
+        var config = new GawelaProductConfig
+        {
+            ProductId = master.Id,
+            Name = model.ConfiguratorName,
+            ThumbnailLabel = model.ThumbnailLabel,
+            BaseMediaFileId = model.BaseMediaFileId,
+            Layers = configLayers
+        };
+
+        await _assetStore.SaveConfigAsync(config);
+        _assetStore.DeleteUnusedLayerMasks(master.Id, config.Layers.Select(x => x.Key));
+
+        var allProductIds = new[] { master.Id }.Concat(additionalIds).Distinct().ToList();
+        await _groupStore.SaveAsync(new GawelaProductGroup
+        {
+            Key = currentGroup?.Key,
+            Name = model.ConfiguratorName,
+            MasterProductId = master.Id,
+            ProductIds = allProductIds
+        });
+
+        TempData["GawelaColor.Success"] = $"Farbkonfigurator „{model.ConfiguratorName}“ wurde gespeichert. Basis-Artikel: {master.Sku}; zugeordnete Artikel: {allProductIds.Count}; Ebenen: {configLayers.Count}.";
+        return RedirectToAction(nameof(Configure), new { configuratorId = master.Id, tab = "products" });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> DeleteConfigurator(int masterProductId)
+    {
+        var group = _groupStore.FindByMaster(masterProductId);
+        var config = _assetStore.LoadEffectiveConfig(masterProductId);
+        var name = config?.Name ?? group?.Name ?? $"Produkt-ID {masterProductId}";
+
+        await _groupStore.DeleteAsync(masterProductId);
+        _assetStore.DeleteProductAssets(masterProductId);
+
+        // Media Manager files are deliberately not deleted: they may be reused elsewhere.
+        TempData["GawelaColor.Success"] = $"Farbkonfigurator „{name}“ wurde gelöscht. Dateien im Smartstore-Medienkatalog bleiben erhalten.";
+        return RedirectToAction(nameof(Configure), new { tab = "products" });
+    }
+
+    public async Task<IActionResult> ProductSummaries(string ids)
+    {
+        var productIds = ParseProductIds(ids).Distinct().Take(100).ToArray();
+        if (productIds.Length == 0) return Json(Array.Empty<object>());
+
+        var rows = await _db.Products.AsNoTracking()
+            .Where(x => productIds.Contains(x.Id))
+            .Select(x => new { id = x.Id, sku = x.Sku, name = x.Name })
+            .ToListAsync();
+
+        var order = productIds.Select((id, index) => new { id, index }).ToDictionary(x => x.id, x => x.index);
+        return Json(rows.OrderBy(x => order.TryGetValue(x.id, out var i) ? i : int.MaxValue));
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SavePalette(GawelaAssetAdminModel model)
+    {
+        var defaults = _paletteStore.Load();
+        var known = defaults.ToDictionary(x => x.Ral, StringComparer.OrdinalIgnoreCase);
+        var submitted = model.Palette?.Colors ?? new();
+
+        foreach (var row in submitted)
+        {
+            if (string.IsNullOrWhiteSpace(row.Ral) || !known.ContainsKey(row.Ral))
+            {
+                ModelState.AddModelError("Palette", "Unbekannte RAL-Farbe in der übermittelten Liste.");
+                continue;
+            }
+            if (!GawelaPaletteStore.TryNormalizeHex(row.Hex, out var hex))
+            {
+                ModelState.AddModelError("Palette", $"RAL {row.Ral}: HEX muss im Format #RRGGBB eingegeben werden.");
+                continue;
+            }
+            row.Hex = hex;
+            var rgb = GawelaPaletteStore.HexToRgb(hex);
+            row.R = rgb.R; row.G = rgb.G; row.B = rgb.B;
+        }
+
+        if (!ModelState.IsValid)
+        {
+            var vm = new GawelaAssetAdminModel { ActiveTab = "colors", Palette = model.Palette ?? BuildPaletteAdminModel() };
+            return View("Configure", vm);
+        }
+
+        var entries = submitted.Select(x => new GawelaPaletteEntry(x.Ral, known[x.Ral].Name, x.Hex, x
