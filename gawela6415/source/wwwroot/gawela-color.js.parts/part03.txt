@@ -1,0 +1,84 @@
+            layers
+        };
+    }
+
+    async function init(host) {
+        if (host.dataset.gawelaInit) return;
+        host.dataset.gawelaInit = '1';
+
+        const id = productId();
+        if (!id) return;
+
+        const assetEndpoint = host.dataset.assetEndpoint;
+        const configEndpoint = host.dataset.configEndpoint +
+            (host.dataset.configEndpoint.includes('?') ? '&' : '?') + 'productId=' + id;
+
+        try {
+            const [rawConfig, colors] = await Promise.all([
+                json(configEndpoint),
+                palette(host.dataset.paletteUrl)
+            ]);
+            const config = normalizeConfig(rawConfig);
+            if (!config.layers.length) {
+                throw new Error('Keine Visualisierungsebenen in der Produktkonfiguration gefunden.');
+            }
+
+            const baseUrl = assetUrl(assetEndpoint, id, 'base');
+            const baseImage = await loadImage(baseUrl);
+            const width = baseImage.naturalWidth;
+            const height = baseImage.naturalHeight;
+            if (!width || !height) throw new Error('Basisbild ungültig.');
+
+            const base = pixels(baseImage, width, height);
+            const layers = [];
+            for (const layer of config.layers) {
+                const maskImage = await loadImage(assetUrl(assetEndpoint, id, layer.assetKind));
+                if (maskImage.naturalWidth !== width || maskImage.naturalHeight !== height) {
+                    throw new Error('Maske „' + layer.name + '“ hat andere Bildmasse.');
+                }
+                const mask = pixels(maskImage, width, height);
+                layers.push({ ...layer, mask, refLuma: averageLuma(base.data, mask) });
+            }
+
+            const state = {
+                id,
+                w: width,
+                h: height,
+                base,
+                layers,
+                colors,
+                baseUrl,
+                thumb: config.thumbnailLabel || 'Farbe konfigurieren',
+                ctx: null,
+                info: null,
+                index: null,
+                pending: false,
+                freeze: null,
+                currentLabel: '',
+                mobilePreview: null,
+                mobilePreviewCanvas: null,
+                mobilePreviewCtx: null,
+                mobilePreviewMeta: null,
+                mobileObserver: null,
+                mobileScrollBound: false
+            };
+
+            if (!await waitForGallery(state)) {
+                throw new Error('Smartstore-Produktgalerie nicht verfügbar.');
+            }
+
+            draw(state);
+            refreshMobilePreviewObservers(state);
+            bind(state);
+        } catch (error) {
+            console.warn('GAWELA Farbkonfigurator:', error?.message || error);
+        }
+    }
+
+    const boot = () => document.querySelectorAll('.gawela-color-host').forEach(init);
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+    } else {
+        boot();
+    }
+})();
