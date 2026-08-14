@@ -1,0 +1,10 @@
+'); if(!btn)return;
+      const slot=btn.closest('.gawela-layer-slot'); if(!slot)return;
+      slot.querySelector('.gawela-layer-active').value='false';
+      slot.classList.add('d-none');
+      updateLayerUi();
+    });
+    updateLayerUi();
+  })();
+  </script>
+}
