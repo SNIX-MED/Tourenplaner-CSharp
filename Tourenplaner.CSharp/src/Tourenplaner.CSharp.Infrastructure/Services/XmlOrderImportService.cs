@@ -190,7 +190,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     continue;
                 }
 
-                if (!hasDeliveryAddress)
+                if (!hasDeliveryAddress && RequiresDeliveryAddress(order.Lieferbedingung))
                 {
                     AddWarning(result, order, index, "keine Lieferadresse gefunden.");
                 }
@@ -572,6 +572,14 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
             order.LieferStrasse,
             order.LieferPLZ,
             order.LieferOrt);
+    }
+
+    private static bool RequiresDeliveryAddress(string? deliveryCondition)
+    {
+        return !string.Equals(
+            DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(deliveryCondition),
+            DeliveryMethodExtensions.SelbstabholungLabel,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool HasCustomerAddress(XmlOrderImportData order)

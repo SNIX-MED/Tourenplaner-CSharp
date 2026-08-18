@@ -552,7 +552,56 @@ public class XmlOrderImportServiceTests
             Assert.Equal("A-305", result.Orders[0].AuftragNr);
             Assert.Empty(result.Orders[0].Produkte);
             Assert.Contains(result.Warnings, warning => warning.Contains("keine Lieferart erkannt", StringComparison.OrdinalIgnoreCase));
-            Assert.Contains(result.Warnings, warning => warning.Contains("keine Lieferadresse gefunden", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(result.Warnings, warning => warning.Contains("keine Lieferadresse gefunden", StringComparison.OrdinalIgnoreCase));
+            Assert.Empty(result.Errors);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void LoadOrdersFromFileDetailed_DoesNotWarnAboutMissingDeliveryAddressForPickup()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var xmlPath = Path.Combine(root, "orders.xml");
+
+        try
+        {
+            File.WriteAllText(xmlPath,
+                """
+                <belege>
+                  <beleg>
+                    <ident>order-1</ident>
+                    <typ>SALES</typ>
+                    <kopf>A-306</kopf>
+                    <datum>15.07.2026 00:00:00</datum>
+                    <versandart>Selbstabholung</versandart>
+                    <adresskopfrechnung>Abholkunde AG
+                    Musterstrasse 1
+                    8000 Zuerich</adresskopfrechnung>
+                    <archiv>False</archiv>
+                    <positionen>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <artikel>PRODUKT-A</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Produkt A</bezeichnung>
+                        <gewicht>10</gewicht>
+                      </position>
+                    </positionen>
+                  </beleg>
+                </belege>
+                """);
+
+            var service = new XmlOrderImportService();
+            var result = service.LoadOrdersFromFileDetailed(xmlPath);
+
+            Assert.Single(result.Orders);
+            Assert.Equal("Selbstabholung", result.Orders[0].Lieferbedingung);
+            Assert.DoesNotContain(result.Warnings, warning => warning.Contains("keine Lieferadresse gefunden", StringComparison.OrdinalIgnoreCase));
             Assert.Empty(result.Errors);
         }
         finally
