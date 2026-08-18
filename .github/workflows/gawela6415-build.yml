@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -61,6 +61,20 @@ jobs:
           Path('/tmp/gawela6416-build.sh').write_text(src, encoding='utf-8')
           PY
           bash /tmp/gawela6416-build.sh
+
+      - name: Publish verified package to build branch
+        shell: bash
+        run: |
+          mkdir -p gawela6416/output
+          cp Smartstore.Module.Gawela.ColorConfigurator.6.4.16.zip gawela6416/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.16.zip
+          sha256sum gawela6416/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.16.zip > gawela6416/output/SHA256.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gawela6416/output
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish verified 6.4.16 package [skip ci]"
+            git push origin HEAD:gawela-colorconfig-6416-build
+          fi
 
       - name: Upload installable module
         uses: actions/upload-artifact@v4
