@@ -1,0 +1,1 @@
+Temporary PR-only artifact handoff for GAWELA ColorConfigurator 6.4.16.
