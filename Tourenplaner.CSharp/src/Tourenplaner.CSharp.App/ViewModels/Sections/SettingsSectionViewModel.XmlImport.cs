@@ -239,7 +239,6 @@ public sealed partial class SettingsSectionViewModel
         XmlImportPreviewItems.Clear();
         XmlImportPreviewErrors.Clear();
         XmlImportPreviewWarnings.Clear();
-        XmlImportPinIssueSummary = string.Empty;
         XmlImportPinIssueItems.Clear();
 
         if (clearStatus)
@@ -313,15 +312,11 @@ public sealed partial class SettingsSectionViewModel
             XmlImportPinIssueItems.Add(issue);
         }
 
-        XmlImportPinIssueSummary = issues.Count == 0
-            ? string.Empty
-            : $"{issues.Count} importierte Karten-Auftraege muessen bei der Pin-Zuordnung manuell geprueft werden.";
         RaiseXmlImportPreviewStateChanged();
     }
 
     private void ClearXmlImportPinIssues()
     {
-        XmlImportPinIssueSummary = string.Empty;
         XmlImportPinIssueItems.Clear();
         RaiseXmlImportPreviewStateChanged();
     }
@@ -513,7 +508,7 @@ public sealed partial class SettingsSectionViewModel
             XmlImportPinIssueItems.Add(nextIssue);
         }
 
-        RefreshXmlImportPinIssueSummary();
+        RaiseXmlImportPreviewStateChanged();
     }
 
     private void RemoveXmlImportPinIssue(string orderId)
@@ -522,7 +517,7 @@ public sealed partial class SettingsSectionViewModel
         if (index >= 0)
         {
             XmlImportPinIssueItems.RemoveAt(index);
-            RefreshXmlImportPinIssueSummary();
+            RaiseXmlImportPreviewStateChanged();
         }
     }
 
@@ -545,14 +540,6 @@ public sealed partial class SettingsSectionViewModel
         return -1;
     }
 
-    private void RefreshXmlImportPinIssueSummary()
-    {
-        XmlImportPinIssueSummary = XmlImportPinIssueItems.Count == 0
-            ? string.Empty
-            : $"{XmlImportPinIssueItems.Count} importierte Karten-Auftraege muessen bei der Pin-Zuordnung manuell geprueft werden.";
-        RaiseXmlImportPreviewStateChanged();
-    }
-
     private void RaiseXmlImportPreviewStateChanged()
     {
         OnPropertyChanged(nameof(HasXmlImportPreview));
@@ -561,7 +548,6 @@ public sealed partial class SettingsSectionViewModel
         OnPropertyChanged(nameof(HasXmlImportPreviewWarnings));
         OnPropertyChanged(nameof(HasXmlImportPinIssues));
         OnPropertyChanged(nameof(HasXmlImportWarningsOrPinIssues));
-        OnPropertyChanged(nameof(HasXmlImportPinIssueSummary));
         OnPropertyChanged(nameof(HasXmlImportPreviewHiddenItems));
         OnPropertyChanged(nameof(XmlImportPreviewHiddenItemsText));
         RaiseXmlImportCommandStates();

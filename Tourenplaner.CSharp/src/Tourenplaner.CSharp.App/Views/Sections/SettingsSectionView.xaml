@@ -1809,33 +1809,6 @@
                                         </Border>
                                     </Expander>
 
-                                    <Border Padding="14"
-                                            CornerRadius="16"
-                                            Background="#FEF3C7"
-                                            BorderBrush="#F59E0B"
-                                            BorderThickness="1">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasXmlImportPinIssueSummary}" Value="False">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Pins manuell prüfen" />
-                                            <TextBlock Margin="0,8,0,0"
-                                                       Text="{Binding XmlImportPinIssueSummary}"
-                                                       TextWrapping="Wrap" />
-                                            <TextBlock Margin="0,8,0,0"
-                                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                                       Text="Diese importierten Aufträge konnten nicht exakt geokodiert werden und sollten in der Karte oder in den Aufträgen manuell kontrolliert werden."
-                                                       TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </Border>
-
                                     <Border>
                                         <Border.Style>
                                             <Style TargetType="Border" BasedOn="{StaticResource SettingsInnerPanelStyle}">
@@ -1881,67 +1854,6 @@
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border>
-                                        <Border.Style>
-                                            <Style TargetType="Border" BasedOn="{StaticResource SettingsInnerPanelStyle}">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasXmlImportPreviewItems}" Value="False">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Betroffene Aufträge" />
-                                            <ScrollViewer Margin="0,10,0,0" MaxHeight="280" VerticalScrollBarVisibility="Auto">
-                                                <ItemsControl ItemsSource="{Binding XmlImportPreviewItems}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Border Margin="0,0,0,8"
-                                                                    Padding="12"
-                                                                    Style="{StaticResource SettingsFieldCardStyle}">
-                                                                <Grid>
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="*" />
-                                                                        <ColumnDefinition Width="*" />
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                                                                        <StackPanel Orientation="Horizontal">
-                                                                            <Border VerticalAlignment="Center"
-                                                                                    Background="{Binding ActionBackground}"
-                                                                                    BorderBrush="{Binding ActionBorder}"
-                                                                                    Style="{StaticResource XmlImportPreviewBadgeStyle}">
-                                                                                <StackPanel Orientation="Horizontal">
-                                                                                    <Ellipse Width="7"
-                                                                                             Height="7"
-                                                                                             Margin="0,0,6,0"
-                                                                                             VerticalAlignment="Center"
-                                                                                             Fill="{Binding ActionForeground}" />
-                                                                                    <TextBlock Foreground="{Binding ActionForeground}"
-                                                                                               FontWeight="SemiBold"
-                                                                                               Text="{Binding ActionLabel}" />
-                                                                                </StackPanel>
-                                                                            </Border>
-                                                                            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding OrderId}" />
-                                                                        </StackPanel>
-                                                                        <TextBlock Margin="0,4,0,0" Text="{Binding CustomerLine}" />
-                                                                        <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding MetaLine}" />
-                                                                    </StackPanel>
-                                                                    <TextBlock Grid.Column="1"
-                                                                               VerticalAlignment="Center"
-                                                                               Foreground="{DynamicResource Brush.TextMuted}"
-                                                                               TextWrapping="Wrap"
-                                                                               Text="{Binding ChangeSummary}" />
-                                                                </Grid>
-                                                            </Border>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                            </ScrollViewer>
                                         </StackPanel>
                                     </Border>
 
@@ -2048,6 +1960,67 @@
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
                                             </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border>
+                                        <Border.Style>
+                                            <Style TargetType="Border" BasedOn="{StaticResource SettingsInnerPanelStyle}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasXmlImportPreviewItems}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Betroffene Aufträge" />
+                                            <ScrollViewer Margin="0,10,0,0" MaxHeight="280" VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding XmlImportPreviewItems}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="0,0,0,8"
+                                                                    Padding="12"
+                                                                    Style="{StaticResource SettingsFieldCardStyle}">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <Border VerticalAlignment="Center"
+                                                                                    Background="{Binding ActionBackground}"
+                                                                                    BorderBrush="{Binding ActionBorder}"
+                                                                                    Style="{StaticResource XmlImportPreviewBadgeStyle}">
+                                                                                <StackPanel Orientation="Horizontal">
+                                                                                    <Ellipse Width="7"
+                                                                                             Height="7"
+                                                                                             Margin="0,0,6,0"
+                                                                                             VerticalAlignment="Center"
+                                                                                             Fill="{Binding ActionForeground}" />
+                                                                                    <TextBlock Foreground="{Binding ActionForeground}"
+                                                                                               FontWeight="SemiBold"
+                                                                                               Text="{Binding ActionLabel}" />
+                                                                                </StackPanel>
+                                                                            </Border>
+                                                                            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding OrderId}" />
+                                                                        </StackPanel>
+                                                                        <TextBlock Margin="0,4,0,0" Text="{Binding CustomerLine}" />
+                                                                        <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding MetaLine}" />
+                                                                    </StackPanel>
+                                                                    <TextBlock Grid.Column="1"
+                                                                               VerticalAlignment="Center"
+                                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                                               TextWrapping="Wrap"
+                                                                               Text="{Binding ChangeSummary}" />
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
                                         </StackPanel>
                                     </Border>
 

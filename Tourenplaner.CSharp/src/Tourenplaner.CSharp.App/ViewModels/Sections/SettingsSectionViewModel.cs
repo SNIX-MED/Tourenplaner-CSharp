@@ -44,7 +44,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private string _importStatusMessage = "";
     private bool _isPreviewingXmlImport;
     private string _xmlImportPreviewSummary = string.Empty;
-    private string _xmlImportPinIssueSummary = string.Empty;
     private int _xmlImportPreviewHiddenItemCount;
     private bool _hasPendingXmlImportPreview;
     private readonly List<XmlOrderImportData> _previewedXmlOrders = new();
@@ -1044,12 +1043,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _xmlImportPreviewSummary, value);
     }
 
-    public string XmlImportPinIssueSummary
-    {
-        get => _xmlImportPinIssueSummary;
-        private set => SetProperty(ref _xmlImportPinIssueSummary, value);
-    }
-
     public bool IsXmlImportBusy => IsImportingOrders || IsPreviewingXmlImport;
 
     public bool HasXmlImportPreview => !string.IsNullOrWhiteSpace(XmlImportPreviewSummary);
@@ -1063,8 +1056,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     public bool HasXmlImportPinIssues => XmlImportPinIssueItems.Count > 0;
 
     public bool HasXmlImportWarningsOrPinIssues => HasXmlImportPreviewWarnings || HasXmlImportPinIssues;
-
-    public bool HasXmlImportPinIssueSummary => !string.IsNullOrWhiteSpace(XmlImportPinIssueSummary);
 
     public bool HasXmlImportPreviewHiddenItems => _xmlImportPreviewHiddenItemCount > 0;
 
