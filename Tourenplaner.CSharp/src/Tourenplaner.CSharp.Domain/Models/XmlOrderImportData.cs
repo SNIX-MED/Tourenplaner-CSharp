@@ -40,6 +40,7 @@ public class XmlOrderImportData
     public bool LieferungKannFrueherErfolgen { get; set; }
     public string Lieferzeit { get; set; } = string.Empty;
     public string Notiz { get; set; } = string.Empty;
+    public bool IstVorauszahlung { get; set; }
 }
 
 public class XmlOrderProductData

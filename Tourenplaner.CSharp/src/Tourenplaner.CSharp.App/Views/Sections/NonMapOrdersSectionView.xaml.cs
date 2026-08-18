@@ -51,6 +51,14 @@ public partial class NonMapOrdersSectionView : UserControl
             static (vm, item) => vm.SelectedOrder = item);
     }
 
+    private void NonMapOrdersGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is NonMapOrdersSectionViewModel vm)
+        {
+            vm.UpdateSelectedOrders(NonMapOrdersGrid.SelectedItems.OfType<OrderItem>().ToList());
+        }
+    }
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BindViewModel(DataContext as NonMapOrdersSectionViewModel);

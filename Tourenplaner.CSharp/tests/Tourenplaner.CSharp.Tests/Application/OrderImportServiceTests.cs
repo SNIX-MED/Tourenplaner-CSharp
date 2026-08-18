@@ -113,6 +113,20 @@ public class OrderImportServiceTests
         Assert.Equal("200", stored.DeliveryAddress.HouseNumber);
     }
 
+    [Fact]
+    public async Task ImportOrdersAsync_StoresPrepaymentFlag()
+    {
+        var repository = new FakeOrderRepository([]);
+        var service = new OrderImportService();
+        var xmlOrder = CreateSqlOrder("A-11", "Kunde Elf", "Post", "Vorkasse");
+        xmlOrder.IstVorauszahlung = true;
+
+        await service.ImportOrdersAsync([xmlOrder], repository);
+
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.True(stored.IstVorauszahlung);
+    }
+
     private static XmlOrderImportData CreateSqlOrder(
         string id,
         string customerName,

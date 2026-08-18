@@ -2,9 +2,11 @@
 using System.Windows;
 using Microsoft.Win32;
 using Tourenplaner.CSharp.App.Services;
+using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 using Tourenplaner.CSharp.Infrastructure.Services;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -288,24 +290,10 @@ public sealed partial class SettingsSectionViewModel
                 hasLocationUpdates = true;
             }
 
-            var addressLine = BuildXmlImportPinIssueAddress(order);
-            if (geocodingResult is null)
+            var issue = CreateXmlImportPinIssue(order, geocodingResult);
+            if (issue is not null)
             {
-                issues.Add(XmlImportPinIssueListItemViewModel.CreateMissing(
-                    (order.Id ?? string.Empty).Trim(),
-                    (order.CustomerName ?? string.Empty).Trim(),
-                    addressLine));
-                continue;
-            }
-
-            if (!geocodingResult.IsPrecise)
-            {
-                issues.Add(XmlImportPinIssueListItemViewModel.CreateApproximate(
-                    (order.Id ?? string.Empty).Trim(),
-                    (order.CustomerName ?? string.Empty).Trim(),
-                    addressLine,
-                    (geocodingResult.MatchType ?? string.Empty).Trim(),
-                    geocodingResult.EntityType));
+                issues.Add(issue);
             }
         }
 
@@ -335,6 +323,233 @@ public sealed partial class SettingsSectionViewModel
     {
         XmlImportPinIssueSummary = string.Empty;
         XmlImportPinIssueItems.Clear();
+        RaiseXmlImportPreviewStateChanged();
+    }
+
+    private XmlImportPinIssueListItemViewModel? CreateXmlImportPinIssue(Order order, AddressGeocodingResult? geocodingResult)
+    {
+        var orderId = (order.Id ?? string.Empty).Trim();
+        var customerName = (order.CustomerName ?? string.Empty).Trim();
+        var addressLine = BuildXmlImportPinIssueAddress(order);
+        if (geocodingResult is null)
+        {
+            return XmlImportPinIssueListItemViewModel.CreateMissing(
+                orderId,
+                customerName,
+                addressLine,
+                EditXmlImportPinIssueOrderAsync);
+        }
+
+        if (!geocodingResult.IsPrecise)
+        {
+            return XmlImportPinIssueListItemViewModel.CreateApproximate(
+                orderId,
+                customerName,
+                addressLine,
+                (geocodingResult.MatchType ?? string.Empty).Trim(),
+                geocodingResult.EntityType,
+                EditXmlImportPinIssueOrderAsync);
+        }
+
+        return null;
+    }
+
+    private async Task EditXmlImportPinIssueOrderAsync(string orderId)
+    {
+        if (_orderRepository is null)
+        {
+            ImportStatusMessage = "Fehler: Auftragsrepository ist nicht initialisiert.";
+            return;
+        }
+
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedOrderId))
+        {
+            return;
+        }
+
+        var orders = (await _orderRepository.GetAllAsync()).ToList();
+        var existing = orders.FirstOrDefault(x => string.Equals(x.Id, normalizedOrderId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            RemoveXmlImportPinIssue(normalizedOrderId);
+            ImportStatusMessage = $"Auftrag {normalizedOrderId} wurde nicht gefunden.";
+            return;
+        }
+
+        var dialog = new ManualOrderDialogWindow(
+            existing,
+            deliveryTypes: existing.Type == OrderType.NonMap
+                ? DeliveryMethodExtensions.NonMapDeliveryTypeOptions
+                : DeliveryMethodExtensions.MapDeliveryTypeOptions,
+            defaultOrderType: existing.Type)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        var dialogResult = dialog.ShowDialog();
+        if (dialog.DeleteRequested)
+        {
+            await DeleteXmlImportPinIssueOrderAsync(existing, orders);
+            return;
+        }
+
+        if (dialogResult != true || dialog.CreatedOrder is null)
+        {
+            return;
+        }
+
+        var updated = dialog.CreatedOrder;
+        updated.Type = existing.Type;
+        updated.AssignedTourId = existing.AssignedTourId;
+        updated.ConcurrencyToken = existing.ConcurrencyToken;
+        var geocodingResult = await AddressGeocodingService.TryResolveOrderAsync(
+            updated,
+            TomTomApiKey,
+            Path.Combine(_dataRoot, "geocode-cache.json"));
+        updated.Location = geocodingResult?.Location ?? existing.Location;
+
+        var originalId = existing.Id;
+        orders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
+        orders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
+                              string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
+        orders.Add(updated);
+
+        try
+        {
+            if (!string.Equals(originalId, updated.Id, StringComparison.OrdinalIgnoreCase) &&
+                _orderMutationRepository is not null)
+            {
+                await _orderMutationRepository.DeleteAsync(originalId, existing.ConcurrencyToken);
+                updated.ConcurrencyToken = null;
+                await _orderMutationRepository.UpsertAsync(updated);
+            }
+            else if (_orderMutationRepository is not null)
+            {
+                await _orderMutationRepository.UpsertAsync(updated);
+            }
+            else
+            {
+                await _orderRepository.SaveAllAsync(orders);
+            }
+        }
+        catch (ConcurrencyConflictException)
+        {
+            AppMessageBox.Show(
+                "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Bitte oeffnen Sie den Auftrag erneut.",
+                "Mehrbenutzerkonflikt",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        _dataSyncService?.PublishOrders(_instanceId, originalId, updated.Id);
+        UpdateXmlImportPinIssue(originalId, updated, geocodingResult);
+        OrderPinAssignmentWarningService.ShowIfNeeded(updated, geocodingResult);
+        ImportStatusMessage = $"Auftrag {updated.Id} wurde aktualisiert.";
+    }
+
+    private async Task DeleteXmlImportPinIssueOrderAsync(Order existing, List<Order> orders)
+    {
+        var confirmation = AppMessageBox.Show(
+            $"Soll der Auftrag {existing.Id} wirklich geloescht werden?",
+            "Auftrag loeschen",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_orderMutationRepository is not null)
+            {
+                await _orderMutationRepository.DeleteAsync(existing.Id, existing.ConcurrencyToken);
+            }
+            else
+            {
+                orders.RemoveAll(x => string.Equals(x.Id, existing.Id, StringComparison.OrdinalIgnoreCase));
+                await _orderRepository!.SaveAllAsync(orders);
+            }
+        }
+        catch (ConcurrencyConflictException)
+        {
+            AppMessageBox.Show(
+                "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Bitte oeffnen Sie den Auftrag erneut.",
+                "Mehrbenutzerkonflikt",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        _dataSyncService?.PublishOrders(_instanceId, existing.Id, null);
+        RemoveXmlImportPinIssue(existing.Id);
+        ImportStatusMessage = $"Auftrag {existing.Id} wurde geloescht.";
+    }
+
+    private void UpdateXmlImportPinIssue(string originalOrderId, Order updatedOrder, AddressGeocodingResult? geocodingResult)
+    {
+        var nextIssue = CreateXmlImportPinIssue(updatedOrder, geocodingResult);
+        var index = FindXmlImportPinIssueIndex(originalOrderId);
+        if (index < 0)
+        {
+            index = FindXmlImportPinIssueIndex(updatedOrder.Id);
+        }
+
+        if (nextIssue is null)
+        {
+            if (index >= 0)
+            {
+                XmlImportPinIssueItems.RemoveAt(index);
+            }
+        }
+        else if (index >= 0)
+        {
+            XmlImportPinIssueItems[index] = nextIssue;
+        }
+        else
+        {
+            XmlImportPinIssueItems.Add(nextIssue);
+        }
+
+        RefreshXmlImportPinIssueSummary();
+    }
+
+    private void RemoveXmlImportPinIssue(string orderId)
+    {
+        var index = FindXmlImportPinIssueIndex(orderId);
+        if (index >= 0)
+        {
+            XmlImportPinIssueItems.RemoveAt(index);
+            RefreshXmlImportPinIssueSummary();
+        }
+    }
+
+    private int FindXmlImportPinIssueIndex(string? orderId)
+    {
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedOrderId))
+        {
+            return -1;
+        }
+
+        for (var i = 0; i < XmlImportPinIssueItems.Count; i++)
+        {
+            if (string.Equals(XmlImportPinIssueItems[i].OrderId, normalizedOrderId, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private void RefreshXmlImportPinIssueSummary()
+    {
+        XmlImportPinIssueSummary = XmlImportPinIssueItems.Count == 0
+            ? string.Empty
+            : $"{XmlImportPinIssueItems.Count} importierte Karten-Auftraege muessen bei der Pin-Zuordnung manuell geprueft werden.";
         RaiseXmlImportPreviewStateChanged();
     }
 

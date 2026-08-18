@@ -29,6 +29,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private readonly SettingsValidator _validator;
     private readonly BackupManager _backupManager;
     private readonly IOrderRepository? _orderRepository;
+    private readonly IOrderMutationRepository? _orderMutationRepository;
     private readonly ISettingsRepository? _settingsRepository;
     private readonly AppDataSyncService? _dataSyncService;
     private readonly string _dataRoot;
@@ -159,6 +160,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         _validator = new SettingsValidator();
         _backupManager = new BackupManager();
         _orderRepository = orderRepository;
+        _orderMutationRepository = orderRepository as IOrderMutationRepository;
         _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService;
         _dataRoot = dataRoot;
@@ -1804,6 +1806,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             new XmlImportMappingFieldViewModel("Lieferdatum", XmlImportMappingSettings.DefaultOrderDeliveryDate, XmlImportMappingSettings.DefaultOrderDeliveryDate),
             new XmlImportMappingFieldViewModel("Lieferung kann früher erfolgen", XmlImportMappingSettings.DefaultOrderDeliveryCanOccurEarlier, XmlImportMappingSettings.DefaultOrderDeliveryCanOccurEarlier),
             new XmlImportMappingFieldViewModel("Lieferzeit / Produktstatus", XmlImportMappingSettings.DefaultOrderDeliveryTime, XmlImportMappingSettings.DefaultOrderDeliveryTime),
+            new XmlImportMappingFieldViewModel("Zahlungsbedingung", XmlImportMappingSettings.DefaultOrderPaymentTerms, XmlImportMappingSettings.DefaultOrderPaymentTerms),
             new XmlImportMappingFieldViewModel("Archiviert", XmlImportMappingSettings.DefaultOrderArchived, XmlImportMappingSettings.DefaultOrderArchived),
             new XmlImportMappingFieldViewModel("Gesperrt", XmlImportMappingSettings.DefaultOrderLocked, XmlImportMappingSettings.DefaultOrderLocked),
             new XmlImportMappingFieldViewModel("Notiz", XmlImportMappingSettings.DefaultOrderNote, XmlImportMappingSettings.DefaultOrderNote)
@@ -1892,9 +1895,10 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             OrderDeliveryDate = XmlImportOrderFields[8].XmlName,
             OrderDeliveryCanOccurEarlier = XmlImportOrderFields[9].XmlName,
             OrderDeliveryTime = XmlImportOrderFields[10].XmlName,
-            OrderArchived = XmlImportOrderFields[11].XmlName,
-            OrderLocked = XmlImportOrderFields[12].XmlName,
-            OrderNote = XmlImportOrderFields[13].XmlName,
+            OrderPaymentTerms = XmlImportOrderFields[11].XmlName,
+            OrderArchived = XmlImportOrderFields[12].XmlName,
+            OrderLocked = XmlImportOrderFields[13].XmlName,
+            OrderNote = XmlImportOrderFields[14].XmlName,
             ProductOrderId = XmlImportProductFields[0].XmlName,
             ProductArticleNumber = XmlImportProductFields[1].XmlName,
             ProductDescription = XmlImportProductFields[2].XmlName,
@@ -1938,9 +1942,10 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             XmlImportOrderFields[8].XmlName = effective.OrderDeliveryDate;
             XmlImportOrderFields[9].XmlName = effective.OrderDeliveryCanOccurEarlier;
             XmlImportOrderFields[10].XmlName = effective.OrderDeliveryTime;
-            XmlImportOrderFields[11].XmlName = effective.OrderArchived;
-            XmlImportOrderFields[12].XmlName = effective.OrderLocked;
-            XmlImportOrderFields[13].XmlName = effective.OrderNote;
+            XmlImportOrderFields[11].XmlName = effective.OrderPaymentTerms;
+            XmlImportOrderFields[12].XmlName = effective.OrderArchived;
+            XmlImportOrderFields[13].XmlName = effective.OrderLocked;
+            XmlImportOrderFields[14].XmlName = effective.OrderNote;
 
             XmlImportProductFields[0].XmlName = effective.ProductOrderId;
             XmlImportProductFields[1].XmlName = effective.ProductArticleNumber;

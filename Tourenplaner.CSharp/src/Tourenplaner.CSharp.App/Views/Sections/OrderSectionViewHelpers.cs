@@ -9,13 +9,21 @@ internal static class OrderSectionViewHelpers
 {
     public static void HandleMouseWheel(DataGrid grid, MouseWheelEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject source &&
+            !ReferenceEquals(VisualTreeUtilities.FindAncestor<DataGrid>(source), grid))
+        {
+            return;
+        }
+
         var viewer = VisualTreeUtilities.FindDescendant<ScrollViewer>(grid);
         if (viewer is null || viewer.ScrollableHeight <= 0)
         {
             return;
         }
 
-        var target = viewer.VerticalOffset - (e.Delta / 3d);
+        var target = viewer.CanContentScroll
+            ? viewer.VerticalOffset - GetLogicalMouseWheelDelta(e.Delta)
+            : viewer.VerticalOffset - (e.Delta / 3d);
         if (target < 0)
         {
             target = 0;
@@ -27,6 +35,16 @@ internal static class OrderSectionViewHelpers
 
         viewer.ScrollToVerticalOffset(target);
         e.Handled = true;
+    }
+
+    private static double GetLogicalMouseWheelDelta(int delta)
+    {
+        var notches = Math.Max(1d, Math.Abs(delta) / (double)Mouse.MouseWheelDeltaForOneLine);
+        var linesPerNotch = SystemParameters.WheelScrollLines > 0
+            ? SystemParameters.WheelScrollLines
+            : 3;
+
+        return Math.Sign(delta) * linesPerNotch * notches;
     }
 
     public static void HandleOpenOrderClick<TViewModel>(

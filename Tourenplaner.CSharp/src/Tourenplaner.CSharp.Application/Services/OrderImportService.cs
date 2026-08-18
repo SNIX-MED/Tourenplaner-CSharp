@@ -222,6 +222,7 @@ public class OrderImportService : IOrderImportService
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
             OrderStatus = Order.DefaultOrderStatus,
             Notes = sqlOrder.Notiz,
+            IstVorauszahlung = sqlOrder.IstVorauszahlung,
             IsArchived = sqlOrder.Archiviert,
             IsXmlImported = markAsXmlImported || existingOrder?.IsXmlImported == true
         };
@@ -282,6 +283,7 @@ public class OrderImportService : IOrderImportService
         existingOrder.DeliveryType = importedOrder.DeliveryType;
         existingOrder.OrderStatus = importedOrder.OrderStatus;
         existingOrder.Notes = importedOrder.Notes;
+        existingOrder.IstVorauszahlung = importedOrder.IstVorauszahlung;
         existingOrder.IsArchived = importedOrder.IsArchived;
         existingOrder.IsXmlImported = importedOrder.IsXmlImported;
     }
@@ -299,6 +301,7 @@ public class OrderImportService : IOrderImportService
         AddChange(changes, "E-Mail", existingOrder.Email, importedOrder.Email);
         AddChange(changes, "Telefon", existingOrder.Phone, importedOrder.Phone);
         AddChange(changes, "Notiz", existingOrder.Notes, importedOrder.Notes);
+        AddChange(changes, "Vorauskasse", FormatBool(existingOrder.IstVorauszahlung), FormatBool(importedOrder.IstVorauszahlung));
         AddChange(changes, "Archiviert", FormatBool(existingOrder.IsArchived), FormatBool(importedOrder.IsArchived));
         AddChange(changes, "XML-Import", FormatBool(existingOrder.IsXmlImported), FormatBool(importedOrder.IsXmlImported));
         AddProductChange(changes, existingOrder.Products, importedOrder.Products);

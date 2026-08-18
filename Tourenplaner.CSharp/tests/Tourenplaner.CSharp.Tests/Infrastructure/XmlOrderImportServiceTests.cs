@@ -582,6 +582,7 @@ public class XmlOrderImportServiceTests
                     <adresskopfrechnung>Abholkunde AG
                     Musterstrasse 1
                     8000 Zuerich</adresskopfrechnung>
+                    <zahlkondition>Vorkasse</zahlkondition>
                     <archiv>False</archiv>
                     <positionen>
                       <position>
@@ -601,6 +602,7 @@ public class XmlOrderImportServiceTests
 
             Assert.Single(result.Orders);
             Assert.Equal("Selbstabholung", result.Orders[0].Lieferbedingung);
+            Assert.True(result.Orders[0].IstVorauszahlung);
             Assert.DoesNotContain(result.Warnings, warning => warning.Contains("keine Lieferadresse gefunden", StringComparison.OrdinalIgnoreCase));
             Assert.Empty(result.Errors);
         }

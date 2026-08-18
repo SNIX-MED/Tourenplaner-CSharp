@@ -72,6 +72,7 @@ public sealed class XmlImportMappingSettings
     public const string DefaultOrderDeliveryDate = "lieferdatum";
     public const string DefaultOrderDeliveryCanOccurEarlier = "lieferdatumfrüher";
     public const string DefaultOrderDeliveryTime = "zus_lieferzeit";
+    public const string DefaultOrderPaymentTerms = "zahlkondition";
     public const string DefaultOrderArchived = "archiv";
     public const string DefaultOrderLocked = "sperre";
     public const string DefaultOrderNote = "notiz";
@@ -124,6 +125,7 @@ public sealed class XmlImportMappingSettings
     public string OrderDeliveryDate { get; set; } = DefaultOrderDeliveryDate;
     public string OrderDeliveryCanOccurEarlier { get; set; } = DefaultOrderDeliveryCanOccurEarlier;
     public string OrderDeliveryTime { get; set; } = DefaultOrderDeliveryTime;
+    public string OrderPaymentTerms { get; set; } = DefaultOrderPaymentTerms;
     public string OrderArchived { get; set; } = DefaultOrderArchived;
     public string OrderLocked { get; set; } = DefaultOrderLocked;
     public string OrderNote { get; set; } = DefaultOrderNote;
@@ -183,6 +185,7 @@ public sealed class XmlImportMappingSettings
             OrderDeliveryDate = Normalize(OrderDeliveryDate, DefaultOrderDeliveryDate),
             OrderDeliveryCanOccurEarlier = Normalize(OrderDeliveryCanOccurEarlier, DefaultOrderDeliveryCanOccurEarlier),
             OrderDeliveryTime = Normalize(OrderDeliveryTime, DefaultOrderDeliveryTime),
+            OrderPaymentTerms = Normalize(OrderPaymentTerms, DefaultOrderPaymentTerms),
             OrderArchived = Normalize(OrderArchived, DefaultOrderArchived),
             OrderLocked = Normalize(OrderLocked, DefaultOrderLocked),
             OrderNote = Normalize(OrderNote, DefaultOrderNote),
@@ -222,6 +225,7 @@ public sealed class XmlImportMappingSettings
             effective.OrderDeliveryDate = DefaultOrderDeliveryDate;
             effective.OrderDeliveryCanOccurEarlier = DefaultOrderDeliveryCanOccurEarlier;
             effective.OrderDeliveryTime = DefaultOrderDeliveryTime;
+            effective.OrderPaymentTerms = DefaultOrderPaymentTerms;
             effective.OrderArchived = DefaultOrderArchived;
             effective.OrderLocked = DefaultOrderLocked;
             effective.OrderNote = DefaultOrderNote;

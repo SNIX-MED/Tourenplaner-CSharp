@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.SettingsSectionView"
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.SettingsSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:Tourenplaner.CSharp.App.Converters"
@@ -1946,6 +1946,7 @@
                                     </Border>
 
                                     <Border Padding="18"
+                                            Margin="0,0,0,18"
                                             CornerRadius="22"
                                             Background="#FFF7ED"
                                             BorderBrush="#FDBA74"
@@ -1966,33 +1967,47 @@
                                                 <ItemsControl ItemsSource="{Binding XmlImportPinIssueItems}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                            <Border Margin="0,0,0,8"
-                                                                    Padding="12"
-                                                                    Style="{StaticResource SettingsFieldCardStyle}">
-                                                                <StackPanel>
-                                                                    <StackPanel Orientation="Horizontal">
-                                                                    <Border VerticalAlignment="Center"
-                                                                            Background="{Binding IssueBackground}"
-                                                                            BorderBrush="{Binding IssueBorder}"
-                                                                            Style="{StaticResource XmlImportPreviewBadgeStyle}">
+                                                             <Border Margin="0,0,0,8"
+                                                                     Padding="12"
+                                                                     Style="{StaticResource SettingsFieldCardStyle}">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel Grid.Column="0">
                                                                         <StackPanel Orientation="Horizontal">
-                                                                            <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding IssueForeground}" />
-                                                                            <TextBlock Foreground="{Binding IssueForeground}" FontWeight="SemiBold" Text="{Binding IssueLabel}" />
+                                                                            <Border VerticalAlignment="Center"
+                                                                                    Background="{Binding IssueBackground}"
+                                                                                    BorderBrush="{Binding IssueBorder}"
+                                                                                    Style="{StaticResource XmlImportPreviewBadgeStyle}">
+                                                                                <StackPanel Orientation="Horizontal">
+                                                                                    <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding IssueForeground}" />
+                                                                                    <TextBlock Foreground="{Binding IssueForeground}" FontWeight="SemiBold" Text="{Binding IssueLabel}" />
+                                                                                </StackPanel>
+                                                                            </Border>
+                                                                            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding OrderId}" />
                                                                         </StackPanel>
-                                                                    </Border>
-                                                                    <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding OrderId}" />
-                                                                    </StackPanel>
-                                                                    <TextBlock Margin="0,4,0,0" Text="{Binding CustomerLine}" />
-                                                                    <TextBlock Margin="0,2,0,0" Text="{Binding AddressDisplayLine}" TextWrapping="Wrap" />
-                                                                    <TextBlock Margin="0,6,0,0"
+                                                                        <TextBlock Margin="0,4,0,0" Text="{Binding CustomerLine}" />
+                                                                        <TextBlock Margin="0,2,0,0" Text="{Binding AddressDisplayLine}" TextWrapping="Wrap" />
+                                                                        <TextBlock Margin="0,6,0,0"
                                                                                    Foreground="{DynamicResource Brush.TextMuted}"
                                                                                    Text="{Binding IssueSummary}"
                                                                                    TextWrapping="Wrap" />
-                                                                    <TextBlock Margin="0,4,0,0"
+                                                                        <TextBlock Margin="0,4,0,0"
                                                                                    Foreground="{DynamicResource Brush.TextMuted}"
                                                                                    Text="{Binding MatchSummary}"
                                                                                    TextWrapping="Wrap" />
-                                                                </StackPanel>
+                                                                    </StackPanel>
+                                                                    <Button Grid.Column="1"
+                                                                            Width="104"
+                                                                            Height="32"
+                                                                            Margin="14,0,0,0"
+                                                                            VerticalAlignment="Top"
+                                                                            Content="Bearbeiten"
+                                                                            Command="{Binding EditCommand}"
+                                                                            Style="{StaticResource SecondaryButtonStyle}" />
+                                                                </Grid>
                                                             </Border>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>

@@ -110,6 +110,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     Lieferdatum = ReadNullableDate(orderElement, effectiveMapping.OrderDeliveryDate),
                     LieferungKannFrueherErfolgen = ReadBool(orderElement, effectiveMapping.OrderDeliveryCanOccurEarlier),
                     Lieferzeit = ReadString(orderElement, effectiveMapping.OrderDeliveryTime),
+                    IstVorauszahlung = IsPrepaymentCondition(ReadString(orderElement, effectiveMapping.OrderPaymentTerms)),
                     Notiz = ReadString(orderElement, effectiveMapping.OrderNote)
                 };
 
@@ -224,6 +225,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     new XElement("lieferdatum", "29.05.2026 00:00:00"),
                     new XElement("lieferdatumfrüher", "False"),
                     new XElement("archiv", "False"),
+                    new XElement("zahlkondition", "Vorkasse"),
                     new XElement("adresskopfrechnung", "Muster AG\nMusterstrasse 10\n8000 Zuerich"),
                     new XElement("adresskopflieferung", "Empfaenger GmbH\nLieferweg 5\n9000 St. Gallen"),
                     new XElement("versandart", "Post"),
@@ -293,6 +295,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         OrderDeliveryDate = "lieferdatum",
         OrderDeliveryCanOccurEarlier = "lieferdatumfrüher",
         OrderDeliveryTime = sourceMapping.OrderDeliveryTime,
+        OrderPaymentTerms = "zahlkondition",
         OrderArchived = "archiv",
         OrderLocked = "sperre",
         OrderNote = "notiz",
@@ -346,6 +349,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         OrderDeliveryDate = XmlImportMappingSettings.LegacyOrderDeliveryDate,
         OrderDeliveryCanOccurEarlier = XmlImportMappingSettings.LegacyOrderDeliveryCanOccurEarlier,
         OrderDeliveryTime = sourceMapping.OrderDeliveryTime,
+        OrderPaymentTerms = sourceMapping.OrderPaymentTerms,
         OrderArchived = XmlImportMappingSettings.LegacyOrderArchived,
         OrderLocked = XmlImportMappingSettings.LegacyOrderLocked,
         OrderNote = XmlImportMappingSettings.LegacyOrderNote,
@@ -390,6 +394,14 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         return !string.IsNullOrWhiteSpace(explicitDeliveryCondition)
             ? explicitDeliveryCondition.Trim()
             : DeliveryMethodExtensions.SelbstabholungLabel;
+    }
+
+    private static bool IsPrepaymentCondition(string? paymentTerms)
+    {
+        var normalized = (paymentTerms ?? string.Empty).Trim();
+        return normalized.Equals("Vorkasse", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Equals("Vorauskasse", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Equals("Vorauszahlung", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ResolveAddressNumber(XElement orderElement, string fieldName, string fallback)

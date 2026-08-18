@@ -1,4 +1,7 @@
-﻿namespace Tourenplaner.CSharp.App.ViewModels.Sections;
+﻿using System.Windows.Input;
+using Tourenplaner.CSharp.App.ViewModels.Commands;
+
+namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class XmlImportPinIssueListItemViewModel
 {
@@ -11,7 +14,8 @@ public sealed class XmlImportPinIssueListItemViewModel
         string customerName,
         string addressLine,
         string issueSummary,
-        string matchSummary)
+        string matchSummary,
+        Func<string, Task>? editOrderAsync)
     {
         IssueLabel = issueLabel;
         IssueBackground = issueBackground;
@@ -22,6 +26,9 @@ public sealed class XmlImportPinIssueListItemViewModel
         AddressLine = addressLine;
         IssueSummary = issueSummary;
         MatchSummary = matchSummary;
+        EditCommand = new AsyncCommand(
+            () => editOrderAsync?.Invoke(OrderId) ?? Task.CompletedTask,
+            () => editOrderAsync is not null && !string.IsNullOrWhiteSpace(OrderId));
     }
 
     public string IssueLabel { get; }
@@ -33,11 +40,16 @@ public sealed class XmlImportPinIssueListItemViewModel
     public string AddressLine { get; }
     public string IssueSummary { get; }
     public string MatchSummary { get; }
+    public ICommand EditCommand { get; }
 
     public string CustomerLine => string.IsNullOrWhiteSpace(CustomerName) ? "(ohne Kundenname)" : CustomerName;
     public string AddressDisplayLine => string.IsNullOrWhiteSpace(AddressLine) ? "(ohne Lieferadresse)" : AddressLine;
 
-    public static XmlImportPinIssueListItemViewModel CreateMissing(string orderId, string customerName, string addressLine)
+    public static XmlImportPinIssueListItemViewModel CreateMissing(
+        string orderId,
+        string customerName,
+        string addressLine,
+        Func<string, Task>? editOrderAsync)
     {
         return new XmlImportPinIssueListItemViewModel(
             "Keine Zuordnung",
@@ -48,7 +60,8 @@ public sealed class XmlImportPinIssueListItemViewModel
             customerName,
             addressLine,
             "Der Pin konnte keiner konkreten Adresse zugeordnet werden.",
-            "Kein Geocoding-Treffer");
+            "Kein Geocoding-Treffer",
+            editOrderAsync);
     }
 
     public static XmlImportPinIssueListItemViewModel CreateApproximate(
@@ -56,7 +69,8 @@ public sealed class XmlImportPinIssueListItemViewModel
         string customerName,
         string addressLine,
         string matchType,
-        string? entityType)
+        string? entityType,
+        Func<string, Task>? editOrderAsync)
     {
         var matchSummary = string.IsNullOrWhiteSpace(entityType)
             ? matchType
@@ -71,6 +85,7 @@ public sealed class XmlImportPinIssueListItemViewModel
             customerName,
             addressLine,
             "Der Pin wurde nur ungefaehr aufgeloest und sollte manuell geprueft werden.",
-            string.IsNullOrWhiteSpace(matchSummary) ? "Unscharfer Treffer" : matchSummary);
+            string.IsNullOrWhiteSpace(matchSummary) ? "Unscharfer Treffer" : matchSummary,
+            editOrderAsync);
     }
 }

@@ -79,9 +79,9 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         SetSelectedOrderStatusPartiallyInTransitCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.PartiallyInTransitStatus), () => SelectedOrder is not null);
         SetSelectedOrderStatusPartiallyReadyCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.PartiallyReadyStatus), () => SelectedOrder is not null);
         SetSelectedOrderStatusReadyCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.ReadyToDeliverStatus), () => SelectedOrder is not null);
-        ToggleArchiveSelectedOrderCommand = new AsyncCommand(ToggleArchiveSelectedOrderAsync, () => SelectedOrder is not null);
+        ToggleArchiveSelectedOrderCommand = new AsyncCommand(ToggleArchiveSelectedOrderAsync, () => SelectedOrders.Count > 0);
         UndoDeleteCommand = new AsyncCommand(UndoDeleteAsync, () => _lastDeletedOrder is not null);
-        RemoveCommand = new AsyncCommand(RemoveSelectedOrderAsync, () => SelectedOrder is not null);
+        RemoveCommand = new AsyncCommand(RemoveSelectedOrderAsync, () => SelectedOrders.Count > 0);
         ShowActiveOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = false);
         ShowArchivedOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = true);
         ToggleArchiveModeCommand = new DelegateCommand(() => ShowArchivedOrders = !ShowArchivedOrders);
@@ -92,6 +92,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     }
 
     public ObservableCollection<OrderItem> NonMapOrders { get; } = new();
+    public ObservableCollection<OrderItem> SelectedOrders { get; } = new();
     public ObservableCollection<string> DeliveryTypeFilterOptions { get; } = [];
     public ObservableCollection<string> StatusFilterOptions { get; } = [];
     public ObservableCollection<MapOrderFilterOption> OrderStatusFilters { get; } = new();
@@ -271,6 +272,24 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         }
     }
 
+    public void UpdateSelectedOrders(IEnumerable<OrderItem> orders)
+    {
+        var snapshot = orders.ToList();
+
+        SelectedOrders.Clear();
+        foreach (var order in snapshot)
+        {
+            SelectedOrders.Add(order);
+        }
+
+        if (SelectedOrders.Count > 0 && (SelectedOrder is null || !SelectedOrders.Contains(SelectedOrder)))
+        {
+            SelectedOrder = SelectedOrders.Last();
+        }
+
+        RaiseCommandStates();
+    }
+
     public async Task RefreshAsync()
     {
         await RefreshFromRepositoryAsync();
@@ -399,6 +418,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         {
             return;
         }
+        await ReconcileToursWithOrdersAsync(_allOrders);
         await RefreshFromRepositoryAsync(updated.Id);
         SelectOrderById(updated.Id);
         PublishOrderChange(originalId, updated.Id);
@@ -440,32 +460,47 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     private async Task ToggleArchiveSelectedOrderAsync()
     {
-        if (SelectedOrder is null)
+        var selectedOrderIds = SelectedOrders
+            .Select(x => x.Id)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (selectedOrderIds.Count == 0 && SelectedOrder is not null)
+        {
+            selectedOrderIds.Add(SelectedOrder.Id);
+        }
+
+        var targets = _allOrders
+            .Where(x => x.Type == OrderType.NonMap && selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        if (targets.Count == 0)
         {
             return;
         }
 
-        var target = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
-        if (target is null)
+        var nextIsArchived = !targets[0].IsArchived;
+        foreach (var target in targets)
         {
-            return;
+            if (!await ConfirmManualArchiveForAssignedActiveTourAsync(target, nextIsArchived))
+            {
+                return;
+            }
         }
 
-        var nextIsArchived = !target.IsArchived;
-        if (!await ConfirmManualArchiveForAssignedActiveTourAsync(target, nextIsArchived))
+        var changed = 0;
+        foreach (var target in targets)
         {
-            return;
+            target.IsArchived = nextIsArchived;
+            if (await SaveOrderAsync(target))
+            {
+                changed++;
+                PublishOrderChange(target.Id, target.Id);
+            }
         }
 
-        target.IsArchived = nextIsArchived;
-        if (!await SaveOrderAsync(target))
-        {
-            return;
-        }
-        await RefreshFromRepositoryAsync(target.Id);
-        SelectOrderById(target.Id);
-        PublishOrderChange(target.Id, target.Id);
-        StatusText = $"Auftrag {target.Id} wurde {(target.IsArchived ? "archiviert" : "reaktiviert")} (Post/Spedition/Abholung).";
+        await ReconcileToursWithOrdersAsync(_allOrders);
+        await RefreshFromRepositoryAsync();
+        StatusText = $"{changed} Auftrag/Aufträge wurden {(nextIsArchived ? "archiviert" : "reaktiviert")} (Post/Spedition/Abholung).";
         ToastNotificationService.ShowInfo(StatusText);
     }
 
@@ -557,14 +592,28 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     private async Task RemoveSelectedOrderAsync()
     {
-        if (SelectedOrder is null)
+        var selectedOrderIds = SelectedOrders
+            .Select(x => x.Id)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (selectedOrderIds.Count == 0 && SelectedOrder is not null)
+        {
+            selectedOrderIds.Add(SelectedOrder.Id);
+        }
+
+        var targets = _allOrders
+            .Where(x => x.Type == OrderType.NonMap && selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        if (targets.Count == 0)
         {
             return;
         }
 
-        var orderId = SelectedOrder.Id;
         var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-            $"Soll der Auftrag {orderId} wirklich gelöscht werden?",
+            targets.Count == 1
+                ? $"Soll der Auftrag {targets[0].Id} wirklich gelöscht werden?"
+                : $"Sollen die {targets.Count} markierten Aufträge wirklich gelöscht werden?",
             "Auftrag löschen",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
@@ -573,35 +622,80 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var index = _allOrders.FindIndex(x =>
-            x.Type == OrderType.NonMap &&
-            string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
-        if (index < 0)
+        var deleted = 0;
+        var deletedIds = new List<string>();
+        var deletedSnapshots = new List<(Order Order, int Index)>();
+        if (_mutationRepository is null)
         {
-            return;
+            foreach (var target in targets)
+            {
+                var index = _allOrders.IndexOf(target);
+                if (index < 0)
+                {
+                    continue;
+                }
+
+                deletedSnapshots.Add((CloneOrder(target), index));
+                deletedIds.Add(target.Id);
+            }
+
+            foreach (var deletedId in deletedIds)
+            {
+                _allOrders.RemoveAll(x => string.Equals(x.Id, deletedId, StringComparison.OrdinalIgnoreCase));
+            }
+
+            await _repository.SaveAllAsync(_allOrders);
+            deleted = deletedIds.Count;
+        }
+        else
+        {
+            foreach (var target in targets)
+            {
+                var index = _allOrders.IndexOf(target);
+                if (index < 0 || !await DeleteOrderAsync(target.Id, target.ConcurrencyToken))
+                {
+                    continue;
+                }
+
+                deletedSnapshots.Add((CloneOrder(target), index));
+                deletedIds.Add(target.Id);
+                deleted++;
+            }
+
+            foreach (var deletedId in deletedIds)
+            {
+                _allOrders.RemoveAll(x => string.Equals(x.Id, deletedId, StringComparison.OrdinalIgnoreCase));
+            }
         }
 
-        var removedOrderId = orderId;
-        _lastDeletedOrder = CloneOrder(_allOrders[index]);
-        _lastDeletedIndex = index;
-        _allOrders.RemoveAt(index);
-
-        if (!await DeleteOrderAsync(removedOrderId, _lastDeletedOrder?.ConcurrencyToken))
+        if (deleted == 0)
         {
-            _lastDeletedOrder = null;
-            _lastDeletedIndex = -1;
+            await RefreshFromRepositoryAsync();
+            StatusText = "Kein Auftrag wurde gelöscht.";
             RaiseCommandStates();
             return;
         }
+
+        if (deletedSnapshots.Count > 0)
+        {
+            var lastDeleted = deletedSnapshots[^1];
+            _lastDeletedOrder = lastDeleted.Order;
+            _lastDeletedIndex = lastDeleted.Index;
+        }
+
+        await ReconcileToursWithOrdersAsync(_allOrders);
         await RefreshFromRepositoryAsync();
-        PublishOrderChange(removedOrderId, null);
-        StatusText = $"Auftrag {removedOrderId} wurde geloescht. Mit 'Zurueck' wiederherstellen.";
-        ToastNotificationService.ShowInfo($"Auftrag {removedOrderId} wurde gelöscht.");
+        PublishOrderChange(deleted == 1 ? deletedIds[0] : null, null);
+        StatusText = deleted == 1
+            ? "1 Auftrag wurde gelöscht. Mit 'Zurück' wiederherstellen."
+            : $"{deleted} Aufträge wurden gelöscht. Mit 'Zurück' den zuletzt gelöschten Auftrag wiederherstellen.";
+        ToastNotificationService.ShowInfo(StatusText);
         RaiseCommandStates();
     }
 
     private void RebuildGrid(string? preferredSelectedId = null)
     {
+        SelectedOrders.Clear();
         var selectedOrderId = string.IsNullOrWhiteSpace(preferredSelectedId)
             ? SelectedOrder?.Id
             : preferredSelectedId;
@@ -995,6 +1089,29 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private void PublishOrderChange(string? previousOrderId, string? currentOrderId)
     {
         _dataSyncService.PublishOrders(_instanceId, previousOrderId, currentOrderId);
+    }
+
+    private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
+    {
+        var tours = (await _tourRepository.LoadAsync()).ToList();
+        var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
+        if (!cleanup.HasChanges)
+        {
+            return;
+        }
+
+        var scheduleService = new TourScheduleService();
+        foreach (var changedTourId in cleanup.RescheduledTourIds)
+        {
+            var changedTour = tours.FirstOrDefault(x => x.Id == changedTourId);
+            if (changedTour is not null)
+            {
+                scheduleService.ApplySchedule(changedTour);
+            }
+        }
+
+        await _tourRepository.SaveAsync(tours);
+        _dataSyncService.PublishTours(_instanceId);
     }
 
     private bool MatchesTourAssignmentFilter(Order order)
