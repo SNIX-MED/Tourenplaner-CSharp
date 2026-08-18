@@ -203,7 +203,7 @@ public class OrderImportService : IOrderImportService
                 Name = sqlOrder.KundeFirma,
                 ContactPerson = orderContactPerson,
                 Street = (sqlOrder.KundeStrasse ?? string.Empty).Trim(),
-                HouseNumber = (sqlOrder.KundeHausnummer ?? string.Empty).Trim(),
+                HouseNumber = ResolvePreferredContact(sqlOrder.KundeAdressNummer, sqlOrder.KundeHausnummer),
                 PostalCode = sqlOrder.KundePLZ,
                 City = sqlOrder.KundeOrt
             },
@@ -212,7 +212,7 @@ public class OrderImportService : IOrderImportService
                 Name = deliveryAddress.Name,
                 ContactPerson = deliveryAddress.ContactPerson,
                 Street = deliveryAddress.Street,
-                HouseNumber = deliveryAddress.HouseNumber,
+                HouseNumber = deliveryAddress.AddressNumber,
                 PostalCode = deliveryAddress.PostalCode,
                 City = deliveryAddress.City
             },
@@ -344,11 +344,12 @@ public class OrderImportService : IOrderImportService
         }
     }
 
-    private (string Name, string ContactPerson, string Street, string HouseNumber, string PostalCode, string City) ResolveDeliveryAddress(XmlOrderImportData sqlOrder)
+    private (string Name, string ContactPerson, string Street, string AddressNumber, string PostalCode, string City) ResolveDeliveryAddress(XmlOrderImportData sqlOrder)
     {
         var hasSeparateDeliveryAddress =
             !string.IsNullOrWhiteSpace(sqlOrder.LieferStrasse) ||
             !string.IsNullOrWhiteSpace(sqlOrder.LieferHausnummer) ||
+            !string.IsNullOrWhiteSpace(sqlOrder.LieferAdressNummer) ||
             !string.IsNullOrWhiteSpace(sqlOrder.LieferPLZ) ||
             !string.IsNullOrWhiteSpace(sqlOrder.LieferOrt) ||
             !string.IsNullOrWhiteSpace(sqlOrder.LieferLand) ||
@@ -373,7 +374,7 @@ public class OrderImportService : IOrderImportService
                 Name: name,
                 ContactPerson: contactPerson,
                 Street: (sqlOrder.LieferStrasse ?? string.Empty).Trim(),
-                HouseNumber: (sqlOrder.LieferHausnummer ?? string.Empty).Trim(),
+                AddressNumber: ResolvePreferredContact(sqlOrder.LieferAdressNummer, sqlOrder.LieferHausnummer),
                 PostalCode: sqlOrder.LieferPLZ,
                 City: sqlOrder.LieferOrt);
         }
@@ -388,7 +389,9 @@ public class OrderImportService : IOrderImportService
             Name: string.IsNullOrWhiteSpace(sqlOrder.KundeFirma) ? BuildCustomerName(sqlOrder) : sqlOrder.KundeFirma,
             ContactPerson: customerContact,
             Street: (sqlOrder.KundeStrasse ?? string.Empty).Trim(),
-            HouseNumber: (sqlOrder.KundeHausnummer ?? string.Empty).Trim(),
+            AddressNumber: ResolvePreferredContact(
+                sqlOrder.LieferAdressNummer,
+                ResolvePreferredContact(sqlOrder.KundeAdressNummer, sqlOrder.KundeHausnummer)),
             PostalCode: sqlOrder.KundePLZ,
             City: sqlOrder.KundeOrt);
     }

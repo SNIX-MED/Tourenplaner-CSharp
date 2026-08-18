@@ -1,4 +1,4 @@
-namespace Tourenplaner.CSharp.Domain.Models;
+﻿namespace Tourenplaner.CSharp.Domain.Models;
 
 /// <summary>Normalized order data parsed from the ERP XML export.</summary>
 public class XmlOrderImportData
@@ -19,6 +19,7 @@ public class XmlOrderImportData
     public string KundeEmail { get; set; } = string.Empty;
     public string KundeTelefon { get; set; } = string.Empty;
     public string KundeKontaktperson { get; set; } = string.Empty;
+    public string KundeAdressNummer { get; set; } = string.Empty;
     public string LieferFirma { get; set; } = string.Empty;
     public string LieferNachname { get; set; } = string.Empty;
     public string LieferVorname { get; set; } = string.Empty;
@@ -30,6 +31,7 @@ public class XmlOrderImportData
     public string LieferEmail { get; set; } = string.Empty;
     public string LieferTelefon { get; set; } = string.Empty;
     public string LieferKontaktperson { get; set; } = string.Empty;
+    public string LieferAdressNummer { get; set; } = string.Empty;
     public string Lieferbedingung { get; set; } = "Selbstabholung";
     public List<XmlOrderProductData> Produkte { get; set; } = new();
     public decimal NettoTotal { get; set; }

@@ -114,6 +114,10 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                 };
 
                 var customerAddressId = ReadString(orderElement, effectiveMapping.OrderAddressId);
+                order.KundeAdressNummer = ResolveAddressNumber(
+                    orderElement,
+                    effectiveMapping.OrderAddressNumber,
+                    customerAddressId);
                 if (addressesById.TryGetValue(customerAddressId, out var customerAddressElement))
                 {
                     ApplyAddress(order, customerAddressElement, effectiveMapping, isDeliveryAddress: false);
@@ -121,6 +125,10 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
 
                 var hasDeliveryAddress = false;
                 var deliveryAddressId = ReadString(orderElement, effectiveMapping.OrderDeliveryAddressId);
+                order.LieferAdressNummer = ResolveAddressNumber(
+                    orderElement,
+                    effectiveMapping.OrderDeliveryAddressNumber,
+                    deliveryAddressId);
                 if (addressesById.TryGetValue(deliveryAddressId, out var deliveryAddressElement))
                 {
                     ApplyAddress(order, deliveryAddressElement, effectiveMapping, isDeliveryAddress: true);
@@ -209,6 +217,8 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     new XElement("kopf", "A-10001"),
                     new XElement("datum", "28.05.2026 00:00:00"),
                     new XElement("adressid", "0000101"),
+                    new XElement("firma", "0000101"),
+                    new XElement("Standort", "0000202"),
                     new XElement("notiz", "Musterdatensatz"),
                     new XElement("sperre", "False"),
                     new XElement("lieferdatum", "29.05.2026 00:00:00"),
@@ -291,6 +301,8 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         ProductDescription = "bezeichnung",
         ProductQuantity = "menge",
         ProductWeight = "gewicht",
+        OrderAddressNumber = sourceMapping.OrderAddressNumber,
+        OrderDeliveryAddressNumber = sourceMapping.OrderDeliveryAddressNumber,
         OrderBillingAddressBlock = sourceMapping.OrderBillingAddressBlock,
         OrderDeliveryAddressBlock = sourceMapping.OrderDeliveryAddressBlock,
         ExcludedProductArticleNumbers = sourceMapping.ExcludedProductArticleNumbers,
@@ -328,6 +340,8 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         OrderDate = XmlImportMappingSettings.LegacyOrderDate,
         OrderAddressId = XmlImportMappingSettings.LegacyOrderAddressId,
         OrderDeliveryAddressId = XmlImportMappingSettings.LegacyOrderDeliveryAddressId,
+        OrderAddressNumber = sourceMapping.OrderAddressNumber,
+        OrderDeliveryAddressNumber = sourceMapping.OrderDeliveryAddressNumber,
         OrderDeliveryCondition = XmlImportMappingSettings.LegacyOrderDeliveryCondition,
         OrderDeliveryDate = XmlImportMappingSettings.LegacyOrderDeliveryDate,
         OrderDeliveryCanOccurEarlier = XmlImportMappingSettings.LegacyOrderDeliveryCanOccurEarlier,
@@ -376,6 +390,29 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         return !string.IsNullOrWhiteSpace(explicitDeliveryCondition)
             ? explicitDeliveryCondition.Trim()
             : DeliveryMethodExtensions.SelbstabholungLabel;
+    }
+
+    private static string ResolveAddressNumber(XElement orderElement, string fieldName, string fallback)
+    {
+        var explicitValue = ReadString(orderElement, fieldName, string.Empty);
+        return ExtractTrailingAddressNumber(!string.IsNullOrWhiteSpace(explicitValue)
+            ? explicitValue
+            : fallback);
+    }
+
+    private static string ExtractTrailingAddressNumber(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return string.Empty;
+        }
+
+        var segments = normalized
+            .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return segments.Length == 0
+            ? normalized
+            : segments[^1].Trim();
     }
 
     private static string? ParseDeliveryConditionFromProductArticleNumbers(

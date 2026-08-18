@@ -61,6 +61,14 @@ internal static class OrderSectionViewHelpers
             return;
         }
 
+        if (grid.SelectionMode == DataGridSelectionMode.Single)
+        {
+            grid.SelectedItem = item;
+            grid.CurrentItem = item;
+            setSelection(vm, item);
+            return;
+        }
+
         if (!grid.SelectedItems.Contains(item))
         {
             grid.SelectedItems.Clear();

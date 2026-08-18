@@ -259,8 +259,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     public void UpdateSelectedOrders(IEnumerable<OrderItem> orders)
     {
+        var snapshot = orders.ToList();
+
         SelectedOrders.Clear();
-        foreach (var order in orders)
+        foreach (var order in snapshot)
         {
             SelectedOrders.Add(order);
         }
@@ -407,6 +409,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         {
             return;
         }
+        await ReconcileToursWithOrdersAsync(_allOrders);
         await RefreshFromRepositoryAsync(updated.Id);
         SelectOrderById(updated.Id);
         PublishOrderChange(originalId, updated.Id);
@@ -488,6 +491,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             }
         }
 
+        await ReconcileToursWithOrdersAsync(_allOrders);
         await RefreshFromRepositoryAsync();
         StatusText = $"{changed} Auftrag/Aufträge wurden {(nextIsArchived ? "archiviert" : "reaktiviert")}.";
         ToastNotificationService.ShowInfo(StatusText);
@@ -581,7 +585,11 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private async Task RemoveSelectedOrderAsync()
     {
-        var selectedOrderIds = SelectedOrders.Select(x => x.Id).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var selectedOrderIds = SelectedOrders
+            .Select(x => x.Id)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         if (selectedOrderIds.Count == 0 && SelectedOrder is not null)
         {
             selectedOrderIds.Add(SelectedOrder.Id);
@@ -608,22 +616,69 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
 
         var deleted = 0;
-        foreach (var target in targets)
+        var deletedIds = new List<string>();
+        var deletedSnapshots = new List<(Order Order, int Index)>();
+        if (_mutationRepository is null)
         {
-            var index = _allOrders.IndexOf(target);
-            if (index < 0 || !await DeleteOrderAsync(target.Id, target.ConcurrencyToken))
+            foreach (var target in targets)
             {
-                continue;
+                var index = _allOrders.IndexOf(target);
+                if (index < 0)
+                {
+                    continue;
+                }
+
+                deletedSnapshots.Add((CloneOrder(target), index));
+                deletedIds.Add(target.Id);
             }
 
-            _lastDeletedOrder = CloneOrder(target);
-            _lastDeletedIndex = index;
-            _allOrders.RemoveAt(index);
-            PublishOrderChange(target.Id, null);
-            deleted++;
+            foreach (var deletedId in deletedIds)
+            {
+                _allOrders.RemoveAll(x => string.Equals(x.Id, deletedId, StringComparison.OrdinalIgnoreCase));
+            }
+
+            await _repository.SaveAllAsync(_allOrders);
+            deleted = deletedIds.Count;
+        }
+        else
+        {
+            foreach (var target in targets)
+            {
+                var index = _allOrders.IndexOf(target);
+                if (index < 0 || !await DeleteOrderAsync(target.Id, target.ConcurrencyToken))
+                {
+                    continue;
+                }
+
+                deletedSnapshots.Add((CloneOrder(target), index));
+                deletedIds.Add(target.Id);
+                deleted++;
+            }
+
+            foreach (var deletedId in deletedIds)
+            {
+                _allOrders.RemoveAll(x => string.Equals(x.Id, deletedId, StringComparison.OrdinalIgnoreCase));
+            }
         }
 
+        if (deleted == 0)
+        {
+            await RefreshFromRepositoryAsync();
+            StatusText = "Kein Auftrag wurde gelöscht.";
+            RaiseCommandStates();
+            return;
+        }
+
+        if (deletedSnapshots.Count > 0)
+        {
+            var lastDeleted = deletedSnapshots[^1];
+            _lastDeletedOrder = lastDeleted.Order;
+            _lastDeletedIndex = lastDeleted.Index;
+        }
+
+        await ReconcileToursWithOrdersAsync(_allOrders);
         await RefreshFromRepositoryAsync();
+        PublishOrderChange(deleted == 1 ? deletedIds[0] : null, null);
         StatusText = deleted == 1
             ? "1 Auftrag wurde gelöscht. Mit 'Zurück' wiederherstellen."
             : $"{deleted} Aufträge wurden gelöscht. Mit 'Zurück' den zuletzt gelöschten Auftrag wiederherstellen.";
@@ -1053,6 +1108,29 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private void PublishOrderChange(string? previousOrderId, string? currentOrderId)
     {
         _dataSyncService.PublishOrders(_instanceId, previousOrderId, currentOrderId);
+    }
+
+    private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
+    {
+        var tours = (await _tourRepository.LoadAsync()).ToList();
+        var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
+        if (!cleanup.HasChanges)
+        {
+            return;
+        }
+
+        var scheduleService = new TourScheduleService();
+        foreach (var changedTourId in cleanup.RescheduledTourIds)
+        {
+            var changedTour = tours.FirstOrDefault(x => x.Id == changedTourId);
+            if (changedTour is not null)
+            {
+                scheduleService.ApplySchedule(changedTour);
+            }
+        }
+
+        await _tourRepository.SaveAsync(tours);
+        _dataSyncService.PublishTours(_instanceId);
     }
 
     private bool MatchesTourAssignmentFilter(Order order)

@@ -673,7 +673,18 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         _loadedTours.Clear();
         _loadedTours.AddRange(await _tourRepository.LoadAsync());
-        if (NormalizeCompanyStops(_loadedTours, settings))
+        var tourReconciliation = TourOrderReferenceService.ReconcileActiveToursWithOrders(_loadedTours, _ordersById.Values);
+        foreach (var changedTourId in tourReconciliation.RescheduledTourIds)
+        {
+            var changedTour = _loadedTours.FirstOrDefault(x => x.Id == changedTourId);
+            if (changedTour is not null)
+            {
+                _scheduleService.ApplySchedule(changedTour);
+            }
+        }
+
+        var companyStopsNormalized = NormalizeCompanyStops(_loadedTours, settings);
+        if (tourReconciliation.HasChanges || companyStopsNormalized)
         {
             await _tourRepository.SaveAsync(_loadedTours);
             _dataSyncService.PublishTours(_instanceId);
@@ -2509,6 +2520,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             var isRouteEnd = index == orderedStops.Count - 1;
             var arrival = stop.PlannedArrival ?? string.Empty;
             var departure = stop.PlannedDeparture ?? string.Empty;
+            var isArchivedOrder = !isCompanyStop &&
+                                  !isPauseStop &&
+                                  _ordersById.TryGetValue((stop.Auftragsnummer ?? string.Empty).Trim(), out var order) &&
+                                  order.IsArchived;
 
             SelectedTourStops.Add(new TourStopOverviewItem
             {
@@ -2518,8 +2533,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 IsPauseStop = isPauseStop,
                 IsRouteStart = isRouteStart,
                 IsRouteEnd = isRouteEnd,
+                IsArchivedOrder = isArchivedOrder,
                 Order = stopMarker,
-                OrderNumber = isCompanyStop || isPauseStop ? string.Empty : stop.Auftragsnummer,
+                OrderNumber = isCompanyStop || isPauseStop ? string.Empty : stop.Auftragsnummer ?? string.Empty,
                 Name = isCompanyStop ? NormalizeCompanyStopName(stop.Name) : (isPauseStop ? "Pause" : stop.Name),
                 Address = isCompanyStop || isPauseStop ? string.Empty : stop.Address,
                 Window = isCompanyStop || isPauseStop ? string.Empty : BuildCalendarWindowText(stop),
@@ -3209,7 +3225,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var relevantKinds = AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees;
+        var relevantKinds = AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees;
         if ((args.Kinds & relevantKinds) == AppDataKind.None)
         {
             return;
@@ -3440,6 +3456,7 @@ public sealed class TourStopOverviewItem
     public bool IsPauseStop { get; set; }
     public bool IsRouteStart { get; set; }
     public bool IsRouteEnd { get; set; }
+    public bool IsArchivedOrder { get; set; }
     public string Order { get; set; } = string.Empty;
     public string OrderNumber { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

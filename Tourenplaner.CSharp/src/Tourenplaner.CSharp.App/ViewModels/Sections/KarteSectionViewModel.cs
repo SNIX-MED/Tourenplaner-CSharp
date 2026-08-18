@@ -2955,8 +2955,25 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private async Task LoadSavedToursAsync(int? preferredTourId = null)
     {
+        var allTours = (await _tourRepository.LoadAsync()).ToList();
+        var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(allTours, _allOrders);
+        if (cleanup.HasChanges)
+        {
+            foreach (var changedTourId in cleanup.RescheduledTourIds)
+            {
+                var changedTour = allTours.FirstOrDefault(x => x.Id == changedTourId);
+                if (changedTour is not null)
+                {
+                    _scheduleService.ApplySchedule(changedTour);
+                }
+            }
+
+            await _tourRepository.SaveAsync(allTours);
+            _dataSyncService.PublishTours(_instanceId);
+        }
+
         _savedTours.Clear();
-        _savedTours.AddRange((await _tourRepository.LoadAsync())
+        _savedTours.AddRange(allTours
             .Where(t => !t.IsArchived)
             .Select(t =>
             {
@@ -3983,6 +4000,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                     IsCompanyAnchor = false,
                     IsPauseStop = string.Equals((stop.StopKind ?? string.Empty).Trim(), PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
                                   (stop.OrderId ?? string.Empty).StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase),
+                    IsArchivedOrder = IsRouteStopArchived(stop.OrderId),
                     PlannedStayMinutes = string.Equals((stop.StopKind ?? string.Empty).Trim(), PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
                                          (stop.OrderId ?? string.Empty).StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase)
                         ? Math.Max(0, stop.ServiceMinutes)
@@ -5924,6 +5942,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _allOrders.Clear();
         _allOrders.AddRange(await _orderRepository.GetAllAsync());
 
+        await LoadSavedToursAsync(ResolveCurrentTourId());
         RefreshOrderFilterOptions();
         RefreshRouteStopsFromOrders(args);
         RebuildOrderGrid(preferredSelectedOrderId);
@@ -5942,7 +5961,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private void RefreshRouteStopsFromOrders(OrderChangedEventArgs args)
     {
-        foreach (var stop in RouteStops.Where(x => !IsCompanyStop(x)))
+        var removedAny = false;
+        foreach (var stop in RouteStops.Where(IsOrderStop).ToList())
         {
             if (!string.IsNullOrWhiteSpace(args.PreviousOrderId) &&
                 string.Equals(stop.OrderId, args.PreviousOrderId, StringComparison.OrdinalIgnoreCase) &&
@@ -5954,6 +5974,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, stop.OrderId, StringComparison.OrdinalIgnoreCase));
             if (order is null)
             {
+                RouteStops.Remove(stop);
+                removedAny = true;
                 continue;
             }
 
@@ -5964,9 +5986,23 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 order.Address);
             stop.Latitude = order.Location?.Latitude ?? stop.Latitude;
             stop.Longitude = order.Location?.Longitude ?? stop.Longitude;
+            stop.IsArchivedOrder = order.IsArchived;
+        }
+
+        if (removedAny)
+        {
+            RebuildPositions();
+            return;
         }
 
         RequestRouteGeometryRebuild();
+    }
+
+    private bool IsRouteStopArchived(string? orderId)
+    {
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        return !string.IsNullOrWhiteSpace(normalizedOrderId) &&
+               _allOrders.FirstOrDefault(x => string.Equals(x.Id, normalizedOrderId, StringComparison.OrdinalIgnoreCase))?.IsArchived == true;
     }
 
     private static string? ResolvePreferredOrderId(OrderChangedEventArgs args, string? currentOrderId)
@@ -7939,6 +7975,7 @@ public sealed class RouteStopItem : ObservableObject
     private bool _isDropTargetBefore;
     private bool _isDropTargetAfter;
     private bool _isReturnToCompanyLegVisible;
+    private bool _isArchivedOrder;
     private int _plannedStayMinutes = 10;
     private string _etaText = string.Empty;
     private string _etaRangeText = string.Empty;
@@ -8103,6 +8140,12 @@ public sealed class RouteStopItem : ObservableObject
     {
         get => _isReturnToCompanyLegVisible;
         set => SetProperty(ref _isReturnToCompanyLegVisible, value);
+    }
+
+    public bool IsArchivedOrder
+    {
+        get => _isArchivedOrder;
+        set => SetProperty(ref _isArchivedOrder, value);
     }
 
     public int PlannedStayMinutes

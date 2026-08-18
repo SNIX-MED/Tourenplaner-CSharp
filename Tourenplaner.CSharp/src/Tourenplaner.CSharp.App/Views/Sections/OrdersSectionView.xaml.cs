@@ -55,7 +55,7 @@ public partial class OrdersSectionView : UserControl
     {
         if (DataContext is OrdersSectionViewModel vm)
         {
-            vm.UpdateSelectedOrders(OrdersGrid.SelectedItems.OfType<OrderItem>());
+            vm.UpdateSelectedOrders(OrdersGrid.SelectedItems.OfType<OrderItem>().ToList());
         }
     }
 

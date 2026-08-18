@@ -50,6 +50,8 @@ public class XmlOrderImportServiceTests
                     <Datum>2026-06-10T00:00:00</Datum>
                     <AdressID>100</AdressID>
                     <LieferadressID>200</LieferadressID>
+                    <firma>A GmbH | Konstanzerstrasse 14 | CH-8274 Tägerwilen | 100038</firma>
+                    <Standort>Frau Janine Fäsi | Ara-Strasse 6 | CH-8274 Tägerwilen | 200039</Standort>
                     <LiefKondID>Lieferung</LiefKondID>
                     <Lieferdatum>2026-06-11T00:00:00</Lieferdatum>
                     <Archiviert>false</Archiviert>
@@ -72,7 +74,9 @@ public class XmlOrderImportServiceTests
             Assert.Single(result.Orders);
             Assert.Equal("A-200", result.Orders[0].AuftragNr);
             Assert.Equal("Muster AG", result.Orders[0].KundeFirma);
+            Assert.Equal("100038", result.Orders[0].KundeAdressNummer);
             Assert.Equal("Empfaenger GmbH", result.Orders[0].LieferFirma);
+            Assert.Equal("200039", result.Orders[0].LieferAdressNummer);
             Assert.Single(result.Orders[0].Produkte);
             Assert.Equal("PRODUKT-A", result.Orders[0].Produkte[0].ArtikelNummer);
             Assert.Equal(10.5m, result.Orders[0].Produkte[0].Gewicht);

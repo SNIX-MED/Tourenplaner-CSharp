@@ -279,10 +279,10 @@
                                         </Style>
                                     </ComboBox.Style>
                                 </ComboBox>
-                                <TextBox Text="{Binding SelectedDeliveryType}"
-                                         Visibility="Collapsed">
+                                <TextBox Text="{Binding SelectedDeliveryType}">
                                     <TextBox.Style>
                                         <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
                                             <Setter Property="IsReadOnly" Value="True" />
                                             <Setter Property="Foreground" Value="#FF94A3B8" />
                                             <Setter Property="Background" Value="#FFF8FAFC" />

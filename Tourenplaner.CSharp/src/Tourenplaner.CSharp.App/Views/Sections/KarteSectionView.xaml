@@ -1255,6 +1255,11 @@
                                                                     <DataTrigger Binding="{Binding IsCompanyAnchor}" Value="True">
                                                                         <Setter Property="Padding" Value="4,2" />
                                                                     </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsArchivedOrder}" Value="True">
+                                                                        <Setter Property="Opacity" Value="0.48" />
+                                                                        <Setter Property="BorderBrush" Value="#CBD5E1" />
+                                                                        <Setter Property="Background" Value="#F8FAFC" />
+                                                                    </DataTrigger>
                                                                     <DataTrigger Binding="{Binding IsStopSelected}" Value="True">
                                                                         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
                                                                     </DataTrigger>
