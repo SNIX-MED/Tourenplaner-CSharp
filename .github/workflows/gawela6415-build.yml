@@ -23,10 +23,10 @@ jobs:
           rm -rf gawela6416/export
           mkdir -p gawela6416/export
           base64 -w0 gawela6416/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.16.zip > /tmp/gawela6416.b64
-          split -b 6000 -d -a 2 /tmp/gawela6416.b64 gawela6416/export/part
+          split -b 4000 -d -a 2 /tmp/gawela6416.b64 gawela6416/export/part
           printf '%s\n' 'Concatenate part00..partNN and Base64-decode to restore Smartstore.Module.Gawela.ColorConfigurator.6.4.16.zip.' > gawela6416/export/README.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A gawela6416/export
-          git commit -m "Export smaller 6.4.16 package chunks [skip ci]"
+          git commit -m "Export compact 6.4.16 package chunks [skip ci]"
           git push origin HEAD:gawela-colorconfig-6416-build
