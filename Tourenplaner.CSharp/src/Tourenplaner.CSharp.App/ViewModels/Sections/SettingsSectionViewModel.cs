@@ -1062,6 +1062,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
     public bool HasXmlImportPinIssues => XmlImportPinIssueItems.Count > 0;
 
+    public bool HasXmlImportWarningsOrPinIssues => HasXmlImportPreviewWarnings || HasXmlImportPinIssues;
+
     public bool HasXmlImportPinIssueSummary => !string.IsNullOrWhiteSpace(XmlImportPinIssueSummary);
 
     public bool HasXmlImportPreviewHiddenItems => _xmlImportPreviewHiddenItemCount > 0;

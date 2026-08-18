@@ -1948,98 +1948,106 @@
                                     <Border Padding="18"
                                             Margin="0,0,0,18"
                                             CornerRadius="22"
-                                            Background="#FFF7ED"
+                                            Background="#FFFFFBEB"
                                             BorderBrush="#FDBA74"
                                             BorderThickness="1">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Visibility" Value="Visible" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasXmlImportPinIssues}" Value="False">
+                                                    <DataTrigger Binding="{Binding HasXmlImportWarningsOrPinIssues}" Value="False">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
                                         <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Problematische Pin-Zuordnungen" />
-                                            <ScrollViewer Margin="0,10,0,0" MaxHeight="280" VerticalScrollBarVisibility="Auto">
-                                                <ItemsControl ItemsSource="{Binding XmlImportPinIssueItems}">
+                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Warnungen beim XML-Import" />
+
+                                            <StackPanel Margin="0,12,0,0">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasXmlImportPinIssues}" Value="False">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <TextBlock FontWeight="SemiBold" Text="Problematische Pin-Zuordnungen" />
+                                                <ScrollViewer Margin="0,10,0,0" MaxHeight="280" VerticalScrollBarVisibility="Auto">
+                                                    <ItemsControl ItemsSource="{Binding XmlImportPinIssueItems}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                 <Border Margin="0,0,0,8"
+                                                                         Padding="12"
+                                                                         Style="{StaticResource SettingsFieldCardStyle}">
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*" />
+                                                                            <ColumnDefinition Width="Auto" />
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <StackPanel Grid.Column="0">
+                                                                            <StackPanel Orientation="Horizontal">
+                                                                                <Border VerticalAlignment="Center"
+                                                                                        Background="{Binding IssueBackground}"
+                                                                                        BorderBrush="{Binding IssueBorder}"
+                                                                                        Style="{StaticResource XmlImportPreviewBadgeStyle}">
+                                                                                    <StackPanel Orientation="Horizontal">
+                                                                                        <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding IssueForeground}" />
+                                                                                        <TextBlock Foreground="{Binding IssueForeground}" FontWeight="SemiBold" Text="{Binding IssueLabel}" />
+                                                                                    </StackPanel>
+                                                                                </Border>
+                                                                                <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding OrderId}" />
+                                                                            </StackPanel>
+                                                                            <TextBlock Margin="0,4,0,0" Text="{Binding CustomerLine}" />
+                                                                            <TextBlock Margin="0,2,0,0" Text="{Binding AddressDisplayLine}" TextWrapping="Wrap" />
+                                                                            <TextBlock Margin="0,6,0,0"
+                                                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                                                       Text="{Binding IssueSummary}"
+                                                                                       TextWrapping="Wrap" />
+                                                                            <TextBlock Margin="0,4,0,0"
+                                                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                                                       Text="{Binding MatchSummary}"
+                                                                                       TextWrapping="Wrap" />
+                                                                        </StackPanel>
+                                                                        <Button Grid.Column="1"
+                                                                                Width="104"
+                                                                                Height="32"
+                                                                                Margin="14,0,0,0"
+                                                                                VerticalAlignment="Top"
+                                                                                Content="Bearbeiten"
+                                                                                Command="{Binding EditCommand}"
+                                                                                Style="{StaticResource SecondaryButtonStyle}" />
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                            </StackPanel>
+
+                                            <StackPanel Margin="0,14,0,0">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasXmlImportPreviewWarnings}" Value="False">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <TextBlock FontWeight="SemiBold" Text="Weitere Warnungen" />
+                                                <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding XmlImportPreviewWarnings}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                             <Border Margin="0,0,0,8"
-                                                                     Padding="12"
-                                                                     Style="{StaticResource SettingsFieldCardStyle}">
-                                                                <Grid>
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="*" />
-                                                                        <ColumnDefinition Width="Auto" />
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <StackPanel Grid.Column="0">
-                                                                        <StackPanel Orientation="Horizontal">
-                                                                            <Border VerticalAlignment="Center"
-                                                                                    Background="{Binding IssueBackground}"
-                                                                                    BorderBrush="{Binding IssueBorder}"
-                                                                                    Style="{StaticResource XmlImportPreviewBadgeStyle}">
-                                                                                <StackPanel Orientation="Horizontal">
-                                                                                    <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center" Fill="{Binding IssueForeground}" />
-                                                                                    <TextBlock Foreground="{Binding IssueForeground}" FontWeight="SemiBold" Text="{Binding IssueLabel}" />
-                                                                                </StackPanel>
-                                                                            </Border>
-                                                                            <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding OrderId}" />
-                                                                        </StackPanel>
-                                                                        <TextBlock Margin="0,4,0,0" Text="{Binding CustomerLine}" />
-                                                                        <TextBlock Margin="0,2,0,0" Text="{Binding AddressDisplayLine}" TextWrapping="Wrap" />
-                                                                        <TextBlock Margin="0,6,0,0"
-                                                                                   Foreground="{DynamicResource Brush.TextMuted}"
-                                                                                   Text="{Binding IssueSummary}"
-                                                                                   TextWrapping="Wrap" />
-                                                                        <TextBlock Margin="0,4,0,0"
-                                                                                   Foreground="{DynamicResource Brush.TextMuted}"
-                                                                                   Text="{Binding MatchSummary}"
-                                                                                   TextWrapping="Wrap" />
-                                                                    </StackPanel>
-                                                                    <Button Grid.Column="1"
-                                                                            Width="104"
-                                                                            Height="32"
-                                                                            Margin="14,0,0,0"
-                                                                            VerticalAlignment="Top"
-                                                                            Content="Bearbeiten"
-                                                                            Command="{Binding EditCommand}"
-                                                                            Style="{StaticResource SecondaryButtonStyle}" />
-                                                                </Grid>
-                                                            </Border>
+                                                            <TextBlock Margin="0,0,0,6" TextWrapping="Wrap" Text="{Binding}" />
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
-                                            </ScrollViewer>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Padding="14"
-                                            CornerRadius="16"
-                                            Background="#FFFFFBEB"
-                                            BorderBrush="#FFFCD34D"
-                                            BorderThickness="1">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasXmlImportPreviewWarnings}" Value="False">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Warnungen" />
-                                            <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding XmlImportPreviewWarnings}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Margin="0,0,0,6" TextWrapping="Wrap" Text="{Binding}" />
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Border>
 

@@ -560,6 +560,7 @@ public sealed partial class SettingsSectionViewModel
         OnPropertyChanged(nameof(HasXmlImportPreviewErrors));
         OnPropertyChanged(nameof(HasXmlImportPreviewWarnings));
         OnPropertyChanged(nameof(HasXmlImportPinIssues));
+        OnPropertyChanged(nameof(HasXmlImportWarningsOrPinIssues));
         OnPropertyChanged(nameof(HasXmlImportPinIssueSummary));
         OnPropertyChanged(nameof(HasXmlImportPreviewHiddenItems));
         OnPropertyChanged(nameof(XmlImportPreviewHiddenItemsText));
