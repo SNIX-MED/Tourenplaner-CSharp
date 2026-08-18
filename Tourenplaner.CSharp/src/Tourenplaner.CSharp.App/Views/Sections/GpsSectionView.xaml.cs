@@ -62,6 +62,7 @@ public partial class GpsSectionView : UserControl
             await GpsWebView.EnsureCoreWebView2Async(environment);
             GpsWebView.CoreWebView2.Settings.IsZoomControlEnabled = true;
             GpsWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+            WebView2EnvironmentFactory.ConfigurePersistentLoginStorage(GpsWebView.CoreWebView2);
             _webViewReady = true;
             GpsWebView.Visibility = Visibility.Visible;
             FallbackNotice.Visibility = Visibility.Collapsed;

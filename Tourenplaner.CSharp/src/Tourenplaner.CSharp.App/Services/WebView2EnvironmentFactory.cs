@@ -39,4 +39,15 @@ internal static class WebView2EnvironmentFactory
 
         return CoreWebView2Environment.CreateAsync(userDataFolder: profileDirectory);
     }
+
+    public static void ConfigurePersistentLoginStorage(CoreWebView2 webView)
+    {
+        ArgumentNullException.ThrowIfNull(webView);
+
+        webView.Settings.IsGeneralAutofillEnabled = true;
+        webView.Settings.IsPasswordAutosaveEnabled = true;
+
+        webView.Profile.IsGeneralAutofillEnabled = true;
+        webView.Profile.IsPasswordAutosaveEnabled = true;
+    }
 }

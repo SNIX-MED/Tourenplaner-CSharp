@@ -1166,8 +1166,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _allOrders.AddRange(await ordersTask);
 
         var statusSynchronized = SyncDerivedOrderStatuses(_allOrders);
+        var suspiciousLocationsCleared = AddressGeocodingService.ClearSuspiciousSharedOrderLocations(_allOrders) > 0;
         var locationBackfilled = await BackfillMissingLocationsAsync();
-        if (statusSynchronized || locationBackfilled)
+        if (statusSynchronized || suspiciousLocationsCleared || locationBackfilled)
         {
             await _orderRepository.SaveAllAsync(_allOrders);
         }
@@ -7350,13 +7351,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         foreach (var order in candidates)
         {
-            var location = await AddressGeocodingService.TryGeocodeOrderAsync(order, _tomTomApiKey, _geocodeCachePath);
-            if (location is null)
+            var geocodingResult = await AddressGeocodingService.TryResolveOrderAsync(order, _tomTomApiKey, _geocodeCachePath);
+            if (geocodingResult?.IsPrecise != true)
             {
                 continue;
             }
 
-            order.Location = location;
+            order.Location = geocodingResult.Location;
             changed = true;
         }
 

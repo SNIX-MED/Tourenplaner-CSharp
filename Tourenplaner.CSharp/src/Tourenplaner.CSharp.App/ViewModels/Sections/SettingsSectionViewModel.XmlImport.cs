@@ -283,9 +283,12 @@ public sealed partial class SettingsSectionViewModel
         foreach (var order in importedMapOrders)
         {
             var geocodingResult = await AddressGeocodingService.TryResolveOrderAsync(order, TomTomApiKey, cacheFilePath);
-            if (geocodingResult?.Location != order.Location)
+            var nextLocation = geocodingResult?.IsPrecise == true
+                ? geocodingResult.Location
+                : null;
+            if (nextLocation != order.Location)
             {
-                order.Location = geocodingResult?.Location;
+                order.Location = nextLocation;
                 hasLocationUpdates = true;
             }
 
@@ -402,7 +405,9 @@ public sealed partial class SettingsSectionViewModel
             updated,
             TomTomApiKey,
             Path.Combine(_dataRoot, "geocode-cache.json"));
-        updated.Location = geocodingResult?.Location ?? existing.Location;
+        updated.Location = geocodingResult?.IsPrecise == true
+            ? geocodingResult.Location
+            : null;
 
         var originalId = existing.Id;
         orders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));

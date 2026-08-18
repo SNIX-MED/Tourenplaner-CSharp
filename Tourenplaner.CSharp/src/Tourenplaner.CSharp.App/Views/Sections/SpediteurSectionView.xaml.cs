@@ -61,6 +61,7 @@ public partial class SpediteurSectionView : UserControl
             await SpediteurWebView.EnsureCoreWebView2Async(environment);
             SpediteurWebView.CoreWebView2.Settings.IsZoomControlEnabled = true;
             SpediteurWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+            WebView2EnvironmentFactory.ConfigurePersistentLoginStorage(SpediteurWebView.CoreWebView2);
             _webViewReady = true;
             SpediteurWebView.Visibility = Visibility.Visible;
             FallbackNotice.Visibility = Visibility.Collapsed;

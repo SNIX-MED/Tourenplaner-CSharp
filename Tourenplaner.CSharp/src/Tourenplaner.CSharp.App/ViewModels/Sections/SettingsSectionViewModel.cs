@@ -2208,16 +2208,16 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
                 continue;
             }
 
-            var location = await AddressGeocodingService.TryGeocodeOrderAsync(
+            var geocodingResult = await AddressGeocodingService.TryResolveOrderAsync(
                 order,
                 TomTomApiKey,
                 Path.Combine(_dataRoot, "geocode-cache.json"));
-            if (location is null)
+            if (geocodingResult?.IsPrecise != true)
             {
                 continue;
             }
 
-            order.Location = location;
+            order.Location = geocodingResult.Location;
             geocoded++;
             await _orderRepository.SaveAllAsync(allOrders);
             _dataSyncService?.PublishOrders(_instanceId, order.Id, order.Id);

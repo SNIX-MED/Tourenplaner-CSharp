@@ -428,13 +428,18 @@ internal static class MapHtmlDocumentBuilder
 
                          const buildOverlapGroupKey = (marker) => {
                            if (!marker || typeof marker !== 'object') return '';
+                           const coordinateKey = buildOverlapCoordinateKey(marker.lat, marker.lon);
+                           if (coordinateKey) {
+                             return `coord:${coordinateKey}`;
+                           }
+
                            const street = normalizeOverlapAddressPart(marker.street);
                            const postalCodeCity = normalizeOverlapAddressPart(marker.postalCodeCity);
                            if (street && postalCodeCity) {
                              return `addr:${street}|${postalCodeCity}`;
                            }
 
-                           return `coord:${buildOverlapCoordinateKey(marker.lat, marker.lon)}`;
+                           return '';
                          };
 
                          const groupOverlappingMarkers = (markers) => {

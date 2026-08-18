@@ -1,6 +1,8 @@
 ﻿using System.Globalization;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 using System.IO;
 using Tourenplaner.CSharp.Domain.Models;
@@ -11,6 +13,7 @@ public static class AddressGeocodingService
 {
     private const double SwitzerlandCenterLat = 46.798562;
     private const double SwitzerlandCenterLon = 8.231974;
+    private const int CurrentCacheValidationVersion = 1;
     private static readonly HttpClient Client = CreateClient();
     private static readonly SemaphoreSlim CacheGate = new(1, 1);
     private static readonly ConcurrentDictionary<string, GeoPoint> InMemoryCache = new(StringComparer.OrdinalIgnoreCase);
@@ -18,7 +21,8 @@ public static class AddressGeocodingService
 
     public static async Task<GeoPoint?> TryGeocodeOrderAsync(Order order, string? tomTomApiKey = null, string? cacheFilePath = null)
     {
-        return (await TryResolveOrderAsync(order, tomTomApiKey, cacheFilePath))?.Location;
+        var result = await TryResolveOrderAsync(order, tomTomApiKey, cacheFilePath);
+        return result?.IsPrecise == true ? result.Location : null;
     }
 
     public static async Task<AddressGeocodingResult?> TryResolveOrderAsync(Order order, string? tomTomApiKey = null, string? cacheFilePath = null)
@@ -49,55 +53,74 @@ public static class AddressGeocodingService
         string? tomTomApiKey = null,
         string? cacheFilePath = null)
     {
-        var queries = BuildQueries(
+        var expectation = new AddressExpectation(
             (street ?? string.Empty).Trim(),
             (postalCode ?? string.Empty).Trim(),
-            (city ?? string.Empty).Trim(),
+            (city ?? string.Empty).Trim());
+        var queries = BuildQueries(
+            expectation.Street,
+            expectation.PostalCode,
+            expectation.City,
             (fallbackAddress ?? string.Empty).Trim());
 
         var persistedCache = await TryLoadCacheFromFileAsync(cacheFilePath);
         GeocodeCandidate? bestCandidate = null;
-        var cacheKeys = new List<string>();
 
         foreach (var query in queries)
         {
             var key = NormalizeWhitespace(query).ToLowerInvariant();
-            cacheKeys.Add(key);
 
             GeocodeCandidate? candidate = null;
-            if (TryGetCachedResolution(key, out var cachedResolution) && cachedResolution is not null)
+            if (TryGetCachedResolution(key, out var cachedResolution) &&
+                cachedResolution is not null &&
+                IsCachedResolutionUsable(cachedResolution, expectation))
             {
-                candidate = new GeocodeCandidate(cachedResolution.Location, cachedResolution.MatchType, cachedResolution.EntityType, query);
+                candidate = GeocodeCandidate.FromResult(cachedResolution, query);
             }
             else if (TryGetCachedLocation(key, out var cached) && cached is not null)
             {
-                candidate = new GeocodeCandidate(cached, "Cached", null, query);
+                candidate = new GeocodeCandidate(cached, "Cached", null, query, null, null, null, null, null);
             }
             else if (persistedCache.TryGetValue(key, out var persisted))
             {
-                InMemoryCache[key] = persisted.Location;
                 var persistedResult = new AddressGeocodingResult(
                     persisted.Location,
                     persisted.IsPrecise,
                     query,
                     persisted.MatchType,
-                    persisted.EntityType);
-                InMemoryResolutionCache[key] = persistedResult;
-                candidate = new GeocodeCandidate(persisted.Location, persisted.MatchType, persisted.EntityType, query);
+                    persisted.EntityType,
+                    persisted.ResultPostalCode,
+                    persisted.ResultMunicipality,
+                    persisted.ResultStreetName,
+                    persisted.ResultFreeformAddress,
+                    persisted.CacheValidationVersion);
+
+                if (IsCachedResolutionUsable(persistedResult, expectation))
+                {
+                    InMemoryCache[key] = persisted.Location;
+                    InMemoryResolutionCache[key] = persistedResult;
+                    candidate = GeocodeCandidate.FromResult(persistedResult, query);
+                }
             }
-            else
+
+            if (candidate is null)
             {
                 candidate = await TryGeocodeQueryAsync(query, tomTomApiKey);
                 if (candidate is not null)
                 {
                     InMemoryCache[key] = candidate.Point;
-                    var resolution = CreateResolution(candidate);
+                    var resolution = CreateResolution(candidate, expectation);
                     InMemoryResolutionCache[key] = resolution;
                     persistedCache[key] = new CachedGeocodingResult(
                         candidate.Point,
                         resolution.MatchType,
                         resolution.EntityType,
-                        resolution.IsPrecise);
+                        resolution.IsPrecise,
+                        resolution.ResultPostalCode,
+                        resolution.ResultMunicipality,
+                        resolution.ResultStreetName,
+                        resolution.ResultFreeformAddress,
+                        resolution.CacheValidationVersion);
                     await TrySaveCacheEntryAsync(cacheFilePath, key, persistedCache[key]);
                 }
             }
@@ -112,7 +135,7 @@ public static class AddressGeocodingService
                 bestCandidate = candidate;
             }
 
-            if (IsExactAddressCandidate(candidate))
+            if (IsExactAddressCandidate(candidate, expectation))
             {
                 break;
             }
@@ -123,24 +146,7 @@ public static class AddressGeocodingService
             return null;
         }
 
-        foreach (var key in cacheKeys.Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            InMemoryCache[key] = bestCandidate.Point;
-            var bestResolution = CreateResolution(bestCandidate);
-            InMemoryResolutionCache[key] = bestResolution;
-            if (!persistedCache.TryGetValue(key, out var cachedResult) || !cachedResult.Matches(bestResolution))
-            {
-                var nextCachedResult = new CachedGeocodingResult(
-                    bestResolution.Location,
-                    bestResolution.MatchType,
-                    bestResolution.EntityType,
-                    bestResolution.IsPrecise);
-                persistedCache[key] = nextCachedResult;
-                await TrySaveCacheEntryAsync(cacheFilePath, key, nextCachedResult);
-            }
-        }
-
-        return CreateResolution(bestCandidate);
+        return CreateResolution(bestCandidate, expectation);
     }
 
     private static HttpClient CreateClient()
@@ -271,17 +277,38 @@ public static class AddressGeocodingService
             var entityType = results[0].TryGetProperty("entityType", out var entityTypeElement) && entityTypeElement.ValueKind == JsonValueKind.String
                 ? entityTypeElement.GetString()
                 : null;
+            var address = results[0].TryGetProperty("address", out var addressElement) && addressElement.ValueKind == JsonValueKind.Object
+                ? addressElement
+                : default;
+            var resultPostalCode = ReadJsonString(address, "postalCode");
+            var resultMunicipality = ReadJsonString(address, "municipality");
+            var resultStreetName = ReadJsonString(address, "streetName");
+            var resultFreeformAddress = ReadJsonString(address, "freeformAddress");
 
             return new GeocodeCandidate(
                 new GeoPoint(latElement.GetDouble(), lonElement.GetDouble()),
                 type ?? string.Empty,
                 entityType,
-                query);
+                query,
+                resultPostalCode,
+                resultMunicipality,
+                resultStreetName,
+                resultFreeformAddress,
+                CurrentCacheValidationVersion);
         }
         catch
         {
             return null;
         }
+    }
+
+    private static string? ReadJsonString(JsonElement element, string propertyName)
+    {
+        return element.ValueKind == JsonValueKind.Object &&
+               element.TryGetProperty(propertyName, out var value) &&
+               value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
     }
 
     private static string EnsureCountry(string value)
@@ -321,14 +348,25 @@ public static class AddressGeocodingService
         return InMemoryResolutionCache.TryGetValue(key, out value);
     }
 
-    private static AddressGeocodingResult CreateResolution(GeocodeCandidate candidate)
+    private static AddressGeocodingResult CreateResolution(GeocodeCandidate candidate, AddressExpectation expectation)
     {
         var normalizedType = NormalizeWhitespace(candidate.Type);
-        var isPrecise =
+        var hasPreciseType =
             string.Equals(normalizedType, "Point Address", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(normalizedType, "Address Range", StringComparison.OrdinalIgnoreCase);
+        var isPrecise = hasPreciseType && IsCandidateConsistentWithExpectedAddress(candidate, expectation);
 
-        return new AddressGeocodingResult(candidate.Point, isPrecise, candidate.Query, candidate.Type, candidate.EntityType);
+        return new AddressGeocodingResult(
+            candidate.Point,
+            isPrecise,
+            candidate.Query,
+            candidate.Type,
+            candidate.EntityType,
+            candidate.ResultPostalCode,
+            candidate.ResultMunicipality,
+            candidate.ResultStreetName,
+            candidate.ResultFreeformAddress,
+            candidate.CacheValidationVersion);
     }
 
     private static bool IsBetterCandidate(GeocodeCandidate candidate, GeocodeCandidate? bestCandidate)
@@ -348,12 +386,139 @@ public static class AddressGeocodingService
         return GetQuerySpecificityScore(candidate.Query) > GetQuerySpecificityScore(bestCandidate.Query);
     }
 
-    private static bool IsExactAddressCandidate(GeocodeCandidate candidate)
+    private static bool IsExactAddressCandidate(GeocodeCandidate candidate, AddressExpectation expectation)
     {
         return string.Equals(
             NormalizeWhitespace(candidate.Type),
             "Point Address",
-            StringComparison.OrdinalIgnoreCase);
+            StringComparison.OrdinalIgnoreCase) &&
+            IsCandidateConsistentWithExpectedAddress(candidate, expectation);
+    }
+
+    private static bool IsCachedResolutionUsable(AddressGeocodingResult cached, AddressExpectation expectation)
+    {
+        if (!HasMeaningfulAddressExpectation(expectation))
+        {
+            return true;
+        }
+
+        return cached.CacheValidationVersion >= CurrentCacheValidationVersion &&
+               IsCandidateConsistentWithExpectedAddress(GeocodeCandidate.FromResult(cached, cached.Query), expectation);
+    }
+
+    private static bool IsCandidateConsistentWithExpectedAddress(GeocodeCandidate candidate, AddressExpectation expectation)
+    {
+        if (!HasMeaningfulAddressExpectation(expectation))
+        {
+            return true;
+        }
+
+        if (candidate.CacheValidationVersion < CurrentCacheValidationVersion)
+        {
+            return false;
+        }
+
+        var expectedPostalCode = NormalizeDigits(expectation.PostalCode);
+        if (!string.IsNullOrWhiteSpace(expectedPostalCode))
+        {
+            var resultPostalCode = NormalizeDigits(candidate.ResultPostalCode);
+            if (string.IsNullOrWhiteSpace(resultPostalCode) ||
+                !string.Equals(expectedPostalCode, resultPostalCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        var expectedCity = NormalizeAddressToken(expectation.City);
+        if (!string.IsNullOrWhiteSpace(expectedCity))
+        {
+            var resultMunicipality = NormalizeAddressToken(candidate.ResultMunicipality);
+            var resultFreeform = NormalizeAddressToken(candidate.ResultFreeformAddress);
+            if (string.IsNullOrWhiteSpace(resultMunicipality) &&
+                string.IsNullOrWhiteSpace(resultFreeform))
+            {
+                return false;
+            }
+
+            if (!AddressTokenContains(resultMunicipality, expectedCity) &&
+                !AddressTokenContains(resultFreeform, expectedCity))
+            {
+                return false;
+            }
+        }
+
+        var expectedStreet = NormalizeAddressToken(RemoveHouseNumber(expectation.Street));
+        if (!string.IsNullOrWhiteSpace(expectedStreet))
+        {
+            var resultStreetName = NormalizeAddressToken(candidate.ResultStreetName);
+            var resultFreeform = NormalizeAddressToken(candidate.ResultFreeformAddress);
+            if (string.IsNullOrWhiteSpace(resultStreetName) &&
+                string.IsNullOrWhiteSpace(resultFreeform))
+            {
+                return false;
+            }
+
+            if (!AddressTokenContains(resultStreetName, expectedStreet) &&
+                !AddressTokenContains(resultFreeform, expectedStreet))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasMeaningfulAddressExpectation(AddressExpectation expectation)
+    {
+        return !string.IsNullOrWhiteSpace(expectation.Street) ||
+               !string.IsNullOrWhiteSpace(expectation.PostalCode) ||
+               !string.IsNullOrWhiteSpace(expectation.City);
+    }
+
+    private static string NormalizeDigits(string? value)
+    {
+        return string.Concat((value ?? string.Empty).Where(char.IsDigit));
+    }
+
+    private static string RemoveHouseNumber(string value)
+    {
+        return Regex.Replace(value ?? string.Empty, @"\b\d+[a-zA-Z]?\b", " ");
+    }
+
+    private static bool AddressTokenContains(string haystack, string needle)
+    {
+        if (string.IsNullOrWhiteSpace(haystack) || string.IsNullOrWhiteSpace(needle))
+        {
+            return false;
+        }
+
+        return haystack.Contains(needle, StringComparison.OrdinalIgnoreCase) ||
+               needle.Contains(haystack, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeAddressToken(string? value)
+    {
+        var normalized = NormalizeWhitespace(value ?? string.Empty)
+            .Replace("ä", "a", StringComparison.OrdinalIgnoreCase)
+            .Replace("ö", "o", StringComparison.OrdinalIgnoreCase)
+            .Replace("ü", "u", StringComparison.OrdinalIgnoreCase)
+            .Replace("ß", "ss", StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return string.Empty;
+        }
+
+        var decomposed = normalized.Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(decomposed.Length);
+        foreach (var ch in decomposed)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(char.IsLetterOrDigit(ch) ? char.ToLowerInvariant(ch) : ' ');
+            }
+        }
+
+        return NormalizeWhitespace(builder.ToString());
     }
 
     private static int GetCandidateScore(GeocodeCandidate candidate)
@@ -494,6 +659,61 @@ public static class AddressGeocodingService
                Math.Abs(point.Longitude - SwitzerlandCenterLon) < 0.02;
     }
 
+    public static int ClearSuspiciousSharedOrderLocations(IList<Order> orders)
+    {
+        if (orders.Count == 0)
+        {
+            return 0;
+        }
+
+        var suspiciousGroups = orders
+            .Where(x => x.Type == OrderType.Map && x.Location is not null)
+            .GroupBy(x => BuildCoordinateKey(x.Location!))
+            .Where(group =>
+            {
+                if (group.Count() < 2)
+                {
+                    return false;
+                }
+
+                return group
+                    .Select(BuildPostalCityKey)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count() > 1;
+            })
+            .ToList();
+
+        var cleared = 0;
+        foreach (var order in suspiciousGroups.SelectMany(x => x))
+        {
+            if (order.Location is null)
+            {
+                continue;
+            }
+
+            order.Location = null;
+            cleared++;
+        }
+
+        return cleared;
+    }
+
+    private static string BuildCoordinateKey(GeoPoint point)
+    {
+        return $"{point.Latitude.ToString("0.000000", CultureInfo.InvariantCulture)}|" +
+               $"{point.Longitude.ToString("0.000000", CultureInfo.InvariantCulture)}";
+    }
+
+    private static string BuildPostalCityKey(Order order)
+    {
+        return NormalizeAddressToken(string.Join(" ", new[]
+        {
+            order.DeliveryAddress?.PostalCode,
+            order.DeliveryAddress?.City
+        }.Where(x => !string.IsNullOrWhiteSpace(x))));
+    }
+
     private sealed class CacheEntry
     {
         public CacheEntry()
@@ -511,6 +731,11 @@ public static class AddressGeocodingService
         public string MatchType { get; set; } = "Cached";
         public string? EntityType { get; set; }
         public bool? IsPrecise { get; set; }
+        public string? ResultPostalCode { get; set; }
+        public string? ResultMunicipality { get; set; }
+        public string? ResultStreetName { get; set; }
+        public string? ResultFreeformAddress { get; set; }
+        public int? CacheValidationVersion { get; set; }
 
         public CachedGeocodingResult ToCachedResult()
         {
@@ -518,7 +743,12 @@ public static class AddressGeocodingService
                 new GeoPoint(Latitude, Longitude),
                 string.IsNullOrWhiteSpace(MatchType) ? "Cached" : MatchType,
                 EntityType,
-                IsPrecise ?? false);
+                IsPrecise ?? false,
+                ResultPostalCode,
+                ResultMunicipality,
+                ResultStreetName,
+                ResultFreeformAddress,
+                CacheValidationVersion);
         }
 
         public static CacheEntry FromCachedResult(CachedGeocodingResult result)
@@ -527,20 +757,66 @@ public static class AddressGeocodingService
             {
                 MatchType = result.MatchType,
                 EntityType = result.EntityType,
-                IsPrecise = result.IsPrecise
+                IsPrecise = result.IsPrecise,
+                ResultPostalCode = result.ResultPostalCode,
+                ResultMunicipality = result.ResultMunicipality,
+                ResultStreetName = result.ResultStreetName,
+                ResultFreeformAddress = result.ResultFreeformAddress,
+                CacheValidationVersion = result.CacheValidationVersion
             };
         }
     }
 
-    private sealed record GeocodeCandidate(GeoPoint Point, string Type, string? EntityType, string Query);
-    private sealed record CachedGeocodingResult(GeoPoint Location, string MatchType, string? EntityType, bool IsPrecise)
+    private sealed record AddressExpectation(string Street, string PostalCode, string City);
+
+    private sealed record GeocodeCandidate(
+        GeoPoint Point,
+        string Type,
+        string? EntityType,
+        string Query,
+        string? ResultPostalCode,
+        string? ResultMunicipality,
+        string? ResultStreetName,
+        string? ResultFreeformAddress,
+        int? CacheValidationVersion)
+    {
+        public static GeocodeCandidate FromResult(AddressGeocodingResult result, string query)
+        {
+            return new GeocodeCandidate(
+                result.Location,
+                result.MatchType,
+                result.EntityType,
+                query,
+                result.ResultPostalCode,
+                result.ResultMunicipality,
+                result.ResultStreetName,
+                result.ResultFreeformAddress,
+                result.CacheValidationVersion);
+        }
+    }
+
+    private sealed record CachedGeocodingResult(
+        GeoPoint Location,
+        string MatchType,
+        string? EntityType,
+        bool IsPrecise,
+        string? ResultPostalCode,
+        string? ResultMunicipality,
+        string? ResultStreetName,
+        string? ResultFreeformAddress,
+        int? CacheValidationVersion)
     {
         public bool Matches(AddressGeocodingResult result)
         {
             return Location == result.Location &&
                    string.Equals(MatchType, result.MatchType, StringComparison.OrdinalIgnoreCase) &&
                    string.Equals(EntityType ?? string.Empty, result.EntityType ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
-                   IsPrecise == result.IsPrecise;
+                   IsPrecise == result.IsPrecise &&
+                   string.Equals(ResultPostalCode ?? string.Empty, result.ResultPostalCode ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(ResultMunicipality ?? string.Empty, result.ResultMunicipality ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(ResultStreetName ?? string.Empty, result.ResultStreetName ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(ResultFreeformAddress ?? string.Empty, result.ResultFreeformAddress ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+                   CacheValidationVersion == result.CacheValidationVersion;
         }
     }
 }
@@ -550,4 +826,9 @@ public sealed record AddressGeocodingResult(
     bool IsPrecise,
     string Query,
     string MatchType,
-    string? EntityType);
+    string? EntityType,
+    string? ResultPostalCode = null,
+    string? ResultMunicipality = null,
+    string? ResultStreetName = null,
+    string? ResultFreeformAddress = null,
+    int? CacheValidationVersion = null);
