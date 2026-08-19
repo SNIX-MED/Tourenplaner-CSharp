@@ -195,7 +195,7 @@ public class OrderImportService : IOrderImportService
             CustomerName = BuildCustomerName(sqlOrder),
             Address = $"{auftragsAdresse}, {sqlOrder.KundePLZ} {sqlOrder.KundeOrt}".Trim(' ', ','),
             ScheduledDate = DateOnly.FromDateTime(sqlOrder.AuftragsDatum),
-            DeliveryDate = sqlOrder.Lieferdatum is null ? null : DateOnly.FromDateTime(sqlOrder.Lieferdatum.Value),
+            DeliveryDate = NormalizeDeliveryDate(sqlOrder.Lieferdatum),
             DeliveryCanOccurEarlier = sqlOrder.LieferungKannFrueherErfolgen,
             Type = isMapOrder ? OrderType.Map : OrderType.NonMap,
             OrderAddress = new OrderAddressInfo
@@ -286,6 +286,16 @@ public class OrderImportService : IOrderImportService
         existingOrder.IstVorauszahlung = importedOrder.IstVorauszahlung;
         existingOrder.IsArchived = importedOrder.IsArchived;
         existingOrder.IsXmlImported = importedOrder.IsXmlImported;
+    }
+
+    private static DateOnly? NormalizeDeliveryDate(DateTime? deliveryDate)
+    {
+        if (!deliveryDate.HasValue || deliveryDate.Value.Date <= DateTime.MinValue.Date)
+        {
+            return null;
+        }
+
+        return DateOnly.FromDateTime(deliveryDate.Value);
     }
 
     private static List<string> DescribeDifferences(Order existingOrder, Order importedOrder)

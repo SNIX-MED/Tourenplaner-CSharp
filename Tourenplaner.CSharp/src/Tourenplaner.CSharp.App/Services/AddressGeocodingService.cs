@@ -64,6 +64,7 @@ public static class AddressGeocodingService
             (fallbackAddress ?? string.Empty).Trim());
 
         var persistedCache = await TryLoadCacheFromFileAsync(cacheFilePath);
+        var canResolveWithTomTom = !string.IsNullOrWhiteSpace(tomTomApiKey);
         GeocodeCandidate? bestCandidate = null;
 
         foreach (var query in queries)
@@ -71,17 +72,28 @@ public static class AddressGeocodingService
             var key = NormalizeWhitespace(query).ToLowerInvariant();
 
             GeocodeCandidate? candidate = null;
-            if (TryGetCachedResolution(key, out var cachedResolution) &&
-                cachedResolution is not null &&
-                IsCachedResolutionUsable(cachedResolution, expectation))
+            GeocodeCandidate? cachedFallback = null;
+            if (TryGetCachedResolution(key, out var cachedResolution) && cachedResolution is not null)
             {
-                candidate = GeocodeCandidate.FromResult(cachedResolution, query);
+                if (IsCachedResolutionUsable(cachedResolution, expectation))
+                {
+                    var cachedCandidate = GeocodeCandidate.FromResult(cachedResolution, query);
+                    if (cachedResolution.IsPrecise || !canResolveWithTomTom)
+                    {
+                        candidate = cachedCandidate;
+                    }
+                    else
+                    {
+                        cachedFallback = cachedCandidate;
+                    }
+                }
             }
-            else if (TryGetCachedLocation(key, out var cached) && cached is not null)
+            else if (!canResolveWithTomTom && TryGetCachedLocation(key, out var cached) && cached is not null)
             {
                 candidate = new GeocodeCandidate(cached, "Cached", null, query, null, null, null, null, null);
             }
-            else if (persistedCache.TryGetValue(key, out var persisted))
+
+            if (candidate is null && persistedCache.TryGetValue(key, out var persisted))
             {
                 var persistedResult = new AddressGeocodingResult(
                     persisted.Location,
@@ -99,13 +111,21 @@ public static class AddressGeocodingService
                 {
                     InMemoryCache[key] = persisted.Location;
                     InMemoryResolutionCache[key] = persistedResult;
-                    candidate = GeocodeCandidate.FromResult(persistedResult, query);
+                    var persistedCandidate = GeocodeCandidate.FromResult(persistedResult, query);
+                    if (persistedResult.IsPrecise || !canResolveWithTomTom)
+                    {
+                        candidate = persistedCandidate;
+                    }
+                    else
+                    {
+                        cachedFallback ??= persistedCandidate;
+                    }
                 }
             }
 
             if (candidate is null)
             {
-                candidate = await TryGeocodeQueryAsync(query, tomTomApiKey);
+                candidate = await TryGeocodeQueryAsync(query, tomTomApiKey, expectation);
                 if (candidate is not null)
                 {
                     InMemoryCache[key] = candidate.Point;
@@ -123,6 +143,10 @@ public static class AddressGeocodingService
                         resolution.CacheValidationVersion);
                     await TrySaveCacheEntryAsync(cacheFilePath, key, persistedCache[key]);
                 }
+                else
+                {
+                    candidate = cachedFallback;
+                }
             }
 
             if (candidate is null)
@@ -130,7 +154,7 @@ public static class AddressGeocodingService
                 continue;
             }
 
-            if (IsBetterCandidate(candidate, bestCandidate))
+            if (IsBetterCandidate(candidate, bestCandidate, expectation))
             {
                 bestCandidate = candidate;
             }
@@ -224,7 +248,10 @@ public static class AddressGeocodingService
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
-    private static async Task<GeocodeCandidate?> TryGeocodeQueryAsync(string query, string? tomTomApiKey)
+    private static async Task<GeocodeCandidate?> TryGeocodeQueryAsync(
+        string query,
+        string? tomTomApiKey,
+        AddressExpectation expectation)
     {
         var key = (tomTomApiKey ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(key))
@@ -232,12 +259,15 @@ public static class AddressGeocodingService
             return null;
         }
 
-        return await TryGeocodeWithTomTomAsync(query, key);
+        return await TryGeocodeWithTomTomAsync(query, key, expectation);
     }
 
-    private static async Task<GeocodeCandidate?> TryGeocodeWithTomTomAsync(string query, string apiKey)
+    private static async Task<GeocodeCandidate?> TryGeocodeWithTomTomAsync(
+        string query,
+        string apiKey,
+        AddressExpectation expectation)
     {
-        var uri = $"https://api.tomtom.com/search/2/geocode/{Uri.EscapeDataString(query)}.json?key={Uri.EscapeDataString(apiKey)}&limit=1&countrySet=CH";
+        var uri = $"https://api.tomtom.com/search/2/geocode/{Uri.EscapeDataString(query)}.json?key={Uri.EscapeDataString(apiKey)}&limit=5&countrySet=CH";
         try
         {
             using var response = await Client.GetAsync(uri);
@@ -255,46 +285,62 @@ public static class AddressGeocodingService
                 return null;
             }
 
-            var position = results[0].TryGetProperty("position", out var pos) ? pos : default;
-            if (position.ValueKind != JsonValueKind.Object)
+            GeocodeCandidate? bestCandidate = null;
+            foreach (var result in results.EnumerateArray())
             {
-                return null;
+                var position = result.TryGetProperty("position", out var pos) ? pos : default;
+                if (position.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                if (!position.TryGetProperty("lat", out var latElement) || latElement.ValueKind != JsonValueKind.Number)
+                {
+                    continue;
+                }
+
+                if (!position.TryGetProperty("lon", out var lonElement) || lonElement.ValueKind != JsonValueKind.Number)
+                {
+                    continue;
+                }
+
+                var type = result.TryGetProperty("type", out var typeElement) && typeElement.ValueKind == JsonValueKind.String
+                    ? typeElement.GetString()
+                    : string.Empty;
+                var entityType = result.TryGetProperty("entityType", out var entityTypeElement) && entityTypeElement.ValueKind == JsonValueKind.String
+                    ? entityTypeElement.GetString()
+                    : null;
+                var address = result.TryGetProperty("address", out var addressElement) && addressElement.ValueKind == JsonValueKind.Object
+                    ? addressElement
+                    : default;
+                var resultPostalCode = ReadJsonString(address, "postalCode");
+                var resultMunicipality = ReadJsonString(address, "municipality");
+                var resultStreetName = ReadJsonString(address, "streetName");
+                var resultFreeformAddress = ReadJsonString(address, "freeformAddress");
+
+                var candidate = new GeocodeCandidate(
+                    new GeoPoint(latElement.GetDouble(), lonElement.GetDouble()),
+                    type ?? string.Empty,
+                    entityType,
+                    query,
+                    resultPostalCode,
+                    resultMunicipality,
+                    resultStreetName,
+                    resultFreeformAddress,
+                    CurrentCacheValidationVersion);
+
+                if (IsBetterCandidate(candidate, bestCandidate, expectation))
+                {
+                    bestCandidate = candidate;
+                }
+
+                if (IsExactAddressCandidate(candidate, expectation))
+                {
+                    break;
+                }
             }
 
-            if (!position.TryGetProperty("lat", out var latElement) || latElement.ValueKind != JsonValueKind.Number)
-            {
-                return null;
-            }
-
-            if (!position.TryGetProperty("lon", out var lonElement) || lonElement.ValueKind != JsonValueKind.Number)
-            {
-                return null;
-            }
-
-            var type = results[0].TryGetProperty("type", out var typeElement) && typeElement.ValueKind == JsonValueKind.String
-                ? typeElement.GetString()
-                : string.Empty;
-            var entityType = results[0].TryGetProperty("entityType", out var entityTypeElement) && entityTypeElement.ValueKind == JsonValueKind.String
-                ? entityTypeElement.GetString()
-                : null;
-            var address = results[0].TryGetProperty("address", out var addressElement) && addressElement.ValueKind == JsonValueKind.Object
-                ? addressElement
-                : default;
-            var resultPostalCode = ReadJsonString(address, "postalCode");
-            var resultMunicipality = ReadJsonString(address, "municipality");
-            var resultStreetName = ReadJsonString(address, "streetName");
-            var resultFreeformAddress = ReadJsonString(address, "freeformAddress");
-
-            return new GeocodeCandidate(
-                new GeoPoint(latElement.GetDouble(), lonElement.GetDouble()),
-                type ?? string.Empty,
-                entityType,
-                query,
-                resultPostalCode,
-                resultMunicipality,
-                resultStreetName,
-                resultFreeformAddress,
-                CurrentCacheValidationVersion);
+            return bestCandidate;
         }
         catch
         {
@@ -369,15 +415,18 @@ public static class AddressGeocodingService
             candidate.CacheValidationVersion);
     }
 
-    private static bool IsBetterCandidate(GeocodeCandidate candidate, GeocodeCandidate? bestCandidate)
+    private static bool IsBetterCandidate(
+        GeocodeCandidate candidate,
+        GeocodeCandidate? bestCandidate,
+        AddressExpectation expectation)
     {
         if (bestCandidate is null)
         {
             return true;
         }
 
-        var candidateScore = GetCandidateScore(candidate);
-        var bestScore = GetCandidateScore(bestCandidate);
+        var candidateScore = GetCandidateScore(candidate, expectation);
+        var bestScore = GetCandidateScore(bestCandidate, expectation);
         if (candidateScore != bestScore)
         {
             return candidateScore > bestScore;
@@ -521,7 +570,7 @@ public static class AddressGeocodingService
         return NormalizeWhitespace(builder.ToString());
     }
 
-    private static int GetCandidateScore(GeocodeCandidate candidate)
+    private static int GetCandidateScore(GeocodeCandidate candidate, AddressExpectation expectation)
     {
         var normalizedType = NormalizeWhitespace(candidate.Type);
         var normalizedEntityType = NormalizeWhitespace(candidate.EntityType ?? string.Empty);
@@ -538,7 +587,18 @@ public static class AddressGeocodingService
             _ => 180
         };
 
-        return baseScore + GetQuerySpecificityScore(candidate.Query);
+        var score = baseScore + GetQuerySpecificityScore(candidate.Query);
+        if (IsCandidateConsistentWithExpectedAddress(candidate, expectation))
+        {
+            score += 1_000;
+        }
+
+        if (IsExactAddressCandidate(candidate, expectation))
+        {
+            score += 3_000;
+        }
+
+        return score;
     }
 
     private static int GetQuerySpecificityScore(string query)

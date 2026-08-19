@@ -285,6 +285,62 @@
                                                        TextWrapping="Wrap" />
                                         </CheckBox>
                                     </Border>
+                                    <TextBlock Margin="0,14,0,6"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                               Text="Ansicht" />
+                                    <Border CornerRadius="13"
+                                            BorderThickness="1"
+                                            BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                            Background="{DynamicResource Brush.CardMuted}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0"
+                                                    Margin="4"
+                                                    Height="34"
+                                                    Content="Aktiv"
+                                                    Command="{Binding ShowActiveOrdersCommand}"
+                                                    AutomationProperties.Name="Aktive Aufträge anzeigen">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Setter Property="BorderBrush" Value="Transparent" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ShowActiveOrders}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                <Setter Property="Foreground" Value="White" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <Button Grid.Column="1"
+                                                    Margin="4"
+                                                    Height="34"
+                                                    Content="Archiviert"
+                                                    Command="{Binding ShowArchivedOrdersCommand}"
+                                                    AutomationProperties.Name="Archivierte Aufträge anzeigen">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                        <Setter Property="Background" Value="Transparent" />
+                                                        <Setter Property="BorderBrush" Value="Transparent" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding ShowArchivedOrders}" Value="True">
+                                                                <Setter Property="Background" Value="{DynamicResource Brush.Accent}" />
+                                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                <Setter Property="Foreground" Value="White" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
                                 </StackPanel>
                             </Grid>
                         </Border>

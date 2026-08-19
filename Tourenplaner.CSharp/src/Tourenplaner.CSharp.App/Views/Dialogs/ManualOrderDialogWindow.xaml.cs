@@ -607,7 +607,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         IsEditingEnabled = !IsXmlImported;
         OrderNumber = existingOrder.Id;
         OrderDateText = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
-        DeliveryDateText = existingOrder.DeliveryDate?.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+        DeliveryDateText = FormatNullableDeliveryDate(existingOrder.DeliveryDate);
         DeliveryCanOccurEarlier = existingOrder.DeliveryCanOccurEarlier;
         OrderAddressName = existingOrder.OrderAddress?.Name ?? string.Empty;
         OrderAddressContactPerson = existingOrder.OrderAddress?.ContactPerson ?? string.Empty;
@@ -652,6 +652,13 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             .Select(x => x.ToOrderProductInfo());
 
         SelectedStatus = Order.ResolveOrderStatusFromProducts(products);
+    }
+
+    private static string FormatNullableDeliveryDate(DateOnly? deliveryDate)
+    {
+        return !deliveryDate.HasValue || deliveryDate.Value == DateOnly.MinValue
+            ? string.Empty
+            : deliveryDate.Value.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     }
 
     private OrderStatusPalette ResolveSelectedStatusPalette()

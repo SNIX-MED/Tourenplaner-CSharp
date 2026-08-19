@@ -145,6 +145,20 @@ public class OrderImportServiceTests
         Assert.Null(stored.DeliveryDate);
     }
 
+    [Fact]
+    public async Task ImportOrdersAsync_TreatsMinValueDeliveryDateAsMissing()
+    {
+        var repository = new FakeOrderRepository([]);
+        var service = new OrderImportService();
+        var xmlOrder = CreateSqlOrder("A-13", "Kunde Dreizehn", "Frei Bordsteinkante", "Neu");
+        xmlOrder.Lieferdatum = DateTime.MinValue;
+
+        await service.ImportOrdersAsync([xmlOrder], repository);
+
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Null(stored.DeliveryDate);
+    }
+
     private static XmlOrderImportData CreateSqlOrder(
         string id,
         string customerName,

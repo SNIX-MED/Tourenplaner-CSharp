@@ -12,7 +12,7 @@ public static class OrderDeliveryDateDisplayService
             return string.Empty;
         }
 
-        if (order.DeliveryDate.HasValue)
+        if (order.DeliveryDate.HasValue && order.DeliveryDate.Value != DateOnly.MinValue)
         {
             return FormatDate(order.DeliveryDate.Value);
         }

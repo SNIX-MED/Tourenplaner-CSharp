@@ -21,6 +21,21 @@ public class OrderDeliveryDateDisplayServiceTests
     }
 
     [Fact]
+    public void BuildDisplayText_TreatsMinValueDeliveryDateAsMissing()
+    {
+        var order = new Order
+        {
+            Id = "A-1",
+            DeliveryDate = DateOnly.MinValue,
+            AssignedTourId = string.Empty
+        };
+
+        var displayText = OrderDeliveryDateDisplayService.BuildDisplayText(order, []);
+
+        Assert.Equal(string.Empty, displayText);
+    }
+
+    [Fact]
     public void BuildDisplayText_UsesExplicitDeliveryDateWithoutPlanningSuffix()
     {
         var order = new Order

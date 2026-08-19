@@ -174,6 +174,51 @@ public class XmlOrderImportServiceTests
     }
 
     [Fact]
+    public void LoadOrdersFromFileDetailed_TreatsMinValueDeliveryDateAsMissing()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var xmlPath = Path.Combine(root, "orders.xml");
+
+        try
+        {
+            File.WriteAllText(xmlPath,
+                """
+                <NewDataSet>
+                  <AVE_Stamm>
+                    <Adresse>100</Adresse>
+                    <Firma>Muster AG</Firma>
+                    <Strasse>Musterstrasse 10</Strasse>
+                    <PLZ>8000</PLZ>
+                    <Ort>Zuerich</Ort>
+                  </AVE_Stamm>
+                  <WW_Kopf>
+                    <Ident>order-1</Ident>
+                    <AuftragNr>A-202</AuftragNr>
+                    <Datum>2026-06-10T00:00:00</Datum>
+                    <AdressID>100</AdressID>
+                    <LiefKondID>Lieferung</LiefKondID>
+                    <Lieferdatum>0001-01-01T00:00:00</Lieferdatum>
+                    <Archiviert>false</Archiviert>
+                  </WW_Kopf>
+                </NewDataSet>
+                """);
+
+            var service = new XmlOrderImportService();
+            var result = service.LoadOrdersFromFileDetailed(xmlPath);
+
+            var order = Assert.Single(result.Orders);
+            Assert.Equal("A-202", order.AuftragNr);
+            Assert.Null(order.Lieferdatum);
+            Assert.Empty(result.Errors);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void LoadOrdersFromFileDetailed_DoesNotDetectDeliveryTypeFromProductDescription()
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));

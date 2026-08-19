@@ -693,7 +693,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
             DateTime.TryParse(raw, CultureInfo.GetCultureInfo("de-CH"), DateTimeStyles.AssumeLocal, out value) ||
             DateTime.TryParse(raw, CultureInfo.GetCultureInfo("de-DE"), DateTimeStyles.AssumeLocal, out value))
         {
-            return value;
+            return value.Date <= DateTime.MinValue.Date ? null : value;
         }
 
         return null;
