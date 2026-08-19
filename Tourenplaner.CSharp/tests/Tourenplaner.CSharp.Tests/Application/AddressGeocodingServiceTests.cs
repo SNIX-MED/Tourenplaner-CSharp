@@ -169,6 +169,93 @@ public class AddressGeocodingServiceTests
     }
 
     [Fact]
+    public async Task TryResolveOrderAsync_AcceptsPrecisePointAddressWhenPostalCodeDiffersButCityStreetAndHouseNumberMatch()
+    {
+        var cacheFilePath = Path.Combine(Path.GetTempPath(), $"gawela-geocode-cache-{Guid.NewGuid():N}.json");
+        ClearGeocodingMemoryCaches();
+        try
+        {
+            var expectedLocation = new GeoPoint(47.3622137, 8.5602487);
+            var cache = new Dictionary<string, object>
+            {
+                ["forchstrasse 95, 8032 zÃ¼rich, schweiz"] = new
+                {
+                    Latitude = expectedLocation.Latitude,
+                    Longitude = expectedLocation.Longitude,
+                    MatchType = "Point Address",
+                    EntityType = (string?)null,
+                    IsPrecise = false,
+                    ResultPostalCode = "8008",
+                    ResultMunicipality = "ZÃ¼rich",
+                    ResultStreetName = "Forchstrasse",
+                    ResultFreeformAddress = "Forchstrasse 95, 8008 ZÃ¼rich",
+                    CacheValidationVersion = 1
+                }
+            };
+            await File.WriteAllTextAsync(cacheFilePath, JsonSerializer.Serialize(cache));
+
+            var order = CreateMapOrder("221789", "Forchstrasse", "95", "8032", "ZÃ¼rich");
+
+            var result = await AddressGeocodingService.TryResolveOrderAsync(order, tomTomApiKey: null, cacheFilePath);
+
+            Assert.NotNull(result);
+            Assert.True(result.IsPrecise);
+            Assert.Equal(expectedLocation, result.Location);
+        }
+        finally
+        {
+            if (File.Exists(cacheFilePath))
+            {
+                File.Delete(cacheFilePath);
+            }
+
+            ClearGeocodingMemoryCaches();
+        }
+    }
+
+    [Fact]
+    public async Task TryResolveOrderAsync_RejectsPostalMismatchWhenCityAlsoDiffers()
+    {
+        var cacheFilePath = Path.Combine(Path.GetTempPath(), $"gawela-geocode-cache-{Guid.NewGuid():N}.json");
+        ClearGeocodingMemoryCaches();
+        try
+        {
+            var cache = new Dictionary<string, object>
+            {
+                ["forchstrasse 95, 8032 zÃ¼rich, schweiz"] = new
+                {
+                    Latitude = 47.2949831,
+                    Longitude = 8.6951129,
+                    MatchType = "Point Address",
+                    EntityType = (string?)null,
+                    IsPrecise = false,
+                    ResultPostalCode = "8132",
+                    ResultMunicipality = "Egg",
+                    ResultStreetName = "Forchstrasse",
+                    ResultFreeformAddress = "Forchstrasse 95, 8132 Egg",
+                    CacheValidationVersion = 1
+                }
+            };
+            await File.WriteAllTextAsync(cacheFilePath, JsonSerializer.Serialize(cache));
+
+            var order = CreateMapOrder("221789", "Forchstrasse", "95", "8032", "ZÃ¼rich");
+
+            var result = await AddressGeocodingService.TryResolveOrderAsync(order, tomTomApiKey: null, cacheFilePath);
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            if (File.Exists(cacheFilePath))
+            {
+                File.Delete(cacheFilePath);
+            }
+
+            ClearGeocodingMemoryCaches();
+        }
+    }
+
+    [Fact]
     public async Task TryResolveOrderAsync_RejectsMunicipalityMismatchWhenHouseNumberDiffers()
     {
         var cacheFilePath = Path.Combine(Path.GetTempPath(), $"gawela-geocode-cache-{Guid.NewGuid():N}.json");
