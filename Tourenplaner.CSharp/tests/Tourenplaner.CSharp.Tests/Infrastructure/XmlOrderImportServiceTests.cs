@@ -413,6 +413,67 @@ public class XmlOrderImportServiceTests
     }
 
     [Fact]
+    public void LoadOrdersFromFileDetailed_SeparatesBelegCompanyAndContactPerson()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var xmlPath = Path.Combine(root, "orders.xml");
+
+        try
+        {
+            File.WriteAllText(xmlPath,
+                """
+                <belege>
+                  <beleg>
+                    <ident>order-1</ident>
+                    <typ>SALES</typ>
+                    <kopf>221839</kopf>
+                    <datum>08.07.2026 00:00:00</datum>
+                    <person>Andreas Gehrig</person>
+                    <lieferperson>Andreas Gehrig</lieferperson>
+                    <versandart>LKW</versandart>
+                    <archiv>False</archiv>
+                    <adresskopfrechnung>Kurhaus am Sarnersee
+                    Wilerstrasse 35
+                    6062 Wilen (Sarnen)</adresskopfrechnung>
+                    <adresskopflieferung>Kurhaus am Sarnersee
+                    Andreas Gehrig
+                    Wilerstrasse 35
+                    6062 Wilen (Sarnen)</adresskopflieferung>
+                    <positionen>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <artikel>PRODUKT-E</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Produkt E</bezeichnung>
+                        <gewicht>2.5</gewicht>
+                      </position>
+                    </positionen>
+                  </beleg>
+                </belege>
+                """);
+
+            var service = new XmlOrderImportService();
+            var result = service.LoadOrdersFromFileDetailed(xmlPath);
+
+            Assert.Single(result.Orders);
+            var order = result.Orders[0];
+            Assert.Equal("Kurhaus am Sarnersee", order.KundeFirma);
+            Assert.Equal("Andreas Gehrig", order.KundeKontaktperson);
+            Assert.Equal("Kurhaus am Sarnersee", order.LieferFirma);
+            Assert.Equal("Andreas Gehrig", order.LieferKontaktperson);
+            Assert.Equal("Wilerstrasse 35", order.LieferStrasse);
+            Assert.Equal("6062", order.LieferPLZ);
+            Assert.Equal("Wilen (Sarnen)", order.LieferOrt);
+            Assert.Empty(result.Errors);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void LoadOrdersFromFileDetailed_PreservesCustomDeliveryTypeArticleNumbersForBelegExport()
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
@@ -600,6 +661,66 @@ public class XmlOrderImportServiceTests
             Assert.Empty(result.Orders[0].Produkte);
             Assert.Contains(result.Warnings, warning => warning.Contains("keine Lieferart erkannt", StringComparison.OrdinalIgnoreCase));
             Assert.DoesNotContain(result.Warnings, warning => warning.Contains("keine Lieferadresse gefunden", StringComparison.OrdinalIgnoreCase));
+            Assert.Empty(result.Errors);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void LoadOrdersFromFileDetailed_AddsWarningWhenImportedProductHasNoWeight()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var xmlPath = Path.Combine(root, "orders.xml");
+
+        try
+        {
+            File.WriteAllText(xmlPath,
+                """
+                <belege>
+                  <beleg>
+                    <ident>order-1</ident>
+                    <typ>SALES</typ>
+                    <kopf>A-306</kopf>
+                    <datum>15.07.2026 00:00:00</datum>
+                    <versandart>Post</versandart>
+                    <archiv>False</archiv>
+                    <positionen>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <artikel>PRODUKT-G</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Produkt G</bezeichnung>
+                      </position>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <artikel>TEXT</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Textblock Hinweis</bezeichnung>
+                      </position>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <artikel>PRODUKT-H</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Produkt H</bezeichnung>
+                        <gewicht>0</gewicht>
+                      </position>
+                    </positionen>
+                  </beleg>
+                </belege>
+                """);
+
+            var service = new XmlOrderImportService();
+            var result = service.LoadOrdersFromFileDetailed(xmlPath);
+
+            Assert.Single(result.Orders);
+            Assert.Equal(2, result.Orders[0].Produkte.Count);
+            Assert.Equal(0m, result.Orders[0].Produkte[0].Gewicht);
+            Assert.Equal(0m, result.Orders[0].Produkte[1].Gewicht);
+            Assert.Contains(result.Warnings, warning => warning.Contains("Produktposition ohne Gewichtsangabe", StringComparison.OrdinalIgnoreCase));
             Assert.Empty(result.Errors);
         }
         finally

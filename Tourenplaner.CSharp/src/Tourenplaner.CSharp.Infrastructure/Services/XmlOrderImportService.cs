@@ -110,6 +110,8 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     Lieferdatum = ReadNullableDate(orderElement, effectiveMapping.OrderDeliveryDate),
                     LieferungKannFrueherErfolgen = ReadBool(orderElement, effectiveMapping.OrderDeliveryCanOccurEarlier),
                     Lieferzeit = ReadString(orderElement, effectiveMapping.OrderDeliveryTime),
+                    KundeKontaktperson = ReadString(orderElement, effectiveMapping.OrderContactPerson),
+                    LieferKontaktperson = ReadString(orderElement, effectiveMapping.OrderDeliveryContactPerson),
                     IstVorauszahlung = IsPrepaymentCondition(ReadString(orderElement, effectiveMapping.OrderPaymentTerms)),
                     Notiz = ReadString(orderElement, effectiveMapping.OrderNote)
                 };
@@ -153,6 +155,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     }
 
                     var logicalProductIndex = 0;
+                    var hasProductWithoutWeight = false;
                     for (var productIndex = 0; productIndex < matchedProducts.Count; productIndex++)
                     {
                         var productElement = matchedProducts[productIndex];
@@ -161,6 +164,8 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                             continue;
                         }
 
+                        var hasWeight = TryReadDecimal(productElement, effectiveMapping.ProductWeight, out var productWeight);
+                        hasProductWithoutWeight |= !hasWeight;
                         logicalProductIndex++;
                         order.Produkte.Add(new XmlOrderProductData
                         {
@@ -168,9 +173,14 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                             ArtikelNummer = ReadString(productElement, effectiveMapping.ProductArticleNumber),
                             Bezeichnung = ReadString(productElement, effectiveMapping.ProductDescription),
                             Menge = ReadDecimal(productElement, effectiveMapping.ProductQuantity),
-                            Gewicht = ReadDecimal(productElement, effectiveMapping.ProductWeight),
+                            Gewicht = productWeight,
                             Bruttogewicht = 0m
                         });
+                    }
+
+                    if (hasProductWithoutWeight)
+                    {
+                        AddWarning(result, order, index, "mindestens eine Produktposition ohne Gewichtsangabe.");
                     }
                 }
                 else
@@ -266,7 +276,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
             order.LieferLand = ReadString(addressElement, mapping.AddressCountry);
             order.LieferEmail = ReadString(addressElement, mapping.AddressEmail);
             order.LieferTelefon = ReadString(addressElement, mapping.AddressPhone);
-            order.LieferKontaktperson = ReadString(addressElement, mapping.AddressContactPerson);
+            order.LieferKontaktperson = ResolvePreferredText(ReadString(addressElement, mapping.AddressContactPerson), order.LieferKontaktperson);
             return;
         }
 
@@ -280,7 +290,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         order.KundeLand = ReadString(addressElement, mapping.AddressCountry);
         order.KundeEmail = ReadString(addressElement, mapping.AddressEmail);
         order.KundeTelefon = ReadString(addressElement, mapping.AddressPhone);
-        order.KundeKontaktperson = ReadString(addressElement, mapping.AddressContactPerson);
+        order.KundeKontaktperson = ResolvePreferredText(ReadString(addressElement, mapping.AddressContactPerson), order.KundeKontaktperson);
     }
 
     private static XmlImportMappingSettings CreateBelegExportMapping(XmlImportMappingSettings sourceMapping) => new()
@@ -306,6 +316,8 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         ProductWeight = "gewicht",
         OrderAddressNumber = sourceMapping.OrderAddressNumber,
         OrderDeliveryAddressNumber = sourceMapping.OrderDeliveryAddressNumber,
+        OrderContactPerson = sourceMapping.OrderContactPerson,
+        OrderDeliveryContactPerson = sourceMapping.OrderDeliveryContactPerson,
         OrderBillingAddressBlock = sourceMapping.OrderBillingAddressBlock,
         OrderDeliveryAddressBlock = sourceMapping.OrderDeliveryAddressBlock,
         ExcludedProductArticleNumbers = sourceMapping.ExcludedProductArticleNumbers,
@@ -345,6 +357,8 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         OrderDeliveryAddressId = XmlImportMappingSettings.LegacyOrderDeliveryAddressId,
         OrderAddressNumber = sourceMapping.OrderAddressNumber,
         OrderDeliveryAddressNumber = sourceMapping.OrderDeliveryAddressNumber,
+        OrderContactPerson = sourceMapping.OrderContactPerson,
+        OrderDeliveryContactPerson = sourceMapping.OrderDeliveryContactPerson,
         OrderDeliveryCondition = XmlImportMappingSettings.LegacyOrderDeliveryCondition,
         OrderDeliveryDate = XmlImportMappingSettings.LegacyOrderDeliveryDate,
         OrderDeliveryCanOccurEarlier = XmlImportMappingSettings.LegacyOrderDeliveryCanOccurEarlier,
@@ -559,20 +573,42 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
     {
         var lines = (value ?? string.Empty).Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (lines.Length == 0) return false;
-        var name = string.Join(' ', lines.Take(Math.Max(1, lines.Length - 2)));
+        var parsed = ParseExportAddressBlock(lines);
         var street = lines.Length >= 2 ? lines[^2] : string.Empty;
         var postalCity = lines.Length >= 1 ? lines[^1] : string.Empty;
         var postalParts = postalCity.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (isDeliveryAddress)
         {
-            order.LieferFirma = name; order.LieferStrasse = street; order.LieferPLZ = postalParts.ElementAtOrDefault(0) ?? string.Empty; order.LieferOrt = postalParts.ElementAtOrDefault(1) ?? string.Empty;
+            order.LieferFirma = parsed.Name;
+            order.LieferKontaktperson = ResolvePreferredText(order.LieferKontaktperson, parsed.ContactPerson);
+            order.LieferStrasse = street; order.LieferPLZ = postalParts.ElementAtOrDefault(0) ?? string.Empty; order.LieferOrt = postalParts.ElementAtOrDefault(1) ?? string.Empty;
         }
         else
         {
-            order.KundeFirma = name; order.KundeStrasse = street; order.KundePLZ = postalParts.ElementAtOrDefault(0) ?? string.Empty; order.KundeOrt = postalParts.ElementAtOrDefault(1) ?? string.Empty;
+            order.KundeFirma = parsed.Name;
+            order.KundeKontaktperson = ResolvePreferredText(order.KundeKontaktperson, parsed.ContactPerson);
+            order.KundeStrasse = street; order.KundePLZ = postalParts.ElementAtOrDefault(0) ?? string.Empty; order.KundeOrt = postalParts.ElementAtOrDefault(1) ?? string.Empty;
         }
 
         return isDeliveryAddress ? HasDeliveryAddress(order) : HasCustomerAddress(order);
+    }
+
+    private static ExportAddressBlock ParseExportAddressBlock(IReadOnlyList<string> lines)
+    {
+        var name = lines.Count > 0 ? lines[0] : string.Empty;
+        var contactPerson = lines.Count > 3
+            ? string.Join(' ', lines.Skip(1).Take(lines.Count - 3))
+            : string.Empty;
+
+        return new ExportAddressBlock(name.Trim(), contactPerson.Trim());
+    }
+
+    private static string ResolvePreferredText(string? primary, string? fallback)
+    {
+        var normalizedPrimary = (primary ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalizedPrimary)
+            ? (fallback ?? string.Empty).Trim()
+            : normalizedPrimary;
     }
 
     private static bool HasDeliveryAddress(XmlOrderImportData order)
@@ -622,6 +658,8 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
     private static string ReadString(XElement parent, string name, string fallback = "")
         => string.IsNullOrWhiteSpace(name) ? fallback.Trim() : (parent.Element(name)?.Value ?? fallback).Trim();
 
+    private sealed record ExportAddressBlock(string Name, string ContactPerson);
+
     private static bool ReadBool(XElement parent, string name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -647,38 +685,46 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         => int.TryParse(parent.Element(name)?.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : 0;
 
     private static decimal ReadDecimal(XElement parent, string name)
+        => TryReadDecimal(parent, name, out var value) ? value : 0m;
+
+    private static bool TryReadDecimal(XElement parent, string name, out decimal value)
     {
+        value = 0m;
         if (string.IsNullOrWhiteSpace(name))
         {
-            return 0m;
+            return false;
         }
 
         var raw = (parent.Element(name)?.Value ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(raw))
         {
-            return 0m;
+            return false;
         }
 
         if (decimal.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var directValue))
         {
-            return directValue;
+            value = directValue;
+            return true;
         }
 
         if (decimal.TryParse(raw, NumberStyles.Float, CultureInfo.GetCultureInfo("de-CH"), out var localValue))
         {
-            return localValue;
+            value = localValue;
+            return true;
         }
 
         var sanitized = new string(raw
             .Where(ch => char.IsDigit(ch) || ch is '.' or ',' or '-' or '+')
             .ToArray());
 
-        if (decimal.TryParse(sanitized.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var sanitizedValue))
+        if (!string.IsNullOrWhiteSpace(sanitized) &&
+            decimal.TryParse(sanitized.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var sanitizedValue))
         {
-            return sanitizedValue;
+            value = sanitizedValue;
+            return true;
         }
 
-        return 0m;
+        return false;
     }
 
     private static DateTime? ReadNullableDate(XElement parent, string name)

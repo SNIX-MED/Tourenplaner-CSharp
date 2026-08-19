@@ -85,37 +85,118 @@ public class AddressGeocodingServiceTests
     }
 
     [Fact]
-    public async Task TryResolveOrderAsync_AcceptsPreciseCacheWhenMunicipalityDiffersButFreeformMatchesCity()
+    public async Task TryResolveOrderAsync_AcceptsPrecisePointAddressWhenMunicipalityDiffersButPostalStreetAndHouseNumberMatch()
     {
         var cacheFilePath = Path.Combine(Path.GetTempPath(), $"gawela-geocode-cache-{Guid.NewGuid():N}.json");
         try
         {
-            var expectedLocation = new GeoPoint(47.0301, 8.6338);
+            var expectedLocation = new GeoPoint(47.0274499, 8.6327531);
             var cache = new Dictionary<string, object>
             {
-                ["hauptmatt 9, 6423 seewen, schweiz"] = new
+                ["hausmatt 9, 6423 seewen, schweiz"] = new
                 {
                     Latitude = expectedLocation.Latitude,
                     Longitude = expectedLocation.Longitude,
                     MatchType = "Point Address",
                     EntityType = (string?)null,
-                    IsPrecise = true,
+                    IsPrecise = false,
                     ResultPostalCode = "6423",
                     ResultMunicipality = "Schwyz",
-                    ResultStreetName = "Hauptmatt",
-                    ResultFreeformAddress = "Hauptmatt 9, 6423 Seewen SZ",
+                    ResultStreetName = "Hausmatt",
+                    ResultFreeformAddress = "Hausmatt 9, 6423 Schwyz",
                     CacheValidationVersion = 1
                 }
             };
             await File.WriteAllTextAsync(cacheFilePath, JsonSerializer.Serialize(cache));
 
-            var order = CreateMapOrder("221680", "Hauptmatt", "9", "6423", "Seewen");
+            var order = CreateMapOrder("221680", "Hausmatt", "9", "6423", "Seewen");
 
             var result = await AddressGeocodingService.TryResolveOrderAsync(order, tomTomApiKey: null, cacheFilePath);
 
             Assert.NotNull(result);
             Assert.True(result.IsPrecise);
             Assert.Equal(expectedLocation, result.Location);
+        }
+        finally
+        {
+            if (File.Exists(cacheFilePath))
+            {
+                File.Delete(cacheFilePath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task TryResolveOrderAsync_AcceptsAppenbergPointAddressWhenTomTomUsesNeighborMunicipality()
+    {
+        var cacheFilePath = Path.Combine(Path.GetTempPath(), $"gawela-geocode-cache-{Guid.NewGuid():N}.json");
+        try
+        {
+            var expectedLocation = new GeoPoint(46.8835901, 7.6599651);
+            var cache = new Dictionary<string, object>
+            {
+                ["appenbergstrasse 36, 3532 zÃ¤ziwil, schweiz"] = new
+                {
+                    Latitude = expectedLocation.Latitude,
+                    Longitude = expectedLocation.Longitude,
+                    MatchType = "Point Address",
+                    EntityType = (string?)null,
+                    IsPrecise = false,
+                    ResultPostalCode = "3532",
+                    ResultMunicipality = "Mirchel",
+                    ResultStreetName = "Appenbergstrasse",
+                    ResultFreeformAddress = "Appenbergstrasse 36, 3532 Mirchel",
+                    CacheValidationVersion = 1
+                }
+            };
+            await File.WriteAllTextAsync(cacheFilePath, JsonSerializer.Serialize(cache));
+
+            var order = CreateMapOrder("221336", "Appenbergstrasse", "36", "3532", "ZÃ¤ziwil");
+
+            var result = await AddressGeocodingService.TryResolveOrderAsync(order, tomTomApiKey: null, cacheFilePath);
+
+            Assert.NotNull(result);
+            Assert.True(result.IsPrecise);
+            Assert.Equal(expectedLocation, result.Location);
+        }
+        finally
+        {
+            if (File.Exists(cacheFilePath))
+            {
+                File.Delete(cacheFilePath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task TryResolveOrderAsync_RejectsMunicipalityMismatchWhenHouseNumberDiffers()
+    {
+        var cacheFilePath = Path.Combine(Path.GetTempPath(), $"gawela-geocode-cache-{Guid.NewGuid():N}.json");
+        try
+        {
+            var cache = new Dictionary<string, object>
+            {
+                ["hausmatt 9, 6423 seewen, schweiz"] = new
+                {
+                    Latitude = 47.0274499,
+                    Longitude = 8.6327531,
+                    MatchType = "Point Address",
+                    EntityType = (string?)null,
+                    IsPrecise = false,
+                    ResultPostalCode = "6423",
+                    ResultMunicipality = "Schwyz",
+                    ResultStreetName = "Hausmatt",
+                    ResultFreeformAddress = "Hausmatt 11, 6423 Schwyz",
+                    CacheValidationVersion = 1
+                }
+            };
+            await File.WriteAllTextAsync(cacheFilePath, JsonSerializer.Serialize(cache));
+
+            var order = CreateMapOrder("221680", "Hausmatt", "9", "6423", "Seewen");
+
+            var result = await AddressGeocodingService.TryResolveOrderAsync(order, tomTomApiKey: null, cacheFilePath);
+
+            Assert.Null(result);
         }
         finally
         {

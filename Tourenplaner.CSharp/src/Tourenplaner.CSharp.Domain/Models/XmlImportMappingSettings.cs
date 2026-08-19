@@ -68,6 +68,8 @@ public sealed class XmlImportMappingSettings
     public const string DefaultOrderDeliveryAddressId = "";
     public const string DefaultOrderAddressNumber = "firma";
     public const string DefaultOrderDeliveryAddressNumber = "Standort";
+    public const string DefaultOrderContactPerson = "person";
+    public const string DefaultOrderDeliveryContactPerson = "lieferperson";
     public const string DefaultOrderDeliveryCondition = "versandart";
     public const string DefaultOrderDeliveryDate = "lieferdatum";
     public const string DefaultOrderDeliveryCanOccurEarlier = "lieferdatumfrüher";
@@ -121,6 +123,8 @@ public sealed class XmlImportMappingSettings
     public string OrderDeliveryAddressId { get; set; } = DefaultOrderDeliveryAddressId;
     public string OrderAddressNumber { get; set; } = DefaultOrderAddressNumber;
     public string OrderDeliveryAddressNumber { get; set; } = DefaultOrderDeliveryAddressNumber;
+    public string OrderContactPerson { get; set; } = DefaultOrderContactPerson;
+    public string OrderDeliveryContactPerson { get; set; } = DefaultOrderDeliveryContactPerson;
     public string OrderDeliveryCondition { get; set; } = DefaultOrderDeliveryCondition;
     public string OrderDeliveryDate { get; set; } = DefaultOrderDeliveryDate;
     public string OrderDeliveryCanOccurEarlier { get; set; } = DefaultOrderDeliveryCanOccurEarlier;
@@ -181,6 +185,8 @@ public sealed class XmlImportMappingSettings
             OrderDeliveryAddressId = Normalize(OrderDeliveryAddressId, DefaultOrderDeliveryAddressId),
             OrderAddressNumber = Normalize(OrderAddressNumber, DefaultOrderAddressNumber),
             OrderDeliveryAddressNumber = Normalize(OrderDeliveryAddressNumber, DefaultOrderDeliveryAddressNumber),
+            OrderContactPerson = Normalize(OrderContactPerson, DefaultOrderContactPerson),
+            OrderDeliveryContactPerson = Normalize(OrderDeliveryContactPerson, DefaultOrderDeliveryContactPerson),
             OrderDeliveryCondition = Normalize(OrderDeliveryCondition, DefaultOrderDeliveryCondition),
             OrderDeliveryDate = Normalize(OrderDeliveryDate, DefaultOrderDeliveryDate),
             OrderDeliveryCanOccurEarlier = Normalize(OrderDeliveryCanOccurEarlier, DefaultOrderDeliveryCanOccurEarlier),
@@ -221,6 +227,8 @@ public sealed class XmlImportMappingSettings
             effective.OrderDeliveryAddressId = DefaultOrderDeliveryAddressId;
             effective.OrderAddressNumber = DefaultOrderAddressNumber;
             effective.OrderDeliveryAddressNumber = DefaultOrderDeliveryAddressNumber;
+            effective.OrderContactPerson = DefaultOrderContactPerson;
+            effective.OrderDeliveryContactPerson = DefaultOrderDeliveryContactPerson;
             effective.OrderDeliveryCondition = DefaultOrderDeliveryCondition;
             effective.OrderDeliveryDate = DefaultOrderDeliveryDate;
             effective.OrderDeliveryCanOccurEarlier = DefaultOrderDeliveryCanOccurEarlier;

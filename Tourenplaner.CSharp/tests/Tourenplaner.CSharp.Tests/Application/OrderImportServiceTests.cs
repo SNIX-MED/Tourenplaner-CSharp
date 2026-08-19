@@ -114,6 +114,28 @@ public class OrderImportServiceTests
     }
 
     [Fact]
+    public async Task ImportOrdersAsync_StoresCompanyContactPersonsInPersonFields()
+    {
+        var repository = new FakeOrderRepository([]);
+        var service = new OrderImportService();
+        var xmlOrder = CreateSqlOrder("A-14", "Kurhaus am Sarnersee", "Frei Bordsteinkante", "Neu");
+        xmlOrder.KundeKontaktperson = "Andreas Gehrig";
+        xmlOrder.LieferFirma = "Kurhaus am Sarnersee";
+        xmlOrder.LieferKontaktperson = "Andreas Gehrig";
+        xmlOrder.LieferStrasse = "Wilerstrasse 35";
+        xmlOrder.LieferPLZ = "6062";
+        xmlOrder.LieferOrt = "Wilen (Sarnen)";
+
+        await service.ImportOrdersAsync([xmlOrder], repository);
+
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal("Kurhaus am Sarnersee", stored.OrderAddress.Name);
+        Assert.Equal("Andreas Gehrig", stored.OrderAddress.ContactPerson);
+        Assert.Equal("Kurhaus am Sarnersee", stored.DeliveryAddress.Name);
+        Assert.Equal("Andreas Gehrig", stored.DeliveryAddress.ContactPerson);
+    }
+
+    [Fact]
     public async Task ImportOrdersAsync_StoresPrepaymentFlag()
     {
         var repository = new FakeOrderRepository([]);

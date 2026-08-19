@@ -1795,6 +1795,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             new XmlImportMappingFieldViewModel("Adress-ID", XmlImportMappingSettings.DefaultOrderAddressId, XmlImportMappingSettings.DefaultOrderAddressId),
             new XmlImportMappingFieldViewModel("Adress-Nr. Auftraggeber", XmlImportMappingSettings.DefaultOrderAddressNumber, XmlImportMappingSettings.DefaultOrderAddressNumber),
             new XmlImportMappingFieldViewModel("Adress-Nr. Lieferung", XmlImportMappingSettings.DefaultOrderDeliveryAddressNumber, XmlImportMappingSettings.DefaultOrderDeliveryAddressNumber),
+            new XmlImportMappingFieldViewModel("Person Auftraggeber", XmlImportMappingSettings.DefaultOrderContactPerson, XmlImportMappingSettings.DefaultOrderContactPerson),
+            new XmlImportMappingFieldViewModel("Person Lieferung", XmlImportMappingSettings.DefaultOrderDeliveryContactPerson, XmlImportMappingSettings.DefaultOrderDeliveryContactPerson),
             new XmlImportMappingFieldViewModel("Lieferbedingung", XmlImportMappingSettings.DefaultOrderDeliveryCondition, XmlImportMappingSettings.DefaultOrderDeliveryCondition),
             new XmlImportMappingFieldViewModel("Lieferdatum", XmlImportMappingSettings.DefaultOrderDeliveryDate, XmlImportMappingSettings.DefaultOrderDeliveryDate),
             new XmlImportMappingFieldViewModel("Lieferung kann früher erfolgen", XmlImportMappingSettings.DefaultOrderDeliveryCanOccurEarlier, XmlImportMappingSettings.DefaultOrderDeliveryCanOccurEarlier),
@@ -1884,14 +1886,16 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             OrderDeliveryAddressId = XmlImportMappingSettings.DefaultOrderDeliveryAddressId,
             OrderAddressNumber = XmlImportOrderFields[5].XmlName,
             OrderDeliveryAddressNumber = XmlImportOrderFields[6].XmlName,
-            OrderDeliveryCondition = XmlImportOrderFields[7].XmlName,
-            OrderDeliveryDate = XmlImportOrderFields[8].XmlName,
-            OrderDeliveryCanOccurEarlier = XmlImportOrderFields[9].XmlName,
-            OrderDeliveryTime = XmlImportOrderFields[10].XmlName,
-            OrderPaymentTerms = XmlImportOrderFields[11].XmlName,
-            OrderArchived = XmlImportOrderFields[12].XmlName,
-            OrderLocked = XmlImportOrderFields[13].XmlName,
-            OrderNote = XmlImportOrderFields[14].XmlName,
+            OrderContactPerson = XmlImportOrderFields[7].XmlName,
+            OrderDeliveryContactPerson = XmlImportOrderFields[8].XmlName,
+            OrderDeliveryCondition = XmlImportOrderFields[9].XmlName,
+            OrderDeliveryDate = XmlImportOrderFields[10].XmlName,
+            OrderDeliveryCanOccurEarlier = XmlImportOrderFields[11].XmlName,
+            OrderDeliveryTime = XmlImportOrderFields[12].XmlName,
+            OrderPaymentTerms = XmlImportOrderFields[13].XmlName,
+            OrderArchived = XmlImportOrderFields[14].XmlName,
+            OrderLocked = XmlImportOrderFields[15].XmlName,
+            OrderNote = XmlImportOrderFields[16].XmlName,
             ProductOrderId = XmlImportProductFields[0].XmlName,
             ProductArticleNumber = XmlImportProductFields[1].XmlName,
             ProductDescription = XmlImportProductFields[2].XmlName,
@@ -1931,14 +1935,16 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             XmlImportOrderFields[4].XmlName = effective.OrderAddressId;
             XmlImportOrderFields[5].XmlName = effective.OrderAddressNumber;
             XmlImportOrderFields[6].XmlName = effective.OrderDeliveryAddressNumber;
-            XmlImportOrderFields[7].XmlName = effective.OrderDeliveryCondition;
-            XmlImportOrderFields[8].XmlName = effective.OrderDeliveryDate;
-            XmlImportOrderFields[9].XmlName = effective.OrderDeliveryCanOccurEarlier;
-            XmlImportOrderFields[10].XmlName = effective.OrderDeliveryTime;
-            XmlImportOrderFields[11].XmlName = effective.OrderPaymentTerms;
-            XmlImportOrderFields[12].XmlName = effective.OrderArchived;
-            XmlImportOrderFields[13].XmlName = effective.OrderLocked;
-            XmlImportOrderFields[14].XmlName = effective.OrderNote;
+            XmlImportOrderFields[7].XmlName = effective.OrderContactPerson;
+            XmlImportOrderFields[8].XmlName = effective.OrderDeliveryContactPerson;
+            XmlImportOrderFields[9].XmlName = effective.OrderDeliveryCondition;
+            XmlImportOrderFields[10].XmlName = effective.OrderDeliveryDate;
+            XmlImportOrderFields[11].XmlName = effective.OrderDeliveryCanOccurEarlier;
+            XmlImportOrderFields[12].XmlName = effective.OrderDeliveryTime;
+            XmlImportOrderFields[13].XmlName = effective.OrderPaymentTerms;
+            XmlImportOrderFields[14].XmlName = effective.OrderArchived;
+            XmlImportOrderFields[15].XmlName = effective.OrderLocked;
+            XmlImportOrderFields[16].XmlName = effective.OrderNote;
 
             XmlImportProductFields[0].XmlName = effective.ProductOrderId;
             XmlImportProductFields[1].XmlName = effective.ProductArticleNumber;

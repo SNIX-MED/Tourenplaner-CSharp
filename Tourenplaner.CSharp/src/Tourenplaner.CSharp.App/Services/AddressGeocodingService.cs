@@ -478,11 +478,17 @@ public static class AddressGeocodingService
             }
         }
 
+        var expectedStreet = NormalizeAddressToken(RemoveHouseNumber(expectation.Street));
+        var resultStreetName = NormalizeAddressToken(candidate.ResultStreetName);
+        var resultFreeform = NormalizeAddressToken(candidate.ResultFreeformAddress);
+        var streetMatches = string.IsNullOrWhiteSpace(expectedStreet) ||
+                            AddressTokenContains(resultStreetName, expectedStreet) ||
+                            AddressTokenContains(resultFreeform, expectedStreet);
+
         var expectedCity = NormalizeAddressToken(expectation.City);
         if (!string.IsNullOrWhiteSpace(expectedCity))
         {
             var resultMunicipality = NormalizeAddressToken(candidate.ResultMunicipality);
-            var resultFreeform = NormalizeAddressToken(candidate.ResultFreeformAddress);
             if (string.IsNullOrWhiteSpace(resultMunicipality) &&
                 string.IsNullOrWhiteSpace(resultFreeform))
             {
@@ -492,29 +498,49 @@ public static class AddressGeocodingService
             if (!AddressTokenContains(resultMunicipality, expectedCity) &&
                 !AddressTokenContains(resultFreeform, expectedCity))
             {
-                return false;
+                if (!IsPrecisePostalStreetHouseNumberMatch(candidate, expectation, streetMatches))
+                {
+                    return false;
+                }
             }
         }
 
-        var expectedStreet = NormalizeAddressToken(RemoveHouseNumber(expectation.Street));
         if (!string.IsNullOrWhiteSpace(expectedStreet))
         {
-            var resultStreetName = NormalizeAddressToken(candidate.ResultStreetName);
-            var resultFreeform = NormalizeAddressToken(candidate.ResultFreeformAddress);
             if (string.IsNullOrWhiteSpace(resultStreetName) &&
                 string.IsNullOrWhiteSpace(resultFreeform))
             {
                 return false;
             }
 
-            if (!AddressTokenContains(resultStreetName, expectedStreet) &&
-                !AddressTokenContains(resultFreeform, expectedStreet))
+            if (!streetMatches)
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private static bool IsPrecisePostalStreetHouseNumberMatch(
+        GeocodeCandidate candidate,
+        AddressExpectation expectation,
+        bool streetMatches)
+    {
+        if (!streetMatches ||
+            !string.Equals(NormalizeWhitespace(candidate.Type), "Point Address", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var expectedHouseNumber = ExtractHouseNumber(expectation.Street);
+        if (string.IsNullOrWhiteSpace(expectedHouseNumber))
+        {
+            return false;
+        }
+
+        var resultHouseNumber = ExtractHouseNumber(candidate.ResultFreeformAddress);
+        return string.Equals(expectedHouseNumber, resultHouseNumber, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool HasMeaningfulAddressExpectation(AddressExpectation expectation)
@@ -532,6 +558,14 @@ public static class AddressGeocodingService
     private static string RemoveHouseNumber(string value)
     {
         return Regex.Replace(value ?? string.Empty, @"\b\d+[a-zA-Z]?\b", " ");
+    }
+
+    private static string ExtractHouseNumber(string? value)
+    {
+        var match = Regex.Match(value ?? string.Empty, @"\b\d+[a-zA-Z]?\b");
+        return match.Success
+            ? match.Value.ToLowerInvariant()
+            : string.Empty;
     }
 
     private static bool AddressTokenContains(string haystack, string needle)
