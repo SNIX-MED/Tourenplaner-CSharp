@@ -21,6 +21,11 @@ src = src.replace(
     'Attributgesteuerte dynamische RAL-Farbvorschau mit wiederverwendbaren Bildgruppen/Höhenvorlagen, zentral pflegbaren RGB/HEX-Werten und Smartstore-Galerie-Slide.',
     'Moderner attributgesteuerter RAL-Farbkonfigurator mit Bildgruppen/Höhenvorlagen, zentraler Palette, Smartstore-Galerie- und Mobilvorschau sowie serverseitigen ProductGroup-Varianten, RAL-Farbnamen und semantischen Farbkombinations-URLs.'
 )
+legacy_check = "grep -q 'Bildgruppe / Höhenvorlage' \"$MODULE/Views/GawelaColorAdmin/Configure.cshtml\"\n"
+current_check = "grep -q 'Smartstore-Medienkatalog' \"$MODULE/Views/GawelaColorAdmin/Configure.cshtml\"\n"
+if legacy_check not in src:
+    raise SystemExit('Legacy 6.4.10 admin verification anchor missing')
+src = src.replace(legacy_check, current_check, 1)
 Path('/tmp/gawela6420-build.sh').write_text(src, encoding='utf-8')
 PY
 
