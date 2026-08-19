@@ -10,10 +10,14 @@ public class OrderImportServiceTests
     [Fact]
     public async Task PreviewImportAsync_ClassifiesCreatedUpdatedAndUnchangedOrders()
     {
+        var existingUnchangedOrder = CreateOrder("A-2", "Kunde Zwei", "Frei Bordsteinkante", "Bleibt gleich");
+        existingUnchangedOrder.Products[0].DeliveryStatus = OrderProductInfo.InTransitStatus;
+        existingUnchangedOrder.OrderStatus = Order.ResolveOrderStatusFromProducts(existingUnchangedOrder.Products);
+
         var repository = new FakeOrderRepository(
         [
             CreateOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis alt"),
-            CreateOrder("A-2", "Kunde Zwei", "Frei Bordsteinkante", "Bleibt gleich")
+            existingUnchangedOrder
         ]);
         var service = new OrderImportService();
 
@@ -34,6 +38,11 @@ public class OrderImportServiceTests
         Assert.Equal("A-1", updated.OrderId);
         Assert.Contains(updated.Changes, x => x.Contains("Lieferart", StringComparison.Ordinal));
         Assert.Contains(updated.Changes, x => x.Contains("Notiz", StringComparison.Ordinal));
+
+        var unchanged = Assert.Single(result.Items, x => x.Action == ImportPreviewAction.Unchanged);
+        Assert.Equal("A-2", unchanged.OrderId);
+        Assert.DoesNotContain(unchanged.Changes, x => x.Contains("Status", StringComparison.Ordinal));
+        Assert.DoesNotContain(unchanged.Changes, x => x.Contains("Produkt", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -60,8 +69,8 @@ public class OrderImportServiceTests
         repository);
 
         Assert.Equal(0, result.CreatedOrders);
-        Assert.Equal(2, result.UpdatedOrders);
-        Assert.Equal(0, result.UnchangedOrders);
+        Assert.Equal(1, result.UpdatedOrders);
+        Assert.Equal(1, result.UnchangedOrders);
         Assert.Equal(1, repository.SaveAllCalls);
 
         var storedChanged = Assert.Single(repository.StoredOrders, x => x.Id == "A-1");
@@ -72,7 +81,8 @@ public class OrderImportServiceTests
 
         var storedUnchanged = Assert.Single(repository.StoredOrders, x => x.Id == "A-2");
         Assert.Equal("Bleibt gleich", storedUnchanged.Notes);
-        Assert.Equal(OrderProductInfo.OrderedStatus, storedUnchanged.Products[0].DeliveryStatus);
+        Assert.Equal(OrderProductInfo.InTransitStatus, storedUnchanged.Products[0].DeliveryStatus);
+        Assert.Equal(Order.InTransitStatus, storedUnchanged.OrderStatus);
     }
 
     [Fact]

@@ -252,7 +252,9 @@ public class OrderImportService : IOrderImportService
                 UnitWeightKg = (double)sqlProduct.Gewicht,
                 WeightKg = (double)(sqlProduct.Gewicht * sqlProduct.Menge),
                 Dimensions = previousProduct?.Dimensions ?? string.Empty,
-                DeliveryStatus = ResolveImportedProductDeliveryStatus(deliveryTime)
+                DeliveryStatus = previousProduct is null
+                    ? ResolveImportedProductDeliveryStatus(deliveryTime)
+                    : OrderProductInfo.NormalizeDeliveryStatus(previousProduct.DeliveryStatus)
             });
         }
 
