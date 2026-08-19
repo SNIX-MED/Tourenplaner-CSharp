@@ -44,6 +44,9 @@ public static class DeliveryMethodExtensions
         SelbstabholungLabel
     ];
 
+    public static readonly IReadOnlyList<string> AllDeliveryTypeOptions =
+        MapDeliveryTypeOptions.Concat(NonMapDeliveryTypeOptions).ToList();
+
     /// <summary>
     /// Gibt an, ob die Liefermethode einen Map-Pin erhalten soll
     /// </summary>
@@ -106,4 +109,13 @@ public static class DeliveryMethodExtensions
             _ => SelbstabholungLabel
         };
     }
+
+    public static OrderType ResolveOrderType(string? value)
+    {
+        return ParseDeliveryMethod(value).IsMapOrder()
+            ? OrderType.Map
+            : OrderType.NonMap;
+    }
+
+    public static bool RequiresMapPin(string? value) => ResolveOrderType(value) == OrderType.Map;
 }

@@ -77,6 +77,7 @@ public class XmlOrderImportServiceTests
             Assert.Equal("100038", result.Orders[0].KundeAdressNummer);
             Assert.Equal("Empfaenger GmbH", result.Orders[0].LieferFirma);
             Assert.Equal("200039", result.Orders[0].LieferAdressNummer);
+            Assert.Equal(new DateTime(2026, 6, 11), result.Orders[0].Lieferdatum);
             Assert.Single(result.Orders[0].Produkte);
             Assert.Equal("PRODUKT-A", result.Orders[0].Produkte[0].ArtikelNummer);
             Assert.Equal(10.5m, result.Orders[0].Produkte[0].Gewicht);
@@ -159,6 +160,7 @@ public class XmlOrderImportServiceTests
             Assert.Equal("A-201", result.Orders[0].AuftragNr);
             Assert.Equal("Muster AG", result.Orders[0].KundeFirma);
             Assert.Equal("Lieferung", result.Orders[0].Lieferbedingung);
+            Assert.Null(result.Orders[0].Lieferdatum);
             Assert.Single(result.Orders[0].Produkte);
             Assert.Equal("ART-77", result.Orders[0].Produkte[0].ArtikelNummer);
             Assert.Equal("Produkt B", result.Orders[0].Produkte[0].Bezeichnung);

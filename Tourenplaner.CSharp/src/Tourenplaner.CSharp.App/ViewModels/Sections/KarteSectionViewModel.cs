@@ -1233,7 +1233,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public string DetailEmail => FindSelectedOrderModel()?.Email ?? "n/a";
     public string DetailPhone => FindSelectedOrderModel()?.Phone ?? "n/a";
     public string DetailDeliveryType => FindSelectedOrderModel()?.DeliveryType ?? SelectedOrder?.DeliveryLabel ?? "Frei Bordsteinkante";
-    public string DetailDeliveryDate => FindSelectedOrderModel()?.DeliveryDate?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
+    public string DetailDeliveryDate => OrderDeliveryDateDisplayService.BuildDisplayText(FindSelectedOrderModel(), _savedTours);
     public bool DetailDeliveryCanOccurEarlier => FindSelectedOrderModel()?.DeliveryCanOccurEarlier == true;
     public string DetailNotes => NormalizeUiText(FindSelectedOrderModel()?.Notes);
 
@@ -5357,7 +5357,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         var updated = dialog.CreatedOrder;
-        updated.Type = OrderType.Map;
         updated.AssignedTourId = selected.AssignedTourId;
 
         if (!await ConfirmManualArchiveForAssignedActiveTourAsync(selected, updated))
@@ -5365,8 +5364,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var updatedGeocodingResult = await AddressGeocodingService.TryResolveOrderAsync(updated, _tomTomApiKey, _geocodeCachePath);
-        updated.Location = updatedGeocodingResult?.Location ?? selected.Location;
+        var updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, selected.Location);
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
         _allOrders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
@@ -5374,11 +5372,42 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _allOrders.Add(updated);
 
         await _orderRepository.SaveAllAsync(_allOrders);
+        await ReconcileToursWithOrdersAsync(_allOrders);
         await RefreshAsync();
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, updated.Id, StringComparison.OrdinalIgnoreCase));
         PublishOrderChange(originalId, updated.Id);
         OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
+    }
+
+    private async Task<AddressGeocodingResult?> ApplyDeliveryMethodRoutingAsync(Order order, GeoPoint? fallbackLocation = null)
+    {
+        return await OrderDeliveryRoutingService.ApplyAsync(
+            order,
+            fallbackLocation,
+            x => AddressGeocodingService.TryResolveOrderAsync(x, _tomTomApiKey, _geocodeCachePath));
+    }
+
+    private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
+    {
+        var allTours = (await _tourRepository.LoadAsync()).ToList();
+        var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(allTours, orders);
+        if (!cleanup.HasChanges)
+        {
+            return;
+        }
+
+        foreach (var changedTourId in cleanup.RescheduledTourIds)
+        {
+            var changedTour = allTours.FirstOrDefault(x => x.Id == changedTourId);
+            if (changedTour is not null)
+            {
+                _scheduleService.ApplySchedule(changedTour);
+            }
+        }
+
+        await _tourRepository.SaveAsync(allTours);
+        _dataSyncService.PublishTours(_instanceId);
     }
 
     private async Task<bool> ConfirmManualArchiveForAssignedActiveTourAsync(Order existing, Order updated)
@@ -7389,7 +7418,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             ProductLines = BuildProductLineItems(order.Products),
             TotalWeightKgText = totalWeightKg.ToString("0.##", CultureInfo.CurrentCulture),
             ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
-            DeliveryDate = order.DeliveryDate?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? string.Empty,
+            DeliveryDate = OrderDeliveryDateDisplayService.BuildDisplayText(order, _savedTours),
             DeliveryCanOccurEarlier = order.DeliveryCanOccurEarlier,
             AssignedTourId = order.AssignedTourId ?? string.Empty,
             IsAssigned = isAssigned,

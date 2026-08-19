@@ -100,6 +100,36 @@ public class TourOrderReferenceServiceTests
     }
 
     [Fact]
+    public void ReconcileActiveToursWithOrders_RemovesNonMapOrderStops()
+    {
+        var tours = new List<TourRecord>
+        {
+            new()
+            {
+                Id = 10,
+                Stops =
+                [
+                    new TourStopRecord { Id = "stop-map", Auftragsnummer = "A-100" },
+                    new TourStopRecord { Id = "stop-non-map", Auftragsnummer = "A-200" }
+                ]
+            }
+        };
+
+        var result = TourOrderReferenceService.ReconcileActiveToursWithOrders(
+            tours,
+            [
+                new Order { Id = "A-100", Type = OrderType.Map },
+                new Order { Id = "A-200", Type = OrderType.NonMap }
+            ]);
+
+        Assert.True(result.HasChanges);
+        Assert.Equal(1, result.RemovedStopCount);
+        Assert.Equal([10], result.RescheduledTourIds);
+        Assert.Contains(tours.Single().Stops, x => x.Auftragsnummer == "A-100");
+        Assert.DoesNotContain(tours.Single().Stops, x => x.Auftragsnummer == "A-200");
+    }
+
+    [Fact]
     public void ReconcileActiveToursWithOrders_ArchivesTourWhenAllOrderStopsAreArchived()
     {
         var tours = new List<TourRecord>

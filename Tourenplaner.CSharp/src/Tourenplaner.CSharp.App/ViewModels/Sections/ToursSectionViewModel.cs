@@ -1194,7 +1194,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var dialog = new ManualOrderDialogWindow(
             existing,
-            deliveryTypes: DeliveryMethodExtensions.MapDeliveryTypeOptions,
+            deliveryTypes: DeliveryMethodExtensions.AllDeliveryTypeOptions,
             defaultOrderType: existing.Type)
         {
             Owner = System.Windows.Application.Current?.MainWindow
@@ -1243,10 +1243,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var updated = dialog.CreatedOrder;
-        updated.Type = existing.Type;
         updated.AssignedTourId = existing.AssignedTourId;
-        var updatedGeocodingResult = await TryResolveOrderAsync(updated);
-        updated.Location = updatedGeocodingResult?.Location ?? existing.Location;
+        var updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, existing.Location);
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
         orders.RemoveAll(x => string.Equals(x.Id, existing.Id, StringComparison.OrdinalIgnoreCase));
@@ -1279,9 +1277,36 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         {
             await _orderRepository.SaveAllAsync(orders);
         }
+        await ReconcileToursWithOrdersAsync(orders);
         _dataSyncService.PublishOrders(_instanceId);
         OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
+    }
+
+    private async Task<AddressGeocodingResult?> ApplyDeliveryMethodRoutingAsync(Order order, GeoPoint? fallbackLocation = null)
+    {
+        return await OrderDeliveryRoutingService.ApplyAsync(order, fallbackLocation, TryResolveOrderAsync);
+    }
+
+    private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
+    {
+        var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(_loadedTours, orders);
+        if (!cleanup.HasChanges)
+        {
+            return;
+        }
+
+        foreach (var changedTourId in cleanup.RescheduledTourIds)
+        {
+            var changedTour = _loadedTours.FirstOrDefault(x => x.Id == changedTourId);
+            if (changedTour is not null)
+            {
+                _scheduleService.ApplySchedule(changedTour);
+            }
+        }
+
+        await _tourRepository.SaveAsync(_loadedTours);
+        _dataSyncService.PublishTours(_instanceId);
     }
 
     private async Task<AddressGeocodingResult?> TryResolveOrderAsync(Order order)

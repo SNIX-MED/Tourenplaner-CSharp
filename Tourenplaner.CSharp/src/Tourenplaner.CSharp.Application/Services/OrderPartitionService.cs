@@ -6,40 +6,55 @@ public sealed class OrderPartitionService
 {
     public IReadOnlyList<Order> MergeMapOrders(IEnumerable<Order> existingAll, IEnumerable<Order> updatedMapOrders)
     {
+        var updated = (updatedMapOrders ?? Array.Empty<Order>())
+            .Select(NormalizeByDeliveryMethod)
+            .ToList();
+        var updatedIds = BuildOrderIdSet(updated);
+
         var nonMap = (existingAll ?? Array.Empty<Order>())
             .Where(o => o.Type == OrderType.NonMap)
+            .Where(o => !updatedIds.Contains(o.Id ?? string.Empty))
             .ToList();
 
-        var map = (updatedMapOrders ?? Array.Empty<Order>())
-            .Select(NormalizeMapOrder)
-            .ToList();
-
-        return nonMap.Concat(map).ToList();
+        return nonMap.Concat(updated).ToList();
     }
 
     public IReadOnlyList<Order> MergeNonMapOrders(IEnumerable<Order> existingAll, IEnumerable<Order> updatedNonMapOrders)
     {
+        var updated = (updatedNonMapOrders ?? Array.Empty<Order>())
+            .Select(NormalizeByDeliveryMethod)
+            .ToList();
+        var updatedIds = BuildOrderIdSet(updated);
+
         var map = (existingAll ?? Array.Empty<Order>())
             .Where(o => o.Type == OrderType.Map)
+            .Where(o => !updatedIds.Contains(o.Id ?? string.Empty))
             .ToList();
 
-        var nonMap = (updatedNonMapOrders ?? Array.Empty<Order>())
-            .Select(NormalizeNonMapOrder)
-            .ToList();
-
-        return map.Concat(nonMap).ToList();
+        return map.Concat(updated).ToList();
     }
 
-    private static Order NormalizeMapOrder(Order order)
+    private static HashSet<string> BuildOrderIdSet(IEnumerable<Order> orders)
     {
-        order.Type = OrderType.Map;
-        return order;
+        return orders
+            .Select(o => o.Id ?? string.Empty)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    private static Order NormalizeNonMapOrder(Order order)
+    private static Order NormalizeByDeliveryMethod(Order order)
     {
-        order.Type = OrderType.NonMap;
-        order.Location = null;
+        if (!string.IsNullOrWhiteSpace(order.DeliveryType))
+        {
+            order.Type = DeliveryMethodExtensions.ResolveOrderType(order.DeliveryType);
+        }
+
+        if (order.Type == OrderType.NonMap)
+        {
+            order.Location = null;
+            order.AssignedTourId = string.Empty;
+        }
+
         return order;
     }
 }

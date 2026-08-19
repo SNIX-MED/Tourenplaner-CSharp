@@ -35,9 +35,11 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
 
     private readonly IOrderRepository _repository;
     private readonly ITourRecordStore _tourRepository;
+    private readonly IAppSettingsStore _settingsRepository;
     private readonly IOrderMutationRepository? _mutationRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly Func<int, Task>? _openTourAsync;
+    private readonly string _geocodeCachePath;
     private readonly List<Order> _allOrders = new();
     private readonly Guid _instanceId = Guid.NewGuid();
     private Order? _lastDeletedOrder;
@@ -58,14 +60,22 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private bool _isNonMapOrdersFilterPanelVisible;
     private bool _showArchivedOrders;
 
-    public NonMapOrdersSectionViewModel(IOrderRepository repository, ITourRecordStore tourRepository, AppDataSyncService dataSyncService, Func<int, Task>? openTourAsync = null)
+    public NonMapOrdersSectionViewModel(
+        IOrderRepository repository,
+        ITourRecordStore tourRepository,
+        IAppSettingsStore settingsRepository,
+        string dataRoot,
+        AppDataSyncService dataSyncService,
+        Func<int, Task>? openTourAsync = null)
         : base("Post/Spedition/Abholung", "Aufträge für Post, Spedition oder Selbstabholung.")
     {
         _repository = repository;
         _tourRepository = tourRepository;
+        _settingsRepository = settingsRepository;
         _mutationRepository = repository as IOrderMutationRepository;
         _dataSyncService = dataSyncService;
         _openTourAsync = openTourAsync;
+        _geocodeCachePath = Path.Combine(dataRoot, "geocode-cache.json");
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SaveCommand = new AsyncCommand(SaveAsync, () => NonMapOrders.Count > 0);
         AddCommand = new DelegateCommand(AddOrder);
@@ -324,7 +334,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private async Task AddManualOrderAsync()
     {
         var dialog = new ManualOrderDialogWindow(
-            deliveryTypes: DeliveryMethodExtensions.NonMapDeliveryTypeOptions,
+            deliveryTypes: DeliveryMethodExtensions.AllDeliveryTypeOptions,
             defaultOrderType: OrderType.NonMap)
         {
             Owner = System.Windows.Application.Current?.MainWindow
@@ -336,8 +346,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         }
 
         var createdOrder = dialog.CreatedOrder;
-        createdOrder.Type = OrderType.NonMap;
-        createdOrder.Location = null;
+        var geocodingResult = await ApplyDeliveryMethodRoutingAsync(createdOrder);
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, createdOrder.Id, StringComparison.OrdinalIgnoreCase));
         _allOrders.Add(createdOrder);
@@ -349,6 +358,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         await RefreshFromRepositoryAsync(createdOrder.Id);
         SelectOrderById(createdOrder.Id);
         PublishOrderChange(null, createdOrder.Id);
+        OrderPinAssignmentWarningService.ShowIfNeeded(createdOrder, geocodingResult);
         StatusText = $"Auftrag {createdOrder.Id} wurde gespeichert (Post/Spedition/Abholung).";
         ToastNotificationService.ShowInfo($"Auftrag {createdOrder.Id} wurde erstellt.");
     }
@@ -369,7 +379,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         var originalId = existing.Id;
         var dialog = new ManualOrderDialogWindow(
             existing,
-            deliveryTypes: DeliveryMethodExtensions.NonMapDeliveryTypeOptions,
+            deliveryTypes: DeliveryMethodExtensions.AllDeliveryTypeOptions,
             defaultOrderType: OrderType.NonMap)
         {
             Owner = System.Windows.Application.Current?.MainWindow
@@ -388,7 +398,6 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         }
 
         var updated = dialog.CreatedOrder;
-        updated.Type = OrderType.NonMap;
         updated.AssignedTourId = existing.AssignedTourId;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
@@ -397,7 +406,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
-        updated.Location = null;
+        var updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, existing.Location);
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
         _allOrders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
@@ -422,7 +431,20 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         await RefreshFromRepositoryAsync(updated.Id);
         SelectOrderById(updated.Id);
         PublishOrderChange(originalId, updated.Id);
+        OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert (Post/Spedition/Abholung).";
+    }
+
+    private async Task<AddressGeocodingResult?> ApplyDeliveryMethodRoutingAsync(Order order, GeoPoint? fallbackLocation = null)
+    {
+        return await OrderDeliveryRoutingService.ApplyAsync(order, fallbackLocation, TryResolveOrderAsync);
+    }
+
+    private async Task<AddressGeocodingResult?> TryResolveOrderAsync(Order order)
+    {
+        var settings = await _settingsRepository.LoadAsync();
+        var tomTomApiKey = (settings.TomTomApiKey ?? string.Empty).Trim();
+        return await AddressGeocodingService.TryResolveOrderAsync(order, tomTomApiKey, _geocodeCachePath);
     }
 
     private async Task<bool> ConfirmManualArchiveForAssignedActiveTourAsync(Order existing, bool nextIsArchived)

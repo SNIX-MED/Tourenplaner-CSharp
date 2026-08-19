@@ -196,7 +196,6 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     ];
 
     private readonly IReadOnlyList<string> _deliveryTypes;
-    private readonly OrderType _defaultOrderType;
     private ProductLineInput? _selectedProductLine;
     private string _orderNumber = string.Empty;
     private string _orderDateText = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
@@ -232,18 +231,18 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         IReadOnlyList<string>? deliveryTypes = null,
         OrderType defaultOrderType = OrderType.Map)
     {
-        _deliveryTypes = (deliveryTypes ?? DeliveryMethodExtensions.MapDeliveryTypeOptions)
+        _deliveryTypes = (deliveryTypes ?? DeliveryMethodExtensions.AllDeliveryTypeOptions)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (_deliveryTypes.Count == 0)
         {
-            _deliveryTypes = DeliveryMethodExtensions.MapDeliveryTypeOptions;
+            _deliveryTypes = DeliveryMethodExtensions.AllDeliveryTypeOptions;
         }
 
-        _defaultOrderType = defaultOrderType;
-        _selectedDeliveryType = _deliveryTypes[0];
+        _selectedDeliveryType = _deliveryTypes.FirstOrDefault(x =>
+            DeliveryMethodExtensions.ResolveOrderType(x) == defaultOrderType) ?? _deliveryTypes[0];
         ApplyExistingOrder(existingOrder);
     }
 
@@ -507,7 +506,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             ScheduledDate = DateOnly.FromDateTime(parsedOrderDate),
             DeliveryDate = deliveryDate,
             DeliveryCanOccurEarlier = DeliveryCanOccurEarlier,
-            Type = _defaultOrderType,
+            Type = DeliveryMethodExtensions.ResolveOrderType(SelectedDeliveryType),
             CustomerName = deliveryName,
             Address = $"{deliveryStreetLine}, {deliveryPostalCode} {deliveryCity}",
             OrderAddress = new OrderAddressInfo

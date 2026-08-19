@@ -377,9 +377,7 @@ public sealed partial class SettingsSectionViewModel
 
         var dialog = new ManualOrderDialogWindow(
             existing,
-            deliveryTypes: existing.Type == OrderType.NonMap
-                ? DeliveryMethodExtensions.NonMapDeliveryTypeOptions
-                : DeliveryMethodExtensions.MapDeliveryTypeOptions,
+            deliveryTypes: DeliveryMethodExtensions.AllDeliveryTypeOptions,
             defaultOrderType: existing.Type)
         {
             Owner = System.Windows.Application.Current?.MainWindow
@@ -398,16 +396,9 @@ public sealed partial class SettingsSectionViewModel
         }
 
         var updated = dialog.CreatedOrder;
-        updated.Type = existing.Type;
         updated.AssignedTourId = existing.AssignedTourId;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
-        var geocodingResult = await AddressGeocodingService.TryResolveOrderAsync(
-            updated,
-            TomTomApiKey,
-            Path.Combine(_dataRoot, "geocode-cache.json"));
-        updated.Location = geocodingResult?.IsPrecise == true
-            ? geocodingResult.Location
-            : null;
+        var geocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, existing.Location);
 
         var originalId = existing.Id;
         orders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
@@ -447,6 +438,15 @@ public sealed partial class SettingsSectionViewModel
         UpdateXmlImportPinIssue(originalId, updated, geocodingResult);
         OrderPinAssignmentWarningService.ShowIfNeeded(updated, geocodingResult);
         ImportStatusMessage = $"Auftrag {updated.Id} wurde aktualisiert.";
+    }
+
+    private async Task<AddressGeocodingResult?> ApplyDeliveryMethodRoutingAsync(Order order, GeoPoint? fallbackLocation = null)
+    {
+        return await OrderDeliveryRoutingService.ApplyAsync(
+            order,
+            fallbackLocation,
+            x => AddressGeocodingService.TryResolveOrderAsync(x, TomTomApiKey, Path.Combine(_dataRoot, "geocode-cache.json")),
+            requirePreciseLocation: true);
     }
 
     private async Task DeleteXmlImportPinIssueOrderAsync(Order existing, List<Order> orders)

@@ -127,6 +127,24 @@ public class OrderImportServiceTests
         Assert.True(stored.IstVorauszahlung);
     }
 
+    [Fact]
+    public async Task ImportOrdersAsync_ClearsDeliveryDateWhenXmlHasNoExplicitDeliveryDate()
+    {
+        var existingOrder = CreateOrder("A-12", "Kunde Zwoelf", "Frei Bordsteinkante", "Alt");
+        existingOrder.DeliveryDate = new DateOnly(2026, 6, 15);
+        var repository = new FakeOrderRepository([existingOrder]);
+        var service = new OrderImportService();
+
+        await service.ImportOrdersAsync(
+        [
+            CreateSqlOrder("A-12", "Kunde Zwoelf", "Frei Bordsteinkante", "Neu")
+        ],
+        repository);
+
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Null(stored.DeliveryDate);
+    }
+
     private static XmlOrderImportData CreateSqlOrder(
         string id,
         string customerName,
@@ -249,6 +267,7 @@ public class OrderImportServiceTests
             CustomerName = order.CustomerName,
             Address = order.Address,
             ScheduledDate = order.ScheduledDate,
+            DeliveryDate = order.DeliveryDate,
             Type = order.Type,
             Location = order.Location is null ? null : new GeoPoint(order.Location.Latitude, order.Location.Longitude),
             AssignedTourId = order.AssignedTourId,

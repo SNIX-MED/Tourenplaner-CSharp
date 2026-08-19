@@ -309,7 +309,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private async Task AddManualOrderAsync()
     {
         var dialog = new ManualOrderDialogWindow(
-            deliveryTypes: DeliveryMethodExtensions.MapDeliveryTypeOptions,
+            deliveryTypes: DeliveryMethodExtensions.AllDeliveryTypeOptions,
             defaultOrderType: OrderType.Map)
         {
             Owner = System.Windows.Application.Current?.MainWindow
@@ -321,10 +321,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
 
         var createdOrder = dialog.CreatedOrder;
-        var geocodingResult = createdOrder.Location is null
-            ? await TryResolveOrderAsync(createdOrder)
-            : null;
-        createdOrder.Location ??= geocodingResult?.Location;
+        var geocodingResult = await ApplyDeliveryMethodRoutingAsync(createdOrder);
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, createdOrder.Id, StringComparison.OrdinalIgnoreCase));
         _allOrders.Add(createdOrder);
@@ -337,7 +334,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         SelectOrderById(createdOrder.Id);
         PublishOrderChange(null, createdOrder.Id);
         OrderPinAssignmentWarningService.ShowIfNeeded(createdOrder, geocodingResult);
-        StatusText = createdOrder.Location is null
+        StatusText = createdOrder.Type == OrderType.Map && createdOrder.Location is null
             ? $"Auftrag {createdOrder.Id} gespeichert, aber Adresse konnte nicht automatisch geokodiert werden."
             : $"Auftrag {createdOrder.Id} wurde gespeichert.";
         ToastNotificationService.ShowInfo($"Auftrag {createdOrder.Id} wurde erstellt.");
@@ -359,7 +356,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         var originalId = existing.Id;
         var dialog = new ManualOrderDialogWindow(
             existing,
-            deliveryTypes: DeliveryMethodExtensions.MapDeliveryTypeOptions,
+            deliveryTypes: DeliveryMethodExtensions.AllDeliveryTypeOptions,
             defaultOrderType: OrderType.Map)
         {
             Owner = System.Windows.Application.Current?.MainWindow
@@ -378,7 +375,6 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
 
         var updated = dialog.CreatedOrder;
-        updated.Type = OrderType.Map;
         updated.AssignedTourId = existing.AssignedTourId;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
@@ -387,8 +383,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var updatedGeocodingResult = await TryResolveOrderAsync(updated);
-        updated.Location = updatedGeocodingResult?.Location ?? existing.Location;
+        var updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, existing.Location);
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
         _allOrders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
@@ -415,6 +410,11 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         PublishOrderChange(originalId, updated.Id);
         OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
         StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
+    }
+
+    private async Task<AddressGeocodingResult?> ApplyDeliveryMethodRoutingAsync(Order order, GeoPoint? fallbackLocation = null)
+    {
+        return await OrderDeliveryRoutingService.ApplyAsync(order, fallbackLocation, TryResolveOrderAsync);
     }
 
     private async Task<bool> ConfirmManualArchiveForAssignedActiveTourAsync(Order existing, bool nextIsArchived)
