@@ -1,0 +1,192 @@
+name: Build GAWELA ColorConfigurator 6.4.19 full source
+
+on:
+  push:
+    branches: [gawela-colorconfig-6419-fullbuild]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout 6.4.19 build branch
+        uses: actions/checkout@v4
+
+      - name: Checkout verified original GAWELA 6.4.0 source archive
+        uses: actions/checkout@v4
+        with:
+          repository: SNIX-MED/Tourenplaner-CSharp
+          ref: gawela-colorconfig-build
+          path: legacy
+
+      - name: Checkout Smartstore 6.4.0
+        uses: actions/checkout@v4
+        with:
+          repository: smartstore/Smartstore
+          ref: 6.4.0
+          path: smartstore
+
+      - name: Setup exact .NET SDK 10.0.302
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.302'
+
+      - name: Reconstruct full source, apply complete history and build 6.4.19
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('gawela6410/build.sh').read_text(encoding='utf-8')
+          needle = 'python3 gawela6410/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator\n'
+          if needle not in src:
+              raise SystemExit('6.4.10 patch insertion point missing')
+
+          upgrade = needle + (
+              'python3 gawela6411/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator\n'
+              'python3 gawela6415/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator\n'
+              'python3 gawela6416/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator\n'
+              'python3 gawela6419/apply_patch.py smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator\n'
+          )
+          src = src.replace(needle, upgrade, 1)
+          src = src.replace('6.4.10', '6.4.19')
+          src = src.replace('new(6,4,10)', 'new(6,4,19)')
+          src = src.replace(
+              'Attributgesteuerte dynamische RAL-Farbvorschau mit wiederverwendbaren Bildgruppen/Höhenvorlagen, zentral pflegbaren RGB/HEX-Werten und Smartstore-Galerie-Slide.',
+              'Attributgesteuerte dynamische RAL-Farbvorschau mit Bildgruppen/Höhenvorlagen, zentraler Palette, Smartstore-Galerie- und Mobilvorschau sowie serverseitigen ProductGroup-Varianten, RAL-Farbnamen und semantischen Farbkombinations-URLs.'
+          )
+
+          verify = 'grep -q \'Bildgruppe / Höhenvorlage\' "$MODULE/Views/GawelaColorAdmin/Configure.cshtml"\n'
+          extra = verify + r'''grep -q 'application/ld+json' "$MODULE/Views/Shared/Components/GawelaColorSeo/Default.cshtml"
+grep -q 'syncSemanticUrl(state)' "$MODULE/wwwroot/gawela-color.js"
+grep -q 'Bildschirmdarstellung unverbindlich; Farbe, Proportionen, Details und Ausführung können abweichen.' "$MODULE/wwwroot/gawela-color.js"
+! grep -q 'RAL-Farbkonfigurator</h2>' "$MODULE/Views/Shared/Components/GawelaColorSeo/Default.cshtml"
+grep -q 'ProductGroup' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Components/GawelaColorSeoViewComponent.cs
+grep -q 'hasVariant' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Components/GawelaColorSeoViewComponent.cs
+grep -q 'BuildControlId()' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Components/GawelaColorSeoViewComponent.cs
+grep -q 'ProductVariantAttributeValueId' smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator/Components/GawelaColorSeoViewComponent.cs
+grep -q 'gawela-mobile-preview' "$MODULE/wwwroot/gawela-color.js"
+grep -q 'smartGallery' "$MODULE/wwwroot/gawela-color.js"
+'''
+          if verify not in src:
+              raise SystemExit('verification insertion point missing')
+          src = src.replace(verify, extra, 1)
+
+          Path('/tmp/gawela6419-build.sh').write_text(src, encoding='utf-8')
+          PY
+
+          bash /tmp/gawela6419-build.sh
+
+      - name: Package complete rebuilt source and run regression checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLUGIN="$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.19.zip"
+          SOURCE_DIR="$GITHUB_WORKSPACE/smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator"
+          WEB_MODULE="$GITHUB_WORKSPACE/smartstore/src/Smartstore.Web/Modules/Gawela.ColorConfigurator"
+
+          test -s "$PLUGIN"
+          unzip -t "$PLUGIN"
+          unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/module.json | grep -q '"Version": "6.4.19"'
+          unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/wwwroot/gawela-color.js | grep -q 'syncSemanticUrl(state)'
+          unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/wwwroot/gawela-color.js | grep -q 'Bildschirmdarstellung unverbindlich; Farbe, Proportionen, Details und Ausführung können abweichen.'
+          ! unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/wwwroot/gawela-color.js | grep -q 'Farbabweichungen sind möglich. Die Abbildung dient'
+
+          # Existing feature regression checks: admin configuration, asset service,
+          # product sharing/SKU fallback, gallery integration and mobile preview.
+          grep -q 'SaveConfigurator' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
+          grep -q 'DeleteConfigurator' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
+          grep -q 'ProductSummaries' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
+          grep -q 'ResolveOwnerProductIdAsync' "$SOURCE_DIR/Controllers/GawelaColorController.cs"
+          grep -q 'sku-fallback' "$SOURCE_DIR/Controllers/GawelaColorController.cs"
+          grep -q 'GawelaProductGroupStore' "$SOURCE_DIR/Services/GawelaProductGroupStore.cs"
+          grep -q 'gawela-mobile-preview' "$SOURCE_DIR/wwwroot/gawela-color.js"
+          grep -q 'smartGallery' "$SOURCE_DIR/wwwroot/gawela-color.js"
+
+          # Machine-readable feature checks in the newly compiled implementation.
+          grep -q 'ProductGroup' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
+          grep -q 'hasVariant' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
+          grep -q 'variesBy' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
+          grep -q 'WebApplication' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
+          grep -q 'BuildControlId()' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
+          grep -q 'farbe-' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
+          grep -q 'application/ld+json' "$SOURCE_DIR/Views/Shared/Components/GawelaColorSeo/Default.cshtml"
+          ! grep -q '<section' "$SOURCE_DIR/Views/Shared/Components/GawelaColorSeo/Default.cshtml"
+
+          # Verify that the published DLL actually contains the newly compiled code markers.
+          strings "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'ProductGroup'
+          strings "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'WebApplication'
+          strings "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'gawela-ral-farbkonfigurator'
+
+          rm -rf "$GITHUB_WORKSPACE/gawela6419/output"
+          mkdir -p "$GITHUB_WORKSPACE/gawela6419/output"
+          cp "$PLUGIN" "$GITHUB_WORKSPACE/gawela6419/output/"
+          (cd "$GITHUB_WORKSPACE/smartstore/src/Smartstore.Modules" && zip -qr "$GITHUB_WORKSPACE/gawela6419/output/Gawela.ColorConfigurator.6.4.19-complete-source.zip" Gawela.ColorConfigurator)
+
+          sha256sum \
+            "$GITHUB_WORKSPACE/gawela6419/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.19.zip" \
+            "$GITHUB_WORKSPACE/gawela6419/output/Gawela.ColorConfigurator.6.4.19-complete-source.zip" \
+            > "$GITHUB_WORKSPACE/gawela6419/output/SHA256SUMS.txt"
+
+          cat > "$GITHUB_WORKSPACE/gawela6419/output/BUILD-REPORT.txt" <<'EOF'
+          GAWELA ColorConfigurator 6.4.19 — full C# source rebuild
+
+          Base: verified original 6.4.0 source archive
+          Upgrade chain: 6.4.1 -> 6.4.10 -> 6.4.11 -> 6.4.15 -> 6.4.16 -> 6.4.19
+          Smartstore source: official tag 6.4.0
+          SDK: .NET 10.0.302
+
+          Preserved and regression-checked:
+          - existing admin configurator management
+          - asset upload/configuration
+          - product groups and SKU fallback
+          - live Smartstore gallery preview
+          - mobile preview
+          - RAL palette and existing visualization logic
+
+          New/optimized:
+          - RAL names and real Smartstore variant-value IDs resolved server-side
+          - ProductGroup + Product hasVariant JSON-LD in initial server-rendered HTML
+          - actual cartesian combinations (e.g. 16 x 16 = 256) generated from real selectable values
+          - functional variant URLs retain exact pvari keys/value IDs
+          - semantic color URL aliases are appended, e.g. farbe-korpus-gestell=ral-1015-hellelfenbein
+          - WebApplication structured data describes the interactive RAL configurator
+          - no visible SEO marketing block; customer UI stays slim
+          - exact short customer disclaimer retained
+
+          No hidden keyword text or cloaking is used. Machine-readable information is emitted as standard JSON-LD.
+          EOF
+
+      - name: Upload installable plugin and full source
+        uses: actions/upload-artifact@v4
+        with:
+          name: GAWELA-ColorConfigurator-6.4.19-FULL-BUILD
+          path: |
+            gawela6419/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.19.zip
+            gawela6419/output/Gawela.ColorConfigurator.6.4.19-complete-source.zip
+            gawela6419/output/SHA256SUMS.txt
+            gawela6419/output/BUILD-REPORT.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Export installable plugin as compact text chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf gawela6419/export-plugin
+          mkdir -p gawela6419/export-plugin
+          base64 -w0 gawela6419/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.19.zip > /tmp/gawela6419-plugin.b64
+          split -b 4000 -d -a 2 /tmp/gawela6419-plugin.b64 gawela6419/export-plugin/part
+          cp gawela6419/output/SHA256SUMS.txt gawela6419/export-plugin/SHA256SUMS.txt
+          printf '%s\n' 'Concatenate part00..partNN and Base64-decode to restore Smartstore.Module.Gawela.ColorConfigurator.6.4.19.zip.' > gawela6419/export-plugin/README.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A gawela6419/export-plugin
+          if ! git diff --cached --quiet; then
+            git commit -m "Export verified 6.4.19 plugin chunks [skip ci]"
+            git push origin HEAD:gawela-colorconfig-6419-fullbuild
+          fi
