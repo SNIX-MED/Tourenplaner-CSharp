@@ -21,16 +21,17 @@ src = src.replace(
     'Attributgesteuerte dynamische RAL-Farbvorschau mit wiederverwendbaren Bildgruppen/Höhenvorlagen, zentral pflegbaren RGB/HEX-Werten und Smartstore-Galerie-Slide.',
     'Moderner attributgesteuerter RAL-Farbkonfigurator mit Bildgruppen/Höhenvorlagen, zentraler Palette, Smartstore-Galerie- und Mobilvorschau sowie serverseitigen ProductGroup-Varianten, RAL-Farbnamen und semantischen Farbkombinations-URLs.'
 )
-legacy_check = "grep -q 'Bildgruppe / Höhenvorlage' \"$MODULE/Views/GawelaColorAdmin/Configure.cshtml\"\n"
-current_check = "grep -q 'Smartstore-Medienkatalog' \"$MODULE/Views/GawelaColorAdmin/Configure.cshtml\"\n"
-if legacy_check not in src:
-    raise SystemExit('Legacy 6.4.10 admin verification anchor missing')
-src = src.replace(legacy_check, current_check, 1)
+legacy = "grep -q 'Bildgruppe / Höhenvorlage' \"$MODULE/Views/GawelaColorAdmin/Configure.cshtml\"\n"
+current = "grep -q 'Smartstore-Medienkatalog' \"$MODULE/Views/GawelaColorAdmin/Configure.cshtml\"\n"
+if legacy not in src:
+    raise SystemExit('Legacy admin verification anchor missing')
+src = src.replace(legacy, current, 1)
 Path('/tmp/gawela6420-build.sh').write_text(src, encoding='utf-8')
 PY
 
 bash /tmp/gawela6420-build.sh
 
+set -x
 PLUGIN="$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.20.zip"
 SOURCE_DIR="$GITHUB_WORKSPACE/smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator"
 WEB_MODULE="$GITHUB_WORKSPACE/smartstore/src/Smartstore.Web/Modules/Gawela.ColorConfigurator"
@@ -46,19 +47,19 @@ unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/wwwroot/gawela-color.js | gr
 ! grep -q '<section' "$SOURCE_DIR/Views/Shared/Components/GawelaColorSeo/Default.cshtml"
 ! grep -q '<h2' "$SOURCE_DIR/Views/Shared/Components/GawelaColorSeo/Default.cshtml"
 
-# Regression checks for established features.
+# Existing feature regression markers.
 grep -q 'SaveConfigurator' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 grep -q 'DeleteConfigurator' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 grep -q 'ProductSummaries' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 grep -q 'ResolveOwnerProductIdAsync' "$SOURCE_DIR/Controllers/GawelaColorController.cs"
 grep -q 'sku-fallback' "$SOURCE_DIR/Controllers/GawelaColorController.cs"
 grep -q 'GawelaProductGroupStore' "$SOURCE_DIR/Services/GawelaProductGroupStore.cs"
+grep -q 'function draw(state)' "$SOURCE_DIR/wwwroot/gawela-color.js"
+grep -q 'function tinted' "$SOURCE_DIR/wwwroot/gawela-color.js"
 grep -q 'gawela-mobile-preview' "$SOURCE_DIR/wwwroot/gawela-color.js"
 grep -q 'smartGallery' "$SOURCE_DIR/wwwroot/gawela-color.js"
-grep -q 'loadAsset' "$SOURCE_DIR/wwwroot/gawela-color.js"
-grep -q 'applyMask' "$SOURCE_DIR/wwwroot/gawela-color.js"
 
-# New server-rendered variant semantics.
+# Server-rendered variant semantics and Smartstore Product enrichment.
 grep -q 'ProductGroup' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
 grep -q 'hasVariant' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
 grep -q 'variesBy' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
@@ -72,7 +73,7 @@ grep -q 'Assets.JsonLd.Product' "$SOURCE_DIR/Views/Shared/Components/GawelaColor
 grep -q 'application/ld+json' "$SOURCE_DIR/Views/Shared/Components/GawelaColorSeo/Default.cshtml"
 grep -q 'syncSemanticUrl(state)' "$SOURCE_DIR/wwwroot/gawela-color.js"
 
-# Confirm code is in the compiled assembly, not only loose sources.
+# Confirm new C# literals are in the compiled DLL.
 strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'ProductGroup'
 strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'WebApplication'
 strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'gawela-ral-farbkonfigurator'
