@@ -2,8 +2,11 @@ name: rackconfig-temp-build
 on:
   push:
     branches: [ tmp-rackconfig-decompile ]
+permissions:
+  contents: write
 jobs:
   build:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,10 +33,12 @@ jobs:
           dotnet build "$TARGET/Gawela.RackConfig.csproj" -c DebugNoRazorCompile -p:RazorCompileOnBuild=false -p:RazorCompileOnPublish=false
           DLL=$(find "$TARGET/bin" -type f -name Gawela.RackConfig.dll | head -1)
           test -n "$DLL"
-          mkdir -p /tmp/out
-          cp "$DLL" /tmp/out/Gawela.RackConfig.dll
-          echo "Built: $DLL"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: rackconfig-6.4.32-dll
-          path: /tmp/out/Gawela.RackConfig.dll
+          base64 -w0 "$DLL" > .tmp-rack/result.dll.b64
+      - name: Publish temporary result
+        shell: bash
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add .tmp-rack/result.dll.b64
+          git commit -m 'Temporary RackConfig build result [skip ci]'
+          git push
