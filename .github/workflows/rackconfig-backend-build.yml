@@ -1,7 +1,7 @@
 name: RackConfig Backend Build
 on:
   push:
-    branches: [ rackconfig-backend-6424 ]
+    branches: [ rackconfig-backend-6425 ]
   pull_request:
     branches: [ main ]
 permissions:
@@ -27,6 +27,6 @@ jobs:
           if [ -f smartstore/src/Smartstore.Web/Modules/Gawela.RackConfig/Gawela.RackConfig.pdb ]; then cp smartstore/src/Smartstore.Web/Modules/Gawela.RackConfig/Gawela.RackConfig.pdb artifact/; fi
       - uses: actions/upload-artifact@v4
         with:
-          name: Gawela-RackConfig-6424-compiled
+          name: Gawela-RackConfig-6425-compiled
           path: artifact/
           if-no-files-found: error
