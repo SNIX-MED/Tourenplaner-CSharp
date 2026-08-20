@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Pin the exact SDK used by the previously verified GAWELA builds. Hosted runners may
+# have a newer 10.0 SDK in PATH; Smartstore 6.4.0 must be compiled with 10.0.302 here.
+cat > smartstore/global.json <<'EOF'
+{
+  "sdk": {
+    "version": "10.0.302",
+    "rollForward": "disable",
+    "allowPrerelease": false
+  }
+}
+EOF
+if [ "$(cd smartstore && dotnet --version)" != "10.0.302" ]; then
+  echo "Expected .NET SDK 10.0.302" >&2
+  (cd smartstore && dotnet --info) >&2
+  exit 1
+fi
+
 # Reproduce and verify the exact 6.4.20 baseline first.
 bash gawela6420/ci.sh
 
@@ -8,34 +25,30 @@ SOURCE_DIR="$GITHUB_WORKSPACE/smartstore/src/Smartstore.Modules/Gawela.ColorConf
 WEB_MODULE="$GITHUB_WORKSPACE/smartstore/src/Smartstore.Web/Modules/Gawela.ColorConfigurator"
 PLUGIN="$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.22.zip"
 
-# Reconstruct the released 6.4.21 source. Clear Razor build caches before compiling because
-# Configure.cshtml changes between versions and stale generated Razor sources must not be reused.
+# Reconstruct the released 6.4.21 source, then snapshot it before this targeted fix.
 python3 gawela6421/apply_patch.py "$SOURCE_DIR"
-rm -rf "$SOURCE_DIR/obj" "$SOURCE_DIR/bin"
-pushd smartstore >/dev/null
-dotnet --version
-dotnet restore src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj
-dotnet build src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj -c Release --no-restore
-popd >/dev/null
-
 grep -q '"Version": "6.4.21"' "$SOURCE_DIR/module.json"
 grep -q 'AdditionalProductSkus' "$SOURCE_DIR/Models/GawelaAssetAdminModel.cs"
 grep -q 'direkt aus Excel' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
 
 rm -rf "$RUNNER_TEMP/gawela-6421-source"
 cp -R "$SOURCE_DIR" "$RUNNER_TEMP/gawela-6421-source"
-# Build outputs are not source and would otherwise pollute the change-boundary comparison.
 rm -rf "$RUNNER_TEMP/gawela-6421-source/obj" "$RUNNER_TEMP/gawela-6421-source/bin"
 
 # Apply only the additive additional-product correction.
 python3 gawela6422/apply_patch.py "$SOURCE_DIR"
-rm -rf "$SOURCE_DIR/obj" "$SOURCE_DIR/bin"
 
 pushd smartstore >/dev/null
-dotnet restore src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj
-dotnet build src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj -c Release --no-restore
+if [ "$(dotnet --version)" != "10.0.302" ]; then
+  echo "SDK pin was not honored" >&2
+  exit 1
+fi
+# Dependencies were already built by the verified 6.4.20 baseline. Building only this
+# module avoids unrelated Smartstore projects while still compiling C#, Razor views and DLL.
+dotnet build src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj \
+  -c Release --no-restore -p:BuildProjectReferences=false
 
-# Reuse Smartstore's PackageBuilder from the 6.4.20 baseline; only advance descriptor version.
+# Reuse Smartstore's PackageBuilder from the baseline; only advance descriptor version.
 sed -i 's/new(6,4,20)/new(6,4,22)/g' tools/GawelaPackager/Program.cs
 dotnet run --project tools/GawelaPackager/GawelaPackager.csproj -c Release -- \
   "$GITHUB_WORKSPACE/smartstore/src/Smartstore.Web" \
@@ -77,7 +90,6 @@ strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'Folgende neue 
 strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'Mindestens ein im Produktkatalog ausgewählter weiterer Artikel wurde nicht gefunden.'
 
 # Guard against accidental source changes outside the narrowly requested area.
-rm -rf "$SOURCE_DIR/obj" "$SOURCE_DIR/bin"
 python3 - <<'PY'
 from pathlib import Path
 import os, sys
@@ -90,8 +102,10 @@ allowed = {
     'module.json',
 }
 changed = set()
-all_paths = {p.relative_to(before).as_posix() for p in before.rglob('*') if p.is_file()} | {p.relative_to(after).as_posix() for p in after.rglob('*') if p.is_file()}
+all_paths = {p.relative_to(before).as_posix() for p in before.rglob('*') if p.is_file()} | {p.relative_to(after).as_posix() for p in after.rglob('*') if p.is_file() and '/obj/' not in '/' + p.relative_to(after).as_posix() and '/bin/' not in '/' + p.relative_to(after).as_posix()}
 for rel in all_paths:
+    if rel.startswith('obj/') or rel.startswith('bin/'):
+        continue
     a, b = before / rel, after / rel
     if not a.exists() or not b.exists() or a.read_bytes() != b.read_bytes():
         changed.add(rel)
@@ -107,7 +121,7 @@ PY
 rm -rf "$GITHUB_WORKSPACE/gawela6422/output"
 mkdir -p "$GITHUB_WORKSPACE/gawela6422/output"
 cp "$PLUGIN" "$GITHUB_WORKSPACE/gawela6422/output/"
-(cd "$GITHUB_WORKSPACE/smartstore/src/Smartstore.Modules" && zip -qr "$GITHUB_WORKSPACE/gawela6422/output/Gawela.ColorConfigurator.6.4.22-complete-source.zip" Gawela.ColorConfigurator)
+(cd "$GITHUB_WORKSPACE/smartstore/src/Smartstore.Modules" && zip -qr "$GITHUB_WORKSPACE/gawela6422/output/Gawela.ColorConfigurator.6.4.22-complete-source.zip" Gawela.ColorConfigurator -x '*/obj/*' '*/bin/*')
 sha256sum \
   "$GITHUB_WORKSPACE/gawela6422/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.22.zip" \
   "$GITHUB_WORKSPACE/gawela6422/output/Gawela.ColorConfigurator.6.4.22-complete-source.zip" \
@@ -118,10 +132,9 @@ GAWELA ColorConfigurator 6.4.22 — additive "Weitere Artikel" correction
 
 Base:
 - verified 6.4.20 baseline reproduced first
-- 6.4.21 source reconstructed and independently compiled before applying this fix
-- Razor build caches explicitly cleared between view revisions
+- released 6.4.21 source reconstructed before applying this fix
+- exact .NET SDK 10.0.302 pinned with global.json
 - official Smartstore 6.4.0 source
-- .NET SDK 10.0.302
 
 Corrected behavior:
 - existing/hinterlegte additional products are always retained when saving
