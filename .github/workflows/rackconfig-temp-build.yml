@@ -1,0 +1,39 @@
+name: rackconfig-temp-build
+on:
+  push:
+    branches: [ tmp-rackconfig-decompile ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore source payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/racksrc
+          cat .tmp-rack/payload.part.* | base64 -d > /tmp/racksrc/source.tar.gz
+          tar -xzf /tmp/racksrc/source.tar.gz -C /tmp/racksrc
+      - name: Checkout Smartstore 6.4.0
+        run: git clone --depth 1 --branch 6.4.0 https://github.com/smartstore/Smartstore.git /tmp/smartstore
+      - name: Build plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET=/tmp/smartstore/src/Smartstore.Modules/Gawela.RackConfig
+          mkdir -p "$TARGET"
+          cp -R /tmp/racksrc/* "$TARGET"/
+          rm -f "$TARGET/source.tar.gz"
+          dotnet build "$TARGET/Gawela.RackConfig.csproj" -c DebugNoRazorCompile -p:RazorCompileOnBuild=false -p:RazorCompileOnPublish=false
+          DLL=$(find "$TARGET/bin" -type f -name Gawela.RackConfig.dll | head -1)
+          test -n "$DLL"
+          mkdir -p /tmp/out
+          cp "$DLL" /tmp/out/Gawela.RackConfig.dll
+          echo "Built: $DLL"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rackconfig-6.4.32-dll
+          path: /tmp/out/Gawela.RackConfig.dll
