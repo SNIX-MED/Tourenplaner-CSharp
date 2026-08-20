@@ -30,15 +30,22 @@ jobs:
           mkdir -p "$TARGET"
           cp -R /tmp/racksrc/* "$TARGET"/
           rm -f "$TARGET/source.tar.gz"
-          dotnet build "$TARGET/Gawela.RackConfig.csproj" -c DebugNoRazorCompile -p:RazorCompileOnBuild=false -p:RazorCompileOnPublish=false
-          DLL=$(find "$TARGET/bin" -type f -name Gawela.RackConfig.dll | head -1)
-          test -n "$DLL"
-          base64 -w0 "$DLL" > .tmp-rack/result.dll.b64
+          set +e
+          dotnet build "$TARGET/Gawela.RackConfig.csproj" -c DebugNoRazorCompile -p:RazorCompileOnBuild=false -p:RazorCompileOnPublish=false > .tmp-rack/build.log 2>&1
+          CODE=$?
+          set -e
+          if [ "$CODE" -eq 0 ]; then
+            DLL=$(find "$TARGET/bin" -type f -name Gawela.RackConfig.dll | head -1)
+            test -n "$DLL"
+            base64 -w0 "$DLL" > .tmp-rack/result.dll.b64
+          fi
+          echo "$CODE" > .tmp-rack/build.exit
       - name: Publish temporary result
         shell: bash
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add .tmp-rack/result.dll.b64
+          git add .tmp-rack/build.log .tmp-rack/build.exit .tmp-rack/result.dll.b64 2>/dev/null || true
           git commit -m 'Temporary RackConfig build result [skip ci]'
           git push
+          test "$(cat .tmp-rack/build.exit)" = "0"
