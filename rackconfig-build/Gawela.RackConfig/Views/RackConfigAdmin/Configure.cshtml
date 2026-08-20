@@ -1,27 +1,322 @@
 @model ConfigurationModel
 @{
     Layout = "_ConfigureModule";
-    var accessories = new[] {
-        new { L="Spanplattenauflagen", W="1825 mm", P=nameof(Model.Spanplatte1825Id), I=Model.Spanplatte1825Id }, new { L="Spanplattenauflagen", W="2700 mm", P=nameof(Model.Spanplatte2700Id), I=Model.Spanplatte2700Id }, new { L="Spanplattenauflagen", W="3600 mm", P=nameof(Model.Spanplatte3600Id), I=Model.Spanplatte3600Id },
-        new { L="Gitterrostauflagen", W="1825 mm", P=nameof(Model.Gitterrost1825Id), I=Model.Gitterrost1825Id }, new { L="Gitterrostauflagen", W="2700 mm", P=nameof(Model.Gitterrost2700Id), I=Model.Gitterrost2700Id }, new { L="Gitterrostauflagen", W="3600 mm", P=nameof(Model.Gitterrost3600Id), I=Model.Gitterrost3600Id },
-        new { L="Stahlpanelauflagen", W="1825 mm", P=nameof(Model.Stahlpanel1825Id), I=Model.Stahlpanel1825Id }, new { L="Stahlpanelauflagen", W="2700 mm", P=nameof(Model.Stahlpanel2700Id), I=Model.Stahlpanel2700Id }, new { L="Stahlpanelauflagen", W="3600 mm", P=nameof(Model.Stahlpanel3600Id), I=Model.Stahlpanel3600Id },
-        new { L="Drahtgitterauflagen", W="1825 mm", P=nameof(Model.Drahtgitter1825Id), I=Model.Drahtgitter1825Id }, new { L="Drahtgitterauflagen", W="2700 mm", P=nameof(Model.Drahtgitter2700Id), I=Model.Drahtgitter2700Id }, new { L="Drahtgitterauflagen", W="3600 mm", P=nameof(Model.Drahtgitter3600Id), I=Model.Drahtgitter3600Id },
-        new { L="Durchschubsicherungen", W="1825 mm", P=nameof(Model.Durchschub1825Id), I=Model.Durchschub1825Id }, new { L="Durchschubsicherungen", W="2700 mm", P=nameof(Model.Durchschub2700Id), I=Model.Durchschub2700Id }, new { L="Durchschubsicherungen", W="3600 mm", P=nameof(Model.Durchschub3600Id), I=Model.Durchschub3600Id },
-        new { L="Eck-Rammschutz", W="alle Höhen", P=nameof(Model.EckRammschutzId), I=Model.EckRammschutzId }, new { L="Mittelstützen-Rammschutz", W="76 mm / H 2000–3500", P=nameof(Model.MittelRammschutz76Id), I=Model.MittelRammschutz76Id }, new { L="Mittelstützen-Rammschutz", W="100 mm / H 4000–4500", P=nameof(Model.MittelRammschutz100Id), I=Model.MittelRammschutz100Id }
+    var pickerUrl = Url.Action("Picker", "Entity", new { area = "" });
+    var accessoryOptions = new[]
+    {
+        new { V = "spanplatte", T = "Spanplattenauflagen" },
+        new { V = "gitterrost", T = "Gitterrostauflagen" },
+        new { V = "stahlpanel", T = "Stahlpanelauflagen" },
+        new { V = "drahtgitter", T = "Drahtgitterauflagen" },
+        new { V = "durchschub", T = "Durchschubsicherungen" },
+        new { V = "schutz_eck", T = "Eck-Rammschutz" },
+        new { V = "schutz_mittel76", T = "Mittelstützen-Rammschutz 76 mm (H 2000–3500)" },
+        new { V = "schutz_mittel100", T = "Mittelstützen-Rammschutz 100 mm (H 4000–4500)" }
     };
 }
-<form asp-action="Configure" method="post">
-<div class="section-header"><div class="title">Palettenregal-Konfigurator</div><div class="options"><button type="submit" class="btn btn-warning"><i class="fa fa-check"></i> Speichern</button></div></div>
-<div asp-validation-summary="All"></div>
-<div class="card mb-3"><div class="card-header"><strong>Allgemeine Einstellungen</strong></div><div class="card-body">
-<div class="form-group row"><label class="col-lg-3 col-form-label">Konfigurator aktiv</label><div class="col-lg-6"><input asp-for="Enabled" /></div></div>
-<div class="form-group row"><label class="col-lg-3 col-form-label">Warengruppe</label><div class="col-lg-8"><input asp-for="CategoryId" type="hidden" /><entity-picker entity-type="category" target-input-selector="#CategoryId" selected="@Model.Selected(Model.CategoryId)" max-items="1" append-mode="false" caption="Warengruppe auswählen" icon-css-class="fa fa-folder-open" dialog-title="Warengruppe auswählen" /><small class="form-text text-muted">Der Konfigurator wird automatisch auf dieser Warengruppenseite angezeigt.</small></div></div>
-<div class="form-group row"><label class="col-lg-3 col-form-label">Standard-Traglast</label><div class="col-lg-3"><input asp-for="MaxPalletWeight" class="form-control" min="1" /></div><div class="col-lg-1 col-form-label">kg</div></div>
-<div class="form-group row"><label class="col-lg-3 col-form-label">Standard-Regaltiefe</label><div class="col-lg-3"><input asp-for="DefaultDepth" class="form-control" min="1" /></div><div class="col-lg-1 col-form-label">mm</div></div>
-<div class="form-group row"><label class="col-lg-3 col-form-label">Vorschlagsvarianten</label><div class="col-lg-3"><input asp-for="MaxVariants" class="form-control" min="1" max="4" /></div></div>
-<div class="form-group row mb-0"><label class="col-lg-3 col-form-label">Mindest-Trägerebenen total</label><div class="col-lg-3"><small>2000–3500 mm</small><input asp-for="MinLevelsLow" class="form-control" min="1" /></div><div class="col-lg-3"><small>4000–4500 mm</small><input asp-for="MinLevelsHigh" class="form-control" min="1" /></div></div>
-</div></div>
-<div class="card"><div class="card-header"><strong>Zubehör-Zuordnung</strong><div class="small text-muted">Jede Position wird mit Smartstores Artikelauswahl einem konkreten Shopartikel zugeordnet. Leere Positionen verwenden die automatische Erkennung als Fallback.</div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>Zubehör</th><th>Ausführung</th><th>Smartstore-Artikel</th></tr></thead><tbody>
-@foreach (var row in accessories) { <tr><td><strong>@row.L</strong></td><td>@row.W</td><td><input type="hidden" id="@row.P" name="@row.P" value="@row.I" /><entity-picker entity-type="product" target-input-selector="@($"#{row.P}")" selected="@Model.Selected(row.I)" max-items="1" append-mode="false" caption="Artikel auswählen" icon-css-class="fa fa-search" dialog-title="@($"{row.L} {row.W}")" /></td></tr> }
-</tbody></table></div></div></div>
+
+<widget target-zone="admin_button_toolbar_after">
+    <button type="submit" class="btn btn-warning" data-target="#rack-config-form">
+        <i class="fa fa-check"></i>
+        <span>Speichern</span>
+    </button>
+</widget>
+
+<form id="rack-config-form" asp-action="Configure" method="post">
+    <div asp-validation-summary="All" class="mb-3"></div>
+
+    <div class="card mb-3">
+        <div class="card-header"><strong>Allgemeine Einstellungen</strong></div>
+        <div class="card-body">
+            <div class="form-group row">
+                <label class="col-lg-3 col-form-label">Konfigurator aktiv</label>
+                <div class="col-lg-6"><input asp-for="Enabled" /></div>
+            </div>
+
+            <div class="form-group row">
+                <label class="col-lg-3 col-form-label">Warengruppen</label>
+                <div class="col-lg-9">
+                    <input asp-for="CategoryIds" type="hidden" />
+                    <div id="grc-category-selection" class="grc-selection-list mb-2">
+                        @foreach (var category in Model.SelectedCategories)
+                        {
+                            <span class="grc-selection-chip" data-id="@category.Id">
+                                <span>@category.Name</span>
+                                <small>#@category.Id</small>
+                                <button type="button" class="grc-chip-remove" title="Warengruppe entfernen" aria-label="Warengruppe entfernen">×</button>
+                            </span>
+                        }
+                    </div>
+                    <entity-picker entity-type="category"
+                                   target-input-selector="#CategoryIds"
+                                   selected="@Model.CategorySelectedIds"
+                                   max-items="50"
+                                   append-mode="true"
+                                   caption="Warengruppen auswählen"
+                                   icon-css-class="fa fa-folder-open"
+                                   dialog-title="Warengruppen auswählen"
+                                   onselectioncompleted="grcCategorySelectionCompleted" />
+                    <small class="form-text text-muted">Der Konfigurator wird auf allen hier ausgewählten Warengruppenseiten angezeigt. Mehrfachauswahl ist möglich.</small>
+                </div>
+            </div>
+
+            <div class="form-group row">
+                <label class="col-lg-3 col-form-label">Standard-Traglast</label>
+                <div class="col-lg-3"><input asp-for="MaxPalletWeight" class="form-control" min="1" /></div>
+                <div class="col-lg-1 col-form-label">kg</div>
+            </div>
+            <div class="form-group row">
+                <label class="col-lg-3 col-form-label">Standard-Regaltiefe</label>
+                <div class="col-lg-3"><input asp-for="DefaultDepth" class="form-control" min="1" /></div>
+                <div class="col-lg-1 col-form-label">mm</div>
+            </div>
+            <div class="form-group row">
+                <label class="col-lg-3 col-form-label">Vorschlagsvarianten</label>
+                <div class="col-lg-3"><input asp-for="MaxVariants" class="form-control" min="1" max="4" /></div>
+            </div>
+            <div class="form-group row mb-0">
+                <label class="col-lg-3 col-form-label">Mindest-Trägerebenen total</label>
+                <div class="col-lg-3"><small>2000–3500 mm</small><input asp-for="MinLevelsLow" class="form-control" min="1" /></div>
+                <div class="col-lg-3"><small>4000–4500 mm</small><input asp-for="MinLevelsHigh" class="form-control" min="1" /></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between flex-wrap">
+            <div>
+                <strong>Zubehör-Zuordnung</strong>
+                <div class="small text-muted">Jede Zeile besitzt eine eigene Smartstore-Artikelauswahl. Zuordnungen können ergänzt, geleert oder vollständig gelöscht werden.</div>
+            </div>
+            <button id="grc-add-accessory" type="button" class="btn btn-secondary mt-2 mt-sm-0">
+                <i class="fa fa-plus"></i> Zubehör hinzufügen
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="grc-accessory-table">
+                    <thead>
+                        <tr>
+                            <th style="min-width:230px">Zubehörart</th>
+                            <th style="width:170px">Ausführung</th>
+                            <th style="min-width:340px">Zugeordneter Smartstore-Artikel</th>
+                            <th style="width:56px"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.Accessories)
+                    {
+                        var token = row.Index;
+                        var isWidthAccessory = row.Key == "spanplatte" || row.Key == "gitterrost" || row.Key == "stahlpanel" || row.Key == "drahtgitter" || row.Key == "durchschub";
+                        <tr class="grc-accessory-row" data-token="@token">
+                            <td>
+                                <input type="hidden" name="Accessories.Index" value="@token" />
+                                <input type="hidden" name="Accessories[@token].Index" value="@token" />
+                                <select class="form-control grc-accessory-key" name="Accessories[@token].Key">
+                                    @foreach (var option in accessoryOptions)
+                                    {
+                                        <option value="@option.V" selected="@(row.Key == option.V)">@option.T</option>
+                                    }
+                                </select>
+                            </td>
+                            <td>
+                                <select class="form-control grc-accessory-width" name="Accessories[@token].Width" disabled="@(!isWidthAccessory)">
+                                    <option value="1825" selected="@(row.Width == 1825)">1825 mm</option>
+                                    <option value="2700" selected="@(row.Width == 2700)">2700 mm</option>
+                                    <option value="3600" selected="@(row.Width == 3600)">3600 mm</option>
+                                </select>
+                                <input class="grc-accessory-width-hidden" type="hidden" name="Accessories[@token].Width" value="@(isWidthAccessory ? row.Width : 0)" disabled="@(isWidthAccessory)" />
+                            </td>
+                            <td>
+                                <input class="grc-product-id" id="grc-product-@token" type="hidden" name="Accessories[@token].ProductId" value="@row.ProductId" />
+                                <div class="grc-product-selection" data-empty="@(row.ProductId <= 0 ? "true" : "false")">
+                                    <div class="grc-product-text">
+                                        <strong class="grc-product-name">@(row.ProductId > 0 ? (!string.IsNullOrWhiteSpace(row.ProductName) ? row.ProductName : $"Artikel #{row.ProductId}") : "Kein Artikel zugeordnet")</strong>
+                                        <div class="small text-muted grc-product-meta">
+                                            @if (row.ProductId > 0)
+                                            {
+                                                <span>ID @row.ProductId</span>
+                                                @if (!string.IsNullOrWhiteSpace(row.ProductSku)) { <span> · SKU @row.ProductSku</span> }
+                                            }
+                                            else
+                                            {
+                                                <span>Automatische Erkennung als Fallback</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="grc-product-actions">
+                                        <button type="button" class="btn btn-secondary grc-product-picker" data-target="#grc-product-@token"><i class="fa fa-search"></i> Artikel auswählen</button>
+                                        <button type="button" class="btn btn-light grc-product-clear" title="Artikelzuordnung leeren"><i class="fa fa-times"></i></button>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-right">
+                                <button type="button" class="btn btn-danger btn-icon grc-row-delete" title="Zubehör-Zuordnung löschen"><i class="fa fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div id="grc-accessory-empty" class="p-4 text-muted text-center" style="display:none">Noch keine Zubehör-Zuordnung vorhanden. Mit „Zubehör hinzufügen“ kann eine neue Zeile angelegt werden.</div>
+        </div>
+    </div>
 </form>
+
+<style>
+    .grc-selection-list { display:flex; gap:.45rem; flex-wrap:wrap; min-height:2rem; align-items:center; }
+    .grc-selection-chip { display:inline-flex; align-items:center; gap:.35rem; border:1px solid #d7dde4; background:#f8f9fa; border-radius:999px; padding:.35rem .45rem .35rem .7rem; max-width:100%; }
+    .grc-selection-chip > span { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .grc-selection-chip small { color:#6c757d; }
+    .grc-chip-remove { border:0; background:transparent; font-size:1.2rem; line-height:1; padding:0 .15rem; color:#6c757d; cursor:pointer; }
+    .grc-product-selection { display:flex; align-items:center; justify-content:space-between; gap:1rem; border:1px solid #d7dde4; border-radius:.35rem; padding:.55rem .65rem; background:#fff; }
+    .grc-product-selection[data-empty="true"] { background:#fafbfc; }
+    .grc-product-text { min-width:0; }
+    .grc-product-name { display:block; overflow-wrap:anywhere; }
+    .grc-product-actions { display:flex; gap:.4rem; flex:0 0 auto; }
+    #grc-accessory-table td { vertical-align:middle; }
+    @@media (max-width: 900px) { .grc-product-selection { align-items:flex-start; flex-direction:column; } }
+</style>
+
+<script sm-target-zone="scripts" data-origin="GawelaRackConfigAdmin">
+(function ($) {
+    'use strict';
+
+    const pickerUrl = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(pickerUrl));
+    const productPickerOptions = {
+        entityType: 'product',
+        url: pickerUrl,
+        maxItems: 1,
+        appendMode: false,
+        onSelectionCompleted: 'grcAccessorySelectionCompleted'
+    };
+
+    function htmlEncode(value) {
+        return $('<div/>').text(value == null ? '' : String(value)).html();
+    }
+
+    function updateCategoryHidden() {
+        const ids = $('#grc-category-selection .grc-selection-chip').map(function () { return parseInt($(this).data('id'), 10); }).get().filter(x => x > 0);
+        $('#CategoryIds').val([...new Set(ids)].join(',')).trigger('change');
+    }
+
+    window.grcCategorySelectionCompleted = function (selectedValues, visibleSelectedItems) {
+        const names = {};
+        $('#grc-category-selection .grc-selection-chip').each(function () {
+            names[parseInt($(this).data('id'), 10)] = $(this).find('span:first').text();
+        });
+        (visibleSelectedItems || []).forEach(x => { names[parseInt(x.id, 10)] = x.name; });
+        const selected = (selectedValues || []).map(x => parseInt(x, 10)).filter(x => x > 0);
+        const host = $('#grc-category-selection').empty();
+        selected.forEach(id => {
+            const name = names[id] || ('Warengruppe #' + id);
+            host.append('<span class="grc-selection-chip" data-id="' + id + '"><span>' + htmlEncode(name) + '</span><small>#' + id + '</small><button type="button" class="grc-chip-remove" title="Warengruppe entfernen" aria-label="Warengruppe entfernen">×</button></span>');
+        });
+        $('#CategoryIds').val(selected.join(',')).trigger('change');
+        return true;
+    };
+
+    window.grcAccessorySelectionCompleted = function (selectedValues, visibleSelectedItems, dialog) {
+        const opts = $(dialog).data('entitypicker') || {};
+        const target = $(opts.targetInput);
+        const row = target.closest('.grc-accessory-row');
+        const item = (visibleSelectedItems || [])[0];
+        const id = item ? parseInt(item.id, 10) : parseInt((selectedValues || [])[0], 10);
+        if (id > 0) {
+            target.val(id).trigger('change');
+            row.find('.grc-product-selection').attr('data-empty', 'false');
+            row.find('.grc-product-name').text(item && item.name ? item.name : ('Artikel #' + id));
+            row.find('.grc-product-meta').html('<span>ID ' + id + '</span>');
+        }
+        return true;
+    };
+
+    function initProductPicker(button) {
+        const $button = $(button);
+        if ($button.data('grc-picker-ready')) return;
+        $button.data('grc-picker-ready', true);
+        $button.entityPicker($.extend({}, productPickerOptions, {
+            targetInput: $button.data('target'),
+            caption: 'Smartstore-Artikel auswählen'
+        }));
+    }
+
+    function updateWidthControl(row) {
+        const $row = $(row);
+        const key = $row.find('.grc-accessory-key').val();
+        const hasWidth = ['spanplatte','gitterrost','stahlpanel','drahtgitter','durchschub'].includes(key);
+        const select = $row.find('.grc-accessory-width');
+        const hidden = $row.find('.grc-accessory-width-hidden');
+        select.prop('disabled', !hasWidth);
+        hidden.prop('disabled', hasWidth);
+        if (hasWidth) {
+            if (![1825,2700,3600].includes(parseInt(select.val(),10))) select.val('1825');
+            hidden.val(select.val());
+        } else {
+            hidden.val('0');
+        }
+    }
+
+    function refreshEmptyState() {
+        const hasRows = $('#grc-accessory-table tbody .grc-accessory-row').length > 0;
+        $('#grc-accessory-table').toggle(hasRows);
+        $('#grc-accessory-empty').toggle(!hasRows);
+    }
+
+    function createToken() {
+        return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+    }
+
+    function newAccessoryRow() {
+        const t = createToken();
+        return `<tr class="grc-accessory-row" data-token="${t}">
+            <td>
+                <input type="hidden" name="Accessories.Index" value="${t}" />
+                <input type="hidden" name="Accessories[${t}].Index" value="${t}" />
+                <select class="form-control grc-accessory-key" name="Accessories[${t}].Key">
+                    <option value="spanplatte">Spanplattenauflagen</option><option value="gitterrost">Gitterrostauflagen</option><option value="stahlpanel">Stahlpanelauflagen</option><option value="drahtgitter">Drahtgitterauflagen</option><option value="durchschub">Durchschubsicherungen</option><option value="schutz_eck">Eck-Rammschutz</option><option value="schutz_mittel76">Mittelstützen-Rammschutz 76 mm (H 2000–3500)</option><option value="schutz_mittel100">Mittelstützen-Rammschutz 100 mm (H 4000–4500)</option>
+                </select>
+            </td>
+            <td>
+                <select class="form-control grc-accessory-width" name="Accessories[${t}].Width"><option value="1825">1825 mm</option><option value="2700">2700 mm</option><option value="3600">3600 mm</option></select>
+                <input class="grc-accessory-width-hidden" type="hidden" name="Accessories[${t}].Width" value="1825" disabled />
+            </td>
+            <td>
+                <input class="grc-product-id" id="grc-product-${t}" type="hidden" name="Accessories[${t}].ProductId" value="0" />
+                <div class="grc-product-selection" data-empty="true"><div class="grc-product-text"><strong class="grc-product-name">Kein Artikel zugeordnet</strong><div class="small text-muted grc-product-meta"><span>Automatische Erkennung als Fallback</span></div></div><div class="grc-product-actions"><button type="button" class="btn btn-secondary grc-product-picker" data-target="#grc-product-${t}"><i class="fa fa-search"></i> Artikel auswählen</button><button type="button" class="btn btn-light grc-product-clear" title="Artikelzuordnung leeren"><i class="fa fa-times"></i></button></div></div>
+            </td>
+            <td class="text-right"><button type="button" class="btn btn-danger btn-icon grc-row-delete" title="Zubehör-Zuordnung löschen"><i class="fa fa-trash"></i></button></td>
+        </tr>`;
+    }
+
+    $(function () {
+        $('.grc-product-picker').each(function () { initProductPicker(this); });
+        $('.grc-accessory-row').each(function () { updateWidthControl(this); });
+        refreshEmptyState();
+
+        $('#grc-category-selection').on('click', '.grc-chip-remove', function () {
+            $(this).closest('.grc-selection-chip').remove();
+            updateCategoryHidden();
+        });
+
+        $('#grc-accessory-table').on('change', '.grc-accessory-key', function () { updateWidthControl($(this).closest('tr')); });
+        $('#grc-accessory-table').on('change', '.grc-accessory-width', function () { $(this).siblings('.grc-accessory-width-hidden').val($(this).val()); });
+        $('#grc-accessory-table').on('click', '.grc-row-delete', function () { $(this).closest('tr').remove(); refreshEmptyState(); });
+        $('#grc-accessory-table').on('click', '.grc-product-clear', function () {
+            const row = $(this).closest('tr');
+            row.find('.grc-product-id').val('0').trigger('change');
+            row.find('.grc-product-selection').attr('data-empty', 'true');
+            row.find('.grc-product-name').text('Kein Artikel zugeordnet');
+            row.find('.grc-product-meta').html('<span>Automatische Erkennung als Fallback</span>');
+        });
+
+        $('#grc-add-accessory').on('click', function () {
+            const row = $(newAccessoryRow()).appendTo('#grc-accessory-table tbody');
+            updateWidthControl(row);
+            initProductPicker(row.find('.grc-product-picker'));
+            refreshEmptyState();
+            row.find('.grc-accessory-key').focus();
+        });
+    });
+})(jQuery);
+</script>
