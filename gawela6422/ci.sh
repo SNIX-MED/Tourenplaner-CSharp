@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# On the 6.4.23 branch, the base PR workflow still invokes gawela6422/ci.sh.
+# Delegate once to the 6.4.23 CI; its nested call sets GAWELA_6423_ACTIVE=1
+# so this file then executes the verified 6.4.22 baseline without recursion.
+if [ -f gawela6423/ci.sh ] && [ "${GAWELA_6423_ACTIVE:-0}" != "1" ]; then
+  export GAWELA_6423_ACTIVE=1
+  bash gawela6423/ci.sh
+  exit 0
+fi
+
 # Pin the exact SDK used by the previously verified GAWELA builds. Hosted runners may
 # have a newer 10.0 SDK in PATH; Smartstore 6.4.0 must be compiled with 10.0.302 here.
 cat > smartstore/global.json <<'EOF'
