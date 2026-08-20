@@ -1,0 +1,97 @@
+@model GawelaColorBlock
+
+<div class="adminContent">
+
+    <div class="alert alert-info">
+        Dieser Block wird nur angezeigt, wenn für das aktuelle Produkt in
+        <strong>Plugins → GAWELA Farbkonfigurator → Konfigurieren</strong>
+        ein vollständiges Bildset hinterlegt wurde.
+    </div>
+
+    <div class="adminRow">
+        <div class="adminTitle">
+            <label asp-for="CorpusAttributeLabel"></label>
+        </div>
+        <div class="adminData">
+            <input asp-for="CorpusAttributeLabel" class="form-control" />
+        </div>
+    </div>
+
+    <div class="adminRow">
+        <div class="adminTitle">
+            <label asp-for="DoorsAttributeLabel"></label>
+        </div>
+        <div class="adminData">
+            <input asp-for="DoorsAttributeLabel" class="form-control" />
+        </div>
+    </div>
+
+    <div class="adminRow">
+        <div class="adminTitle">
+            <label asp-for="BaseCorpusRal"></label>
+        </div>
+        <div class="adminData">
+            <input asp-for="BaseCorpusRal" class="form-control" />
+            <small class="form-text text-muted">
+                RAL-Farbe des fotografierten/gerenderten Ausgangsbildes.
+            </small>
+        </div>
+    </div>
+
+    <div class="adminRow">
+        <div class="adminTitle">
+            <label asp-for="BaseDoorsRal"></label>
+        </div>
+        <div class="adminData">
+            <input asp-for="BaseDoorsRal" class="form-control" />
+        </div>
+    </div>
+
+    <div class="adminRow">
+        <div class="adminTitle">
+            <label asp-for="DefaultCorpusRal"></label>
+        </div>
+        <div class="adminData">
+            <input asp-for="DefaultCorpusRal" class="form-control" />
+        </div>
+    </div>
+
+    <div class="adminRow">
+        <div class="adminTitle">
+            <label asp-for="DefaultDoorsRal"></label>
+        </div>
+        <div class="adminData">
+            <input asp-for="DefaultDoorsRal" class="form-control" />
+        </div>
+    </div>
+
+    <div class="adminRow">
+        <div class="adminTitle">
+            <label asp-for="ReplaceGallery"></label>
+        </div>
+        <div class="adminData">
+            <input asp-for="ReplaceGallery" />
+            <small class="form-text text-muted">
+                Für den ersten Test ausgeschaltet lassen. Nach erfolgreicher Prüfung kann die normale Produktgalerie ersetzt werden.
+            </small>
+        </div>
+    </div>
+
+    <div class="adminRow">
+        <div class="adminTitle">
+            <label asp-for="ShowColorData"></label>
+        </div>
+        <div class="adminData">
+            <input asp-for="ShowColorData" />
+        </div>
+    </div>
+
+    <div class="adminRow">
+        <div class="adminTitle">
+            <label asp-for="ShowDisclaimer"></label>
+        </div>
+        <div class="adminData">
+            <input asp-for="ShowDisclaimer" />
+        </div>
+    </div>
+</div>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <Product>GAWELA Farbkonfigurator</Product>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputPath>..\..\Smartstore.Web\Modules\Gawela.ColorConfigurator</OutputPath>
+    <OutDir>$(OutputPath)</OutDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Smartstore.Web\Smartstore.Web.csproj">
+      <Private>False</Private>
+      <CopyLocal>False</CopyLocal>
+      <CopyLocalSatelliteAssemblies>False</CopyLocalSatelliteAssemblies>
+    </ProjectReference>
+  </ItemGroup>
+
+</Project>

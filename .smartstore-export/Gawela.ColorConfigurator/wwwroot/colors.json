@@ -1,0 +1,165 @@
+{
+  "_notice": "Die RGB/HEX-Werte sind sRGB-Näherungswerte für die Bildschirmdarstellung. Vor dem Produktivbetrieb gegen die von GAWELA gewünschte/verbindliche Farbreferenz prüfen. NCS-Werte sind bewusst leer und sollten nur aus einer verifizierten Quelle ergänzt werden.",
+  "colors": {
+    "1015": {
+      "name": "Hellelfenbein",
+      "hex": "#E6D2B5",
+      "rgb": [
+        230,
+        210,
+        181
+      ],
+      "ncs": ""
+    },
+    "1023": {
+      "name": "Verkehrsgelb",
+      "hex": "#FAD201",
+      "rgb": [
+        250,
+        210,
+        1
+      ],
+      "ncs": ""
+    },
+    "2004": {
+      "name": "Reinorange",
+      "hex": "#F44611",
+      "rgb": [
+        244,
+        70,
+        17
+      ],
+      "ncs": ""
+    },
+    "3005": {
+      "name": "Weinrot",
+      "hex": "#59191F",
+      "rgb": [
+        89,
+        25,
+        31
+      ],
+      "ncs": ""
+    },
+    "3020": {
+      "name": "Verkehrsrot",
+      "hex": "#CC0605",
+      "rgb": [
+        204,
+        6,
+        5
+      ],
+      "ncs": ""
+    },
+    "5010": {
+      "name": "Enzianblau",
+      "hex": "#004F7C",
+      "rgb": [
+        0,
+        79,
+        124
+      ],
+      "ncs": ""
+    },
+    "5012": {
+      "name": "Lichtblau",
+      "hex": "#0089B6",
+      "rgb": [
+        0,
+        137,
+        182
+      ],
+      "ncs": ""
+    },
+    "5018": {
+      "name": "Türkisblau",
+      "hex": "#048B8B",
+      "rgb": [
+        4,
+        139,
+        139
+      ],
+      "ncs": ""
+    },
+    "6011": {
+      "name": "Resedagrün",
+      "hex": "#6C7C59",
+      "rgb": [
+        108,
+        124,
+        89
+      ],
+      "ncs": ""
+    },
+    "6033": {
+      "name": "Minttürkis",
+      "hex": "#428C78",
+      "rgb": [
+        66,
+        140,
+        120
+      ],
+      "ncs": ""
+    },
+    "7016": {
+      "name": "Anthrazitgrau",
+      "hex": "#383E42",
+      "rgb": [
+        56,
+        62,
+        66
+      ],
+      "ncs": ""
+    },
+    "7032": {
+      "name": "Kieselgrau",
+      "hex": "#B8B799",
+      "rgb": [
+        184,
+        183,
+        153
+      ],
+      "ncs": ""
+    },
+    "7035": {
+      "name": "Lichtgrau",
+      "hex": "#CBD0CC",
+      "rgb": [
+        203,
+        208,
+        204
+      ],
+      "ncs": ""
+    },
+    "8016": {
+      "name": "Mahagonibraun",
+      "hex": "#4C2F27",
+      "rgb": [
+        76,
+        47,
+        39
+      ],
+      "ncs": ""
+    },
+    "9005": {
+      "name": "Tiefschwarz",
+      "hex": "#0A0A0D",
+      "rgb": [
+        10,
+        10,
+        13
+      ],
+      "ncs": ""
+    },
+    "9010": {
+      "name": "Reinweiss",
+      "hex": "#F1ECE1",
+      "rgb": [
+        241,
+        236,
+        225
+      ],
+      "ncs": ""
+    }
+  }
+}

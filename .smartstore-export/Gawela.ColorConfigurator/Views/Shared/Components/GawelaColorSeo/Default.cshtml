@@ -1,0 +1,16 @@
+@using Gawela.ColorConfigurator.Models
+@model GawelaSeoModel
+@{
+    if (!string.IsNullOrWhiteSpace(Model.CurrentVariantUrl))
+    {
+        Assets.JsonLd.Product
+            .Prop("url", Model.CurrentVariantUrl)
+            .Prop("color", Model.CurrentColorText)
+            .Prop("productID", Model.CurrentVariantProductId)
+            .Prop("inProductGroupWithID", Model.ProductGroupId);
+    }
+}
+@if (!string.IsNullOrWhiteSpace(Model.JsonLd))
+{
+    <script type="application/ld+json" data-gawela-structured-data="true">@Html.Raw(Model.JsonLd)</script>
+}

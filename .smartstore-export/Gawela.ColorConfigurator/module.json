@@ -1,0 +1,12 @@
+{
+  "$schema": "../module.schema.json",
+  "Author": "GAWELA GmbH",
+  "Group": "CMS",
+  "SystemName": "Gawela.ColorConfigurator",
+  "FriendlyName": "GAWELA Universeller Produktkonfigurator",
+  "Description": "Attributgesteuerte dynamische RAL-Farbvorschau mit frei konfigurierbaren Produktebenen, zentral pflegbaren RGB/HEX-Werten und Smartstore-Galerie-Slide.",
+  "Version": "6.4.23",
+  "MinAppVersion": "6.4.0",
+  "Order": 100,
+  "ResourceRootKey": "Plugins.Gawela.ColorConfigurator"
+}

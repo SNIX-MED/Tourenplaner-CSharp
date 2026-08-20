@@ -1,0 +1,447 @@
+@model GawelaAssetAdminModel
+@{ Layout = "_ConfigureModule"; var colorsTab = Model.ActiveTab == "colors"; }
+
+@if (TempData["GawelaColor.Success"] is string success){<div class="alert alert-success">@success</div>}
+@if (TempData["GawelaColor.Error"] is string error){<div class="alert alert-danger">@error</div>}
+
+<ul class="nav nav-tabs mb-4">
+  <li class="nav-item"><a class="nav-link @(!colorsTab ? "active" : "")" asp-action="Configure" asp-route-tab="products"><i class="fa fa-palette mr-1"></i> Farbkonfiguratoren</a></li>
+  <li class="nav-item"><a class="nav-link @(colorsTab ? "active" : "")" asp-action="Configure" asp-route-tab="colors"><i class="fa fa-swatchbook mr-1"></i> Farben / RAL</a></li>
+</ul>
+
+@if(colorsTab)
+{
+  <div class="alert alert-info">
+    <strong>Zentrale RAL-Farbtabelle:</strong> Die RAL-Nummer und Bezeichnung bilden die feste Basis. Sie können die Bildschirmwerte über HEX oder RGB anpassen. Gespeicherte Änderungen gelten für alle Farbkonfiguratoren.
+  </div>
+  <form asp-action="SavePalette" method="post" id="gawela-palette-form">
+    <div asp-validation-summary="All" class="text-danger mb-3"></div>
+    <div class="table-responsive">
+      <table class="table table-striped table-hover align-middle">
+        <thead><tr><th style="width:80px">Farbe</th><th style="width:105px">RAL</th><th>Bezeichnung</th><th style="width:150px">HEX</th><th style="width:105px">R</th><th style="width:105px">G</th><th style="width:105px">B</th></tr></thead>
+        <tbody>
+        @for(var i=0;i<Model.Palette.Colors.Count;i++)
+        {
+          var c = Model.Palette.Colors[i];
+          <tr class="gawela-ral-row">
+            <td><span class="gawela-ral-swatch" style="display:inline-block;width:42px;height:30px;border:1px solid rgba(0,0,0,.2);border-radius:4px;background:@c.Hex"></span></td>
+            <td><strong>RAL @c.Ral</strong><input type="hidden" name="Palette.Colors[@i].Ral" value="@c.Ral"/></td>
+            <td>@c.Name<input type="hidden" name="Palette.Colors[@i].Name" value="@c.Name"/></td>
+            <td><input class="form-control gawela-hex" name="Palette.Colors[@i].Hex" value="@c.Hex" maxlength="7" pattern="#?[0-9A-Fa-f]{6}" autocomplete="off"/></td>
+            <td><input class="form-control gawela-rgb gawela-r" type="number" name="Palette.Colors[@i].R" value="@c.R" min="0" max="255"/></td>
+            <td><input class="form-control gawela-rgb gawela-g" type="number" name="Palette.Colors[@i].G" value="@c.G" min="0" max="255"/></td>
+            <td><input class="form-control gawela-rgb gawela-b" type="number" name="Palette.Colors[@i].B" value="@c.B" min="0" max="255"/></td>
+          </tr>
+        }
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <button type="submit" class="btn btn-warning"><i class="fa fa-save"></i> RAL-Farbwerte speichern</button>
+    </div>
+  </form>
+  <form asp-action="ResetPalette" method="post" class="mt-3" onsubmit="return confirm('Alle angepassten RGB/HEX-Werte auf die mitgelieferten Standardwerte zurücksetzen?');">
+    <button type="submit" class="btn btn-outline-secondary"><i class="fa fa-undo"></i> Standardwerte wiederherstellen</button>
+  </form>
+  <p class="text-muted mt-3 mb-0"><small>Hinweis: RGB- und HEX-Werte sind Bildschirmwerte und keine verbindliche Farbreferenz. Für die endgültige Farbwirkung bleiben physische RAL-Muster bzw. die von GAWELA festgelegte Referenz massgebend.</small></p>
+
+  <script>
+  (function(){
+    function clamp(v){v=parseInt(v,10);return isNaN(v)?0:Math.max(0,Math.min(255,v));}
+    function toHex(v){return clamp(v).toString(16).padStart(2,'0').toUpperCase();}
+    function rgbHex(r,g,b){return '#'+toHex(r)+toHex(g)+toHex(b);}
+    function parseHex(v){v=(v||'').trim().replace(/^#/,'');if(!/^[0-9a-fA-F]{6}$/.test(v))return null;return[parseInt(v.slice(0,2),16),parseInt(v.slice(2,4),16),parseInt(v.slice(4,6),16)];}
+    document.querySelectorAll('.gawela-ral-row').forEach(function(row){
+      const hex=row.querySelector('.gawela-hex'), r=row.querySelector('.gawela-r'), g=row.querySelector('.gawela-g'), b=row.querySelector('.gawela-b'), sw=row.querySelector('.gawela-ral-swatch');
+      function paint(){const h=rgbHex(r.value,g.value,b.value);hex.value=h;if(sw)sw.style.backgroundColor=h;}
+      [r,g,b].forEach(function(el){el.addEventListener('input',paint);el.addEventListener('change',paint);});
+      hex.addEventListener('input',function(){const x=parseHex(hex.value);if(!x)return;r.value=x[0];g.value=x[1];b.value=x[2];if(sw)sw.style.backgroundColor=rgbHex(x[0],x[1],x[2]);});
+      hex.addEventListener('blur',function(){const x=parseHex(hex.value);if(x){hex.value=rgbHex(x[0],x[1],x[2]);}});
+    });
+  })();
+  </script>
+}
+else if(!Model.IsEditor)
+{
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
+    <div>
+      <h2 class="h4 mb-1">Farbkonfiguratoren</h2>
+      <p class="text-muted mb-0">Jeder Konfigurator besitzt einen eigenen Namen, einen Basis-Artikel, gemeinsame Visualisierungsebenen und optional weitere zugeordnete Artikel.</p>
+    </div>
+    <a asp-action="Configure" asp-route-tab="products" asp-route-add="true" class="btn btn-primary btn-flat">
+      <i class="fa fa-plus"></i> Hinzufügen
+    </a>
+  </div>
+
+  <div class="alert alert-info">
+    <strong>Neue Verwaltung ab 6.4.15:</strong> Ein Farbkonfigurator wird als eigene Einheit verwaltet. Basis-Artikel und weitere Artikel werden über den Smartstore-Produktkatalog gewählt; Basisbild und Masken über den Smartstore-Medienkatalog.
+  </div>
+
+  @if(Model.Configurators.Count==0)
+  {
+    <div class="card"><div class="card-body text-center py-5">
+      <i class="fa fa-palette fa-3x text-muted mb-3"></i>
+      <h3 class="h5">Noch kein Farbkonfigurator vorhanden</h3>
+      <p class="text-muted">Legen Sie den ersten Konfigurator über <strong>Hinzufügen</strong> an.</p>
+      <a asp-action="Configure" asp-route-tab="products" asp-route-add="true" class="btn btn-primary"><i class="fa fa-plus"></i> Farbkonfigurator hinzufügen</a>
+    </div></div>
+  }
+  else
+  {
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Konfigurator</th>
+              <th>Basis-Artikel</th>
+              <th class="text-center">Artikel</th>
+              <th class="text-center">Ebenen</th>
+              <th>Bildquelle</th>
+              <th>Status</th>
+              <th class="text-right"></th>
+            </tr>
+          </thead>
+          <tbody>
+          @foreach(var item in Model.Configurators)
+          {
+            <tr>
+              <td>
+                <strong>@item.Name</strong>
+                @if(item.IsLegacy){<div><span class="badge badge-secondary mt-1">Altbestand – beim Speichern wird die neue Struktur übernommen</span></div>}
+              </td>
+              <td><strong>@item.MasterSku</strong><div class="text-muted small">@item.MasterProductName · ID @item.MasterProductId</div></td>
+              <td class="text-center"><span class="badge badge-light">@item.ProductCount</span></td>
+              <td class="text-center"><span class="badge badge-light">@item.LayerCount</span></td>
+              <td>@if(item.UsesSmartstoreMedia){<span class="badge badge-info">Smartstore Medien</span>}else{<span class="badge badge-light">lokaler Altbestand</span>}</td>
+              <td>@if(item.IsComplete){<span class="badge badge-success">bereit</span>}else{<span class="badge badge-warning">unvollständig</span>}</td>
+              <td class="text-right text-nowrap">
+                <a asp-action="Configure" asp-route-tab="products" asp-route-configuratorId="@item.MasterProductId" class="btn btn-sm btn-primary"><i class="fa fa-pen"></i> Bearbeiten</a>
+                <form asp-action="DeleteConfigurator" method="post" class="d-inline" onsubmit="return confirm('Farbkonfigurator „@item.Name“ wirklich löschen? Dateien im Smartstore-Medienkatalog werden nicht gelöscht.');">
+                  <input type="hidden" name="masterProductId" value="@item.MasterProductId"/>
+                  <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fa fa-trash"></i></button>
+                </form>
+              </td>
+            </tr>
+          }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+}
+else if(Model.IsNew && Model.ProductId<=0)
+{
+  <div class="d-flex align-items-center mb-3 gap-2">
+    <a asp-action="Configure" asp-route-tab="products" class="btn btn-light btn-icon"><i class="fa fa-arrow-left"></i></a>
+    <div><h2 class="h4 mb-0">Farbkonfigurator hinzufügen</h2><div class="text-muted">Zuerst Name und Basis-Artikel festlegen.</div></div>
+  </div>
+
+  <form asp-action="Configure" method="get" id="gawela-create-form">
+    <input type="hidden" name="tab" value="products"/>
+    <input type="hidden" name="add" value="true"/>
+    <input type="hidden" id="ProductId" name="productId" value=""/>
+
+    <div class="card mb-4"><div class="card-body">
+      <h3 class="h5 mb-3">1. Grunddaten</h3>
+      <div class="form-group">
+        <label for="ConfiguratorName"><strong>Name des Farbkonfigurators</strong></label>
+        <input id="ConfiguratorName" name="configuratorName" value="@Model.ConfiguratorName" class="form-control" maxlength="160" placeholder="z.B. Schiebetürenschränke Höhe 1990" autocomplete="off"/>
+        <small class="text-muted">Dieser Name erscheint künftig in der Übersicht und dient zur eindeutigen Organisation der verschiedenen Konfiguratoren.</small>
+      </div>
+      <div class="form-group mb-0">
+        <label><strong>Basis-Artikel</strong></label>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <entity-picker entity-type="product"
+                         target-input-selector="#ProductId"
+                         max-items="1"
+                         append-mode="false"
+                         caption="Basis-Artikel auswählen"
+                         icon-css-class="fa fa-search"
+                         dialog-title="Basis-Artikel für den Farbkonfigurator auswählen"
+                         onselectioncompleted="GawelaBaseProduct_Completed" />
+          <span id="gawela-base-selection" class="text-muted">Noch kein Artikel ausgewählt.</span>
+        </div>
+        <small class="text-muted d-block mt-2">Die verfügbaren Smartstore-Attribute des Basis-Artikels bestimmen im nächsten Schritt die möglichen Visualisierungsebenen.</small>
+      </div>
+    </div></div>
+
+    <div class="d-flex justify-content-end">
+      <button id="gawela-create-next" class="btn btn-primary" type="submit" disabled><i class="fa fa-arrow-right"></i> Weiter: Konfigurator einrichten</button>
+    </div>
+  </form>
+
+  <script>
+  (function(){
+    const id=document.getElementById('ProductId'), name=document.getElementById('ConfiguratorName'), next=document.getElementById('gawela-create-next'), summary=document.getElementById('gawela-base-selection');
+    const summariesUrl='@Url.Action("ProductSummaries")';
+    function toggle(){next.disabled=!(parseInt(id.value||'0',10)>0 && (name.value||'').trim().length>0);}
+    window.GawelaBaseProduct_Completed=function(){
+      const value=id.value||''; toggle();
+      if(!value){summary.textContent='Noch kein Artikel ausgewählt.';return true;}
+      fetch(summariesUrl+'?ids='+encodeURIComponent(value),{credentials:'same-origin'}).then(r=>r.json()).then(rows=>{
+        const p=rows&&rows[0]; summary.innerHTML=p?'<strong>'+escapeHtml(p.sku||('ID '+p.id))+'</strong> – '+escapeHtml(p.name||''):'Artikel-ID '+escapeHtml(value);
+      });
+      return true;
+    };
+    function escapeHtml(v){const d=document.createElement('div');d.textContent=v==null?'':String(v);return d.innerHTML;}
+    name.addEventListener('input',toggle); id.addEventListener('change',toggle); toggle();
+  })();
+  </script>
+}
+else
+{
+  <datalist id="gawela-ral-list">
+    @foreach(var c in Model.Palette.Colors){<option value="@c.Ral">RAL @c.Ral @c.Name</option>}
+  </datalist>
+
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <a asp-action="Configure" asp-route-tab="products" class="btn btn-light btn-icon"><i class="fa fa-arrow-left"></i></a>
+      <div>
+        <h2 class="h4 mb-0">@(Model.IsNew ? "Neuen Farbkonfigurator einrichten" : "Farbkonfigurator bearbeiten")</h2>
+        <div class="text-muted">@Model.ConfiguratorName</div>
+      </div>
+    </div>
+    <button type="submit" form="gawela-configurator-form" class="btn btn-warning"><i class="fa fa-save"></i> Speichern</button>
+  </div>
+
+  @if(!string.IsNullOrWhiteSpace(Model.PageMessage)){<div class="alert alert-info">@Model.PageMessage</div>}
+
+  <form id="gawela-configurator-form" asp-action="SaveConfigurator" method="post">
+    <input type="hidden" asp-for="IsNew"/>
+    <input type="hidden" asp-for="OriginalMasterProductId"/>
+    <input type="hidden" asp-for="ProductId"/>
+    <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+    <div class="card mb-4"><div class="card-body">
+      <h3 class="h5 mb-3"><span class="badge badge-primary mr-2">1</span> Grunddaten &amp; Basis-Artikel</h3>
+      <div class="row">
+        <div class="col-lg-7">
+          <div class="form-group">
+            <label asp-for="ConfiguratorName"><strong>Name des Farbkonfigurators</strong></label>
+            <input asp-for="ConfiguratorName" class="form-control" maxlength="160"/>
+            <span asp-validation-for="ConfiguratorName" class="text-danger"></span>
+            <small class="text-muted">Der Name wird in der Konfigurator-Übersicht angezeigt, z.B. „Schiebetürenschränke Höhe 1990“.</small>
+          </div>
+          <div class="form-group mb-lg-0">
+            <label asp-for="ThumbnailLabel">Galerie-Bezeichnung</label>
+            <input asp-for="ThumbnailLabel" class="form-control" style="max-width:420px"/>
+            <small class="text-muted">Beschriftung des Konfigurator-Slides in der Produktgalerie.</small>
+          </div>
+        </div>
+        <div class="col-lg-5 mt-3 mt-lg-0">
+          <div class="border rounded p-3 h-100 bg-light">
+            <div class="text-muted small text-uppercase mb-1">Basis-Artikel</div>
+            <div class="font-weight-bold">@Model.ProductSku</div>
+            <div>@Model.ProductName</div>
+            <div class="text-muted small mt-1">Product-ID @Model.ProductId</div>
+            <div class="small mt-3"><i class="fa fa-info-circle text-info"></i> Der Basis-Artikel liefert die Smartstore-Attribute sowie die gemeinsame Bild-/Maskenvorlage. Bei einem bestehenden Konfigurator kann er aus Sicherheitsgründen nicht gewechselt werden.</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="card mb-4"><div class="card-body">
+      <h3 class="h5 mb-3"><span class="badge badge-primary mr-2">2</span> Weitere Artikel</h3>
+      <p class="text-muted">Neue Artikelnummern werden zunächst in die untenstehende Zuordnungsliste übernommen. Nur diese Liste bestimmt beim Speichern, welche Produkte dem Farbkonfigurator zugeordnet sind.</p>
+      <div class="form-group">
+        <label asp-for="AdditionalProductSkus"><strong>Neue Artikelnummern hinzufügen</strong></label>
+        <textarea asp-for="AdditionalProductSkus" id="AdditionalProductSkus" class="form-control" rows="5" placeholder="z.B.&#10;ART-1001&#10;ART-1002&#10;ART-1003"></textarea>
+        <span asp-validation-for="AdditionalProductSkus" class="text-danger"></span>
+        <small class="text-muted d-block mt-2">Das Feld ist beim Öffnen leer. Eine Artikelnummer pro Zeile; beim Einfügen aus Excel werden auch Tabulatoren erkannt, Komma, Semikolon und | sind ebenfalls erlaubt.</small>
+        <div class="d-flex flex-wrap align-items-center mt-2" style="gap:.5rem">
+          <button type="button" id="gawela-add-skus" class="btn btn-primary" data-resolve-url="@Url.Action("ProductSummariesBySkus")"><i class="fa fa-plus"></i> Artikel zur Zuordnungsliste hinzufügen</button>
+          <div id="gawela-sku-paste-info" class="small text-muted"></div>
+        </div>
+      </div>
+      <input asp-for="AdditionalProductIds" type="hidden"/>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <entity-picker entity-type="product"
+                       target-input-selector="#AdditionalProductIds"
+                       selected="@Model.AdditionalProductIdStrings"
+                       append-mode="true"
+                       disabled-entity-ids="@(new[]{Model.ProductId})"
+                       caption="Alternativ im Produktkatalog auswählen"
+                       icon-css-class="fa fa-plus"
+                       dialog-title="Weitere Artikel für diesen Farbkonfigurator auswählen"
+                       onselectioncompleted="GawelaMembers_Completed" />
+      </div>
+      <h4 class="h6 mt-4 mb-2">Zugeordnete Artikel</h4>
+      <div class="small text-muted mb-2">Einträge können einzeln entfernt werden. Diese Liste wird beim Speichern als Produktzuordnung verwendet.</div>
+      <div id="gawela-member-list" class="mt-2" data-summaries-url="@Url.Action("ProductSummaries")">
+        @if(Model.AssignedProducts.Count==0)
+        {
+          <div class="text-muted gawela-no-members">Keine weiteren Artikel zugeordnet.</div>
+        }
+        else
+     {
+          @foreach(var p in Model.AssignedProducts)
+          {
+            <div class="border rounded px-3 py-2 mb-2 gawela-member-row d-flex align-items-center justify-content-between" data-product-id="@p.ProductId"><div><strong>@p.Sku</strong> – @p.ProductName <span class="text-muted small">(ID @p.ProductId)</span></div><button type="button" class="btn btn-sm btn-outline-danger gawela-remove-member" title="Artikel aus Zuordnung entfernen"><i class="fa fa-times"></i> Entfernen</button></div>
+          }
+        }
+      </div>
+    </div></div>
+
+    <div class="card mb-4"><div class="card-body">
+      <h3 class="h5 mb-3"><span class="badge badge-primary mr-2">3</span> Basisbild</h3>
+      <div class="alert alert-info py-2">
+        <strong>Smartstore-Medienkatalog:</strong> Basisbild und Masken werden ab Version 6.4.15 über Smartstores Standard-Medienauswahl im Album <strong>catalog</strong> hochgeladen bzw. ausgewählt. Neue Konfigurationen speichern die MediaFile-ID; bestehende lokale Dateien aus früheren Versionen bleiben kompatibel.
+      </div>
+      <div class="form-group mb-0">
+        <label asp-for="BaseMediaFileId"><strong>Basisbild (.webp)</strong></label>
+        <editor asp-for="BaseMediaFileId" />
+        <span asp-validation-for="BaseMediaFileId" class="text-danger"></span>
+        @if(Model.HasLocalBaseImage && !Model.BaseMediaFileId.HasValue)
+        {
+          <div class="alert alert-secondary py-2 mt-2 mb-0"><i class="fa fa-check-circle"></i> Lokales Basisbild aus einer früheren Version ist vorhanden. Es kann weiterverwendet oder hier durch eine Datei aus dem Smartstore-Medienkatalog ersetzt werden.</div>
+        }
+        <small class="text-muted d-block mt-2">Erforderlich: WebP. Alle Masken müssen exakt dieselben Pixelmasse wie das Basisbild besitzen.</small>
+      </div>
+    </div></div>
+
+    <div class="card mb-4"><div class="card-body">
+      <div class="d-flex flex-wrap align-items-center justify-content-between mb-2 gap-2">
+        <div>
+          <h3 class="h5 mb-1"><span class="badge badge-primary mr-2">4</span> Visualisierungsebenen</h3>
+          <p class="text-muted mb-0">Die Attribute stammen automatisch vom Basis-Artikel. Dasselbe Smartstore-Attribut darf mehrere Ebenen steuern.</p>
+        </div>
+        <button type="button" id="gawela-add-layer" class="btn btn-secondary"><i class="fa fa-plus"></i> Ebene hinzufügen</button>
+      </div>
+
+      <div id="gawela-layer-list" class="mt-3">
+      @for(var i=0;i<Model.Layers.Count;i++)
+      {
+        var l=Model.Layers[i];
+        <div class="card mb-3 gawela-layer-slot @(l.IsActive ? "" : "d-none")" data-layer-index="@i">
+          <div class="card-header d-flex align-items-center justify-content-between py-2">
+            <strong>Visualisierungsebene <span class="gawela-layer-number">@(i+1)</span></strong>
+            <button type="button" class="btn btn-sm btn-outline-danger gawela-remove-layer"><i class="fa fa-times"></i> Entfernen</button>
+          </div>
+          <div class="card-body">
+            <input type="hidden" name="Layers[@i].IsActive" value="@(l.IsActive ? "true" : "false")" class="gawela-layer-active"/>
+            <input type="hidden" name="Layers[@i].Key" value="@l.Key"/>
+            <div class="row">
+              <div class="col-lg-3 form-group">
+                <label>Ebenenname</label>
+                <input name="Layers[@i].Name" value="@l.Name" class="form-control" placeholder="z.B. Korpus / Gestell"/>
+              </div>
+              <div class="col-lg-5 form-group">
+                <label>Smartstore-Attribut des Basis-Artikels</label>
+                <select name="Layers[@i].ProductVariantAttributeId" class="form-control gawela-layer-attribute">
+                  <option value="0">– Attribut auswählen –</option>
+                  @foreach(var a in Model.AvailableAttributes){<option value="@a.Id" selected="@(a.Id==l.ProductVariantAttributeId)">@a.Name (ID @a.Id)</option>}
+                </select>
+              </div>
+              <div class="col-lg-2 form-group">
+                <label>Basis-RAL</label>
+                <input name="Layers[@i].BaseRal" value="@l.BaseRal" class="form-control" maxlength="4" list="gawela-ral-list"/>
+              </div>
+              <div class="col-lg-2 form-group">
+                <label>Fallback-RAL</label>
+                <input name="Layers[@i].DefaultRal" value="@l.DefaultRal" class="form-control" maxlength="4" list="gawela-ral-list"/>
+              </div>
+            </div>
+            <div class="form-group mb-0">
+              <label><strong>Maske (.png)</strong></label>
+              <editor asp-for="Layers[i].MaskMediaFileId" />
+              @if(l.HasLocalMask && !l.MaskMediaFileId.HasValue)
+              {
+                <div class="alert alert-secondary py-2 mt-2 mb-0"><i class="fa fa-check-circle"></i> Lokale PNG-Maske aus einer früheren Version ist vorhanden und bleibt verwendbar.</div>
+              }
+              <small class="text-muted d-block mt-2">Weiss bzw. Maskenhelligkeit = einfärben; Schwarz/transparent = unverändert. Die Pixelmasse muss exakt dem Basisbild entsprechen.</small>
+            </div>
+          </div>
+        </div>
+      }
+      </div>
+      <div id="gawela-layer-limit" class="text-muted small d-none">Maximal 8 Ebenen erreicht.</div>
+    </div></div>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+      <a asp-action="Configure" asp-route-tab="products" class="btn btn-light"><i class="fa fa-arrow-left"></i> Zur Übersicht</a>
+      <button type="submit" class="btn btn-warning"><i class="fa fa-save"></i> Farbkonfigurator speichern</button>
+    </div>
+  </form>
+
+  <script>
+  (function(){
+    const summariesUrl='@Url.Action("ProductSummaries")';
+    const membersInput=document.getElementById('AdditionalProductIds');
+    const memberSkusInput=document.getElementById('AdditionalProductSkus');
+    const skuPasteInfo=document.getElementById('gawela-sku-paste-info');
+    const membersList=document.getElementById('gawela-member-list');
+    const layerList=document.getElementById('gawela-layer-list');
+    const addLayer=document.getElementById('gawela-add-layer');
+    const limit=document.getElementById('gawela-layer-limit');
+
+    function escapeHtml(v){const d=document.createElement('div');d.textContent=v==null?'':String(v);return d.innerHTML;}
+    function parseSkuTokens(value){
+      return (value||'').split(/[\r\n\t,;|]+/).map(x=>x.trim().replace(/^["']+|["']+$/g,'')).filter(Boolean);
+    }
+    function updateSkuPasteInfo(){
+      if(!skuPasteInfo)return;
+      const count=[...new Set(parseSkuTokens(memberSkusInput?.value||'').map(x=>x.toLocaleUpperCase()))].length;
+      skuPasteInfo.textContent=count ? count+' Artikelnummer'+(count===1?'':'n')+' eingetragen.' : 'Keine weiteren Artikelnummern eingetragen.';
+    }
+    function mergeSkuValues(values){
+      const merged=[], seen=new Set();
+      parseSkuTokens((memberSkusInput?.value||'')).concat(values||[]).forEach(value=>{
+        const clean=(value||'').trim(); if(!clean)return;
+        const key=clean.toLocaleUpperCase(); if(seen.has(key))return;
+        seen.add(key); merged.push(clean);
+      });
+      return merged;
+    }
+    function renderMembers(value,syncSkus){
+      const ids=(value||'').split(',').map(x=>x.trim()).filter(Boolean);
+      if(!ids.length){
+        updateSkuPasteInfo();
+        return;
+      }
+      fetch(summariesUrl+'?ids='+encodeURIComponent(ids.join(',')),{credentials:'same-origin'}).then(r=>r.json()).then(rows=>{
+        if(!rows||!rows.length)return;
+        membersList.innerHTML=rows.map(p=>'<div class="border rounded px-3 py-2 mb-2 gawela-member-row" data-product-id="'+p.id+'"><strong>'+escapeHtml(p.sku||('ID '+p.id))+'</strong> – '+escapeHtml(p.name||'')+' <span class="text-muted small">(ID '+p.id+')</span></div>').join('');
+        if(syncSkus && memberSkusInput){
+          memberSkusInput.value=mergeSkuValues(rows.map(p=>p.sku||'')).join('\n');
+          updateSkuPasteInfo();
+        }
+      });
+    }
+    window.GawelaMembers_Completed=function(){renderMembers(membersInput.value||'',true);return true;};
+
+    memberSkusInput?.addEventListener('input',updateSkuPasteInfo);
+    memberSkusInput?.addEventListener('paste',function(){setTimeout(updateSkuPasteInfo,0);});
+    updateSkuPasteInfo();
+
+    function activeSlots(){return [...layerList.querySelectorAll('.gawela-layer-slot')].filter(x=>x.querySelector('.gawela-layer-active')?.value==='true');}
+    function updateLayerUi(){
+      const active=activeSlots();
+      active.forEach((slot,n)=>{const el=slot.querySelector('.gawela-layer-number');if(el)el.textContent=String(n+1);});
+      const full=active.length>=8;
+      addLayer.disabled=full;
+      limit.classList.toggle('d-none',!full);
+    }
+    addLayer?.addEventListener('click',function(){
+      const slot=[...layerList.querySelectorAll('.gawela-layer-slot')].find(x=>x.querySelector('.gawela-layer-active')?.value!=='true');
+      if(!slot)return;
+      slot.querySelector('.gawela-layer-active').value='true';
+      slot.classList.remove('d-none');
+      const select=slot.querySelector('.gawela-layer-attribute');
+      if(select && !select.value)select.value='0';
+      slot.scrollIntoView({behavior:'smooth',block:'nearest'});
+      updateLayerUi();
+    });
+    layerList?.addEventListener('click',function(e){
+      const btn=e.target.closest('.gawela-remove-layer'); if(!btn)return;
+      const slot=btn.closest('.gawela-layer-slot'); if(!slot)return;
+      slot.querySelector('.gawela-layer-active').value='false';
+      slot.classList.add('d-none');
+      updateLayerUi();
+    });
+    updateLayerUi();
+  })();
+  </script>
+  <script src="@Url.Content("~/Modules/Gawela.ColorConfigurator/gawela-admin-members.js?v=6.4.23")"></script>
+}
