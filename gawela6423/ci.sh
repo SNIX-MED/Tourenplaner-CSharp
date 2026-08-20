@@ -132,9 +132,9 @@ Change boundary vs 6.4.22:
 - module.json (version only)
 EOF
 
-# The temporary PR workflow currently uploads gawela6422/output. Mirror the verified
-# 6.4.23 deliverables there as additional files so they are downloadable from the run.
-cp "$GITHUB_WORKSPACE/gawela6423/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.23.zip" "$GITHUB_WORKSPACE/gawela6422/output/"
-cp "$GITHUB_WORKSPACE/gawela6423/output/Gawela.ColorConfigurator.6.4.23-complete-source.zip" "$GITHUB_WORKSPACE/gawela6422/output/"
-cp "$GITHUB_WORKSPACE/gawela6423/output/SHA256SUMS.txt" "$GITHUB_WORKSPACE/gawela6422/output/SHA256SUMS-6.4.23.txt"
-cp "$GITHUB_WORKSPACE/gawela6423/output/BUILD-REPORT.txt" "$GITHUB_WORKSPACE/gawela6422/output/BUILD-REPORT-6.4.23.txt"
+# The temporary PR workflow uploads fixed 6.4.22 paths. Replace those artifact files
+# with the already verified 6.4.23 deliverables; they are renamed back after download.
+cp "$GITHUB_WORKSPACE/gawela6423/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.23.zip" "$GITHUB_WORKSPACE/gawela6422/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.22.zip"
+cp "$GITHUB_WORKSPACE/gawela6423/output/Gawela.ColorConfigurator.6.4.23-complete-source.zip" "$GITHUB_WORKSPACE/gawela6422/output/Gawela.ColorConfigurator.6.4.22-complete-source.zip"
+cp "$GITHUB_WORKSPACE/gawela6423/output/SHA256SUMS.txt" "$GITHUB_WORKSPACE/gawela6422/output/SHA256SUMS.txt"
+cp "$GITHUB_WORKSPACE/gawela6423/output/BUILD-REPORT.txt" "$GITHUB_WORKSPACE/gawela6422/output/BUILD-REPORT.txt"
