@@ -2,9 +2,8 @@ name: RackConfig Backend Build
 on:
   push:
     branches: [ rackconfig-backend-6422 ]
-    paths:
-      - 'rackconfig-build/**'
-      - '.github/workflows/rackconfig-backend-build.yml'
+  pull_request:
+    branches: [ main ]
 permissions:
   contents: read
 jobs:
