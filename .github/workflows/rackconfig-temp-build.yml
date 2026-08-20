@@ -41,6 +41,20 @@ jobs:
           mkdir -p "$TARGET"
           cp -R /tmp/racksrc/* "$TARGET"/
           rm -f "$TARGET/source.tar.gz"
+          cat > "$TARGET/module.json" <<'JSON'
+          {
+            "$schema": "../module.schema.json",
+            "Author": "GAWELA GmbH",
+            "Group": "CMS",
+            "SystemName": "Gawela.RackConfig",
+            "FriendlyName": "GAWELA Palettenregal-Konfigurator",
+            "Description": "Palettenregal-Konfigurator mit persistenten Einstellungen und OutputCache-Fix.",
+            "Version": "6.4.32",
+            "MinAppVersion": "6.4.0",
+            "Order": 100,
+            "ResourceRootKey": "Plugins.Gawela.RackConfig"
+          }
+          JSON
           dotnet build "$TARGET/Gawela.RackConfig.csproj" -c DebugNoRazorCompile -p:RazorCompileOnBuild=false -p:RazorCompileOnPublish=false 2>&1 | tee /tmp/build.log
           CODE=${PIPESTATUS[0]}
           echo "$CODE" > /tmp/build.exit
