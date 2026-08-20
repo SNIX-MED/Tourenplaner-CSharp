@@ -4,8 +4,8 @@
   "Group": "CMS",
   "SystemName": "Gawela.RackConfig",
   "FriendlyName": "GAWELA Palettenregal-Konfigurator",
-  "Description": "Palettenregal-Konfigurator mit Smartstore-Backend für Kategorie- und Zubehörzuordnung.",
-  "Version": "6.4.22",
+  "Description": "Palettenregal-Konfigurator mit Smartstore-Backend für mehrere Warengruppen und dynamische Zubehörzuordnungen.",
+  "Version": "6.4.23",
   "MinAppVersion": "6.4.0",
   "Order": 100,
   "ResourceRootKey": "Plugins.Gawela.RackConfig"
