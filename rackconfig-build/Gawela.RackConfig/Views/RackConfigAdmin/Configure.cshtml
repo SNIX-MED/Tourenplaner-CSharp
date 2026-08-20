@@ -1,0 +1,27 @@
+@model ConfigurationModel
+@{
+    Layout = "_ConfigureModule";
+    var accessories = new[] {
+        new { L="Spanplattenauflagen", W="1825 mm", P=nameof(Model.Spanplatte1825Id), I=Model.Spanplatte1825Id }, new { L="Spanplattenauflagen", W="2700 mm", P=nameof(Model.Spanplatte2700Id), I=Model.Spanplatte2700Id }, new { L="Spanplattenauflagen", W="3600 mm", P=nameof(Model.Spanplatte3600Id), I=Model.Spanplatte3600Id },
+        new { L="Gitterrostauflagen", W="1825 mm", P=nameof(Model.Gitterrost1825Id), I=Model.Gitterrost1825Id }, new { L="Gitterrostauflagen", W="2700 mm", P=nameof(Model.Gitterrost2700Id), I=Model.Gitterrost2700Id }, new { L="Gitterrostauflagen", W="3600 mm", P=nameof(Model.Gitterrost3600Id), I=Model.Gitterrost3600Id },
+        new { L="Stahlpanelauflagen", W="1825 mm", P=nameof(Model.Stahlpanel1825Id), I=Model.Stahlpanel1825Id }, new { L="Stahlpanelauflagen", W="2700 mm", P=nameof(Model.Stahlpanel2700Id), I=Model.Stahlpanel2700Id }, new { L="Stahlpanelauflagen", W="3600 mm", P=nameof(Model.Stahlpanel3600Id), I=Model.Stahlpanel3600Id },
+        new { L="Drahtgitterauflagen", W="1825 mm", P=nameof(Model.Drahtgitter1825Id), I=Model.Drahtgitter1825Id }, new { L="Drahtgitterauflagen", W="2700 mm", P=nameof(Model.Drahtgitter2700Id), I=Model.Drahtgitter2700Id }, new { L="Drahtgitterauflagen", W="3600 mm", P=nameof(Model.Drahtgitter3600Id), I=Model.Drahtgitter3600Id },
+        new { L="Durchschubsicherungen", W="1825 mm", P=nameof(Model.Durchschub1825Id), I=Model.Durchschub1825Id }, new { L="Durchschubsicherungen", W="2700 mm", P=nameof(Model.Durchschub2700Id), I=Model.Durchschub2700Id }, new { L="Durchschubsicherungen", W="3600 mm", P=nameof(Model.Durchschub3600Id), I=Model.Durchschub3600Id },
+        new { L="Eck-Rammschutz", W="alle Höhen", P=nameof(Model.EckRammschutzId), I=Model.EckRammschutzId }, new { L="Mittelstützen-Rammschutz", W="76 mm / H 2000–3500", P=nameof(Model.MittelRammschutz76Id), I=Model.MittelRammschutz76Id }, new { L="Mittelstützen-Rammschutz", W="100 mm / H 4000–4500", P=nameof(Model.MittelRammschutz100Id), I=Model.MittelRammschutz100Id }
+    };
+}
+<form asp-action="Configure" method="post">
+<div class="section-header"><div class="title">Palettenregal-Konfigurator</div><div class="options"><button type="submit" class="btn btn-warning"><i class="fa fa-check"></i> Speichern</button></div></div>
+<div asp-validation-summary="All"></div>
+<div class="card mb-3"><div class="card-header"><strong>Allgemeine Einstellungen</strong></div><div class="card-body">
+<div class="form-group row"><label class="col-lg-3 col-form-label">Konfigurator aktiv</label><div class="col-lg-6"><input asp-for="Enabled" /></div></div>
+<div class="form-group row"><label class="col-lg-3 col-form-label">Warengruppe</label><div class="col-lg-8"><input asp-for="CategoryId" type="hidden" /><entity-picker entity-type="category" target-input-selector="#CategoryId" selected="@Model.Selected(Model.CategoryId)" max-items="1" append-mode="false" caption="Warengruppe auswählen" icon-css-class="fa fa-folder-open" dialog-title="Warengruppe auswählen" /><small class="form-text text-muted">Der Konfigurator wird automatisch auf dieser Warengruppenseite angezeigt.</small></div></div>
+<div class="form-group row"><label class="col-lg-3 col-form-label">Standard-Traglast</label><div class="col-lg-3"><input asp-for="MaxPalletWeight" class="form-control" min="1" /></div><div class="col-lg-1 col-form-label">kg</div></div>
+<div class="form-group row"><label class="col-lg-3 col-form-label">Standard-Regaltiefe</label><div class="col-lg-3"><input asp-for="DefaultDepth" class="form-control" min="1" /></div><div class="col-lg-1 col-form-label">mm</div></div>
+<div class="form-group row"><label class="col-lg-3 col-form-label">Vorschlagsvarianten</label><div class="col-lg-3"><input asp-for="MaxVariants" class="form-control" min="1" max="4" /></div></div>
+<div class="form-group row mb-0"><label class="col-lg-3 col-form-label">Mindest-Trägerebenen total</label><div class="col-lg-3"><small>2000–3500 mm</small><input asp-for="MinLevelsLow" class="form-control" min="1" /></div><div class="col-lg-3"><small>4000–4500 mm</small><input asp-for="MinLevelsHigh" class="form-control" min="1" /></div></div>
+</div></div>
+<div class="card"><div class="card-header"><strong>Zubehör-Zuordnung</strong><div class="small text-muted">Jede Position wird mit Smartstores Artikelauswahl einem konkreten Shopartikel zugeordnet. Leere Positionen verwenden die automatische Erkennung als Fallback.</div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-striped mb-0"><thead><tr><th>Zubehör</th><th>Ausführung</th><th>Smartstore-Artikel</th></tr></thead><tbody>
+@foreach (var row in accessories) { <tr><td><strong>@row.L</strong></td><td>@row.W</td><td><input type="hidden" id="@row.P" name="@row.P" value="@row.I" /><entity-picker entity-type="product" target-input-selector="@($"#{row.P}")" selected="@Model.Selected(row.I)" max-items="1" append-mode="false" caption="Artikel auswählen" icon-css-class="fa fa-search" dialog-title="@($"{row.L} {row.W}")" /></td></tr> }
+</tbody></table></div></div></div>
+</form>
