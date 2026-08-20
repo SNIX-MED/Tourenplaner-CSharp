@@ -1,7 +1,7 @@
 name: RackConfig Backend Build
 on:
   push:
-    branches: [ rackconfig-backend-6426 ]
+    branches: [ rackconfig-backend-6431 ]
   pull_request:
     branches: [ main ]
 permissions:
@@ -14,12 +14,37 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Patch RackConfig update persistence
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('rackconfig-build/Gawela.RackConfig/RackConfigBackend.cs')
+          s = p.read_text(encoding='utf-8')
+          old = '''        public override async Task UninstallAsync()\n        {\n            await DeleteSettingsAsync<RackConfigSettings>();\n            await base.UninstallAsync();\n        }'''
+          new = '''        public override async Task UninstallAsync()\n        {\n            // Keep configuration settings across Smartstore uninstall/install update cycles.\n            // CategoryIds, AccessoryMappingsJson and all legacy product IDs remain in the database.\n            await base.UninstallAsync();\n        }'''
+          if old not in s:
+              raise SystemExit('Expected settings-deletion block not found')
+          p.write_text(s.replace(old, new), encoding='utf-8')
+          for view in [
+              Path('rackconfig-build/Gawela.RackConfig/Views/Shared/Components/RackConfigurator/Default.cshtml'),
+              Path('rackconfig-build/Gawela.RackConfig/Views/Shared/_RackConfigurator.cshtml')
+          ]:
+              if view.exists():
+                  v = view.read_text(encoding='utf-8').replace('6.4.26', '6.4.31')
+                  view.write_text(v, encoding='utf-8')
+          PY
       - name: Checkout Smartstore 6.4
         run: git clone --depth 1 --branch 6.4.0.x https://github.com/smartstore/Smartstore.git smartstore
       - name: Copy module source
         run: cp -R rackconfig-build/Gawela.RackConfig smartstore/src/Smartstore.Modules/Gawela.RackConfig
       - name: Build module
         run: dotnet build smartstore/src/Smartstore.Modules/Gawela.RackConfig/Gawela.RackConfig.csproj -c Release --nologo
+      - name: Verify persistence patch
+        run: |
+          if grep -q 'DeleteSettingsAsync<RackConfigSettings>' smartstore/src/Smartstore.Modules/Gawela.RackConfig/RackConfigBackend.cs; then
+            echo 'Persistence patch failed'; exit 1
+          fi
+          grep -q 'await base.UninstallAsync();' smartstore/src/Smartstore.Modules/Gawela.RackConfig/RackConfigBackend.cs
       - name: Collect compiled module
         run: |
           mkdir -p artifact
@@ -27,6 +52,6 @@ jobs:
           if [ -f smartstore/src/Smartstore.Web/Modules/Gawela.RackConfig/Gawela.RackConfig.pdb ]; then cp smartstore/src/Smartstore.Web/Modules/Gawela.RackConfig/Gawela.RackConfig.pdb artifact/; fi
       - uses: actions/upload-artifact@v4
         with:
-          name: Gawela-RackConfig-6426-compiled
+          name: Gawela-RackConfig-6431-compiled
           path: artifact/
           if-no-files-found: error
