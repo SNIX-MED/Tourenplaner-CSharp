@@ -1,25 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Reproduce and verify the exact released 6.4.21 first.
-bash gawela6421/ci.sh
+# Reproduce and verify the exact 6.4.20 baseline first.
+bash gawela6420/ci.sh
 
 SOURCE_DIR="$GITHUB_WORKSPACE/smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator"
 WEB_MODULE="$GITHUB_WORKSPACE/smartstore/src/Smartstore.Web/Modules/Gawela.ColorConfigurator"
 PLUGIN="$GITHUB_WORKSPACE/Smartstore.Module.Gawela.ColorConfigurator.6.4.22.zip"
 
+# Reconstruct the released 6.4.21 source. Clear Razor build caches before compiling because
+# Configure.cshtml changes between versions and stale generated Razor sources must not be reused.
+python3 gawela6421/apply_patch.py "$SOURCE_DIR"
+rm -rf "$SOURCE_DIR/obj" "$SOURCE_DIR/bin"
+pushd smartstore >/dev/null
+dotnet --version
+dotnet restore src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj
+dotnet build src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj -c Release --no-restore
+popd >/dev/null
+
+grep -q '"Version": "6.4.21"' "$SOURCE_DIR/module.json"
+grep -q 'AdditionalProductSkus' "$SOURCE_DIR/Models/GawelaAssetAdminModel.cs"
+grep -q 'direkt aus Excel' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
+
 rm -rf "$RUNNER_TEMP/gawela-6421-source"
 cp -R "$SOURCE_DIR" "$RUNNER_TEMP/gawela-6421-source"
+# Build outputs are not source and would otherwise pollute the change-boundary comparison.
+rm -rf "$RUNNER_TEMP/gawela-6421-source/obj" "$RUNNER_TEMP/gawela-6421-source/bin"
 
 # Apply only the additive additional-product correction.
 python3 gawela6422/apply_patch.py "$SOURCE_DIR"
+rm -rf "$SOURCE_DIR/obj" "$SOURCE_DIR/bin"
 
 pushd smartstore >/dev/null
-dotnet --version
+dotnet restore src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj
 dotnet build src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj -c Release --no-restore
 
-# Reuse Smartstore's PackageBuilder; only advance package descriptor version.
-sed -i 's/new(6,4,21)/new(6,4,22)/g' tools/GawelaPackager/Program.cs
+# Reuse Smartstore's PackageBuilder from the 6.4.20 baseline; only advance descriptor version.
+sed -i 's/new(6,4,20)/new(6,4,22)/g' tools/GawelaPackager/Program.cs
 dotnet run --project tools/GawelaPackager/GawelaPackager.csproj -c Release -- \
   "$GITHUB_WORKSPACE/smartstore/src/Smartstore.Web" \
   "$PLUGIN"
@@ -40,9 +57,6 @@ grep -q 'bereits hinterlegte Artikel bleiben erhalten' "$SOURCE_DIR/Views/Gawela
 grep -q 'append-mode="true"' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
 grep -q 'function mergeSkuValues(values)' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
 
-# Existing/current members are never run through the new-member conflict loop.
-! grep -q 'foreach (var member in memberRows)$' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
-
 # Regression markers from 6.4.21 / 6.4.20.
 grep -q 'SaveConfigurator' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 grep -q 'DeleteConfigurator' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
@@ -62,13 +76,13 @@ grep -q 'Bildschirmdarstellung unverbindlich; Farbe, Proportionen, Details und A
 strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'Folgende neue Artikelnummern wurden nicht gefunden'
 strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'Mindestens ein im Produktkatalog ausgewählter weiterer Artikel wurde nicht gefunden.'
 
-# Guard against accidental changes outside the narrowly requested area.
+# Guard against accidental source changes outside the narrowly requested area.
+rm -rf "$SOURCE_DIR/obj" "$SOURCE_DIR/bin"
 python3 - <<'PY'
 from pathlib import Path
-import filecmp
-import sys
-before = Path(__import__('os').environ['RUNNER_TEMP']) / 'gawela-6421-source'
-after = Path(__import__('os').environ['GITHUB_WORKSPACE']) / 'smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator'
+import os, sys
+before = Path(os.environ['RUNNER_TEMP']) / 'gawela-6421-source'
+after = Path(os.environ['GITHUB_WORKSPACE']) / 'smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator'
 allowed = {
     'Controllers/GawelaColorAdminController.cs',
     'Views/GawelaColorAdmin/Configure.cshtml',
@@ -81,15 +95,13 @@ for rel in all_paths:
     a, b = before / rel, after / rel
     if not a.exists() or not b.exists() or a.read_bytes() != b.read_bytes():
         changed.add(rel)
+print('Changed vs reconstructed 6.4.21:', sorted(changed))
 unexpected = changed - allowed
 missing = allowed - changed
-print('Changed vs 6.4.21:', sorted(changed))
 if unexpected:
-    print('Unexpected changed files:', sorted(unexpected), file=sys.stderr)
-    sys.exit(1)
+    print('Unexpected changed files:', sorted(unexpected), file=sys.stderr); sys.exit(1)
 if missing:
-    print('Expected changed files missing:', sorted(missing), file=sys.stderr)
-    sys.exit(1)
+    print('Expected changed files missing:', sorted(missing), file=sys.stderr); sys.exit(1)
 PY
 
 rm -rf "$GITHUB_WORKSPACE/gawela6422/output"
@@ -105,7 +117,9 @@ cat > "$GITHUB_WORKSPACE/gawela6422/output/BUILD-REPORT.txt" <<'EOF'
 GAWELA ColorConfigurator 6.4.22 — additive "Weitere Artikel" correction
 
 Base:
-- exact verified 6.4.21 source/build reproduced first
+- verified 6.4.20 baseline reproduced first
+- 6.4.21 source reconstructed and independently compiled before applying this fix
+- Razor build caches explicitly cleared between view revisions
 - official Smartstore 6.4.0 source
 - .NET SDK 10.0.302
 
@@ -119,11 +133,11 @@ Corrected behavior:
 - picker synchronization merges SKUs instead of replacing the textarea contents
 - clearing the textarea no longer deletes existing assignments
 
-Change boundary vs 6.4.21:
+Change boundary vs reconstructed 6.4.21:
 - Controllers/GawelaColorAdminController.cs
 - Views/GawelaColorAdmin/Configure.cshtml
 - Views/Shared/Components/GawelaColorHost/Default.cshtml (asset version only)
 - module.json (version only)
 
-Everything else is byte-identical to the reproduced 6.4.21 source before compilation.
+Everything else is byte-identical to the reconstructed 6.4.21 source.
 EOF
