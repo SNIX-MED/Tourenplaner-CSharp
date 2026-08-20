@@ -23,7 +23,6 @@ dotnet build src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigu
   -c Release --no-restore -p:BuildProjectReferences=false
 popd >/dev/null
 
-# Explicitly synchronize changed loose files after the incremental module build.
 cp "$SOURCE_DIR/module.json" "$WEB_MODULE/module.json"
 mkdir -p "$WEB_MODULE/Views/GawelaColorAdmin" "$WEB_MODULE/Views/Shared/Components/GawelaColorHost"
 cp "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml" "$WEB_MODULE/Views/GawelaColorAdmin/Configure.cshtml"
@@ -49,7 +48,6 @@ unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/Views/GawelaColorAdmin/Confi
 unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/Views/GawelaColorAdmin/Configure.cshtml | grep -q 'gawela-remove-member'
 unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/Views/GawelaColorAdmin/Configure.cshtml | grep -q 'Nur diese Liste bestimmt beim Speichern'
 
-# Exact requested behavior.
 grep -q 'AdditionalProductIds is the exact, authoritative assignment list' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 grep -q 'var additionalIds = ParseProductIds(model.AdditionalProductIds)' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 grep -q 'ProductSummariesBySkus' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
@@ -59,11 +57,9 @@ grep -q 'gawela-remove-member' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.csh
 grep -q "memberSkusInput.value=''" "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
 grep -q 'setMemberIds(memberIds().filter' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
 
-# Removed products must actually be removable: saving no longer forcibly re-adds stored members.
 ! grep -q 'var additionalIds = existingAdditionalIds' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 ! grep -q 'Concat(pastedNewRows' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 
-# Existing feature regression markers.
 grep -q 'SaveConfigurator' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 grep -q 'DeleteConfigurator' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 grep -q 'ParseProductSkus' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
@@ -76,22 +72,15 @@ grep -q 'smartGallery' "$SOURCE_DIR/wwwroot/gawela-color.js"
 grep -q 'ProductGroup' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
 grep -q 'Assets.JsonLd.Product' "$SOURCE_DIR/Views/Shared/Components/GawelaColorSeo/Default.cshtml"
 
-# New endpoint and assignment wording must be present in the compiled assembly.
 strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'ProductSummariesBySkus'
 strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'Mindestens ein zugeordneter Artikel wurde im Produktkatalog nicht gefunden.'
 
-# Narrow change boundary vs verified 6.4.22.
 python3 - <<'PY'
 from pathlib import Path
 import os, sys
 before=Path(os.environ['RUNNER_TEMP'])/'gawela-6422-source'
 after=Path(os.environ['GITHUB_WORKSPACE'])/'smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator'
-allowed={
- 'Controllers/GawelaColorAdminController.cs',
- 'Views/GawelaColorAdmin/Configure.cshtml',
- 'Views/Shared/Components/GawelaColorHost/Default.cshtml',
- 'module.json',
-}
+allowed={'Controllers/GawelaColorAdminController.cs','Views/GawelaColorAdmin/Configure.cshtml','Views/Shared/Components/GawelaColorHost/Default.cshtml','module.json'}
 changed=set()
 paths={p.relative_to(before).as_posix() for p in before.rglob('*') if p.is_file()}|{p.relative_to(after).as_posix() for p in after.rglob('*') if p.is_file()}
 for rel in paths:
@@ -142,3 +131,10 @@ Change boundary vs 6.4.22:
 - Views/Shared/Components/GawelaColorHost/Default.cshtml (asset version only)
 - module.json (version only)
 EOF
+
+# The temporary PR workflow currently uploads gawela6422/output. Mirror the verified
+# 6.4.23 deliverables there as additional files so they are downloadable from the run.
+cp "$GITHUB_WORKSPACE/gawela6423/output/Smartstore.Module.Gawela.ColorConfigurator.6.4.23.zip" "$GITHUB_WORKSPACE/gawela6422/output/"
+cp "$GITHUB_WORKSPACE/gawela6423/output/Gawela.ColorConfigurator.6.4.23-complete-source.zip" "$GITHUB_WORKSPACE/gawela6422/output/"
+cp "$GITHUB_WORKSPACE/gawela6423/output/SHA256SUMS.txt" "$GITHUB_WORKSPACE/gawela6422/output/SHA256SUMS-6.4.23.txt"
+cp "$GITHUB_WORKSPACE/gawela6423/output/BUILD-REPORT.txt" "$GITHUB_WORKSPACE/gawela6422/output/BUILD-REPORT-6.4.23.txt"
