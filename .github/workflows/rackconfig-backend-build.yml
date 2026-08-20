@@ -1,0 +1,33 @@
+name: RackConfig Backend Build
+on:
+  push:
+    branches: [ rackconfig-backend-6422 ]
+    paths:
+      - 'rackconfig-build/**'
+      - '.github/workflows/rackconfig-backend-build.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Checkout Smartstore 6.4
+        run: git clone --depth 1 --branch 6.4.0.x https://github.com/smartstore/Smartstore.git smartstore
+      - name: Copy module source
+        run: cp -R rackconfig-build/Gawela.RackConfig smartstore/src/Smartstore.Modules/Gawela.RackConfig
+      - name: Build module
+        run: dotnet build smartstore/src/Smartstore.Modules/Gawela.RackConfig/Gawela.RackConfig.csproj -c Release --nologo
+      - name: Collect compiled module
+        run: |
+          mkdir -p artifact
+          cp smartstore/src/Smartstore.Web/Modules/Gawela.RackConfig/Gawela.RackConfig.dll artifact/
+          if [ -f smartstore/src/Smartstore.Web/Modules/Gawela.RackConfig/Gawela.RackConfig.pdb ]; then cp smartstore/src/Smartstore.Web/Modules/Gawela.RackConfig/Gawela.RackConfig.pdb artifact/; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Gawela-RackConfig-6422-compiled
+          path: artifact/
+          if-no-files-found: error
