@@ -47,17 +47,33 @@ fi
 # module avoids unrelated Smartstore projects while still compiling C#, Razor views and DLL.
 dotnet build src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigurator.csproj \
   -c Release --no-restore -p:BuildProjectReferences=false
+popd >/dev/null
+
+# DeployModule can leave unchanged-content files from the earlier baseline in place during
+# a very fast incremental module-only build. Explicitly synchronize the only loose files
+# changed by 6.4.22 before packaging; the DLL above is the freshly compiled 6.4.22 assembly.
+cp "$SOURCE_DIR/module.json" "$WEB_MODULE/module.json"
+mkdir -p "$WEB_MODULE/Views/GawelaColorAdmin" "$WEB_MODULE/Views/Shared/Components/GawelaColorHost"
+cp "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml" "$WEB_MODULE/Views/GawelaColorAdmin/Configure.cshtml"
+cp "$SOURCE_DIR/Views/Shared/Components/GawelaColorHost/Default.cshtml" "$WEB_MODULE/Views/Shared/Components/GawelaColorHost/Default.cshtml"
+
+grep -q '"Version": "6.4.22"' "$WEB_MODULE/module.json"
+grep -q 'Bestehende Zuordnungen bleiben erhalten' "$WEB_MODULE/Views/GawelaColorAdmin/Configure.cshtml"
+grep -q 'v=6.4.22' "$WEB_MODULE/Views/Shared/Components/GawelaColorHost/Default.cshtml"
 
 # Reuse Smartstore's PackageBuilder from the baseline; only advance descriptor version.
+pushd smartstore >/dev/null
 sed -i 's/new(6,4,20)/new(6,4,22)/g' tools/GawelaPackager/Program.cs
 dotnet run --project tools/GawelaPackager/GawelaPackager.csproj -c Release -- \
   "$GITHUB_WORKSPACE/smartstore/src/Smartstore.Web" \
   "$PLUGIN"
 popd >/dev/null
 
+set -x
 test -s "$PLUGIN"
 unzip -t "$PLUGIN"
 unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/module.json | grep -q '"Version": "6.4.22"'
+unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/Views/GawelaColorAdmin/Configure.cshtml | grep -q 'Bestehende Zuordnungen bleiben erhalten'
 
 # Exact requested behavior.
 grep -q 'var existingAdditionalIds = currentMemberIds' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
@@ -102,7 +118,7 @@ allowed = {
     'module.json',
 }
 changed = set()
-all_paths = {p.relative_to(before).as_posix() for p in before.rglob('*') if p.is_file()} | {p.relative_to(after).as_posix() for p in after.rglob('*') if p.is_file() and '/obj/' not in '/' + p.relative_to(after).as_posix() and '/bin/' not in '/' + p.relative_to(after).as_posix()}
+all_paths = {p.relative_to(before).as_posix() for p in before.rglob('*') if p.is_file()} | {p.relative_to(after).as_posix() for p in after.rglob('*') if p.is_file()}
 for rel in all_paths:
     if rel.startswith('obj/') or rel.startswith('bin/'):
         continue
