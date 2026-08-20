@@ -21,6 +21,14 @@ jobs:
           mkdir -p /tmp/racksrc
           cat .tmp-rack/payload.part.* | base64 -d > /tmp/racksrc/source.tar.gz
           tar -xzf /tmp/racksrc/source.tar.gz -C /tmp/racksrc
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/racksrc/Gawela.RackConfig.csproj')
+          s = p.read_text()
+          s = s.replace('<Nullable>enable</Nullable>', '<Nullable>enable</Nullable>\n    <ImplicitUsings>enable</ImplicitUsings>')
+          s = s.replace('..\\Smartstore.Web\\Smartstore.Web.csproj', '..\\..\\Smartstore.Web\\Smartstore.Web.csproj')
+          p.write_text(s)
+          PY
       - name: Checkout Smartstore 6.4.0
         run: git clone --depth 1 --branch 6.4.0 https://github.com/smartstore/Smartstore.git /tmp/smartstore
       - name: Build plugin
