@@ -14,6 +14,10 @@ rm -rf "$RUNNER_TEMP/gawela-6422-source/obj" "$RUNNER_TEMP/gawela-6422-source/bi
 
 python3 gawela6423/apply_patch.py "$SOURCE_DIR"
 
+# A third Razor build in the same checkout can reuse stale source-generator output from
+# the verified 6.4.22 build. Drop only that generated Razor tree; NuGet restore assets stay intact.
+rm -rf "$SOURCE_DIR/obj/Release/Microsoft.CodeAnalysis.Razor.Compiler"
+
 pushd smartstore >/dev/null
 if [ "$(dotnet --version)" != "10.0.302" ]; then
   echo "Expected .NET SDK 10.0.302" >&2
