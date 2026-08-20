@@ -13,6 +13,7 @@ cp -R "$SOURCE_DIR" "$RUNNER_TEMP/gawela-6422-source"
 rm -rf "$RUNNER_TEMP/gawela-6422-source/obj" "$RUNNER_TEMP/gawela-6422-source/bin"
 
 python3 gawela6423/apply_patch.py "$SOURCE_DIR"
+python3 gawela6423/fix_view.py "$SOURCE_DIR"
 
 # A third Razor build in the same checkout can reuse stale source-generator output from
 # the verified 6.4.22 build. Drop only that generated Razor tree; NuGet restore assets stay intact.
@@ -28,13 +29,16 @@ dotnet build src/Smartstore.Modules/Gawela.ColorConfigurator/Gawela.ColorConfigu
 popd >/dev/null
 
 cp "$SOURCE_DIR/module.json" "$WEB_MODULE/module.json"
-mkdir -p "$WEB_MODULE/Views/GawelaColorAdmin" "$WEB_MODULE/Views/Shared/Components/GawelaColorHost"
+mkdir -p "$WEB_MODULE/Views/GawelaColorAdmin" "$WEB_MODULE/Views/Shared/Components/GawelaColorHost" "$WEB_MODULE/wwwroot"
 cp "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml" "$WEB_MODULE/Views/GawelaColorAdmin/Configure.cshtml"
 cp "$SOURCE_DIR/Views/Shared/Components/GawelaColorHost/Default.cshtml" "$WEB_MODULE/Views/Shared/Components/GawelaColorHost/Default.cshtml"
+cp "$SOURCE_DIR/wwwroot/gawela-admin-members.js" "$WEB_MODULE/wwwroot/gawela-admin-members.js"
 
 grep -q '"Version": "6.4.23"' "$WEB_MODULE/module.json"
 grep -q 'Zugeordnete Artikel' "$WEB_MODULE/Views/GawelaColorAdmin/Configure.cshtml"
 grep -q 'gawela-remove-member' "$WEB_MODULE/Views/GawelaColorAdmin/Configure.cshtml"
+grep -q 'gawela-admin-members.js?v=6.4.23' "$WEB_MODULE/Views/GawelaColorAdmin/Configure.cshtml"
+grep -q 'gawela-remove-member' "$WEB_MODULE/wwwroot/gawela-admin-members.js"
 grep -q 'v=6.4.23' "$WEB_MODULE/Views/Shared/Components/GawelaColorHost/Default.cshtml"
 
 pushd smartstore >/dev/null
@@ -51,6 +55,7 @@ unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/module.json | grep -q '"Vers
 unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/Views/GawelaColorAdmin/Configure.cshtml | grep -q 'Artikel zur Zuordnungsliste hinzufügen'
 unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/Views/GawelaColorAdmin/Configure.cshtml | grep -q 'gawela-remove-member'
 unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/Views/GawelaColorAdmin/Configure.cshtml | grep -q 'Nur diese Liste bestimmt beim Speichern'
+unzip -p "$PLUGIN" Modules/Gawela.ColorConfigurator/wwwroot/gawela-admin-members.js | grep -q 'window.GawelaMembers_Completed'
 
 grep -q 'AdditionalProductIds is the exact, authoritative assignment list' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 grep -q 'var additionalIds = ParseProductIds(model.AdditionalProductIds)' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
@@ -58,8 +63,9 @@ grep -q 'ProductSummariesBySkus' "$SOURCE_DIR/Controllers/GawelaColorAdminContro
 grep -q 'AdditionalProductSkus = string.Empty' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 grep -q 'gawela-add-skus' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
 grep -q 'gawela-remove-member' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
-grep -q "memberSkusInput.value=''" "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
-grep -q 'setMemberIds(memberIds().filter' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
+grep -q 'data-resolve-url' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
+grep -q 'data-summaries-url' "$SOURCE_DIR/Views/GawelaColorAdmin/Configure.cshtml"
+grep -q 'setIds(getIds().filter' "$SOURCE_DIR/wwwroot/gawela-admin-members.js"
 
 ! grep -q 'var additionalIds = existingAdditionalIds' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
 ! grep -q 'Concat(pastedNewRows' "$SOURCE_DIR/Controllers/GawelaColorAdminController.cs"
@@ -84,7 +90,7 @@ from pathlib import Path
 import os, sys
 before=Path(os.environ['RUNNER_TEMP'])/'gawela-6422-source'
 after=Path(os.environ['GITHUB_WORKSPACE'])/'smartstore/src/Smartstore.Modules/Gawela.ColorConfigurator'
-allowed={'Controllers/GawelaColorAdminController.cs','Views/GawelaColorAdmin/Configure.cshtml','Views/Shared/Components/GawelaColorHost/Default.cshtml','module.json'}
+allowed={'Controllers/GawelaColorAdminController.cs','Views/GawelaColorAdmin/Configure.cshtml','Views/Shared/Components/GawelaColorHost/Default.cshtml','module.json','wwwroot/gawela-admin-members.js'}
 changed=set()
 paths={p.relative_to(before).as_posix() for p in before.rglob('*') if p.is_file()}|{p.relative_to(after).as_posix() for p in after.rglob('*') if p.is_file()}
 for rel in paths:
@@ -134,6 +140,7 @@ Change boundary vs 6.4.22:
 - Views/GawelaColorAdmin/Configure.cshtml
 - Views/Shared/Components/GawelaColorHost/Default.cshtml (asset version only)
 - module.json (version only)
+- wwwroot/gawela-admin-members.js (new admin-only member-list behavior)
 EOF
 
 # The temporary PR workflow uploads fixed 6.4.22 paths. Replace those artifact files
