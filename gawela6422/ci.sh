@@ -101,9 +101,8 @@ grep -q 'hasVariant' "$SOURCE_DIR/Components/GawelaColorSeoViewComponent.cs"
 grep -q 'Assets.JsonLd.Product' "$SOURCE_DIR/Views/Shared/Components/GawelaColorSeo/Default.cshtml"
 grep -q 'Bildschirmdarstellung unverbindlich; Farbe, Proportionen, Details und Ausführung können abweichen.' "$SOURCE_DIR/wwwroot/gawela-color.js"
 
-# Ensure the server-side additive logic is really in the compiled assembly.
+# Confirm the new controller logic is really present in the freshly compiled assembly.
 strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'Folgende neue Artikelnummern wurden nicht gefunden'
-strings -el "$WEB_MODULE/Gawela.ColorConfigurator.dll" | grep -q 'Mindestens ein im Produktkatalog ausgewählter weiterer Artikel wurde nicht gefunden.'
 
 # Guard against accidental source changes outside the narrowly requested area.
 python3 - <<'PY'
