@@ -2,6 +2,8 @@ name: rackconfig-source-export
 on:
   push:
     branches: [ tmp-rackconfig-634 ]
+  pull_request:
+    branches: [ main ]
 permissions:
   contents: read
 jobs:
