@@ -1,7 +1,7 @@
-name: widerack-temp-build
+name: tirerack-temp-build
 on:
   push:
-    branches: [ tmp-widerack-build ]
+    branches: [ tmp-tirerack-build ]
   pull_request:
     branches: [ main ]
 permissions:
@@ -14,14 +14,21 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Restore source payload
+      - name: Restore and transform source payload
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/wideracksrc
-          cat .tmp-widerack/payload.part.* | base64 -d > /tmp/wideracksrc/source.tar.gz
-          tar -xzf /tmp/wideracksrc/source.tar.gz -C /tmp/wideracksrc
-          rm -f /tmp/wideracksrc/source.tar.gz
+          mkdir -p /tmp/tireracksrc
+          cat .tmp-widerack/payload.part.* | base64 -d > /tmp/tireracksrc/source.tar.gz
+          tar -xzf /tmp/tireracksrc/source.tar.gz -C /tmp/tireracksrc
+          rm -f /tmp/tireracksrc/source.tar.gz
+          find /tmp/tireracksrc -type f \( -name '*.cs' -o -name '*.csproj' \) -print0 | xargs -0 sed -i \
+            -e 's/Gawela\.WideRackConfig/Gawela.TireRackConfig/g' \
+            -e 's/WideRackConfig/TireRackConfig/g' \
+            -e 's/WideRack/TireRack/g' \
+            -e 's/Weitspannregal/Reifenregal/g' \
+            -e 's/Weitspannregale/Reifenregale/g'
+          if [ -f /tmp/tireracksrc/Gawela.WideRackConfig.csproj ]; then mv /tmp/tireracksrc/Gawela.WideRackConfig.csproj /tmp/tireracksrc/Gawela.TireRackConfig.csproj; fi
       - name: Checkout Smartstore 6.4.0
         run: git clone --depth 1 --branch 6.4.0 https://github.com/smartstore/Smartstore.git /tmp/smartstore
       - name: Build plugin
@@ -30,36 +37,36 @@ jobs:
         continue-on-error: true
         run: |
           set -uo pipefail
-          TARGET=/tmp/smartstore/src/Smartstore.Modules/Gawela.WideRackConfig
+          TARGET=/tmp/smartstore/src/Smartstore.Modules/Gawela.TireRackConfig
           mkdir -p "$TARGET"
-          cp -R /tmp/wideracksrc/* "$TARGET"/
+          cp -R /tmp/tireracksrc/* "$TARGET"/
           cat > "$TARGET/module.json" <<'JSON'
-          {"$schema":"../module.schema.json","Author":"GAWELA GmbH","Group":"CMS","SystemName":"Gawela.WideRackConfig","FriendlyName":"GAWELA Weitspannregal-Konfigurator","Description":"Weitspannregal-Konfigurator für Smartstore 6.4","Version":"6.4.1","MinAppVersion":"6.4.0","Order":101,"ResourceRootKey":"Plugins.Gawela.WideRackConfig"}
+          {"$schema":"../module.schema.json","Author":"GAWELA GmbH","Group":"CMS","SystemName":"Gawela.TireRackConfig","FriendlyName":"GAWELA Reifenregal-Konfigurator","Description":"Reifenregal-Konfigurator für Smartstore 6.4","Version":"6.4.1","MinAppVersion":"6.4.0","Order":102,"ResourceRootKey":"Plugins.Gawela.TireRackConfig"}
           JSON
-          dotnet build "$TARGET/Gawela.WideRackConfig.csproj" -c DebugNoRazorCompile -p:RazorCompileOnBuild=false -p:RazorCompileOnPublish=false 2>&1 | tee /tmp/widerack-build.log
+          dotnet build "$TARGET/Gawela.TireRackConfig.csproj" -c DebugNoRazorCompile -p:RazorCompileOnBuild=false -p:RazorCompileOnPublish=false 2>&1 | tee /tmp/tirerack-build.log
           CODE=${PIPESTATUS[0]}
-          echo "$CODE" > /tmp/widerack-build.exit
+          echo "$CODE" > /tmp/tirerack-build.exit
           if [ "$CODE" -eq 0 ]; then
-            DLL=$(find "$TARGET/bin" -type f -name Gawela.WideRackConfig.dll | head -1)
+            DLL=$(find "$TARGET/bin" -type f -name Gawela.TireRackConfig.dll | head -1)
             test -n "$DLL"
             mkdir -p /tmp/out
-            cp "$DLL" /tmp/out/Gawela.WideRackConfig.dll
+            cp "$DLL" /tmp/out/Gawela.TireRackConfig.dll
           fi
           exit "$CODE"
       - name: Upload diagnostics
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: widerack-build-diagnostics
+          name: tirerack-build-diagnostics
           path: |
-            /tmp/widerack-build.log
-            /tmp/widerack-build.exit
+            /tmp/tirerack-build.log
+            /tmp/tirerack-build.exit
       - name: Upload DLL
         uses: actions/upload-artifact@v4
         if: steps.build.outcome == 'success'
         with:
-          name: widerack-6.4.1-dll
-          path: /tmp/out/Gawela.WideRackConfig.dll
+          name: tirerack-6.4.1-dll
+          path: /tmp/out/Gawela.TireRackConfig.dll
       - name: Fail if compilation failed
         if: steps.build.outcome != 'success'
         run: exit 1
