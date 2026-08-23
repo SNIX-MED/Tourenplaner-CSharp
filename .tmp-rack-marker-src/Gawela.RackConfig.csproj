@@ -9,9 +9,10 @@
     <FileVersion>6.4.42.0</FileVersion>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Smartstore.Web\Smartstore.Web.csproj">
+    <ProjectReference Include="..\..\Smartstore.Web\Smartstore.Web.csproj">
       <Private>False</Private>
       <CopyLocal>False</CopyLocal>
       <CopyLocalSatelliteAssemblies>False</CopyLocalSatelliteAssemblies>
