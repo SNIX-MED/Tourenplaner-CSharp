@@ -2,6 +2,8 @@ name: rack-marker-temp-build
 on:
   push:
     branches: [ tmp-rack-marker-642 ]
+  pull_request:
+    branches: [ main ]
 permissions:
   contents: read
 jobs:
