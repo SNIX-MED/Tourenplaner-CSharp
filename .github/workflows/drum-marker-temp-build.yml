@@ -2,6 +2,8 @@ name: drum-marker-temp-build
 on:
   push:
     branches: [ tmp-drum-marker-644 ]
+  pull_request:
+    branches: [ main ]
 permissions:
   contents: read
 jobs:
