@@ -22,6 +22,10 @@ jobs:
           cat .tmp-rack-marker/payload.part.* | base64 -d > /tmp/racksrc/source.tar.gz
           tar -xzf /tmp/racksrc/source.tar.gz -C /tmp/racksrc
           rm -f /tmp/racksrc/source.tar.gz
+          # The reconstructed source predates SDK implicit-usings and was originally
+          # compiled one directory higher. Normalize both build details here.
+          sed -i 's#<Nullable>enable</Nullable>#<Nullable>enable</Nullable>\n    <ImplicitUsings>enable</ImplicitUsings>#' /tmp/racksrc/Gawela.RackConfig.csproj
+          sed -i 's#..\\Smartstore.Web\\Smartstore.Web.csproj#..\\..\\Smartstore.Web\\Smartstore.Web.csproj#' /tmp/racksrc/Gawela.RackConfig.csproj
       - name: Checkout Smartstore 6.4.0
         run: git clone --depth 1 --branch 6.4.0 https://github.com/smartstore/Smartstore.git /tmp/smartstore
       - name: Build plugin
