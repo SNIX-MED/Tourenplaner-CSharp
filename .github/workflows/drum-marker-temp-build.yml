@@ -1,0 +1,60 @@
+name: drum-marker-temp-build
+on:
+  push:
+    branches: [ tmp-drum-marker-644 ]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Prepare DrumRackConfig source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/drumsrc
+          cp -R .tmp-drum-marker-src/. /tmp/drumsrc/
+          test -f /tmp/drumsrc/module.json
+          test -f /tmp/drumsrc/DrumRackPlugin.cs
+      - name: Checkout Smartstore 6.4.0
+        run: git clone --depth 1 --branch 6.4.0 https://github.com/smartstore/Smartstore.git /tmp/smartstore
+      - name: Build plugin
+        id: build
+        shell: bash
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          TARGET=/tmp/smartstore/src/Smartstore.Modules/Gawela.DrumRackConfig
+          mkdir -p "$TARGET"
+          cp -R /tmp/drumsrc/. "$TARGET"/
+          dotnet build "$TARGET/Gawela.DrumRackConfig.csproj" -c DebugNoRazorCompile -p:RazorCompileOnBuild=false -p:RazorCompileOnPublish=false 2>&1 | tee /tmp/drum-marker-build.log
+          CODE=${PIPESTATUS[0]}
+          echo "$CODE" > /tmp/drum-marker-build.exit
+          if [ "$CODE" -eq 0 ]; then
+            DLL=$(find "$TARGET/bin" -type f -name Gawela.DrumRackConfig.dll | head -1)
+            test -n "$DLL"
+            mkdir -p /tmp/out
+            cp "$DLL" /tmp/out/Gawela.DrumRackConfig.dll
+          fi
+          exit "$CODE"
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drum-marker-build-diagnostics
+          path: |
+            /tmp/drum-marker-build.log
+            /tmp/drum-marker-build.exit
+      - name: Upload DLL
+        uses: actions/upload-artifact@v4
+        if: steps.build.outcome == 'success'
+        with:
+          name: drumrackconfig-6.4.4-dll
+          path: /tmp/out/Gawela.DrumRackConfig.dll
+      - name: Fail if compilation failed
+        if: steps.build.outcome != 'success'
+        run: exit 1
