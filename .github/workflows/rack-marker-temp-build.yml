@@ -20,8 +20,6 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/racksrc
           cp -R .tmp-rack-marker-src/. /tmp/racksrc/
-          sed -i 's#<Nullable>enable</Nullable>#<Nullable>enable</Nullable>\n    <ImplicitUsings>enable</ImplicitUsings>#' /tmp/racksrc/Gawela.RackConfig.csproj
-          sed -i 's#..\\Smartstore.Web\\Smartstore.Web.csproj#..\\..\\Smartstore.Web\\Smartstore.Web.csproj#' /tmp/racksrc/Gawela.RackConfig.csproj
           test -f /tmp/racksrc/module.json
           test -f /tmp/racksrc/Events.cs
           test -f /tmp/racksrc/Controllers/PalletRackXController.cs
