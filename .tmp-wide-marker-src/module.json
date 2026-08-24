@@ -1,0 +1,12 @@
+{
+  "$schema": "../module.schema.json",
+  "Author": "GAWELA GmbH",
+  "Group": "CMS",
+  "SystemName": "Gawela.WideRackConfig",
+  "FriendlyName": "GAWELA Weitspannregal-Konfigurator",
+  "Description": "Weitspannregal-Konfigurator für Smartstore 6.4 mit mehreren Regalzeilen, Grund-/Anbauregal-Optimierung, Fachlastprüfung, Holz-/Metallauflage, Zusatzebenen, Live-Montage, Warenkorb, Offertanfrage und Shopbar-Zähler. Version 6.4.11 ergänzt sichtbare und persistente Quellenkennzeichnung für Offertanfragen und Bestellungen sowie ausklappbare, serverseitig gerenderte SEO-/KI-Informationen.",
+  "Version": "6.4.11",
+  "MinAppVersion": "6.4.0",
+  "Order": 101,
+  "ResourceRootKey": "Plugins.Gawela.WideRackConfig"
+}
