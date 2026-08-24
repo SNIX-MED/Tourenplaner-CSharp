@@ -1,7 +1,7 @@
 name: profilerack-marker-temp-build
 on:
   push:
-    branches: [ tmp-profilerack-marker-641 ]
+    branches: [ tmp-profilerack-marker-642 ]
   pull_request:
     branches: [ main ]
 permissions:
@@ -57,7 +57,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: steps.build.outcome == 'success'
         with:
-          name: profilerackconfig-6.4.1-dll
+          name: profilerackconfig-6.4.2-dll
           path: /tmp/out/Gawela.ProfileRackConfig.dll
       - name: Fail if compilation failed
         if: steps.build.outcome != 'success'
