@@ -1,0 +1,12 @@
+{
+  "$schema": "../module.schema.json",
+  "Author": "GAWELA GmbH",
+  "Group": "CMS",
+  "SystemName": "Gawela.TireRackConfig",
+  "FriendlyName": "GAWELA Reifenregal-Konfigurator",
+  "Description": "Reifenregal-Konfigurator für Smartstore 6.4 mit mehreren Regalzeilen, Grund-/Anbauregal-Optimierung, 500 kg Fachlast, Reifenebenen/Zusatzebenen, optionalen Holzauflagen mit anpassbaren Mengen, Live-Montage, Warenkorb, Offertanfrage, Shopbar-Zählern sowie sichtbarer Quellenkennzeichnung in Offertanfragen und Bestellungen und einklappbaren serverseitigen SEO-/KI-Informationen.",
+  "Version": "6.4.5",
+  "MinAppVersion": "6.4.0",
+  "Order": 102,
+  "ResourceRootKey": "Plugins.Gawela.TireRackConfig"
+}
