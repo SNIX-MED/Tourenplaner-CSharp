@@ -4,8 +4,8 @@
   "Group": "CMS",
   "SystemName": "Gawela.ProfileRackConfig",
   "FriendlyName": "GAWELA Profillager-Konfigurator",
-  "Description": "Profillager-Konfigurator für Smartstore 6.4 zur Planung von Profillager-/Langgutregal-Zeilen mit 2500/3000 mm Höhe, Feldlängen 1825/2700 mm, 1100 mm Tiefe, Grund-/Anbauregal-Optimierung, separaten Trennarmen, Live-Montage, Warenkorb, Offertanfrage, Shopbar-Zähler sowie sichtbarer und persistenter Quellenkennzeichnung für Konfigurator-Anfragen und -Bestellungen. SEO-/KI-Informationen werden vollständig serverseitig im HTML ausgegeben und für Besucher in einem einzigen ausklappbaren Bereich dargestellt.",
-  "Version": "6.4.1",
+  "Description": "Profillager-Konfigurator für Smartstore 6.4 zur Planung von Profillager-/Langgutregal-Zeilen mit 2500/3000 mm Höhe, Feldlängen 1825/2700 mm, 1100 mm Tiefe, Grund-/Anbauregal-Optimierung, separaten und zusätzlich bestellbaren Trennarmen, Live-Montage, Warenkorb, Offertanfrage, Shopbar-Zähler sowie sichtbarer und persistenter Quellenkennzeichnung für Konfigurator-Anfragen und -Bestellungen. Front- und Draufsicht werden nach dem GAWELA Palettenregal-Konfigurator dargestellt; SEO-/KI-Informationen bleiben vollständig serverseitig im HTML.",
+  "Version": "6.4.2",
   "MinAppVersion": "6.4.0",
   "Order": 102,
   "ResourceRootKey": "Plugins.Gawela.ProfileRackConfig"
