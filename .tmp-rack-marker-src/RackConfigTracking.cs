@@ -12,7 +12,7 @@ internal static class RackConfigTracking
     public const string VersionKey = "Gawela.RackConfig.Version";
     public const string PendingKey = "Gawela.RackConfig.PendingOrderMarkers";
     public const string SourceValue = "GAWELA Palettenregal-Konfigurator";
-    public const string Version = "6.4.42";
+    public const string Version = "6.4.43";
 
     public static List<RackConfigPendingMarker> ReadPending(string? json)
     {
