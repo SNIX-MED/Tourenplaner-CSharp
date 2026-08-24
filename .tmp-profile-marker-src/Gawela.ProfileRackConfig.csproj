@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Gawela.ProfileRackConfig</AssemblyName>
+    <RootNamespace>Gawela.ProfileRackConfig</RootNamespace>
+    <Product>GAWELA Profillager-Konfigurator</Product>
+    <Version>6.4.1</Version>
+    <AssemblyVersion>6.4.1.0</AssemblyVersion>
+    <FileVersion>6.4.1.0</FileVersion>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Smartstore.Web\Smartstore.Web.csproj">
+      <Private>False</Private>
+      <CopyLocal>False</CopyLocal>
+      <CopyLocalSatelliteAssemblies>False</CopyLocalSatelliteAssemblies>
+    </ProjectReference>
+  </ItemGroup>
+</Project>
