@@ -23,6 +23,8 @@ jobs:
           test -f /tmp/racksrc/module.json
           test -f /tmp/racksrc/Events.cs
           test -f /tmp/racksrc/Controllers/PalletRackXController.cs
+          test -f /tmp/racksrc/OffertSourceBadge.cs
+          test -f /tmp/racksrc/OrderMessageSource.cs
       - name: Checkout Smartstore 6.4.0
         run: git clone --depth 1 --branch 6.4.0 https://github.com/smartstore/Smartstore.git /tmp/smartstore
       - name: Build plugin
@@ -56,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: steps.build.outcome == 'success'
         with:
-          name: rackconfig-6.4.42-dll
+          name: rackconfig-6.4.43-dll
           path: /tmp/out/Gawela.RackConfig.dll
       - name: Fail if compilation failed
         if: steps.build.outcome != 'success'
