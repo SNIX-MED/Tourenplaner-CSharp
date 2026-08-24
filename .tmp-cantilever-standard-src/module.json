@@ -1,0 +1,12 @@
+{
+  "$schema": "../module.schema.json",
+  "Author": "GAWELA GmbH",
+  "Group": "CMS",
+  "SystemName": "Gawela.CantileverRackConfig",
+  "FriendlyName": "GAWELA Kragarmregal-Konfigurator Standard",
+  "Description": "Standard-Kragarmregal-Konfigurator für Smartstore 6.4 mit mehreren Regalzeilen, Grund-/Anbauregal-Optimierung, Höhen 2000-4000 mm, ein-/doppelseitiger Ausführung, Armtiefen 400-1200 mm, Live-Montage, Warenkorb, Offertanfrage, Shopbar-Zähler, Front-/Draufsicht sowie sichtbarer und persistenter Quellenkennzeichnung für Konfigurator-Anfragen und -Bestellungen. SEO-/KI-Informationen werden vollständig serverseitig im HTML ausgegeben und für Besucher in einem einzigen ausklappbaren Bereich dargestellt.",
+  "Version": "6.4.1",
+  "MinAppVersion": "6.4.0",
+  "Order": 103,
+  "ResourceRootKey": "Plugins.Gawela.CantileverRackConfig"
+}
