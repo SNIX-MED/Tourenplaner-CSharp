@@ -4,9 +4,9 @@
     <AssemblyName>Gawela.ProfileRackConfig</AssemblyName>
     <RootNamespace>Gawela.ProfileRackConfig</RootNamespace>
     <Product>GAWELA Profillager-Konfigurator</Product>
-    <Version>6.4.1</Version>
-    <AssemblyVersion>6.4.1.0</AssemblyVersion>
-    <FileVersion>6.4.1.0</FileVersion>
+    <Version>6.4.2</Version>
+    <AssemblyVersion>6.4.2.0</AssemblyVersion>
+    <FileVersion>6.4.2.0</FileVersion>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
