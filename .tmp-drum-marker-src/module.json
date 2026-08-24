@@ -4,8 +4,8 @@
   "Group": "CMS",
   "SystemName": "Gawela.DrumRackConfig",
   "FriendlyName": "GAWELA Fassregal-Konfigurator",
-  "Description": "Fassregal-Konfigurator auf Palettenregal-Basis mit Fassauflagen je gewünschtem 200-Liter-Fass, Variantenoptimierung, Montage, Warenkorb, Offertanfrage, Shopbar-Zähler, einklappbaren serverseitigen SEO-/KI-Suchinhalten sowie sichtbarer und persistenter Quellenmarkierung für Konfigurator-Anfragen und -Bestellungen.",
-  "Version": "6.4.5",
+  "Description": "Fassregal-Konfigurator auf Palettenregal-Basis mit Fassauflagen je gewünschtem 200-Liter-Fass, Variantenoptimierung, Montage, Warenkorb, Offertanfrage, Shopbar-Zähler, einklappbaren serverseitigen SEO-/KI-Suchinhalten sowie sichtbarer Quellenmarkierung in Offertanfragen, Bestellbenachrichtigungen und persistenten Bestelldaten.",
+  "Version": "6.4.6",
   "MinAppVersion": "6.4.0",
   "Order": 103,
   "ResourceRootKey": "Plugins.Gawela.DrumRackConfig"
