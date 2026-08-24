@@ -57,7 +57,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: steps.build.outcome == 'success'
         with:
-          name: drumrackconfig-6.4.6-dll
+          name: drumrackconfig-6.4.7-dll
           path: /tmp/out/Gawela.DrumRackConfig.dll
       - name: Fail if compilation failed
         if: steps.build.outcome != 'success'
