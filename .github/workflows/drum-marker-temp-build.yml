@@ -22,6 +22,7 @@ jobs:
           cp -R .tmp-drum-marker-src/. /tmp/drumsrc/
           test -f /tmp/drumsrc/module.json
           test -f /tmp/drumsrc/DrumRackPlugin.cs
+          test -f /tmp/drumsrc/OffertSourceBadge.cs
       - name: Checkout Smartstore 6.4.0
         run: git clone --depth 1 --branch 6.4.0 https://github.com/smartstore/Smartstore.git /tmp/smartstore
       - name: Build plugin
@@ -55,7 +56,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: steps.build.outcome == 'success'
         with:
-          name: drumrackconfig-6.4.4-dll
+          name: drumrackconfig-6.4.5-dll
           path: /tmp/out/Gawela.DrumRackConfig.dll
       - name: Fail if compilation failed
         if: steps.build.outcome != 'success'
