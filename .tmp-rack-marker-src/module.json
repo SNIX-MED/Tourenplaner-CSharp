@@ -4,8 +4,8 @@
   "Group": "CMS",
   "SystemName": "Gawela.RackConfig",
   "FriendlyName": "GAWELA Palettenregal-Konfigurator",
-  "Description": "Palettenregal-Konfigurator mit persistenten Backend-Zuordnungen, OutputCache-/Admin-Fix, Live-Montagepreisumschaltung, Warenkorb/Offertanfrage, Zubehör-/Fachlastlogik, SEO-Optimierung und 800-mm-Hinweis mit manuellem Direktlink, sofortiger Smartstore-Shopbar-Zähleraktualisierung für Warenkorb und Offertanfrage.",
-  "Version": "6.4.42",
+  "Description": "Palettenregal-Konfigurator mit persistenten Backend-Zuordnungen, OutputCache-/Admin-Fix, Live-Montagepreisumschaltung, Warenkorb/Offertanfrage, Zubehör-/Fachlastlogik, SEO-/KI-Optimierung, einklappbaren Zusatzinformationen, 800-mm-Hinweis mit manuellem Direktlink, sofortiger Smartstore-Shopbar-Zähleraktualisierung sowie sichtbarer Quellenkennzeichnung in Offertanfragen, erster Bestellbenachrichtigung und persistenten Bestelldaten.",
+  "Version": "6.4.43",
   "MinAppVersion": "6.4.0",
   "Order": 100,
   "ResourceRootKey": "Plugins.Gawela.RackConfig"
