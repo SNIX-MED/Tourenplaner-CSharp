@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Route exportieren"
-        Width="560"
-        Height="400"
+        Width="760"
+        Height="410"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource Brush.WindowBackground}">
@@ -20,11 +20,13 @@
                 <TextBlock Margin="0,8,0,0"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource Brush.TextMuted}"
-                           Text="Bitte wähle aus, wie die aktuell geladene Tour exportiert werden soll." />
+                           Text="Bitte w&#228;hle aus, wie die aktuell geladene Tour exportiert werden soll." />
             </StackPanel>
 
             <Grid Grid.Row="1" Margin="0,18,0,0" VerticalAlignment="Top">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="12" />
                     <ColumnDefinition Width="*" />
@@ -40,11 +42,11 @@
                     <StackPanel VerticalAlignment="Top">
                         <TextBlock FontSize="18"
                                    FontWeight="SemiBold"
-                                   Text="In Google Maps öffnen" />
+                                   Text="In Google Maps &#246;ffnen" />
                         <TextBlock Margin="0,8,0,0"
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource Brush.TextMuted}"
-                                   Text="Öffnet die aktuelle Stoppreihenfolge direkt in Google Maps." />
+                                   Text="&#214;ffnet die aktuelle Stoppreihenfolge direkt in Google Maps." />
                     </StackPanel>
                 </Button>
 
@@ -65,6 +67,24 @@
                                    VerticalAlignment="Top"
                                    Foreground="#E2FBE8"
                                    Text="Erstellt eine PDF mit Stoppliste links und kompletter Kartenansicht rechts." />
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="4"
+                        MinHeight="148"
+                        Padding="16"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Click="OnGpxClicked">
+                    <StackPanel VerticalAlignment="Top">
+                        <TextBlock FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Text="Als GPX speichern" />
+                        <TextBlock Margin="0,8,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                   Text="Speichert Route, Stopps und Track f&#252;r kompatible Navigationsger&#228;te." />
                     </StackPanel>
                 </Button>
             </Grid>

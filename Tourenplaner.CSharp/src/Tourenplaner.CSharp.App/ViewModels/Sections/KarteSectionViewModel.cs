@@ -3674,6 +3674,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
+        if (dialog.SelectedOption == RouteExportOption.Gpx)
+        {
+            await ExportRouteToGpxAsync(snapshot);
+            return;
+        }
+
         if (PdfExportHandler is null)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
@@ -3701,6 +3707,48 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             "Route exportieren",
             System.Windows.MessageBoxButton.OK,
             System.Windows.MessageBoxImage.Error);
+    }
+
+    private async Task ExportRouteToGpxAsync(RouteExportSnapshot snapshot)
+    {
+        if (!GpxRouteExportService.TryBuild(snapshot, out var gpx, out var error))
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                error,
+                "Route exportieren",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Tour als GPX exportieren",
+            Filter = "GPX-Datei (*.gpx)|*.gpx",
+            FileName = BuildDefaultGpxFileName(snapshot),
+            AddExtension = true,
+            DefaultExt = ".gpx",
+            OverwritePrompt = true
+        };
+
+        if (dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await File.WriteAllTextAsync(dialog.FileName, gpx, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            StatusText = $"Tour-GPX gespeichert: {dialog.FileName}";
+        }
+        catch (Exception ex)
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Der GPX-Export ist fehlgeschlagen.\n{ex.Message}",
+                "Route exportieren",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+        }
     }
 
     private void ExportRouteToGoogleMaps(RouteExportSnapshot snapshot)
@@ -3791,6 +3839,15 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 : new RouteExportCompanyInfo(_companyName, _companyAddress, _companyLocation.Latitude, _companyLocation.Longitude));
 
         return true;
+    }
+
+    private static string BuildDefaultGpxFileName(RouteExportSnapshot snapshot)
+    {
+        var name = string.IsNullOrWhiteSpace(snapshot.TourName) ? "Tour-Export" : snapshot.TourName.Trim();
+        var date = string.IsNullOrWhiteSpace(snapshot.TourDate) ? DateTime.Today.ToString("yyyy-MM-dd") : snapshot.TourDate.Trim();
+        var raw = $"{name}_{date}.gpx";
+        var invalid = Path.GetInvalidFileNameChars();
+        return string.Concat(raw.Select(ch => invalid.Contains(ch) ? '_' : ch));
     }
 
     private string BuildExportTourNameWithEmployees()

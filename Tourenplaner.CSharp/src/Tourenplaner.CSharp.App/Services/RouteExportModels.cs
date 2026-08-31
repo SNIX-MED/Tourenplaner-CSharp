@@ -5,7 +5,8 @@ namespace Tourenplaner.CSharp.App.Services;
 public enum RouteExportOption
 {
     GoogleMaps,
-    Pdf
+    Pdf,
+    Gpx
 }
 
 public sealed record RouteExportCompanyInfo(string Name, string Address, double Latitude, double Longitude);
