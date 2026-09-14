@@ -1802,6 +1802,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             new XmlImportMappingFieldViewModel("Lieferung kann früher erfolgen", XmlImportMappingSettings.DefaultOrderDeliveryCanOccurEarlier, XmlImportMappingSettings.DefaultOrderDeliveryCanOccurEarlier),
             new XmlImportMappingFieldViewModel("Lieferzeit / Produktstatus", XmlImportMappingSettings.DefaultOrderDeliveryTime, XmlImportMappingSettings.DefaultOrderDeliveryTime),
             new XmlImportMappingFieldViewModel("Zahlungsbedingung", XmlImportMappingSettings.DefaultOrderPaymentTerms, XmlImportMappingSettings.DefaultOrderPaymentTerms),
+            new XmlImportMappingFieldViewModel("Vorauszahlungsstatus", XmlImportMappingSettings.DefaultOrderPrepaymentStatus, XmlImportMappingSettings.DefaultOrderPrepaymentStatus),
             new XmlImportMappingFieldViewModel("Archiviert", XmlImportMappingSettings.DefaultOrderArchived, XmlImportMappingSettings.DefaultOrderArchived),
             new XmlImportMappingFieldViewModel("Gesperrt", XmlImportMappingSettings.DefaultOrderLocked, XmlImportMappingSettings.DefaultOrderLocked),
             new XmlImportMappingFieldViewModel("Notiz", XmlImportMappingSettings.DefaultOrderNote, XmlImportMappingSettings.DefaultOrderNote)
@@ -1815,6 +1816,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             new XmlImportMappingFieldViewModel("Produkt-Auftrags-ID", XmlImportMappingSettings.DefaultProductOrderId, XmlImportMappingSettings.DefaultProductOrderId),
             new XmlImportMappingFieldViewModel("Artikelnummer", XmlImportMappingSettings.DefaultProductArticleNumber, XmlImportMappingSettings.DefaultProductArticleNumber),
             new XmlImportMappingFieldViewModel("Bezeichnung", XmlImportMappingSettings.DefaultProductDescription, XmlImportMappingSettings.DefaultProductDescription),
+            new XmlImportMappingFieldViewModel("Lieferant", XmlImportMappingSettings.DefaultProductSupplier, XmlImportMappingSettings.DefaultProductSupplier),
             new XmlImportMappingFieldViewModel("Menge", XmlImportMappingSettings.DefaultProductQuantity, XmlImportMappingSettings.DefaultProductQuantity),
             new XmlImportMappingFieldViewModel("Gewicht", XmlImportMappingSettings.DefaultProductWeight, XmlImportMappingSettings.DefaultProductWeight)
         ];
@@ -1893,14 +1895,16 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             OrderDeliveryCanOccurEarlier = XmlImportOrderFields[11].XmlName,
             OrderDeliveryTime = XmlImportOrderFields[12].XmlName,
             OrderPaymentTerms = XmlImportOrderFields[13].XmlName,
-            OrderArchived = XmlImportOrderFields[14].XmlName,
-            OrderLocked = XmlImportOrderFields[15].XmlName,
-            OrderNote = XmlImportOrderFields[16].XmlName,
+            OrderPrepaymentStatus = XmlImportOrderFields[14].XmlName,
+            OrderArchived = XmlImportOrderFields[15].XmlName,
+            OrderLocked = XmlImportOrderFields[16].XmlName,
+            OrderNote = XmlImportOrderFields[17].XmlName,
             ProductOrderId = XmlImportProductFields[0].XmlName,
             ProductArticleNumber = XmlImportProductFields[1].XmlName,
             ProductDescription = XmlImportProductFields[2].XmlName,
-            ProductQuantity = XmlImportProductFields[3].XmlName,
-            ProductWeight = XmlImportProductFields[4].XmlName,
+            ProductSupplier = XmlImportProductFields[3].XmlName,
+            ProductQuantity = XmlImportProductFields[4].XmlName,
+            ProductWeight = XmlImportProductFields[5].XmlName,
             ExcludedProductArticleNumbers = XmlImportProductExclusionFields[0].XmlName,
             ExcludedProductDescriptions = XmlImportProductExclusionFields[1].XmlName,
             DeliveryTypeFreiBordsteinkanteArticleNumbers = XmlImportDeliveryTypeFields[0].XmlName,
@@ -1942,15 +1946,17 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             XmlImportOrderFields[11].XmlName = effective.OrderDeliveryCanOccurEarlier;
             XmlImportOrderFields[12].XmlName = effective.OrderDeliveryTime;
             XmlImportOrderFields[13].XmlName = effective.OrderPaymentTerms;
-            XmlImportOrderFields[14].XmlName = effective.OrderArchived;
-            XmlImportOrderFields[15].XmlName = effective.OrderLocked;
-            XmlImportOrderFields[16].XmlName = effective.OrderNote;
+            XmlImportOrderFields[14].XmlName = effective.OrderPrepaymentStatus;
+            XmlImportOrderFields[15].XmlName = effective.OrderArchived;
+            XmlImportOrderFields[16].XmlName = effective.OrderLocked;
+            XmlImportOrderFields[17].XmlName = effective.OrderNote;
 
             XmlImportProductFields[0].XmlName = effective.ProductOrderId;
             XmlImportProductFields[1].XmlName = effective.ProductArticleNumber;
             XmlImportProductFields[2].XmlName = effective.ProductDescription;
-            XmlImportProductFields[3].XmlName = effective.ProductQuantity;
-            XmlImportProductFields[4].XmlName = effective.ProductWeight;
+            XmlImportProductFields[3].XmlName = effective.ProductSupplier;
+            XmlImportProductFields[4].XmlName = effective.ProductQuantity;
+            XmlImportProductFields[5].XmlName = effective.ProductWeight;
 
             XmlImportProductExclusionFields[0].XmlName = effective.ExcludedProductArticleNumbers;
             XmlImportProductExclusionFields[1].XmlName = effective.ExcludedProductDescriptions;

@@ -223,6 +223,7 @@ public class OrderImportService : IOrderImportService
             OrderStatus = Order.DefaultOrderStatus,
             Notes = sqlOrder.Notiz,
             IstVorauszahlung = sqlOrder.IstVorauszahlung,
+            IstVorauszahlungBezahlt = sqlOrder.IstVorauszahlungBezahlt,
             IsArchived = sqlOrder.Archiviert,
             IsXmlImported = markAsXmlImported || existingOrder?.IsXmlImported == true
         };
@@ -247,7 +248,9 @@ public class OrderImportService : IOrderImportService
             products.Add(new OrderProductInfo
             {
                 Name = (sqlProduct.Bezeichnung ?? string.Empty).Trim(),
-                Supplier = previousProduct?.Supplier ?? string.Empty,
+                Supplier = !string.IsNullOrWhiteSpace(sqlProduct.Lieferant)
+                    ? sqlProduct.Lieferant.Trim()
+                    : previousProduct?.Supplier ?? string.Empty,
                 Quantity = (int)sqlProduct.Menge,
                 UnitWeightKg = (double)sqlProduct.Gewicht,
                 WeightKg = (double)(sqlProduct.Gewicht * sqlProduct.Menge),
@@ -286,6 +289,7 @@ public class OrderImportService : IOrderImportService
         existingOrder.OrderStatus = importedOrder.OrderStatus;
         existingOrder.Notes = importedOrder.Notes;
         existingOrder.IstVorauszahlung = importedOrder.IstVorauszahlung;
+        existingOrder.IstVorauszahlungBezahlt = importedOrder.IstVorauszahlungBezahlt;
         existingOrder.IsArchived = importedOrder.IsArchived;
         existingOrder.IsXmlImported = importedOrder.IsXmlImported;
     }
@@ -314,6 +318,7 @@ public class OrderImportService : IOrderImportService
         AddChange(changes, "Telefon", existingOrder.Phone, importedOrder.Phone);
         AddChange(changes, "Notiz", existingOrder.Notes, importedOrder.Notes);
         AddChange(changes, "Vorauskasse", FormatBool(existingOrder.IstVorauszahlung), FormatBool(importedOrder.IstVorauszahlung));
+        AddChange(changes, "Vorauszahlung bezahlt", FormatBool(existingOrder.IstVorauszahlungBezahlt), FormatBool(importedOrder.IstVorauszahlungBezahlt));
         AddChange(changes, "Archiviert", FormatBool(existingOrder.IsArchived), FormatBool(importedOrder.IsArchived));
         AddChange(changes, "XML-Import", FormatBool(existingOrder.IsXmlImported), FormatBool(importedOrder.IsXmlImported));
         AddProductChange(changes, existingOrder.Products, importedOrder.Products);
@@ -559,6 +564,7 @@ public class OrderImportService : IOrderImportService
         return string.Join(" | ", new[]
         {
             (product.Name ?? string.Empty).Trim(),
+            (product.Supplier ?? string.Empty).Trim(),
             $"Menge {product.Quantity}",
             $"Einzelgewicht {product.UnitWeightKg:0.##} kg",
             $"Total {product.WeightKg:0.##} kg",

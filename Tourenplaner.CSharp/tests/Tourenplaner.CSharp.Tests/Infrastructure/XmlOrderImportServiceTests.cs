@@ -61,6 +61,7 @@ public class XmlOrderImportServiceTests
                     <KopfID>order-1</KopfID>
                     <ArtikelID>PRODUKT-A</ArtikelID>
                     <Bezeichnung>Produkt A</Bezeichnung>
+                    <lieferant>Esnova Racks S.A. | Plg. Los Campones s/n - Tremanes | ES-33211 Gijon | 111362</lieferant>
                     <Menge>2.000000</Menge>
                     <Gewicht>10.5 kg</Gewicht>
                   </WW_Pos>
@@ -80,6 +81,7 @@ public class XmlOrderImportServiceTests
             Assert.Equal(new DateTime(2026, 6, 11), result.Orders[0].Lieferdatum);
             Assert.Single(result.Orders[0].Produkte);
             Assert.Equal("PRODUKT-A", result.Orders[0].Produkte[0].ArtikelNummer);
+            Assert.Equal("Esnova Racks S.A.", result.Orders[0].Produkte[0].Lieferant);
             Assert.Equal(10.5m, result.Orders[0].Produkte[0].Gewicht);
             Assert.Empty(result.Errors);
         }
@@ -751,6 +753,7 @@ public class XmlOrderImportServiceTests
                     Musterstrasse 1
                     8000 Zuerich</adresskopfrechnung>
                     <zahlkondition>Vorkasse</zahlkondition>
+                    <vorauszahlung>OK</vorauszahlung>
                     <archiv>False</archiv>
                     <positionen>
                       <position>
@@ -770,9 +773,44 @@ public class XmlOrderImportServiceTests
 
             Assert.Single(result.Orders);
             Assert.Equal("Selbstabholung", result.Orders[0].Lieferbedingung);
-            Assert.True(result.Orders[0].IstVorauszahlung);
+            Assert.False(result.Orders[0].IstVorauszahlung);
+            Assert.True(result.Orders[0].IstVorauszahlungBezahlt);
             Assert.DoesNotContain(result.Warnings, warning => warning.Contains("keine Lieferadresse gefunden", StringComparison.OrdinalIgnoreCase));
             Assert.Empty(result.Errors);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("Offen", true, false)]
+    [InlineData("OK", false, true)]
+    [InlineData("-", false, false)]
+    public void LoadOrdersFromFileDetailed_MapsExportedPrepaymentStatus(string status, bool isOpen, bool isPaid)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var xmlPath = Path.Combine(root, "orders.xml");
+
+        try
+        {
+            File.WriteAllText(xmlPath, $"""
+                <belege>
+                  <beleg>
+                    <ident>order-1</ident>
+                    <kopf>A-307</kopf>
+                    <datum>15.07.2026 00:00:00</datum>
+                    <vorauszahlung>{status}</vorauszahlung>
+                  </beleg>
+                </belege>
+                """);
+
+            var order = Assert.Single(new XmlOrderImportService().LoadOrdersFromFileDetailed(xmlPath).Orders);
+
+            Assert.Equal(isOpen, order.IstVorauszahlung);
+            Assert.Equal(isPaid, order.IstVorauszahlungBezahlt);
         }
         finally
         {

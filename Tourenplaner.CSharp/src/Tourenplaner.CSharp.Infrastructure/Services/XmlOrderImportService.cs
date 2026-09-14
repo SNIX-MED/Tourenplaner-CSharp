@@ -100,6 +100,9 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                 }
 
                 var explicitDeliveryCondition = ReadString(orderElement, effectiveMapping.OrderDeliveryCondition, string.Empty);
+                var prepaymentStatus = ResolvePrepaymentStatus(
+                    ReadString(orderElement, effectiveMapping.OrderPrepaymentStatus, string.Empty),
+                    ReadString(orderElement, effectiveMapping.OrderPaymentTerms));
                 var order = new XmlOrderImportData
                 {
                     AuftragNr = orderNumber,
@@ -112,7 +115,8 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     Lieferzeit = ReadString(orderElement, effectiveMapping.OrderDeliveryTime),
                     KundeKontaktperson = ReadString(orderElement, effectiveMapping.OrderContactPerson),
                     LieferKontaktperson = ReadString(orderElement, effectiveMapping.OrderDeliveryContactPerson),
-                    IstVorauszahlung = IsPrepaymentCondition(ReadString(orderElement, effectiveMapping.OrderPaymentTerms)),
+                    IstVorauszahlung = prepaymentStatus.IsOpen,
+                    IstVorauszahlungBezahlt = prepaymentStatus.IsPaid,
                     Notiz = ReadString(orderElement, effectiveMapping.OrderNote)
                 };
 
@@ -172,6 +176,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                             PosNummer = logicalProductIndex,
                             ArtikelNummer = ReadString(productElement, effectiveMapping.ProductArticleNumber),
                             Bezeichnung = ReadString(productElement, effectiveMapping.ProductDescription),
+                            Lieferant = ReadSupplierName(productElement, effectiveMapping.ProductSupplier),
                             Menge = ReadDecimal(productElement, effectiveMapping.ProductQuantity),
                             Gewicht = productWeight,
                             Bruttogewicht = 0m
@@ -410,12 +415,18 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
             : DeliveryMethodExtensions.SelbstabholungLabel;
     }
 
-    private static bool IsPrepaymentCondition(string? paymentTerms)
+    private static PrepaymentStatus ResolvePrepaymentStatus(string? status, string? paymentTerms)
     {
-        var normalized = (paymentTerms ?? string.Empty).Trim();
-        return normalized.Equals("Vorkasse", StringComparison.OrdinalIgnoreCase) ||
-               normalized.Equals("Vorauskasse", StringComparison.OrdinalIgnoreCase) ||
-               normalized.Equals("Vorauszahlung", StringComparison.OrdinalIgnoreCase);
+        var normalizedStatus = (status ?? string.Empty).Trim();
+        if (normalizedStatus.Equals("Offen", StringComparison.OrdinalIgnoreCase)) return new(true, false);
+        if (normalizedStatus.Equals("OK", StringComparison.OrdinalIgnoreCase)) return new(false, true);
+        if (normalizedStatus.Equals("-", StringComparison.Ordinal)) return new(false, false);
+
+        var normalizedPaymentTerms = (paymentTerms ?? string.Empty).Trim();
+        var isPrepayment = normalizedPaymentTerms.Equals("Vorkasse", StringComparison.OrdinalIgnoreCase) ||
+                           normalizedPaymentTerms.Equals("Vorauskasse", StringComparison.OrdinalIgnoreCase) ||
+                           normalizedPaymentTerms.Equals("Vorauszahlung", StringComparison.OrdinalIgnoreCase);
+        return new(isPrepayment, false);
     }
 
     private static string ResolveAddressNumber(XElement orderElement, string fieldName, string fallback)
@@ -658,7 +669,16 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
     private static string ReadString(XElement parent, string name, string fallback = "")
         => string.IsNullOrWhiteSpace(name) ? fallback.Trim() : (parent.Element(name)?.Value ?? fallback).Trim();
 
+    private static string ReadSupplierName(XElement productElement, string fieldName)
+    {
+        var supplier = ReadString(productElement, fieldName);
+        var separatorIndex = supplier.IndexOf('|');
+        return (separatorIndex >= 0 ? supplier[..separatorIndex] : supplier).Trim();
+    }
+
     private sealed record ExportAddressBlock(string Name, string ContactPerson);
+
+    private sealed record PrepaymentStatus(bool IsOpen, bool IsPaid);
 
     private static bool ReadBool(XElement parent, string name)
     {

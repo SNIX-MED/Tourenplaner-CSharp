@@ -75,6 +75,7 @@ public sealed class XmlImportMappingSettings
     public const string DefaultOrderDeliveryCanOccurEarlier = "lieferdatumfrüher";
     public const string DefaultOrderDeliveryTime = "zus_lieferzeit";
     public const string DefaultOrderPaymentTerms = "zahlkondition";
+    public const string DefaultOrderPrepaymentStatus = "vorauszahlung";
     public const string DefaultOrderArchived = "archiv";
     public const string DefaultOrderLocked = "sperre";
     public const string DefaultOrderNote = "notiz";
@@ -82,6 +83,7 @@ public sealed class XmlImportMappingSettings
     public const string DefaultProductOrderId = "kopfid";
     public const string DefaultProductArticleNumber = "artikel";
     public const string DefaultProductDescription = "bezeichnung";
+    public const string DefaultProductSupplier = "lieferant";
     public const string DefaultProductQuantity = "menge";
     public const string DefaultProductWeight = "gewicht";
     public const string DefaultExcludedProductArticleNumbers = "";
@@ -130,6 +132,7 @@ public sealed class XmlImportMappingSettings
     public string OrderDeliveryCanOccurEarlier { get; set; } = DefaultOrderDeliveryCanOccurEarlier;
     public string OrderDeliveryTime { get; set; } = DefaultOrderDeliveryTime;
     public string OrderPaymentTerms { get; set; } = DefaultOrderPaymentTerms;
+    public string OrderPrepaymentStatus { get; set; } = DefaultOrderPrepaymentStatus;
     public string OrderArchived { get; set; } = DefaultOrderArchived;
     public string OrderLocked { get; set; } = DefaultOrderLocked;
     public string OrderNote { get; set; } = DefaultOrderNote;
@@ -137,6 +140,7 @@ public sealed class XmlImportMappingSettings
     public string ProductOrderId { get; set; } = DefaultProductOrderId;
     public string ProductArticleNumber { get; set; } = DefaultProductArticleNumber;
     public string ProductDescription { get; set; } = DefaultProductDescription;
+    public string ProductSupplier { get; set; } = DefaultProductSupplier;
     public string ProductQuantity { get; set; } = DefaultProductQuantity;
     public string ProductWeight { get; set; } = DefaultProductWeight;
     public string ExcludedProductArticleNumbers { get; set; } = DefaultExcludedProductArticleNumbers;
@@ -192,12 +196,14 @@ public sealed class XmlImportMappingSettings
             OrderDeliveryCanOccurEarlier = Normalize(OrderDeliveryCanOccurEarlier, DefaultOrderDeliveryCanOccurEarlier),
             OrderDeliveryTime = Normalize(OrderDeliveryTime, DefaultOrderDeliveryTime),
             OrderPaymentTerms = Normalize(OrderPaymentTerms, DefaultOrderPaymentTerms),
+            OrderPrepaymentStatus = Normalize(OrderPrepaymentStatus, DefaultOrderPrepaymentStatus),
             OrderArchived = Normalize(OrderArchived, DefaultOrderArchived),
             OrderLocked = Normalize(OrderLocked, DefaultOrderLocked),
             OrderNote = Normalize(OrderNote, DefaultOrderNote),
             ProductOrderId = Normalize(ProductOrderId, DefaultProductOrderId),
             ProductArticleNumber = Normalize(ProductArticleNumber, DefaultProductArticleNumber),
             ProductDescription = Normalize(ProductDescription, DefaultProductDescription),
+            ProductSupplier = Normalize(ProductSupplier, DefaultProductSupplier),
             ProductQuantity = Normalize(ProductQuantity, DefaultProductQuantity),
             ProductWeight = Normalize(ProductWeight, DefaultProductWeight),
             ExcludedProductArticleNumbers = Normalize(ExcludedProductArticleNumbers, DefaultExcludedProductArticleNumbers),
@@ -234,12 +240,14 @@ public sealed class XmlImportMappingSettings
             effective.OrderDeliveryCanOccurEarlier = DefaultOrderDeliveryCanOccurEarlier;
             effective.OrderDeliveryTime = DefaultOrderDeliveryTime;
             effective.OrderPaymentTerms = DefaultOrderPaymentTerms;
+            effective.OrderPrepaymentStatus = DefaultOrderPrepaymentStatus;
             effective.OrderArchived = DefaultOrderArchived;
             effective.OrderLocked = DefaultOrderLocked;
             effective.OrderNote = DefaultOrderNote;
             effective.ProductOrderId = DefaultProductOrderId;
             effective.ProductArticleNumber = DefaultProductArticleNumber;
             effective.ProductDescription = DefaultProductDescription;
+            effective.ProductSupplier = DefaultProductSupplier;
             effective.ProductQuantity = DefaultProductQuantity;
             effective.ProductWeight = DefaultProductWeight;
         }

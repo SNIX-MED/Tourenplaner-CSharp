@@ -41,6 +41,7 @@ public class XmlOrderImportData
     public string Lieferzeit { get; set; } = string.Empty;
     public string Notiz { get; set; } = string.Empty;
     public bool IstVorauszahlung { get; set; }
+    public bool IstVorauszahlungBezahlt { get; set; }
 }
 
 public class XmlOrderProductData
@@ -48,6 +49,7 @@ public class XmlOrderProductData
     public int PosNummer { get; set; }
     public string ArtikelNummer { get; set; } = string.Empty;
     public string Bezeichnung { get; set; } = string.Empty;
+    public string Lieferant { get; set; } = string.Empty;
     public decimal Menge { get; set; }
     public decimal Gewicht { get; set; }
     public decimal Bruttogewicht { get; set; }

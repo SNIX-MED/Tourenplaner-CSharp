@@ -219,6 +219,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _selectedStatus = Statuses[0];
     private string _notes = string.Empty;
     private bool _istVorauszahlung;
+    private bool _istVorauszahlungBezahlt;
     private bool _isArchived;
     private bool _isXmlImported;
     private bool _isEditingEnabled = true;
@@ -432,6 +433,12 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         set => SetProperty(ref _istVorauszahlung, value);
     }
 
+    public bool IstVorauszahlungBezahlt
+    {
+        get => _istVorauszahlungBezahlt;
+        set => SetProperty(ref _istVorauszahlungBezahlt, value);
+    }
+
     public bool IsArchived
     {
         get => _isArchived;
@@ -534,6 +541,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
                 (SelectedDeliveryType ?? _deliveryTypes[0]).Trim()),
             OrderStatus = Order.ResolveOrderStatusFromProducts(products),
             IstVorauszahlung = IstVorauszahlung,
+            IstVorauszahlungBezahlt = IstVorauszahlungBezahlt,
             Notes = (Notes ?? string.Empty).Trim(),
             AssignedTourId = _existingAssignedTourId,
             Location = _existingLocation,
@@ -633,6 +641,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             : _deliveryTypes[0];
         Notes = existingOrder.Notes ?? string.Empty;
         IstVorauszahlung = existingOrder.IstVorauszahlung;
+        IstVorauszahlungBezahlt = existingOrder.IstVorauszahlungBezahlt;
         IsArchived = existingOrder.IsArchived;
 
         ProductLines.Clear();

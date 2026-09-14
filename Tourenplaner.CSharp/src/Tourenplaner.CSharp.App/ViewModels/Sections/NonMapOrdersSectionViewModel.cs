@@ -1322,6 +1322,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             OrderStatus = source.OrderStatus,
             Notes = source.Notes,
             IstVorauszahlung = source.IstVorauszahlung,
+            IstVorauszahlungBezahlt = source.IstVorauszahlungBezahlt,
             IsArchived = source.IsArchived,
             IsXmlImported = source.IsXmlImported,
             ConcurrencyToken = source.ConcurrencyToken

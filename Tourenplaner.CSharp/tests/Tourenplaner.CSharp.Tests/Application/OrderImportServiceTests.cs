@@ -86,6 +86,23 @@ public class OrderImportServiceTests
     }
 
     [Fact]
+    public async Task ImportOrdersAsync_UsesSupplierFromXmlProduct_WhenPresent()
+    {
+        var existingOrder = CreateOrder("A-15", "Kunde Fuenfzehn", "Post", "Hinweis alt");
+        existingOrder.Products[0].Supplier = "Manuell gepflegt";
+        var importedOrder = CreateSqlOrder("A-15", "Kunde Fuenfzehn", "Post", "Hinweis alt");
+        importedOrder.Produkte[0].Lieferant = "Esnova Racks S.A.";
+        var repository = new FakeOrderRepository([existingOrder]);
+
+        var preview = await new OrderImportService().PreviewImportAsync([importedOrder], repository);
+        await new OrderImportService().ImportOrdersAsync([importedOrder], repository);
+
+        Assert.Equal(ImportPreviewAction.Update, Assert.Single(preview.Items).Action);
+        Assert.Contains(preview.Items[0].Changes, change => change.Contains("Esnova Racks S.A.", StringComparison.Ordinal));
+        Assert.Equal("Esnova Racks S.A.", Assert.Single(repository.StoredOrders).Products[0].Supplier);
+    }
+
+    [Fact]
     public async Task ImportOrdersAsync_WhenMarkedAsXmlImport_MarksCreatedAndUpdatedOrders()
     {
         var existingOrder = CreateOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis alt");
@@ -157,6 +174,20 @@ public class OrderImportServiceTests
 
         var stored = Assert.Single(repository.StoredOrders);
         Assert.True(stored.IstVorauszahlung);
+    }
+
+    [Fact]
+    public async Task ImportOrdersAsync_StoresPaidPrepaymentWithoutOpenPrepaymentFlag()
+    {
+        var repository = new FakeOrderRepository([]);
+        var xmlOrder = CreateSqlOrder("A-16", "Kunde Sechzehn", "Post", "Bezahlt");
+        xmlOrder.IstVorauszahlungBezahlt = true;
+
+        await new OrderImportService().ImportOrdersAsync([xmlOrder], repository);
+
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.False(stored.IstVorauszahlung);
+        Assert.True(stored.IstVorauszahlungBezahlt);
     }
 
     [Fact]
@@ -354,6 +385,7 @@ public class OrderImportServiceTests
             AvisoStatus = order.AvisoStatus,
             Notes = order.Notes,
             IstVorauszahlung = order.IstVorauszahlung,
+            IstVorauszahlungBezahlt = order.IstVorauszahlungBezahlt,
             IsArchived = order.IsArchived,
             IsXmlImported = order.IsXmlImported
         };

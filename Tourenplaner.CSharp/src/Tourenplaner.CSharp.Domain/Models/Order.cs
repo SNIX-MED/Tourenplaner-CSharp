@@ -43,6 +43,7 @@ public sealed class Order
     public string OrderStatus { get; set; } = DefaultOrderStatus;
     public string AvisoStatus { get; set; } = "nicht avisiert";
     public bool IstVorauszahlung { get; set; }
+    public bool IstVorauszahlungBezahlt { get; set; }
     public string Notes { get; set; } = string.Empty;
     public bool IsArchived { get; set; }
     /// <summary>Indicates that this order was last created or synchronized through the XML ERP import.</summary>
