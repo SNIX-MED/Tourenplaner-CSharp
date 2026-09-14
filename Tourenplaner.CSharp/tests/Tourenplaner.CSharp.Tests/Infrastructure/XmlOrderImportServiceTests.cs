@@ -369,6 +369,9 @@ public class XmlOrderImportServiceTests
                     <datum>15.07.2026 00:00:00</datum>
                     <versandart>Post</versandart>
                     <archiv>False</archiv>
+                    <adresskopf>Auftraggeber AG
+                    Auftragsweg 3
+                    7000 Chur</adresskopf>
                     <adresskopfrechnung>Rechnung AG
                     Rechnungsweg 1
                     8000 Zuerich</adresskopfrechnung>
@@ -401,7 +404,7 @@ public class XmlOrderImportServiceTests
             Assert.Single(result.Orders);
             Assert.Equal("A-302", result.Orders[0].AuftragNr);
             Assert.Equal("Mit Verteilung", result.Orders[0].Lieferbedingung);
-            Assert.Equal("Rechnung AG", result.Orders[0].KundeFirma);
+            Assert.Equal("Auftraggeber AG", result.Orders[0].KundeFirma);
             Assert.Equal("Liefer AG", result.Orders[0].LieferFirma);
             Assert.Single(result.Orders[0].Produkte);
             Assert.Equal("PRODUKT-D", result.Orders[0].Produkte[0].ArtikelNummer);
@@ -468,6 +471,44 @@ public class XmlOrderImportServiceTests
             Assert.Equal("6062", order.LieferPLZ);
             Assert.Equal("Wilen (Sarnen)", order.LieferOrt);
             Assert.Empty(result.Errors);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void LoadOrdersFromFileDetailed_UsesNameAfterSalutationInBelegOrderAddress()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var xmlPath = Path.Combine(root, "orders.xml");
+
+        try
+        {
+            File.WriteAllText(xmlPath,
+                """
+                <belege>
+                  <beleg>
+                    <ident>order-1</ident>
+                    <kopf>A-305</kopf>
+                    <datum>15.07.2026 00:00:00</datum>
+                    <adresskopf>Herr
+                    Mike Saint
+                    Ara-Strasse 6
+                    8274 Taegerwilen</adresskopf>
+                  </beleg>
+                </belege>
+                """);
+
+            var order = Assert.Single(new XmlOrderImportService().LoadOrdersFromFileDetailed(xmlPath).Orders);
+
+            Assert.Equal("Mike Saint", order.KundeFirma);
+            Assert.Equal("Mike Saint", order.KundeKontaktperson);
+            Assert.Equal("Ara-Strasse 6", order.KundeStrasse);
+            Assert.Equal("8274", order.KundePLZ);
+            Assert.Equal("Taegerwilen", order.KundeOrt);
         }
         finally
         {

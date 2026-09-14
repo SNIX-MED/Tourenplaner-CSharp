@@ -58,7 +58,7 @@ public sealed class XmlImportMappingSettings
     public const string DefaultAddressPhone = LegacyAddressPhone;
     public const string DefaultAddressContactPerson = LegacyAddressContactPerson;
 
-    public const string DefaultOrderBillingAddressBlock = "adresskopfrechnung";
+    public const string DefaultOrderBillingAddressBlock = "adresskopf";
     public const string DefaultOrderDeliveryAddressBlock = "adresskopflieferung";
     public const string DefaultOrderId = "ident";
     public const string DefaultOrderNumber = "kopf";

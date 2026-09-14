@@ -143,7 +143,14 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                 }
                 else if (string.Equals(effectiveMapping.OrderRecordElement, "beleg", StringComparison.OrdinalIgnoreCase))
                 {
-                    ApplyExportAddressBlock(order, ReadString(orderElement, effectiveMapping.OrderBillingAddressBlock), isDeliveryAddress: false);
+                    var orderAddressBlock = ReadString(orderElement, effectiveMapping.OrderBillingAddressBlock);
+                    if (string.IsNullOrWhiteSpace(orderAddressBlock) &&
+                        !effectiveMapping.OrderBillingAddressBlock.Equals("adresskopfrechnung", StringComparison.OrdinalIgnoreCase))
+                    {
+                        orderAddressBlock = ReadString(orderElement, "adresskopfrechnung");
+                    }
+
+                    ApplyExportAddressBlock(order, orderAddressBlock, isDeliveryAddress: false);
                     hasDeliveryAddress = ApplyExportAddressBlock(order, ReadString(orderElement, effectiveMapping.OrderDeliveryAddressBlock), isDeliveryAddress: true);
                 }
 
@@ -323,7 +330,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         OrderDeliveryAddressNumber = sourceMapping.OrderDeliveryAddressNumber,
         OrderContactPerson = sourceMapping.OrderContactPerson,
         OrderDeliveryContactPerson = sourceMapping.OrderDeliveryContactPerson,
-        OrderBillingAddressBlock = sourceMapping.OrderBillingAddressBlock,
+        OrderBillingAddressBlock = ResolveBelegOrderAddressBlock(sourceMapping.OrderBillingAddressBlock),
         OrderDeliveryAddressBlock = sourceMapping.OrderDeliveryAddressBlock,
         ExcludedProductArticleNumbers = sourceMapping.ExcludedProductArticleNumbers,
         ExcludedProductDescriptions = sourceMapping.ExcludedProductDescriptions,
@@ -606,12 +613,34 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
 
     private static ExportAddressBlock ParseExportAddressBlock(IReadOnlyList<string> lines)
     {
+        if (lines.Count >= 4 && IsSalutation(lines[0]))
+        {
+            var nameAfterSalutation = lines[1].Trim();
+            return new ExportAddressBlock(nameAfterSalutation, nameAfterSalutation);
+        }
+
         var name = lines.Count > 0 ? lines[0] : string.Empty;
         var contactPerson = lines.Count > 3
             ? string.Join(' ', lines.Skip(1).Take(lines.Count - 3))
             : string.Empty;
 
         return new ExportAddressBlock(name.Trim(), contactPerson.Trim());
+    }
+
+    private static string ResolveBelegOrderAddressBlock(string? configuredBlock)
+    {
+        var normalized = (configuredBlock ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized) ||
+               normalized.Equals("adresskopfrechnung", StringComparison.OrdinalIgnoreCase)
+            ? XmlImportMappingSettings.DefaultOrderBillingAddressBlock
+            : normalized;
+    }
+
+    private static bool IsSalutation(string value)
+    {
+        var normalized = (value ?? string.Empty).Trim().TrimEnd('.');
+        return normalized.Equals("Herr", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Equals("Frau", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ResolvePreferredText(string? primary, string? fallback)

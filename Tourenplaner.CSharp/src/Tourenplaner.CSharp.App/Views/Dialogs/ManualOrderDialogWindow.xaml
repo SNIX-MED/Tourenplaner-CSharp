@@ -15,6 +15,7 @@
         PreviewMouseLeftButtonDown="OnPreviewMouseLeftButtonDown">
     <Window.Resources>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 
         <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="IsReadOnly" Value="{Binding IsEditingEnabled, Converter={StaticResource InverseBooleanConverter}}" />
