@@ -5,6 +5,17 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class TourArrivalDisplayFormatterTests
 {
     [Fact]
+    public void BuildDisplayedArrivalRange_ForShortCongestionFreeLeg_UsesOnlyQuarterHourWindow()
+    {
+        var arrival = new DateTime(2026, 9, 22, 7, 42, 0);
+
+        var result = TourArrivalDisplayFormatter.BuildDisplayedArrivalRange(arrival, arrival, arrival);
+
+        Assert.Equal(new DateTime(2026, 9, 22, 7, 30, 0), result.Optimistic);
+        Assert.Equal(new DateTime(2026, 9, 22, 7, 45, 0), result.Pessimistic);
+    }
+
+    [Fact]
     public void BuildDisplayedArrivalRange_RoundsEarlierTimeDownToQuarterHour()
     {
         var baseDate = new DateTime(2026, 3, 21, 8, 0, 0);
@@ -54,7 +65,7 @@ public class TourArrivalDisplayFormatterTests
             "09:51",
             "11:19");
 
-        Assert.Equal("09:45 - 11:30", result);
+        Assert.Equal("09:45 - 11:45", result);
     }
 
     [Fact]
@@ -68,6 +79,17 @@ public class TourArrivalDisplayFormatterTests
             baseDate.AddMinutes(90));
 
         Assert.Equal("08:45", result.Optimistic.ToString("HH:mm"));
-        Assert.Equal("09:30", result.Pessimistic.ToString("HH:mm"));
+        Assert.Equal("09:45", result.Pessimistic.ToString("HH:mm"));
+    }
+
+    [Theory]
+    [InlineData(1, 15)]
+    [InlineData(16, 30)]
+    [InlineData(45, 60)]
+    [InlineData(75, 120)]
+    [InlineData(120, 120)]
+    public void NormalizeToleranceMinutes_UsesWebfleetSupportedSteps(int input, int expected)
+    {
+        Assert.Equal(expected, TourArrivalDisplayFormatter.NormalizeToleranceMinutes(input));
     }
 }

@@ -31,6 +31,61 @@ public sealed class WebfleetConnectServiceTests
         Assert.True(isError);
     }
 
+    [Fact]
+    public void IsWebfleetNoDataResponse_RecognizesCode63AsEmptyResult()
+    {
+        var method = typeof(WebfleetConnectService).GetMethod("IsWebfleetNoDataResponse", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var isNoData = Assert.IsType<bool>(method.Invoke(null, ["63,document contains no data"]));
+
+        Assert.True(isNoData);
+    }
+
+    [Fact]
+    public void ParseTrackPoints_ParsesCoordinatesAndSortsByPositionTime()
+    {
+        const string response = "pos_time;latitude;longitude;speed;course\n2026-09-16T09:05:00Z;47581820;9066929;42;120\n2026-09-16T08:55:00Z;47581000;9066000;0;0";
+
+        var method = typeof(WebfleetConnectService).GetMethod("ParseTrackPoints", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+        var points = Assert.IsAssignableFrom<IReadOnlyList<WebfleetTrackPoint>>(method.Invoke(null, [response]));
+
+        Assert.Equal(2, points.Count);
+        Assert.Equal(new DateTimeOffset(2026, 9, 16, 8, 55, 0, TimeSpan.Zero), points[0].PositionTime);
+        Assert.Equal(47.58182, points[1].Latitude, 5);
+        Assert.Equal(9.066929, points[1].Longitude, 5);
+        Assert.Equal(42, points[1].SpeedKmh);
+    }
+
+    [Fact]
+    public void ParseOrderIds_ReturnsOnlyOrderIdColumn()
+    {
+        const string response = "orderdate;orderid;objectuid;orderstate\n2026-09-16;T00001-002-221949;object-uid;100\n2026-09-16;T00001-003-ENDE;object-uid;100";
+        var method = typeof(WebfleetConnectService).GetMethod("ParseOrderIds", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var orderIds = Assert.IsAssignableFrom<IReadOnlyList<string>>(method.Invoke(null, [response]));
+
+        Assert.Equal(["T00001-002-221949", "T00001-003-ENDE"], orderIds);
+    }
+
+    [Fact]
+    public void ParseOrders_ReturnsDetailsUsedForSynchronization()
+    {
+        const string response = "orderid;ordertext;latitude;longitude;street\nT00001-002-221949;Tour A · Stopp 2: Kunde;47581820;9066929;Weinfelderstrasse 19";
+        var method = typeof(WebfleetConnectService).GetMethod("ParseOrders", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var orders = Assert.IsAssignableFrom<IReadOnlyList<WebfleetOrderSnapshot>>(method.Invoke(null, [response]));
+
+        var order = Assert.Single(orders);
+        Assert.Equal("T00001-002-221949", order.OrderId);
+        Assert.Equal(47.58182, order.Latitude);
+        Assert.Equal(9.066929, order.Longitude);
+        Assert.Equal("Weinfelderstrasse 19", order.Street);
+    }
+
     private static IReadOnlyList<WebfleetVehicleSnapshot> InvokeParseVehicles(string response)
     {
         var method = typeof(WebfleetConnectService).GetMethod("ParseVehicles", BindingFlags.NonPublic | BindingFlags.Static);

@@ -45,6 +45,7 @@
     <Resource Include="Assets\Touren-einblenden.png" />
     <Resource Include="Assets\Webfleet-Fahrzeuge-ausblenden.png" />
     <Resource Include="Assets\Webfleet-Fahrzeuge-einblenden.jpg" />
+    <Resource Include="Assets\Webfleet-Fahrzeugverlauf.png" />
     <Resource Include="Assets\XmlImportLock.png" />
   </ItemGroup>
 

@@ -118,7 +118,7 @@ public class TourScheduleServiceTests
     }
 
     [Fact]
-    public void ApplySchedule_RoundsArrivalRangeToQuarterHours()
+    public void ApplySchedule_RoundsArrivalRangeToWebfleetTolerance()
     {
         var service = new TourScheduleService(0, 0, 0, 0);
         var tour = new TourRecord
@@ -146,7 +146,7 @@ public class TourScheduleServiceTests
 
         Assert.Equal("08:30", updated.Stops[1].PlannedArrivalOptimistic);
         Assert.Equal("08:47", updated.Stops[1].PlannedArrival);
-        Assert.Equal("09:15", updated.Stops[1].PlannedArrivalPessimistic);
+        Assert.Equal("09:30", updated.Stops[1].PlannedArrivalPessimistic);
     }
 
     [Fact]

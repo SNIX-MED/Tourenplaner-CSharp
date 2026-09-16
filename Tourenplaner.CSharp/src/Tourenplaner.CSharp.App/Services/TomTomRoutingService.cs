@@ -165,8 +165,11 @@ public sealed class TomTomRoutingService
                 var historicDelaySeconds = historicSeconds.HasValue
                     ? Math.Max(0, historicSeconds.Value - realisticSeconds)
                     : 0;
+                // TomTom liefert hier die gesamte Fahrzeit inklusive Live-Ereignissen,
+                // nicht die Verzögerung allein. Nur die Differenz zur historischen
+                // (bzw. staufreien) Fahrzeit darf als Live-Verzögerung verwendet werden.
                 var liveIncidentDelaySeconds = liveTrafficSeconds.HasValue
-                    ? Math.Max(0, liveTrafficSeconds.Value)
+                    ? Math.Max(0, liveTrafficSeconds.Value - (historicSeconds ?? noTrafficSeconds ?? realisticSeconds))
                     : 0;
 
                 var optimisticBufferSeconds = Math.Max(
@@ -181,15 +184,32 @@ public sealed class TomTomRoutingService
                     noTrafficDelaySeconds > 0
                         ? (int)Math.Round(noTrafficDelaySeconds * 1.20d, MidpointRounding.AwayFromZero)
                         : 0);
-                var pessimisticBufferFloorSeconds = Math.Max(
-                    8 * 60,
-                    Math.Min(18 * 60, (int)Math.Round(realisticSeconds * 0.18d, MidpointRounding.AwayFromZero)));
-                var pessimisticBufferCapSeconds = Math.Max(
-                    12 * 60,
-                    Math.Min(22 * 60, (int)Math.Round(realisticSeconds * 0.24d, MidpointRounding.AwayFromZero)));
-                var pessimisticBufferSeconds = Math.Min(
-                    Math.Max(pessimisticDelaySeconds, pessimisticBufferFloorSeconds),
-                    pessimisticBufferCapSeconds);
+                // Bei kurzen Abschnitten ohne aktuell von TomTom gemeldete Verzögerung
+                // ist ein zusätzlicher pauschaler Pessimismus nicht hilfreich: Er
+                // erzeugt nach dem Runden ein unverhältnismässig grosses
+                // Kunden-Zeitfenster. Ein historischer Vergleichswert allein ist
+                // deshalb für kurze Fahrten kein Grund, das Zeitfenster aufzublähen.
+                // Kleinste Abweichungen in den Sekundendaten sind keine relevante
+                // Staugefahr. Sie dürfen bei einer kurzen Fahrt kein grosses
+                // Kunden-Zeitfenster auslösen.
+                const int materialTrafficDelaySeconds = 2 * 60;
+                var hasCurrentTrafficDelay = noTrafficDelaySeconds >= materialTrafficDelaySeconds ||
+                    liveIncidentDelaySeconds >= materialTrafficDelaySeconds;
+                var isShortLegWithoutCurrentTrafficDelay = realisticSeconds <= 30 * 60 &&
+                    !hasCurrentTrafficDelay;
+                var pessimisticBufferSeconds = 0;
+                if (hasCurrentTrafficDelay || realisticSeconds > 30 * 60)
+                {
+                    var pessimisticBufferFloorSeconds = Math.Max(
+                        8 * 60,
+                        Math.Min(18 * 60, (int)Math.Round(realisticSeconds * 0.18d, MidpointRounding.AwayFromZero)));
+                    var pessimisticBufferCapSeconds = Math.Max(
+                        12 * 60,
+                        Math.Min(22 * 60, (int)Math.Round(realisticSeconds * 0.24d, MidpointRounding.AwayFromZero)));
+                    pessimisticBufferSeconds = Math.Min(
+                        Math.Max(pessimisticDelaySeconds, pessimisticBufferFloorSeconds),
+                        pessimisticBufferCapSeconds);
+                }
                 var pessimisticSeconds = realisticSeconds + pessimisticBufferSeconds;
 
                 optimisticSeconds = Math.Min(optimisticSeconds, realisticSeconds);
@@ -199,9 +219,12 @@ public sealed class TomTomRoutingService
                     optimisticSeconds,
                     realisticSeconds,
                     pessimisticSeconds,
-                    noTrafficDelaySeconds,
-                    historicDelaySeconds,
-                    liveIncidentDelaySeconds,
+                    isShortLegWithoutCurrentTrafficDelay ? 0 : noTrafficDelaySeconds,
+                    // Für eine kurze, aktuell staufreie Fahrt darf ein historischer
+                    // Vergleichswert nicht über den Schweregrad-Mechanismus wieder
+                    // ein grosses Ankunftsfenster erzeugen.
+                    isShortLegWithoutCurrentTrafficDelay ? 0 : historicDelaySeconds,
+                    isShortLegWithoutCurrentTrafficDelay ? 0 : liveIncidentDelaySeconds,
                     _profile.TrafficSeverityMode);
 
                 return new RouteLegTravelTimeProfile(

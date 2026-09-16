@@ -21,6 +21,7 @@ internal static class MapHtmlDocumentBuilder
             : 1.0d;
         var pinInfoCardScaleToken = normalizedPinInfoCardScale.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var mapOptionsButtonContent = BuildMapOptionsButtonContent();
+        var fleetTracksButtonContent = BuildFleetTracksButtonContent();
         var infoIconLocation = BuildInfoCardIconDataUri(
             "1.svg",
             "<svg width='18' height='18' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'><path d='M12 22C12 22 19 15.5 19 9.5C19 5.36 15.87 2 12 2C8.13 2 5 5.36 5 9.5C5 15.5 12 22 12 22Z' fill='#1D9BF0'/><circle cx='12' cy='9.5' r='2.7' fill='white'/></svg>");
@@ -83,6 +84,34 @@ internal static class MapHtmlDocumentBuilder
                    .map-options-toggle svg { display: block; width: 20px; height: 20px; fill: #0f172a; }
                    .map-options-overlay { position: absolute; right: 8px; top: 8px; bottom: 8px; width: min(340px, calc(84vw - 8px)); z-index: 1500; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 18px; transform: translateX(calc(100% + 10px)); transition: transform .22s ease; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: flex; flex-direction: column; overflow: hidden; }
                    .map-options-overlay.open { transform: translateX(0); }
+                   .fleet-tracks-toggle { border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; padding: 0; color: #0f172a; cursor: pointer; font-size: 18px; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: none; align-items: center; justify-content: center; width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
+                   .fleet-tracks-toggle.visible { display: inline-flex; }
+                   .fleet-tracks-toggle img { display: block; width: 28px; height: 28px; object-fit: contain; }
+                   .fleet-tracks-overlay { position: absolute; right: 58px; top: 8px; width: min(330px, calc(84vw - 66px)); z-index: 1500; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 18px; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: none; overflow: hidden; }
+                   .fleet-tracks-overlay.open { display: block; }
+                   .fleet-tracks-content { padding: 12px 16px 16px; }
+                   .fleet-tracks-content select, .fleet-tracks-content input { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 9px; color: #0f172a; background: #fff; font: 14px Segoe UI,sans-serif; }
+                   .fleet-date-picker-wrap { position: relative; }
+                   .fleet-date-button { width: 100%; box-sizing: border-box; border: 1px solid #b8c7dd; border-radius: 8px; padding: 10px 11px; color: #1e293b; background: #fff; font: 14px Segoe UI,sans-serif; text-align: left; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+                   .fleet-date-button:hover, .fleet-date-button.open { border-color: #8b5cf6; box-shadow: 0 0 0 2px rgba(139,92,246,.12); }
+                   .fleet-date-picker { position: absolute; top: calc(100% + 6px); left: 0; width: 264px; padding: 10px 12px 12px; box-sizing: border-box; background: #fff; border: 1px solid #b8c7dd; border-radius: 14px; box-shadow: 0 12px 28px rgba(15,23,42,.18); z-index: 1800; display: none; }
+                   .fleet-date-picker.open { display: block; }
+                   .fleet-calendar-header { display: grid; grid-template-columns: 32px 1fr 32px; gap: 8px; align-items: center; margin-bottom: 8px; }
+                   .fleet-calendar-header button { height: 30px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; cursor: pointer; font-size: 18px; line-height: 1; }
+                   .fleet-calendar-month { height: 30px; border: 1px solid #b8c7dd; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #1e293b; font-size: 13px; font-weight: 600; }
+                   .fleet-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+                   .fleet-calendar-weekday { height: 27px; display: flex; align-items: center; justify-content: center; color: #475569; font-size: 12px; font-weight: 600; }
+                   .fleet-calendar-day { height: 30px; border: 0; border-radius: 8px; background: transparent; color: #1e293b; cursor: pointer; font: 13px Segoe UI,sans-serif; }
+                   .fleet-calendar-day:hover { background: #f1f5f9; }
+                   .fleet-calendar-day.outside { color: #94a3b8; }
+                   .fleet-calendar-day.selected { border: 1.5px solid #a21caf; color: #86198f; font-weight: 700; background: #fdf4ff; }
+                   .fleet-tracks-actions { display: flex; gap: 8px; margin-top: 12px; }
+                   .fleet-tracks-actions button { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px; cursor: pointer; font: 600 13px Segoe UI,sans-serif; background: #fff; color: #0f172a; }
+                   .fleet-tracks-actions button.primary { background: #0f766e; border-color: #0f766e; color: #fff; }
+                   .fleet-track-legend { margin-top: 12px; padding: 9px 10px; border-radius: 8px; background: #f8fafc; font-size: 12px; color: #475569; line-height: 1.45; }
+                   .fleet-track-status { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; font-size: 12px; line-height: 1.4; }
+                   .fleet-track-swatch { display: inline-block; width: 18px; height: 4px; border-radius: 99px; background: #f97316; vertical-align: middle; margin-right: 5px; }
+                   .planned-track-swatch { background: #2563eb; }
                    .map-options-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 10px; border-bottom: 1px solid #e2e8f0; }
                    .map-options-title { font-size: 25px; font-weight: 700; color: #0f172a; margin: 0; }
                    .map-options-close { border: 0; background: transparent; font-size: 24px; line-height: 1; cursor: pointer; color: #475569; padding: 2px; }
@@ -150,8 +179,20 @@ internal static class MapHtmlDocumentBuilder
                      <span>__CURRENT_ROUTE_MAX_SPEED__</span>
                    </div>
                    <button id="mapOptionsToggle" class="map-options-toggle" type="button" aria-label="Map options">__MAP_OPTIONS_BUTTON_CONTENT__</button>
+                   <button id="fleetTracksToggle" class="fleet-tracks-toggle" type="button" aria-label="Positionsverlauf anzeigen" title="Positionsverlauf">__FLEET_TRACKS_BUTTON_CONTENT__</button>
                    <button id="detailsToggle" class="details-toggle" type="button" aria-label="Auftragsdetails umschalten">&#xE76B;</button>
                  </div>
+                 <aside id="fleetTracksOverlay" class="fleet-tracks-overlay" aria-hidden="true">
+                   <div class="map-options-header"><h3 class="map-options-title">Fahrzeugverlauf</h3><button id="fleetTracksClose" class="map-options-close" type="button" aria-label="Schliessen">&times;</button></div>
+                   <div class="fleet-tracks-content">
+                     <div class="map-option-section"><h4>Mitarbeiter</h4><select id="fleetTrackVehicle"><option value="">Mitarbeiter auswählen</option></select></div>
+                     <div class="map-option-section"><h4>Tag</h4><div class="fleet-date-picker-wrap"><button id="fleetTrackDate" class="fleet-date-button" type="button"><span></span><span>&#x1F4C5;</span></button><div id="fleetTrackDatePicker" class="fleet-date-picker"></div></div></div>
+                     <div class="map-option-section"><label class="switch-row"><input id="fleetTrackCompare" type="checkbox" checked /> Geplante Tour gegenüberstellen</label><p class="option-help">Orange: effektiv gefahrene Strecke. Blau: aktuell auf der Karte geöffnete geplante Tour.</p></div>
+                     <div class="fleet-tracks-actions"><button id="fleetTrackClear" type="button">Ausblenden</button><button id="fleetTrackLoad" class="primary" type="button">Verlauf laden</button></div>
+                     <div id="fleetTrackStatus" class="fleet-track-status" role="status" hidden></div>
+                     <div id="fleetTrackLegend" class="fleet-track-legend" hidden><span class="fleet-track-swatch"></span><span id="fleetTrackLegendText"></span></div>
+                   </div>
+                 </aside>
                  <aside id="mapOptionsOverlay" class="map-options-overlay" aria-hidden="true">
                    <div class="map-options-header">
                      <h3 class="map-options-title">Map options</h3>
@@ -208,6 +249,43 @@ internal static class MapHtmlDocumentBuilder
                    window.gawelaMapReady = false;
                    const tourHoverTooltipEl = document.getElementById('tourHoverTooltip');
                    const detailsToggleEl = document.getElementById('detailsToggle');
+                   const fleetTracksToggleEl = document.getElementById('fleetTracksToggle');
+                   const fleetTracksOverlayEl = document.getElementById('fleetTracksOverlay');
+                   const fleetTracksCloseEl = document.getElementById('fleetTracksClose');
+                   const fleetTrackVehicleEl = document.getElementById('fleetTrackVehicle');
+                   const fleetTrackDateEl = document.getElementById('fleetTrackDate');
+                   const fleetTrackDatePickerEl = document.getElementById('fleetTrackDatePicker');
+                   const fleetTrackCompareEl = document.getElementById('fleetTrackCompare');
+                   const fleetTrackLoadEl = document.getElementById('fleetTrackLoad');
+                   const fleetTrackClearEl = document.getElementById('fleetTrackClear');
+                   const fleetTrackLegendEl = document.getElementById('fleetTrackLegend');
+                   const fleetTrackLegendTextEl = document.getElementById('fleetTrackLegendText');
+                   const fleetTrackStatusEl = document.getElementById('fleetTrackStatus');
+                   let fleetTrackSelectedDate = new Date();
+                   let fleetTrackCalendarMonth = new Date(fleetTrackSelectedDate.getFullYear(), fleetTrackSelectedDate.getMonth(), 1);
+                   const pad2 = value => String(value).padStart(2, '0');
+                   const formatFleetTrackDate = value => `${pad2(value.getDate())}.${pad2(value.getMonth() + 1)}.${value.getFullYear()}`;
+                   const toFleetTrackIsoDate = value => `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`;
+                   const renderFleetTrackCalendar = () => {
+                     if (!fleetTrackDatePickerEl || !fleetTrackDateEl) return;
+                     const year = fleetTrackCalendarMonth.getFullYear(); const month = fleetTrackCalendarMonth.getMonth();
+                     const first = new Date(year, month, 1); const offset = (first.getDay() + 6) % 7;
+                     const gridStart = new Date(year, month, 1 - offset);
+                     const monthLabel = new Intl.DateTimeFormat('de-CH', { month: 'long', year: 'numeric' }).format(first);
+                     let days = ['M','D','M','D','F','S','S'].map(day => `<div class='fleet-calendar-weekday'>${day}</div>`).join('');
+                     for (let i = 0; i < 42; i++) { const day = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i); const isSelected = toFleetTrackIsoDate(day) === toFleetTrackIsoDate(fleetTrackSelectedDate); days += `<button type='button' class='fleet-calendar-day${day.getMonth() !== month ? ' outside' : ''}${isSelected ? ' selected' : ''}' data-fleet-date='${toFleetTrackIsoDate(day)}'>${day.getDate()}</button>`; }
+                     fleetTrackDatePickerEl.innerHTML = `<div class='fleet-calendar-header'><button type='button' data-fleet-month='-1'>&#x2039;</button><div class='fleet-calendar-month'>${monthLabel}</div><button type='button' data-fleet-month='1'>&#x203A;</button></div><div class='fleet-calendar-grid'>${days}</div>`;
+                     fleetTrackDateEl.querySelector('span').textContent = formatFleetTrackDate(fleetTrackSelectedDate);
+                     fleetTrackDatePickerEl.querySelectorAll('[data-fleet-month]').forEach(button => button.addEventListener('click', () => { fleetTrackCalendarMonth = new Date(year, month + Number(button.dataset.fleetMonth), 1); renderFleetTrackCalendar(); }));
+                     fleetTrackDatePickerEl.querySelectorAll('[data-fleet-date]').forEach(button => button.addEventListener('click', () => { const [selectedYear, selectedMonth, selectedDay] = button.dataset.fleetDate.split('-').map(Number); fleetTrackSelectedDate = new Date(selectedYear, selectedMonth - 1, selectedDay); fleetTrackCalendarMonth = new Date(selectedYear, selectedMonth - 1, 1); fleetTrackDatePickerEl.classList.remove('open'); fleetTrackDateEl.classList.remove('open'); renderFleetTrackCalendar(); }));
+                   };
+                   renderFleetTrackCalendar();
+                   if (fleetTrackDateEl) fleetTrackDateEl.addEventListener('click', () => { fleetTrackDatePickerEl.classList.toggle('open'); fleetTrackDateEl.classList.toggle('open'); });
+                   const setFleetTracksOverlayOpen = (open) => { if (!fleetTracksOverlayEl) return; fleetTracksOverlayEl.classList.toggle('open', open); fleetTracksOverlayEl.setAttribute('aria-hidden', open ? 'false' : 'true'); };
+                   if (fleetTracksToggleEl) fleetTracksToggleEl.addEventListener('click', () => setFleetTracksOverlayOpen(!fleetTracksOverlayEl.classList.contains('open')));
+                   if (fleetTracksCloseEl) fleetTracksCloseEl.addEventListener('click', () => setFleetTracksOverlayOpen(false));
+                   if (fleetTrackLoadEl) fleetTrackLoadEl.addEventListener('click', () => { if (!fleetTrackVehicleEl.value) return; window.chrome.webview.postMessage(`webfleetTrack:${fleetTrackVehicleEl.value}|${toFleetTrackIsoDate(fleetTrackSelectedDate)}|${fleetTrackCompareEl.checked ? '1' : '0'}`); });
+                   if (fleetTrackClearEl) fleetTrackClearEl.addEventListener('click', () => { window.chrome.webview.postMessage('webfleetTrack:clear'); });
 
                    const statusEl = document.getElementById('status');
                    const setStatus = (t) => { if (statusEl) statusEl.textContent = t; };
@@ -219,6 +297,9 @@ internal static class MapHtmlDocumentBuilder
 
                    window.gawelaSetMarkers = function() {};
                    window.gawelaSetFleetVehicles = function() {};
+                   window.gawelaSetFleetTrackOptions = function() {};
+                   window.gawelaSetFleetTrack = function() {};
+                   window.gawelaSetFleetTrackStatus = function() {};
                    window.gawelaSetRoute = function() {};
                    window.gawelaSetCompanyMarker = function() {};
                    window.gawelaSetPlannedTourOverlays = function() {};
@@ -1754,6 +1835,41 @@ internal static class MapHtmlDocumentBuilder
                            }
                          };
 
+                         const fleetTrackSourceId = 'gawela-fleet-track-source';
+                         const fleetTrackLayerId = 'gawela-fleet-track-layer';
+                         window.gawelaSetFleetTrackOptions = function(vehicles) {
+                           if (!fleetTracksToggleEl || !fleetTrackVehicleEl) return;
+                           const list = Array.isArray(vehicles) ? vehicles.filter(v => v && v.uid) : [];
+                           fleetTracksToggleEl.classList.toggle('visible', list.length > 0);
+                           const selected = fleetTrackVehicleEl.value;
+                           fleetTrackVehicleEl.innerHTML = `<option value=''>Mitarbeiter auswählen</option>` + list.map(v => `<option value='${String(v.uid).replace(/'/g, '&#39;')}'>${escapeHtml(v.name)}</option>`).join('');
+                           if (list.some(v => String(v.uid) === selected)) fleetTrackVehicleEl.value = selected;
+                           else if (list.length === 1) fleetTrackVehicleEl.value = String(list[0].uid);
+                         };
+                         window.gawelaSetFleetTrack = function(points, meta) {
+                           const path = Array.isArray(points) ? points.filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon))).map(p => [Number(p.lon), Number(p.lat)]) : [];
+                           if (fleetTrackLoadEl) fleetTrackLoadEl.textContent = path.length > 1 ? 'Verlauf aktualisieren' : 'Verlauf laden';
+                           const plannedRouteLayer = map.getLayer('gawela-route-layer');
+                           if (plannedRouteLayer) map.setLayoutProperty('gawela-route-layer', 'visibility', !meta || meta.compare ? 'visible' : 'none');
+                           if (map.getLayer(fleetTrackLayerId)) map.removeLayer(fleetTrackLayerId);
+                           if (map.getSource(fleetTrackSourceId)) map.removeSource(fleetTrackSourceId);
+                           if (path.length > 1) {
+                             map.addSource(fleetTrackSourceId, { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: path } } });
+                             map.addLayer({ id: fleetTrackLayerId, type: 'line', source: fleetTrackSourceId, paint: { 'line-color': '#f97316', 'line-width': 6, 'line-opacity': .94 } });
+                           }
+                           if (fleetTrackLegendEl && fleetTrackLegendTextEl) {
+                             fleetTrackLegendEl.hidden = path.length < 2;
+                             const comparison = meta && meta.compare ? ` · <span class='fleet-track-swatch planned-track-swatch'></span>Geplante Tour` : '';
+                             fleetTrackLegendTextEl.innerHTML = path.length > 1 ? `${escapeHtml((meta && meta.name) || 'Fahrzeug')}: ${path.length} Positionen${comparison}` : '';
+                           }
+                         };
+                         window.gawelaSetFleetTrackStatus = function(message) {
+                           if (!fleetTrackStatusEl) return;
+                           const text = String(message || '').trim();
+                           fleetTrackStatusEl.textContent = text;
+                           fleetTrackStatusEl.hidden = !text;
+                         };
+
                          window.gawelaSetFleetVehicles = function(vehicles) {
                            clearMarkers(fleetMarkers);
                            if (!Array.isArray(vehicles)) return;
@@ -2183,6 +2299,7 @@ internal static class MapHtmlDocumentBuilder
             .Replace("__CURRENT_ROUTE_MAX_SPEED__", currentRouteAppliedMaxSpeedKmh > 0 ? currentRouteAppliedMaxSpeedKmh.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty)
             .Replace("__SPEED_LIMIT_BADGE_HIDDEN__", currentRouteAppliedMaxSpeedKmh > 0 ? string.Empty : "hidden")
             .Replace("__MAP_OPTIONS_BUTTON_CONTENT__", mapOptionsButtonContent)
+            .Replace("__FLEET_TRACKS_BUTTON_CONTENT__", fleetTracksButtonContent)
             .Replace("__INFO_ICON_LOCATION__", infoIconLocation)
             .Replace("__INFO_ICON_PRODUCTS__", infoIconProducts)
             .Replace("__INFO_ICON_WEIGHT__", infoIconWeight);
@@ -2214,6 +2331,31 @@ internal static class MapHtmlDocumentBuilder
         catch
         {
             return BuildMapOptionsFallbackIcon();
+        }
+    }
+
+    private static string BuildFleetTracksButtonContent()
+    {
+        try
+        {
+            var resourceUri = new Uri("pack://application:,,,/Assets/Webfleet-Fahrzeugverlauf.png", UriKind.Absolute);
+            var resource = System.Windows.Application.GetResourceStream(resourceUri);
+            if (resource?.Stream is null)
+            {
+                return "&#x1F69A;";
+            }
+
+            using var stream = resource.Stream;
+            using var memory = new System.IO.MemoryStream();
+            stream.CopyTo(memory);
+            var bytes = memory.ToArray();
+            return bytes.Length == 0
+                ? "&#x1F69A;"
+                : $"<img src='data:image/png;base64,{Convert.ToBase64String(bytes)}' alt='Fahrzeugverlauf' />";
+        }
+        catch
+        {
+            return "&#x1F69A;";
         }
     }
 

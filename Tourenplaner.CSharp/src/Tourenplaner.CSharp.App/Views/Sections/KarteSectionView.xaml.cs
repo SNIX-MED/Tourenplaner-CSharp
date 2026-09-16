@@ -258,6 +258,14 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.Markers, UiRefreshDebounceMilliseconds);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.WebfleetTrackRevision))
+        {
+            QueueMapRefresh(MapRefreshOperation.Markers, UiRefreshDebounceMilliseconds);
+        }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.WebfleetTrackStatusText))
+        {
+            QueueMapRefresh(MapRefreshOperation.Markers, UiRefreshDebounceMilliseconds);
+        }
         else if (e.PropertyName == nameof(KarteSectionViewModel.IsDetailsOpen) ||
                  e.PropertyName == nameof(KarteSectionViewModel.IsDetailsPanelExpanded) ||
                  e.PropertyName == nameof(KarteSectionViewModel.DetailsToggleGlyph))
@@ -754,6 +762,12 @@ public partial class KarteSectionView : UserControl
             orderId = x.CurrentOrderId, destination = x.DestinationText
         }).ToList();
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetVehicles === 'function') window.gawelaSetFleetVehicles({JsonSerializer.Serialize(webfleetVehicles)});");
+        var fleetTrackOptions = vm.GetWebfleetTrackEmployeeOptions().Select(x => new { uid = x.ObjectUid, name = x.EmployeeName, number = x.ObjectNumber, objectName = x.ObjectName }).ToList();
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetTrackOptions === 'function') window.gawelaSetFleetTrackOptions({JsonSerializer.Serialize(fleetTrackOptions)});");
+        var fleetTrack = vm.GetWebfleetTrackSnapshot().Select(x => new { lat = x.Latitude, lon = x.Longitude, time = x.PositionTime.ToLocalTime().ToString("dd.MM.yyyy HH:mm"), speed = x.SpeedKmh }).ToList();
+        var fleetTrackMeta = new { name = vm.WebfleetTrackVehicleName, compare = vm.WebfleetTrackComparisonEnabled };
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetTrack === 'function') window.gawelaSetFleetTrack({JsonSerializer.Serialize(fleetTrack)}, {JsonSerializer.Serialize(fleetTrackMeta)});");
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetTrackStatus === 'function') window.gawelaSetFleetTrackStatus({JsonSerializer.Serialize(vm.WebfleetTrackStatusText)});");
         var company = vm.CompanyMarker is null
             ? null
             : new
@@ -1066,6 +1080,22 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
+        if (string.Equals(raw, "webfleetTrack:clear", StringComparison.OrdinalIgnoreCase))
+        {
+            vm.ClearWebfleetTrack();
+            return;
+        }
+
+        if (raw.StartsWith("webfleetTrack:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = raw["webfleetTrack:".Length..].Split('|');
+            if (parts.Length >= 3 && DateOnly.TryParse(parts[1], CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            {
+                _ = LoadWebfleetTrackSafeAsync(vm, parts[0], date, string.Equals(parts[2], "1", StringComparison.Ordinal));
+            }
+            return;
+        }
+
         if (raw.StartsWith("swap:", StringComparison.OrdinalIgnoreCase))
         {
             var parts = raw.Split(':');
@@ -1133,6 +1163,18 @@ public partial class KarteSectionView : UserControl
         }
 
         vm.SelectOrderFromMapPin(raw);
+    }
+
+    private static async Task LoadWebfleetTrackSafeAsync(KarteSectionViewModel viewModel, string objectUid, DateOnly date, bool compareWithPlannedTour)
+    {
+        try
+        {
+            await viewModel.LoadWebfleetTrackAsync(objectUid, date, compareWithPlannedTour);
+        }
+        catch (Exception ex)
+        {
+            viewModel.SetWebfleetTrackFailure($"WEBFLEET-Positionsverlauf konnte nicht geladen werden: {ex.Message}");
+        }
     }
 
     private async Task ApplyMapOptionsFromWebAsync(

@@ -74,6 +74,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly TourScheduleService _scheduleService;
     private readonly TourConflictService _conflictService;
     private readonly Dictionary<string, string> _employeeLabelsById = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _employeeLabelsByWebfleetObjectUid = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Order> _allOrders = new();
     private readonly List<TourRecord> _savedTours = new();
     private readonly List<GeoPoint> _routeGeometryPoints = new();
@@ -82,8 +83,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly List<RouteStopItem> _timedStops = new();
     private readonly List<PlannedTourRouteOverlay> _plannedTourRouteOverlays = new();
     private readonly List<WebfleetVehicleSnapshot> _webfleetVehicles = new();
+    private readonly List<WebfleetTrackPoint> _webfleetTrackPoints = new();
     private int _webfleetVehicleRevision;
+    private int _webfleetTrackRevision;
     private bool _areWebfleetVehiclesVisible;
+    private string _webfleetTrackVehicleName = string.Empty;
+    private bool _webfleetTrackComparisonEnabled = true;
+    private string _webfleetTrackStatusText = string.Empty;
     private VehicleDataRecord _vehicleData = new();
 
     private string _searchText = string.Empty;
@@ -195,6 +201,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly HashSet<int> _selectedDetailProductIndices = new();
     private readonly Stack<RouteStopRemovalUndoSnapshot> _draftRouteStopRemovalUndoStack = new();
     private CancellationTokenSource? _tourOverviewStartTimeAutoSaveCts;
+    private CancellationTokenSource? _webfleetVehicleRefreshCts;
     private string? _detailSelectedProductStatus;
     private bool _suppressDetailSelectedProductStatusApply;
     private bool _hasTemporarySearchPin;
@@ -317,6 +324,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public ICommand SendCurrentTourToWebfleetCommand { get; }
     public ICommand RefreshWebfleetVehiclesCommand { get; }
     public int WebfleetVehicleRevision => _webfleetVehicleRevision;
+    public int WebfleetTrackRevision => _webfleetTrackRevision;
     public bool AreWebfleetVehiclesVisible => _areWebfleetVehiclesVisible;
     public string WebfleetVehiclesButtonToolTip => _areWebfleetVehiclesVisible
         ? "Live-Fahrzeugstandorte ausblenden"
@@ -326,6 +334,80 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         : "/Assets/Webfleet-Fahrzeuge-einblenden.jpg";
 
     public IReadOnlyList<WebfleetVehicleSnapshot> GetWebfleetVehicleSnapshot() => _webfleetVehicles.ToList();
+    public IReadOnlyList<WebfleetTrackEmployeeOption> GetWebfleetTrackEmployeeOptions() => _webfleetVehicles
+        .Where(vehicle => _employeeLabelsByWebfleetObjectUid.ContainsKey(vehicle.ObjectUid))
+        .Select(vehicle => new WebfleetTrackEmployeeOption(vehicle.ObjectUid, _employeeLabelsByWebfleetObjectUid[vehicle.ObjectUid], vehicle.ObjectNumber, vehicle.Name))
+        .OrderBy(option => option.EmployeeName, StringComparer.CurrentCultureIgnoreCase)
+        .ToList();
+    public IReadOnlyList<WebfleetTrackPoint> GetWebfleetTrackSnapshot() => _webfleetTrackPoints.ToList();
+    public string WebfleetTrackVehicleName => _webfleetTrackVehicleName;
+    public bool WebfleetTrackComparisonEnabled => _webfleetTrackComparisonEnabled;
+    public string WebfleetTrackStatusText => _webfleetTrackStatusText;
+
+    public async Task LoadWebfleetTrackAsync(string objectUid, DateOnly date, bool compareWithPlannedTour)
+    {
+        var vehicle = _webfleetVehicles.FirstOrDefault(x => string.Equals(x.ObjectUid, objectUid, StringComparison.OrdinalIgnoreCase));
+        if (vehicle is null)
+        {
+            StatusText = "Bitte zuerst die Live-Fahrzeugstandorte laden und danach ein Fahrzeug auswählen.";
+            return;
+        }
+
+        var localStart = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local);
+        var from = new DateTimeOffset(localStart);
+        var to = from.AddDays(1).AddTicks(-1);
+        var settings = await _settingsRepository.LoadAsync();
+        var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
+        webfleet.ApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
+        webfleet.Password = WebfleetCredentialProtector.Unprotect(webfleet.Password);
+        if (!webfleet.IsEnabled || !webfleet.HasCredentials)
+        {
+            _webfleetTrackStatusText = "WEBFLEET ist noch nicht eingerichtet.";
+            OnPropertyChanged(nameof(WebfleetTrackStatusText));
+            StatusText = "WEBFLEET ist noch nicht eingerichtet.";
+            return;
+        }
+
+        _webfleetTrackStatusText = $"Verlauf für {vehicle.Name} wird geladen …";
+        OnPropertyChanged(nameof(WebfleetTrackStatusText));
+        var points = await new WebfleetConnectService().GetTrackAsync(webfleet, vehicle.ObjectUid, from, to);
+        _webfleetTrackPoints.Clear();
+        _webfleetTrackPoints.AddRange(points);
+        _webfleetTrackVehicleName = _employeeLabelsByWebfleetObjectUid.TryGetValue(vehicle.ObjectUid, out var employeeName) ? employeeName : vehicle.Name;
+        _webfleetTrackComparisonEnabled = compareWithPlannedTour;
+        _webfleetTrackRevision++;
+        OnPropertyChanged(nameof(WebfleetTrackRevision));
+        OnPropertyChanged(nameof(WebfleetTrackVehicleName));
+        OnPropertyChanged(nameof(WebfleetTrackComparisonEnabled));
+        _webfleetTrackStatusText = points.Count > 1
+            ? $"{points.Count} Positionen für {date:dd.MM.yyyy} geladen."
+            : $"Kein Positionsverlauf für den {date:dd.MM.yyyy} verfügbar.";
+        OnPropertyChanged(nameof(WebfleetTrackStatusText));
+        StatusText = points.Count > 1
+            ? $"WEBFLEET-Verlauf für {vehicle.Name}: {points.Count} Positionen geladen."
+            : $"WEBFLEET lieferte für {vehicle.Name} am {date:dd.MM.yyyy} keine ausreichenden Positionsdaten.";
+    }
+
+    public void ClearWebfleetTrack()
+    {
+        _webfleetTrackPoints.Clear();
+        _webfleetTrackVehicleName = string.Empty;
+        _webfleetTrackComparisonEnabled = true;
+        _webfleetTrackRevision++;
+        OnPropertyChanged(nameof(WebfleetTrackRevision));
+        OnPropertyChanged(nameof(WebfleetTrackVehicleName));
+        OnPropertyChanged(nameof(WebfleetTrackComparisonEnabled));
+        _webfleetTrackStatusText = string.Empty;
+        OnPropertyChanged(nameof(WebfleetTrackStatusText));
+        StatusText = "WEBFLEET-Positionsverlauf ausgeblendet.";
+    }
+
+    public void SetWebfleetTrackFailure(string message)
+    {
+        _webfleetTrackStatusText = message;
+        OnPropertyChanged(nameof(WebfleetTrackStatusText));
+        StatusText = message;
+    }
 
     public ICommand DeleteSelectedTourCommand { get; }
 
@@ -1170,11 +1252,16 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             _tomTomApiKey,
             _geocodeCachePath);
         _employeeLabelsById.Clear();
+        _employeeLabelsByWebfleetObjectUid.Clear();
         foreach (var employee in await employeesTask)
         {
             if (!string.IsNullOrWhiteSpace(employee.Id))
             {
                 _employeeLabelsById[employee.Id] = employee.DisplayName;
+            }
+            if (!string.IsNullOrWhiteSpace(employee.WebfleetObjectUid) && !string.IsNullOrWhiteSpace(employee.DisplayName))
+            {
+                _employeeLabelsByWebfleetObjectUid[employee.WebfleetObjectUid.Trim()] = employee.DisplayName;
             }
         }
         EnsureCompanyAnchors();
@@ -2556,15 +2643,25 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var dispatchStopCount = tour.Stops.Count(x =>
-            !string.Equals(x.StopKind, "company", StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(x.StopKind, "pause", StringComparison.OrdinalIgnoreCase));
-        if (Tourenplaner.CSharp.App.Services.AppMessageBox.Show($"Tour \"{tour.Name}\" mit {dispatchStopCount} Aufträgen an \"{vehicle!.Name}\" senden?", "WEBFLEET-Tour senden", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        var webfleetClient = new WebfleetConnectService();
+        var synchronization = await dispatch.PreviewSynchronizationAsync(tour, vehicle!, webfleet, webfleetClient);
+        if (!synchronization.HasChanges)
+        {
+            StatusText = $"WEBFLEET: Alle {synchronization.UnchangedCount} Tourstopps sind bereits aktuell.";
+            return;
+        }
+
+        var synchronizationMessage = $"Tour \"{tour.Name}\" mit \"{vehicle.Name}\" synchronisieren?{Environment.NewLine}{Environment.NewLine}" +
+            $"Neu: {synchronization.CreateCount}{Environment.NewLine}" +
+            $"Aktualisieren: {synchronization.UpdateCount}{Environment.NewLine}" +
+            $"Unverändert: {synchronization.UnchangedCount}{Environment.NewLine}" +
+            $"Aus WEBFLEET löschen: {synchronization.DeleteCount}";
+        if (Tourenplaner.CSharp.App.Services.AppMessageBox.Show(synchronizationMessage, "WEBFLEET-Tour synchronisieren", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
         {
             return;
         }
 
-        await dispatch.DispatchAsync(tour, vehicle!, webfleet, new WebfleetConnectService());
+        await dispatch.DispatchAsync(tour, vehicle!, webfleet, webfleetClient);
         await _tourRepository.SaveAsync(tours);
         StatusText = tour.WebfleetDispatch.LastMessage;
         await RefreshAsync();
@@ -2574,10 +2671,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     {
         if (_areWebfleetVehiclesVisible)
         {
+            StopWebfleetVehicleAutoRefresh();
             _webfleetVehicles.Clear();
+            _webfleetTrackPoints.Clear();
             _areWebfleetVehiclesVisible = false;
             _webfleetVehicleRevision++;
+            _webfleetTrackRevision++;
             OnPropertyChanged(nameof(WebfleetVehicleRevision));
+            OnPropertyChanged(nameof(WebfleetTrackRevision));
             OnPropertyChanged(nameof(AreWebfleetVehiclesVisible));
             OnPropertyChanged(nameof(WebfleetVehiclesButtonToolTip));
             OnPropertyChanged(nameof(WebfleetVehiclesButtonImagePath));
@@ -2586,9 +2687,54 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         await RefreshWebfleetVehiclesAsync();
+        if (_areWebfleetVehiclesVisible)
+        {
+            StartWebfleetVehicleAutoRefresh();
+        }
     }
 
-    private async Task RefreshWebfleetVehiclesAsync()
+    private void StartWebfleetVehicleAutoRefresh()
+    {
+        StopWebfleetVehicleAutoRefresh();
+        _webfleetVehicleRefreshCts = new CancellationTokenSource();
+        RefreshWebfleetVehiclesPeriodicallyAsync(_webfleetVehicleRefreshCts.Token).Forget();
+    }
+
+    private void StopWebfleetVehicleAutoRefresh()
+    {
+        _webfleetVehicleRefreshCts?.Cancel();
+        _webfleetVehicleRefreshCts?.Dispose();
+        _webfleetVehicleRefreshCts = null;
+    }
+
+    private async Task RefreshWebfleetVehiclesPeriodicallyAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested && _areWebfleetVehiclesVisible)
+        {
+            try
+            {
+                var settings = await _settingsRepository.LoadAsync();
+                var refreshSeconds = Math.Clamp(settings.Webfleet?.PositionRefreshSeconds ?? 60, 30, 3600);
+                await Task.Delay(TimeSpan.FromSeconds(refreshSeconds), cancellationToken);
+                if (cancellationToken.IsCancellationRequested || !_areWebfleetVehiclesVisible)
+                {
+                    break;
+                }
+
+                await RefreshWebfleetVehiclesAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                StatusText = $"WEBFLEET-Fahrzeugpositionen konnten nicht automatisch aktualisiert werden: {ex.Message}";
+            }
+        }
+    }
+
+    private async Task RefreshWebfleetVehiclesAsync(CancellationToken cancellationToken = default)
     {
         var settings = await _settingsRepository.LoadAsync();
         var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
@@ -2599,7 +2745,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             StatusText = "WEBFLEET ist noch nicht eingerichtet.";
             return;
         }
-        var vehicles = await new WebfleetConnectService().GetVehiclesAsync(webfleet);
+        var vehicles = await new WebfleetConnectService().GetVehiclesAsync(webfleet, cancellationToken);
         _webfleetVehicles.Clear();
         _webfleetVehicles.AddRange(vehicles.Where(x => x.Latitude.HasValue && x.Longitude.HasValue));
         _areWebfleetVehiclesVisible = true;
@@ -7083,7 +7229,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             $"dims={(_tomTomUseVehicleDimensions ? 1 : 0)}:{vehicleLengthMeters:0.###},{vehicleWidthMeters:0.###},{vehicleHeightMeters:0.###};weight={(_tomTomUseVehicleWeightRestrictions ? 1 : 0)}:{vehicleWeightKg};maxSpeed={maxSpeedKmh}");
         var trafficSeveritySignature = AppSettings.NormalizeTomTomTrafficSeverityMode(_tomTomTrafficSeverityMode);
 
-        return $"{path}#departAt={departAt}#trafficV3#{restrictionsSignature};severity={trafficSeveritySignature}";
+        // Die Zeitfenster-Logik ist Teil des berechneten Routenprofils. Eine neue
+        // Profilversion erzwingt einmalig eine TomTom-Neuberechnung statt alte,
+        // bereits gespeicherte pessimistische Werte weiter anzuzeigen.
+        return $"{path}#departAt={departAt}#trafficV3#arrivalWindowV4#{restrictionsSignature};severity={trafficSeveritySignature}";
     }
 
     private bool TryLoadRouteComputationCache(
@@ -8614,6 +8763,8 @@ public sealed class PlannedTourRouteOverlay
         return new PlannedTourRouteOverlay(TourId, Label, ColorHex, WarningOutlineColorHex, Points);
     }
 }
+
+public sealed record WebfleetTrackEmployeeOption(string ObjectUid, string EmployeeName, string ObjectNumber, string ObjectName);
 
 public sealed class SavedTourLookupItem
 {
