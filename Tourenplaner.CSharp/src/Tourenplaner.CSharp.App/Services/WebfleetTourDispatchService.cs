@@ -19,7 +19,7 @@ public sealed class WebfleetTourDispatchService
         foreach (var stop in tour.Stops.Where(IsDispatchableStop))
         {
             if (stop.Lat is null || (stop.Lon ?? stop.Lng) is null) errors.Add($"Stopp {stop.Order}: Koordinaten fehlen.");
-            if (!IsCompanyEndStop(stop) && string.IsNullOrWhiteSpace(stop.Auftragsnummer)) errors.Add($"Stopp {stop.Order}: Auftragsnummer fehlt.");
+            if (string.IsNullOrWhiteSpace(stop.Auftragsnummer)) errors.Add($"Stopp {stop.Order}: Auftragsnummer fehlt.");
         }
         return errors;
     }
@@ -139,12 +139,15 @@ public sealed class WebfleetTourDispatchService
             .Where(orderId => !string.IsNullOrWhiteSpace(orderId) && !desiredOrderIds.Contains(orderId) && remoteOrdersById.ContainsKey(orderId))
             .Distinct(StringComparer.Ordinal)
             .ToList();
-        foreach (var startStop in tour.Stops.Where(IsCompanyStartStop))
+        foreach (var companyStop in tour.Stops.Where(stop => IsCompanyStartStop(stop) || IsCompanyEndStop(stop)))
         {
-            var legacyStartOrderId = BuildOrderId(tour.Id, startStop.Order, startStop.Auftragsnummer ?? TourStopIdentity.CompanyStartOrderNumber);
-            if (!desiredOrderIds.Contains(legacyStartOrderId) && await client.GetOrderAsync(settings, legacyStartOrderId, cancellationToken) is not null)
+            var companyOrderNumber = IsCompanyStartStop(companyStop)
+                ? TourStopIdentity.CompanyStartOrderNumber
+                : TourStopIdentity.CompanyEndOrderNumber;
+            var legacyCompanyOrderId = BuildOrderId(tour.Id, companyStop.Order, companyStop.Auftragsnummer ?? companyOrderNumber);
+            if (!desiredOrderIds.Contains(legacyCompanyOrderId) && await client.GetOrderAsync(settings, legacyCompanyOrderId, cancellationToken) is not null)
             {
-                orderIdsToDelete.Add(legacyStartOrderId);
+                orderIdsToDelete.Add(legacyCompanyOrderId);
             }
         }
         orderIdsToDelete = orderIdsToDelete.Distinct(StringComparer.Ordinal).ToList();
@@ -203,6 +206,7 @@ public sealed class WebfleetTourDispatchService
     private static string BuildOrderText(TourRecord tour, TourStopRecord stop, int dispatchPosition) => $"{tour.Name} · Stopp {dispatchPosition}: {stop.Name}";
     private static bool IsDispatchableStop(TourStopRecord stop) =>
         !IsCompanyStartStop(stop) &&
+        !IsCompanyEndStop(stop) &&
         !string.Equals(stop.StopKind, "pause", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsCompanyStartStop(TourStopRecord stop) =>

@@ -26,7 +26,7 @@ public sealed class WebfleetTourDispatchServiceTests
     }
 
     [Fact]
-    public void Validate_IncludesCompanyEndStopWithoutOrderNumber()
+    public void Validate_IgnoresCompanyEndStopWithoutOrderNumber()
     {
         var tour = new TourRecord
         {
@@ -45,7 +45,7 @@ public sealed class WebfleetTourDispatchServiceTests
     }
 
     [Fact]
-    public void Validate_IgnoresCanonicalCompanyStartAndIncludesCanonicalCompanyEnd()
+    public void Validate_IgnoresCanonicalCompanyStartAndEnd()
     {
         var tour = new TourRecord
         {
@@ -61,6 +61,40 @@ public sealed class WebfleetTourDispatchServiceTests
         var errors = new WebfleetTourDispatchService().Validate(tour, vehicle);
 
         Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void IsDispatchableStop_ExcludesBothCompanyStops()
+    {
+        var method = typeof(WebfleetTourDispatchService).GetMethod("IsDispatchableStop", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var start = Assert.IsType<bool>(method.Invoke(null, [new TourStopRecord { Id = TourStopIdentity.CompanyStartStopId }]));
+        var end = Assert.IsType<bool>(method.Invoke(null, [new TourStopRecord { Id = TourStopIdentity.CompanyEndStopId }]));
+        var customer = Assert.IsType<bool>(method.Invoke(null, [new TourStopRecord { Id = "order-1", Auftragsnummer = "221949" }]));
+
+        Assert.False(start);
+        Assert.False(end);
+        Assert.True(customer);
+    }
+
+    [Fact]
+    public void BuildWebfleetArrivalWindow_UsesRoundedWindowStartAndTolerance()
+    {
+        var method = typeof(WebfleetTourDispatchService).GetMethod("BuildWebfleetArrivalWindow", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+        var tour = new TourRecord { Date = "22.09.2026" };
+        var stop = new TourStopRecord
+        {
+            PlannedArrivalOptimistic = "07:42",
+            PlannedArrival = "07:42",
+            PlannedArrivalPessimistic = "07:42"
+        };
+
+        var result = ((DateTimeOffset? PlannedArrival, int? ArrivalToleranceMinutes))method.Invoke(null, [tour, stop])!;
+
+        Assert.Equal(new DateTime(2026, 9, 22, 7, 30, 0), result.PlannedArrival!.Value.DateTime);
+        Assert.Equal(15, result.ArrivalToleranceMinutes);
     }
 
     [Fact]

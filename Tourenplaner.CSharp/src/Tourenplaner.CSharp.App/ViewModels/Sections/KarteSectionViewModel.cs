@@ -2610,6 +2610,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
+        // Die aus dem Repository geladene Tour kann vor der Einführung der
+        // Zeitfenster gespeichert worden sein. Vor jeder WEBFLEET-Synchronisierung
+        // deshalb die Ankunftszeiten und die daraus abgeleitete Toleranz frisch
+        // aus dem gespeicherten Fahrzeitprofil berechnen.
+        _scheduleService.ApplySchedule(tour);
+
         var settings = await _settingsRepository.LoadAsync();
         var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
         webfleet.ApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
