@@ -17,6 +17,7 @@ public sealed class TourRecord
     public Dictionary<string, int> TravelTimeCache { get; set; } = new();
     public Dictionary<string, TourTravelTimeProfile> TravelTimeProfileCache { get; set; } = new();
     public string? ConcurrencyToken { get; set; }
+    public WebfleetDispatchRecord WebfleetDispatch { get; set; } = new();
 }
 
 public sealed class TourTravelTimeProfile

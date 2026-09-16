@@ -53,6 +53,35 @@ public static class AddressGeocodingService
         string? tomTomApiKey = null,
         string? cacheFilePath = null)
     {
+        return (await TryResolveAddressWithDiagnosticsAsync(
+            street,
+            postalCode,
+            city,
+            fallbackAddress,
+            tomTomApiKey,
+            cacheFilePath)).Result;
+    }
+
+    public static async Task<AddressGeocodingResolution> TryResolveOrderWithDiagnosticsAsync(
+        Order order,
+        string? tomTomApiKey = null,
+        string? cacheFilePath = null)
+    {
+        var street = BuildStreetLine(order.DeliveryAddress?.Street, order.DeliveryAddress?.HouseNumber);
+        var postalCode = (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim();
+        var city = (order.DeliveryAddress?.City ?? string.Empty).Trim();
+        var fallback = (order.Address ?? string.Empty).Trim();
+        return await TryResolveAddressWithDiagnosticsAsync(street, postalCode, city, fallback, tomTomApiKey, cacheFilePath);
+    }
+
+    public static async Task<AddressGeocodingResolution> TryResolveAddressWithDiagnosticsAsync(
+        string? street,
+        string? postalCode,
+        string? city,
+        string? fallbackAddress = null,
+        string? tomTomApiKey = null,
+        string? cacheFilePath = null)
+    {
         var expectation = new AddressExpectation(
             (street ?? string.Empty).Trim(),
             (postalCode ?? string.Empty).Trim(),
@@ -66,6 +95,9 @@ public static class AddressGeocodingService
         var persistedCache = await TryLoadCacheFromFileAsync(cacheFilePath);
         var canResolveWithTomTom = !string.IsNullOrWhiteSpace(tomTomApiKey);
         GeocodeCandidate? bestCandidate = null;
+        var failureReason = canResolveWithTomTom
+            ? AddressGeocodingFailureReason.NoResult
+            : AddressGeocodingFailureReason.MissingApiKey;
 
         foreach (var query in queries)
         {
@@ -125,7 +157,9 @@ public static class AddressGeocodingService
 
             if (candidate is null)
             {
-                candidate = await TryGeocodeQueryAsync(query, tomTomApiKey, expectation);
+                var attempt = await TryGeocodeQueryAsync(query, tomTomApiKey, expectation);
+                candidate = attempt.Candidate;
+                failureReason = SelectMoreUsefulFailureReason(failureReason, attempt.FailureReason);
                 if (candidate is not null)
                 {
                     InMemoryCache[key] = candidate.Point;
@@ -167,10 +201,10 @@ public static class AddressGeocodingService
 
         if (bestCandidate is null)
         {
-            return null;
+            return new AddressGeocodingResolution(null, failureReason);
         }
 
-        return CreateResolution(bestCandidate, expectation);
+        return new AddressGeocodingResolution(CreateResolution(bestCandidate, expectation), AddressGeocodingFailureReason.None);
     }
 
     private static HttpClient CreateClient()
@@ -248,7 +282,7 @@ public static class AddressGeocodingService
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
-    private static async Task<GeocodeCandidate?> TryGeocodeQueryAsync(
+    private static async Task<GeocodeQueryAttempt> TryGeocodeQueryAsync(
         string query,
         string? tomTomApiKey,
         AddressExpectation expectation)
@@ -256,13 +290,13 @@ public static class AddressGeocodingService
         var key = (tomTomApiKey ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(key))
         {
-            return null;
+            return new GeocodeQueryAttempt(null, AddressGeocodingFailureReason.MissingApiKey);
         }
 
         return await TryGeocodeWithTomTomAsync(query, key, expectation);
     }
 
-    private static async Task<GeocodeCandidate?> TryGeocodeWithTomTomAsync(
+    private static async Task<GeocodeQueryAttempt> TryGeocodeWithTomTomAsync(
         string query,
         string apiKey,
         AddressExpectation expectation)
@@ -273,7 +307,12 @@ public static class AddressGeocodingService
             using var response = await Client.GetAsync(uri);
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                return new GeocodeQueryAttempt(null, response.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden => AddressGeocodingFailureReason.AuthenticationFailed,
+                    System.Net.HttpStatusCode.TooManyRequests => AddressGeocodingFailureReason.RateLimited,
+                    _ => AddressGeocodingFailureReason.ServiceUnavailable
+                });
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync();
@@ -282,7 +321,7 @@ public static class AddressGeocodingService
                 results.ValueKind != JsonValueKind.Array ||
                 results.GetArrayLength() == 0)
             {
-                return null;
+                return new GeocodeQueryAttempt(null, AddressGeocodingFailureReason.NoResult);
             }
 
             GeocodeCandidate? bestCandidate = null;
@@ -340,13 +379,44 @@ public static class AddressGeocodingService
                 }
             }
 
-            return bestCandidate;
+            return new GeocodeQueryAttempt(bestCandidate, bestCandidate is null ? AddressGeocodingFailureReason.NoResult : AddressGeocodingFailureReason.None);
+        }
+        catch (TaskCanceledException)
+        {
+            return new GeocodeQueryAttempt(null, AddressGeocodingFailureReason.Timeout);
+        }
+        catch (HttpRequestException)
+        {
+            return new GeocodeQueryAttempt(null, AddressGeocodingFailureReason.ConnectionFailed);
+        }
+        catch (JsonException)
+        {
+            return new GeocodeQueryAttempt(null, AddressGeocodingFailureReason.InvalidServiceResponse);
         }
         catch
         {
-            return null;
+            return new GeocodeQueryAttempt(null, AddressGeocodingFailureReason.ServiceUnavailable);
         }
     }
+
+    private static AddressGeocodingFailureReason SelectMoreUsefulFailureReason(
+        AddressGeocodingFailureReason current,
+        AddressGeocodingFailureReason next)
+    {
+        return GetFailurePriority(next) > GetFailurePriority(current) ? next : current;
+    }
+
+    private static int GetFailurePriority(AddressGeocodingFailureReason reason) => reason switch
+    {
+        AddressGeocodingFailureReason.AuthenticationFailed => 70,
+        AddressGeocodingFailureReason.RateLimited => 60,
+        AddressGeocodingFailureReason.Timeout => 50,
+        AddressGeocodingFailureReason.ConnectionFailed => 40,
+        AddressGeocodingFailureReason.InvalidServiceResponse => 30,
+        AddressGeocodingFailureReason.ServiceUnavailable => 20,
+        AddressGeocodingFailureReason.NoResult => 10,
+        _ => 0
+    };
 
     private static string? ReadJsonString(JsonElement element, string propertyName)
     {
@@ -887,6 +957,10 @@ public static class AddressGeocodingService
 
     private sealed record AddressExpectation(string Street, string PostalCode, string City);
 
+    private sealed record GeocodeQueryAttempt(
+        GeocodeCandidate? Candidate,
+        AddressGeocodingFailureReason FailureReason);
+
     private sealed record GeocodeCandidate(
         GeoPoint Point,
         string Type,
@@ -950,3 +1024,20 @@ public sealed record AddressGeocodingResult(
     string? ResultStreetName = null,
     string? ResultFreeformAddress = null,
     int? CacheValidationVersion = null);
+
+public sealed record AddressGeocodingResolution(
+    AddressGeocodingResult? Result,
+    AddressGeocodingFailureReason FailureReason);
+
+public enum AddressGeocodingFailureReason
+{
+    None,
+    MissingApiKey,
+    AuthenticationFailed,
+    RateLimited,
+    Timeout,
+    ConnectionFailed,
+    InvalidServiceResponse,
+    ServiceUnavailable,
+    NoResult
+}

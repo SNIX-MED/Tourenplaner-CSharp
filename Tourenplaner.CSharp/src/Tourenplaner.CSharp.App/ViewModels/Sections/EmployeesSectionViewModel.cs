@@ -11,17 +11,19 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
 {
     private readonly IEmployeeDataStore _repository;
     private readonly ITourRecordStore _tourRepository;
+    private readonly IAppSettingsStore _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly List<Employee> _employees = new();
     private readonly Guid _instanceId = Guid.NewGuid();
     private string _statusText = "Lade Mitarbeiter...";
     private string _countText = string.Empty;
 
-    public EmployeesSectionViewModel(IEmployeeDataStore repository, ITourRecordStore tourRepository, AppDataSyncService dataSyncService)
+    public EmployeesSectionViewModel(IEmployeeDataStore repository, ITourRecordStore tourRepository, IAppSettingsStore settingsRepository, AppDataSyncService dataSyncService)
         : base("Mitarbeiterverwaltung", "Mitarbeiter anlegen, bearbeiten und Abwesenheiten planen.")
     {
         _repository = repository;
         _tourRepository = tourRepository;
+        _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService;
         RefreshCommand = new AsyncCommand(RefreshAsync);
         RequestAddEntryCommand = new DelegateCommand(() => AddEntryRequested?.Invoke(this, EventArgs.Empty));
@@ -74,13 +76,72 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             IsFavorite: source?.IsFavorite ?? false,
             RegisterAbsence: editablePeriod is not null,
             AbsenceStartDate: editablePeriod?.StartDate.ToString("dd.MM.yyyy") ?? string.Empty,
-            AbsenceEndDate: editablePeriod?.EndDate.ToString("dd.MM.yyyy") ?? string.Empty);
+            AbsenceEndDate: editablePeriod?.EndDate.ToString("dd.MM.yyyy") ?? string.Empty,
+            WebfleetObjectUid: source?.WebfleetObjectUid ?? string.Empty,
+            WebfleetObjectNumber: source?.WebfleetObjectNumber ?? string.Empty);
+    }
+
+    public async Task<IReadOnlyList<WebfleetVehicleSnapshot>> GetWebfleetVehiclesAsync(string? employeeId = null)
+    {
+        var settings = await _settingsRepository.LoadAsync();
+        var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
+        webfleet.ApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
+        webfleet.Password = WebfleetCredentialProtector.Unprotect(webfleet.Password);
+        if (!webfleet.IsEnabled)
+        {
+            throw new InvalidOperationException("WEBFLEET ist in den gespeicherten Einstellungen noch nicht aktiviert. Bitte unter Einstellungen > WEBFLEET aktivieren und speichern.");
+        }
+
+        if (!webfleet.HasCredentials)
+        {
+            throw new InvalidOperationException("Die gespeicherten WEBFLEET-Zugangsdaten sind unvollständig. Bitte API-Key und Passwort unter Einstellungen > WEBFLEET speichern.");
+        }
+
+        var assignedObjectUids = _employees
+            .Where(x => !string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.WebfleetObjectUid)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return (await new WebfleetConnectService().GetVehiclesAsync(webfleet))
+            .Where(x => !assignedObjectUids.Contains(x.ObjectUid))
+            .ToList();
+    }
+
+    public string GetWebfleetAssignmentHint(string? employeeId)
+    {
+        var assignments = _employees
+            .Where(x => !string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase) &&
+                        !string.IsNullOrWhiteSpace(x.WebfleetObjectUid))
+            .Select(x => string.IsNullOrWhiteSpace(x.WebfleetObjectNumber)
+                ? x.DisplayName
+                : $"{x.WebfleetObjectNumber} – {x.DisplayName}")
+            .ToList();
+        return assignments.Count == 0
+            ? "Keine WEBFLEET-Objekte geladen. Bitte Verbindung und Berechtigungen prüfen."
+            : $"Bereits einem anderen Mitarbeiter zugeordnet: {string.Join(", ", assignments)}.";
+    }
+
+    public bool HasDuplicateWebfleetAssignment(string? employeeId)
+    {
+        var current = _employees.FirstOrDefault(x => string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase));
+        return current is not null &&
+               !string.IsNullOrWhiteSpace(current.WebfleetObjectUid) &&
+               _employees.Any(x => !string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase) &&
+                                   string.Equals(x.WebfleetObjectUid, current.WebfleetObjectUid, StringComparison.OrdinalIgnoreCase));
     }
 
     public async Task<string?> ApplyEditorResultAsync(EmployeeEditorResult result)
     {
         var id = string.IsNullOrWhiteSpace(result.Id) ? Guid.NewGuid().ToString() : result.Id.Trim();
         var existing = _employees.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+        var conflictingEmployee = _employees.FirstOrDefault(x =>
+            !string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(result.WebfleetObjectUid) &&
+            string.Equals(x.WebfleetObjectUid, result.WebfleetObjectUid, StringComparison.OrdinalIgnoreCase));
+        if (conflictingEmployee is not null)
+        {
+            throw new InvalidOperationException($"Das WEBFLEET-Gerät {result.WebfleetObjectNumber} ist bereits dem Mitarbeiter \"{conflictingEmployee.DisplayName}\" zugeordnet.");
+        }
         var periods = new List<ResourceUnavailabilityPeriod>();
 
         string? warning = null;
@@ -108,6 +169,8 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             DisplayName = result.Name.Trim(),
             ShortCode = result.ShortCode.Trim(),
             Phone = result.Phone.Trim(),
+            WebfleetObjectUid = result.WebfleetObjectUid.Trim(),
+            WebfleetObjectNumber = result.WebfleetObjectNumber.Trim(),
             HasProgramProfile = result.HasProgramProfile,
             IsFavorite = result.IsFavorite,
             Role = result.ShortCode.Trim(),
@@ -306,7 +369,9 @@ public sealed record EmployeeEditorSeed(
     bool IsFavorite,
     bool RegisterAbsence,
     string AbsenceStartDate,
-    string AbsenceEndDate);
+    string AbsenceEndDate,
+    string WebfleetObjectUid = "",
+    string WebfleetObjectNumber = "");
 
 public sealed record EmployeeEditorResult(
     string? Id,
@@ -317,4 +382,6 @@ public sealed record EmployeeEditorResult(
     bool IsFavorite,
     bool RegisterAbsence,
     string AbsenceStartDate,
-    string AbsenceEndDate);
+    string AbsenceEndDate,
+    string WebfleetObjectUid = "",
+    string WebfleetObjectNumber = "");

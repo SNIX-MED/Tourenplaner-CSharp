@@ -282,7 +282,8 @@ public sealed partial class SettingsSectionViewModel
 
         foreach (var order in importedMapOrders)
         {
-            var geocodingResult = await AddressGeocodingService.TryResolveOrderAsync(order, TomTomApiKey, cacheFilePath);
+            var geocodingResolution = await AddressGeocodingService.TryResolveOrderWithDiagnosticsAsync(order, TomTomApiKey, cacheFilePath);
+            var geocodingResult = geocodingResolution.Result;
             var nextLocation = geocodingResult?.IsPrecise == true
                 ? geocodingResult.Location
                 : null;
@@ -292,7 +293,7 @@ public sealed partial class SettingsSectionViewModel
                 hasLocationUpdates = true;
             }
 
-            var issue = CreateXmlImportPinIssue(order, geocodingResult);
+            var issue = CreateXmlImportPinIssue(order, geocodingResult, geocodingResolution.FailureReason);
             if (issue is not null)
             {
                 issues.Add(issue);
@@ -324,7 +325,10 @@ public sealed partial class SettingsSectionViewModel
         RaiseXmlImportPreviewStateChanged();
     }
 
-    private XmlImportPinIssueListItemViewModel? CreateXmlImportPinIssue(Order order, AddressGeocodingResult? geocodingResult)
+    private XmlImportPinIssueListItemViewModel? CreateXmlImportPinIssue(
+        Order order,
+        AddressGeocodingResult? geocodingResult,
+        AddressGeocodingFailureReason failureReason = AddressGeocodingFailureReason.NoResult)
     {
         var orderId = (order.Id ?? string.Empty).Trim();
         var customerName = (order.CustomerName ?? string.Empty).Trim();
@@ -335,7 +339,9 @@ public sealed partial class SettingsSectionViewModel
                 orderId,
                 customerName,
                 addressLine,
-                EditXmlImportPinIssueOrderAsync);
+                GetGeocodingFailureSummary(failureReason),
+                EditXmlImportPinIssueOrderAsync,
+                RecheckXmlImportPinIssueAsync);
         }
 
         if (!geocodingResult.IsPrecise)
@@ -346,11 +352,58 @@ public sealed partial class SettingsSectionViewModel
                 addressLine,
                 (geocodingResult.MatchType ?? string.Empty).Trim(),
                 geocodingResult.EntityType,
-                EditXmlImportPinIssueOrderAsync);
+                EditXmlImportPinIssueOrderAsync,
+                RecheckXmlImportPinIssueAsync);
         }
 
         return null;
     }
+
+    private async Task RecheckXmlImportPinIssueAsync(string orderId)
+    {
+        if (_orderRepository is null)
+        {
+            return;
+        }
+
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        var orders = (await _orderRepository.GetAllAsync()).ToList();
+        var order = orders.FirstOrDefault(x => string.Equals(x.Id, normalizedOrderId, StringComparison.OrdinalIgnoreCase));
+        if (order is null)
+        {
+            RemoveXmlImportPinIssue(normalizedOrderId);
+            ImportStatusMessage = $"Auftrag {normalizedOrderId} wurde nicht gefunden.";
+            return;
+        }
+
+        var resolution = await AddressGeocodingService.TryResolveOrderWithDiagnosticsAsync(
+            order,
+            TomTomApiKey,
+            Path.Combine(_dataRoot, "geocode-cache.json"));
+        var result = resolution.Result;
+        if (result?.IsPrecise == true && order.Location != result.Location)
+        {
+            order.Location = result.Location;
+            await _orderRepository.SaveAllAsync(orders);
+        }
+
+        UpdateXmlImportPinIssue(normalizedOrderId, order, result, resolution.FailureReason);
+        ImportStatusMessage = result?.IsPrecise == true
+            ? $"Auftrag {normalizedOrderId} wurde erfolgreich erneut geprueft und zugeordnet."
+            : $"Auftrag {normalizedOrderId}: {GetGeocodingFailureSummary(resolution.FailureReason)}";
+    }
+
+    private static string GetGeocodingFailureSummary(AddressGeocodingFailureReason reason) => reason switch
+    {
+        AddressGeocodingFailureReason.MissingApiKey => "TomTom-API-Key fehlt",
+        AddressGeocodingFailureReason.AuthenticationFailed => "TomTom-Zugang wurde abgelehnt (API-Key pruefen)",
+        AddressGeocodingFailureReason.RateLimited => "TomTom-Anfragelimit erreicht – bitte spaeter erneut pruefen",
+        AddressGeocodingFailureReason.Timeout => "TomTom-Anfrage hat zu lange gedauert – bitte erneut pruefen",
+        AddressGeocodingFailureReason.ConnectionFailed => "TomTom ist derzeit nicht erreichbar – Internetverbindung pruefen",
+        AddressGeocodingFailureReason.InvalidServiceResponse => "TomTom hat eine ungueltige Antwort geliefert – bitte erneut pruefen",
+        AddressGeocodingFailureReason.ServiceUnavailable => "TomTom-Dienst ist derzeit nicht verfuegbar – bitte erneut pruefen",
+        _ => "Kein passender TomTom-Adresspunkt gefunden"
+    };
 
     private async Task EditXmlImportPinIssueOrderAsync(string orderId)
     {
@@ -488,9 +541,13 @@ public sealed partial class SettingsSectionViewModel
         ImportStatusMessage = $"Auftrag {existing.Id} wurde geloescht.";
     }
 
-    private void UpdateXmlImportPinIssue(string originalOrderId, Order updatedOrder, AddressGeocodingResult? geocodingResult)
+    private void UpdateXmlImportPinIssue(
+        string originalOrderId,
+        Order updatedOrder,
+        AddressGeocodingResult? geocodingResult,
+        AddressGeocodingFailureReason failureReason = AddressGeocodingFailureReason.NoResult)
     {
-        var nextIssue = CreateXmlImportPinIssue(updatedOrder, geocodingResult);
+        var nextIssue = CreateXmlImportPinIssue(updatedOrder, geocodingResult, failureReason);
         var index = FindXmlImportPinIssueIndex(originalOrderId);
         if (index < 0)
         {

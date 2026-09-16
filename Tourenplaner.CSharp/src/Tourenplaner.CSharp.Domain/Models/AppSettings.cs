@@ -98,6 +98,7 @@ public sealed class AppSettings
     public Dictionary<string, UserAppPreference> UserPreferencesByUser { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public AppStorageMode StorageMode { get; set; } = AppStorageMode.JsonFiles;
     public PostgreSqlStorageSettings PostgreSqlStorage { get; set; } = new();
+    public WebfleetConnectionSettings Webfleet { get; set; } = new();
 
     public string XmlImportFilePath { get; set; } = string.Empty;
     public DateTime? LastXmlImportDate { get; set; }

@@ -4,7 +4,9 @@
         xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
         Title="Mitarbeiter"
         Width="540"
-        Height="560"
+        Height="700"
+        MinHeight="520"
+        MaxHeight="900"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="{DynamicResource Brush.WindowBackground}">
@@ -14,16 +16,14 @@
     <Border Margin="10" Style="{StaticResource FlatCardStyle}" Padding="12">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+
+            <ScrollViewer Grid.Row="0"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="0,0,8,0">
 
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -89,6 +89,51 @@
             <StackPanel Grid.Row="4" Margin="0,14,0,0">
                 <CheckBox Content="Programmprofil aktivieren (Benutzer-Auswahl)"
                           IsChecked="{Binding HasProgramProfile}" />
+                <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="WEBFLEET-Gerät" />
+                <ComboBox Margin="0,6,0,0"
+                          Height="38"
+                          ItemsSource="{Binding WebfleetVehicles}"
+                          SelectedItem="{Binding SelectedWebfleetVehicle, Mode=TwoWay}"
+                          ToolTip="WEBFLEET-Objekt auswählen">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource Brush.TextMuted}"
+                           TextWrapping="Wrap"
+                           Text="{Binding SelectedWebfleetVehicle.ObjectUid, StringFormat=Objekt-UID: {0}}" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="#B45309"
+                           TextWrapping="Wrap"
+                           Text="Doppelte WEBFLEET-Zuordnung erkannt. Diese Zuordnung wird beim Speichern entfernt.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasDuplicateWebfleetAssignment}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Margin="0,4,0,0"
+                           Foreground="{DynamicResource Brush.TextMuted}"
+                           Text="{Binding NoWebfleetVehiclesMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasAvailableWebfleetVehicles}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
 
             <StackPanel Grid.Row="5" Margin="0,10,0,0">
@@ -113,7 +158,10 @@
                 </Grid>
             </StackPanel>
 
-            <Grid Grid.Row="8" Margin="0,18,0,0">
+                </StackPanel>
+            </ScrollViewer>
+
+            <Grid Grid.Row="1" Margin="0,18,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />

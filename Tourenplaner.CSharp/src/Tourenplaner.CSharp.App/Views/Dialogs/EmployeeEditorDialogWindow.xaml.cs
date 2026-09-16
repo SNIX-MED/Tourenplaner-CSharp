@@ -9,10 +9,10 @@ namespace Tourenplaner.CSharp.App.Views.Dialogs;
 
 public partial class EmployeeEditorDialogWindow : Window
 {
-    public EmployeeEditorDialogWindow(EmployeeEditorSeed seed)
+    public EmployeeEditorDialogWindow(EmployeeEditorSeed seed, IReadOnlyList<WebfleetVehicleSnapshot>? webfleetVehicles = null, string? noWebfleetVehiclesMessage = null, bool hasDuplicateWebfleetAssignment = false)
     {
         InitializeComponent();
-        ViewModel = new EmployeeEditorDialogViewModel(seed);
+        ViewModel = new EmployeeEditorDialogViewModel(seed, webfleetVehicles, noWebfleetVehiclesMessage, hasDuplicateWebfleetAssignment);
         DataContext = ViewModel;
     }
 
@@ -90,8 +90,11 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
     private bool _registerAbsence;
     private string _absenceStartDate;
     private string _absenceEndDate;
+    private string _webfleetObjectUid;
+    private string _webfleetObjectNumber;
+    private WebfleetVehicleOption? _selectedWebfleetVehicle;
 
-    public EmployeeEditorDialogViewModel(EmployeeEditorSeed seed)
+    public EmployeeEditorDialogViewModel(EmployeeEditorSeed seed, IReadOnlyList<WebfleetVehicleSnapshot>? webfleetVehicles = null, string? noWebfleetVehiclesMessage = null, bool hasDuplicateWebfleetAssignment = false)
     {
         _id = seed.Id;
         _name = seed.Name ?? string.Empty;
@@ -102,6 +105,31 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
         _registerAbsence = seed.RegisterAbsence;
         _absenceStartDate = seed.AbsenceStartDate ?? string.Empty;
         _absenceEndDate = seed.AbsenceEndDate ?? string.Empty;
+        _webfleetObjectUid = seed.WebfleetObjectUid ?? string.Empty;
+        _webfleetObjectNumber = seed.WebfleetObjectNumber ?? string.Empty;
+        var availableWebfleetVehicles = (webfleetVehicles ?? [])
+            .Select(WebfleetVehicleOption.Create)
+            .OrderBy(x => x.Label, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+        HasAvailableWebfleetVehicles = availableWebfleetVehicles.Count > 0;
+        WebfleetVehicles = [WebfleetVehicleOption.None, .. availableWebfleetVehicles];
+        _selectedWebfleetVehicle = WebfleetVehicles.FirstOrDefault(x =>
+            !x.IsNone && string.Equals(x.ObjectUid, _webfleetObjectUid, StringComparison.OrdinalIgnoreCase));
+        HasDuplicateWebfleetAssignment = hasDuplicateWebfleetAssignment;
+        if (HasDuplicateWebfleetAssignment)
+        {
+            _webfleetObjectNumber = string.Empty;
+            _webfleetObjectUid = string.Empty;
+            _selectedWebfleetVehicle = WebfleetVehicleOption.None;
+        }
+        else if (HasAvailableWebfleetVehicles && _selectedWebfleetVehicle is null)
+        {
+            _webfleetObjectNumber = string.Empty;
+            _webfleetObjectUid = string.Empty;
+        }
+        NoWebfleetVehiclesMessage = string.IsNullOrWhiteSpace(noWebfleetVehiclesMessage)
+            ? "Keine WEBFLEET-Objekte geladen. Bitte Verbindung und Berechtigungen prüfen."
+            : noWebfleetVehiclesMessage;
     }
 
     public bool HasExistingEntry => !string.IsNullOrWhiteSpace(_id);
@@ -152,6 +180,28 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
     {
         get => _absenceEndDate;
         set => SetProperty(ref _absenceEndDate, value);
+    }
+
+    public string WebfleetObjectUid { get => _webfleetObjectUid; set => SetProperty(ref _webfleetObjectUid, value); }
+    public string WebfleetObjectNumber { get => _webfleetObjectNumber; set => SetProperty(ref _webfleetObjectNumber, value); }
+    public IReadOnlyList<WebfleetVehicleOption> WebfleetVehicles { get; }
+    public bool HasAvailableWebfleetVehicles { get; }
+    public bool HasDuplicateWebfleetAssignment { get; }
+    public string NoWebfleetVehiclesMessage { get; }
+
+    public WebfleetVehicleOption? SelectedWebfleetVehicle
+    {
+        get => _selectedWebfleetVehicle;
+        set
+        {
+            if (!SetProperty(ref _selectedWebfleetVehicle, value) || value is null)
+            {
+                return;
+            }
+
+            WebfleetObjectNumber = value.ObjectNumber;
+            WebfleetObjectUid = value.ObjectUid;
+        }
     }
 
     public DateTime? AbsenceStartSelectedDate
@@ -210,7 +260,9 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
             IsFavorite: IsFavorite,
             RegisterAbsence: RegisterAbsence,
             AbsenceStartDate: (AbsenceStartDate ?? string.Empty).Trim(),
-            AbsenceEndDate: (AbsenceEndDate ?? string.Empty).Trim());
+            AbsenceEndDate: (AbsenceEndDate ?? string.Empty).Trim(),
+            WebfleetObjectUid: (WebfleetObjectUid ?? string.Empty).Trim(),
+            WebfleetObjectNumber: (WebfleetObjectNumber ?? string.Empty).Trim());
         return true;
     }
 
@@ -227,5 +279,16 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
         return value.HasValue
             ? DateOnly.FromDateTime(value.Value).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture)
             : string.Empty;
+    }
+}
+
+public sealed record WebfleetVehicleOption(string ObjectNumber, string ObjectUid, string Label, bool IsNone = false)
+{
+    public static WebfleetVehicleOption None { get; } = new(string.Empty, string.Empty, "Keine WEBFLEET-Zuordnung", true);
+
+    public static WebfleetVehicleOption Create(WebfleetVehicleSnapshot source)
+    {
+        var name = string.IsNullOrWhiteSpace(source.Name) ? "Ohne Bezeichnung" : source.Name;
+        return new WebfleetVehicleOption(source.ObjectNumber, source.ObjectUid, $"{source.ObjectNumber} – {name}");
     }
 }

@@ -126,7 +126,9 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             Notes: entry.Notes,
             RegisterOutage: editablePeriod is not null,
             OutageStartDate: editablePeriod?.StartDate.ToString("dd.MM.yyyy") ?? string.Empty,
-            OutageEndDate: editablePeriod?.EndDate.ToString("dd.MM.yyyy") ?? string.Empty);
+            OutageEndDate: editablePeriod?.EndDate.ToString("dd.MM.yyyy") ?? string.Empty,
+            WebfleetObjectUid: sourceVehicle?.WebfleetObjectUid ?? string.Empty,
+            WebfleetObjectNumber: sourceVehicle?.WebfleetObjectNumber ?? string.Empty);
     }
 
     public VehicleCombinationEditorSeed CreateCombinationSeedForCreate()
@@ -236,6 +238,8 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                 Type = NormalizeVehicleType(result.Type),
                 Name = result.Name.Trim(),
                 LicensePlate = result.LicensePlate.Trim(),
+                WebfleetObjectUid = result.WebfleetObjectUid.Trim(),
+                WebfleetObjectNumber = result.WebfleetObjectNumber.Trim(),
                 GrossWeightKg = Math.Max(0, result.GrossWeightKg),
                 MaxPayloadKg = Math.Max(0, result.MaxPayloadKg),
                 MaxTrailerLoadKg = Math.Max(0, result.MaxTrailerLoadKg),

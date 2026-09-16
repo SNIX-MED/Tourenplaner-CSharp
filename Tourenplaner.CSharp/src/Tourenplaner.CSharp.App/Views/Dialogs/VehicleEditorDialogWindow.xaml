@@ -69,6 +69,7 @@
 
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Kennzeichen" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding LicensePlate, UpdateSourceTrigger=PropertyChanged}" />
+
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="Gesamtgewicht (kg)" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding GrossWeightKgText, UpdateSourceTrigger=PropertyChanged}" />
 

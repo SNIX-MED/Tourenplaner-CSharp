@@ -699,6 +699,24 @@
                                            SnapsToDevicePixels="True"
                                            Source="{Binding PinInfoCardsImagePath}" />
                             </Button>
+                            <Button Grid.Column="5"
+                                    Width="44"
+                                    Height="40"
+                                    Padding="0"
+                                    Margin="0,0,8,0"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    ToolTip="{Binding WebfleetVehiclesButtonToolTip}"
+                                    ToolTipService.InitialShowDelay="1200"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding RefreshWebfleetVehiclesCommand}">
+                                <Image Width="32"
+                                       Height="32"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       SnapsToDevicePixels="True"
+                                       Source="{Binding WebfleetVehiclesButtonImagePath}" />
+                            </Button>
                             <Button Grid.Column="6"
                                     Width="44"
                                     Height="40"

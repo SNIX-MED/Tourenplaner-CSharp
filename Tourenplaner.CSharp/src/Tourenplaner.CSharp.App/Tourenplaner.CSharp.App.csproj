@@ -43,6 +43,8 @@
     <Resource Include="Assets\Pin.png" />
     <Resource Include="Assets\Touren-ausblenden.png" />
     <Resource Include="Assets\Touren-einblenden.png" />
+    <Resource Include="Assets\Webfleet-Fahrzeuge-ausblenden.png" />
+    <Resource Include="Assets\Webfleet-Fahrzeuge-einblenden.jpg" />
     <Resource Include="Assets\XmlImportLock.png" />
   </ItemGroup>
 

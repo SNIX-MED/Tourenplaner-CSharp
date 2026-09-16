@@ -15,7 +15,8 @@ public sealed class XmlImportPinIssueListItemViewModel
         string addressLine,
         string issueSummary,
         string matchSummary,
-        Func<string, Task>? editOrderAsync)
+        Func<string, Task>? editOrderAsync,
+        Func<string, Task>? recheckOrderAsync)
     {
         IssueLabel = issueLabel;
         IssueBackground = issueBackground;
@@ -29,6 +30,9 @@ public sealed class XmlImportPinIssueListItemViewModel
         EditCommand = new AsyncCommand(
             () => editOrderAsync?.Invoke(OrderId) ?? Task.CompletedTask,
             () => editOrderAsync is not null && !string.IsNullOrWhiteSpace(OrderId));
+        RecheckCommand = new AsyncCommand(
+            () => recheckOrderAsync?.Invoke(OrderId) ?? Task.CompletedTask,
+            () => recheckOrderAsync is not null && !string.IsNullOrWhiteSpace(OrderId));
     }
 
     public string IssueLabel { get; }
@@ -41,6 +45,7 @@ public sealed class XmlImportPinIssueListItemViewModel
     public string IssueSummary { get; }
     public string MatchSummary { get; }
     public ICommand EditCommand { get; }
+    public ICommand RecheckCommand { get; }
 
     public string CustomerLine => string.IsNullOrWhiteSpace(CustomerName) ? "(ohne Kundenname)" : CustomerName;
     public string AddressDisplayLine => string.IsNullOrWhiteSpace(AddressLine) ? "(ohne Lieferadresse)" : AddressLine;
@@ -49,7 +54,9 @@ public sealed class XmlImportPinIssueListItemViewModel
         string orderId,
         string customerName,
         string addressLine,
-        Func<string, Task>? editOrderAsync)
+        string failureSummary,
+        Func<string, Task>? editOrderAsync,
+        Func<string, Task>? recheckOrderAsync)
     {
         return new XmlImportPinIssueListItemViewModel(
             "Keine Zuordnung",
@@ -60,8 +67,9 @@ public sealed class XmlImportPinIssueListItemViewModel
             customerName,
             addressLine,
             "Der Pin konnte keiner konkreten Adresse zugeordnet werden.",
-            "Kein Geocoding-Treffer",
-            editOrderAsync);
+            failureSummary,
+            editOrderAsync,
+            recheckOrderAsync);
     }
 
     public static XmlImportPinIssueListItemViewModel CreateApproximate(
@@ -70,7 +78,8 @@ public sealed class XmlImportPinIssueListItemViewModel
         string addressLine,
         string matchType,
         string? entityType,
-        Func<string, Task>? editOrderAsync)
+        Func<string, Task>? editOrderAsync,
+        Func<string, Task>? recheckOrderAsync)
     {
         var matchSummary = string.IsNullOrWhiteSpace(entityType)
             ? matchType
@@ -86,6 +95,7 @@ public sealed class XmlImportPinIssueListItemViewModel
             addressLine,
             "Der Pin wurde nur ungefaehr aufgeloest und sollte manuell geprueft werden.",
             string.IsNullOrWhiteSpace(matchSummary) ? "Unscharfer Treffer" : matchSummary,
-            editOrderAsync);
+            editOrderAsync,
+            recheckOrderAsync);
     }
 }

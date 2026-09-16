@@ -12,6 +12,8 @@ internal static class VehicleNormalizer
         source.Type = NormalizeType(source.Type);
         source.Name = (source.Name ?? string.Empty).Trim();
         source.LicensePlate = (source.LicensePlate ?? string.Empty).Trim().ToUpperInvariant();
+        source.WebfleetObjectUid = (source.WebfleetObjectUid ?? string.Empty).Trim();
+        source.WebfleetObjectNumber = (source.WebfleetObjectNumber ?? string.Empty).Trim();
         source.GrossWeightKg = NonNegative(source.GrossWeightKg, "Gesamtgewicht");
         source.MaxPayloadKg = NonNegative(source.MaxPayloadKg, "Nutzlast");
         source.MaxTrailerLoadKg = NonNegative(source.MaxTrailerLoadKg, "Anhängelast");

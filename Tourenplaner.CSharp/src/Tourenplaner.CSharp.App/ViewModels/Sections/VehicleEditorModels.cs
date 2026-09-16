@@ -19,7 +19,9 @@ public sealed record VehicleEditorSeed(
     string Notes,
     bool RegisterOutage,
     string OutageStartDate,
-    string OutageEndDate);
+    string OutageEndDate,
+    string WebfleetObjectUid = "",
+    string WebfleetObjectNumber = "");
 
 public sealed record VehicleEditorResult(
     string? Id,
@@ -40,7 +42,9 @@ public sealed record VehicleEditorResult(
     string Notes,
     bool RegisterOutage,
     string OutageStartDate,
-    string OutageEndDate);
+    string OutageEndDate,
+    string WebfleetObjectUid = "",
+    string WebfleetObjectNumber = "");
 
 public sealed record VehicleCombinationEditorSeed(
     string? Id,

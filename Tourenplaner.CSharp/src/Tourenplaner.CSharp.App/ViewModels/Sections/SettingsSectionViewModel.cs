@@ -91,6 +91,12 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private int _stayMinutesMitVerteilungMontage = AppSettings.DefaultStayMinutesMitVerteilungMontage;
     private string _tomTomTrafficSeverityMode = AppSettings.DefaultTomTomTrafficSeverityMode;
     private bool _tomTomEnableTileCache = true;
+    private bool _webfleetEnabled;
+    private string _webfleetAccountName = "gawela";
+    private string _webfleetUserName = "Janine Fäsi";
+    private string _webfleetApiKey = string.Empty;
+    private string _webfleetPassword = string.Empty;
+    private int _webfleetPositionRefreshSeconds = 60;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
     private string _backupModeDefault = "full";
@@ -191,6 +197,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             new SettingsCategoryNavigationItem("map-display", "Karte & Darstellung", "Farben, Tourlinien, Karten-Infokarten, Filter und Zoomverhalten.", "\uE787"),
             new SettingsCategoryNavigationItem("tour-planning", "Touren & Planung", "Aufenthaltszeiten, Kapazitätswarnungen, Geschwindigkeiten und Staupuffer.", "\uE8F1"),
             new SettingsCategoryNavigationItem("tomtom-routing", "TomTom & Routing", "API-Key, Karten-Cache und technische Aktualisierungswerte für TomTom.", "\uE81E"),
+            new SettingsCategoryNavigationItem("webfleet", "WEBFLEET", "Fahrzeugpositionen, Auftragsversand und Verbindung zu TomTom GO Fleet.", "\uE707"),
             new SettingsCategoryNavigationItem("data-sync", "Datenquelle & Sync", "Lokale oder zentrale Datenspeicherung, PostgreSQL-Verbindung und Synchronisationsstatus.", "\uE8D4"),
             new SettingsCategoryNavigationItem("imports", "Importe", "XML-Dateien prüfen, Feldzuordnung anpassen und Aufträge kontrolliert importieren.", "\uE9F9"),
             new SettingsCategoryNavigationItem("backup", "Backup", "Sicherungen erstellen, Aufbewahrung festlegen und vorhandene Backups wiederherstellen.", "\uE72C"),
@@ -262,6 +269,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         ActivatePostgreSqlAndRestartCommand = new AsyncCommand(
             ActivatePostgreSqlAndRestartAsync,
             () => IsPostgreSqlStorageMode);
+        TestWebfleetConnectionCommand = new AsyncCommand(TestWebfleetConnectionAsync, () => HasWebfleetCredentials);
 
         // XML Import Commands
         BrowseXmlImportFileCommand = new DelegateCommand(BrowseXmlImportFile);
@@ -772,6 +780,15 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _tomTomEnableTileCache, value);
     }
 
+    public bool WebfleetEnabled { get => _webfleetEnabled; set => SetProperty(ref _webfleetEnabled, value); }
+    public string WebfleetAccountName { get => _webfleetAccountName; set { if (SetProperty(ref _webfleetAccountName, value)) { OnPropertyChanged(nameof(HasWebfleetCredentials)); RaiseWebfleetCommandStates(); } } }
+    public string WebfleetUserName { get => _webfleetUserName; set { if (SetProperty(ref _webfleetUserName, value)) { OnPropertyChanged(nameof(HasWebfleetCredentials)); RaiseWebfleetCommandStates(); } } }
+    public string WebfleetApiKey { get => _webfleetApiKey; set { if (SetProperty(ref _webfleetApiKey, value)) { OnPropertyChanged(nameof(HasWebfleetCredentials)); RaiseWebfleetCommandStates(); } } }
+    public string WebfleetPassword { get => _webfleetPassword; set { if (SetProperty(ref _webfleetPassword, value)) { OnPropertyChanged(nameof(HasWebfleetCredentials)); RaiseWebfleetCommandStates(); } } }
+    public int WebfleetPositionRefreshSeconds { get => _webfleetPositionRefreshSeconds; set => SetProperty(ref _webfleetPositionRefreshSeconds, value); }
+    public bool HasWebfleetCredentials => !string.IsNullOrWhiteSpace(WebfleetAccountName) && !string.IsNullOrWhiteSpace(WebfleetUserName) && !string.IsNullOrWhiteSpace(WebfleetApiKey) && !string.IsNullOrWhiteSpace(WebfleetPassword);
+    public ICommand TestWebfleetConnectionCommand { get; }
+
     public bool BackupsEnabled
     {
         get => _backupsEnabled;
@@ -1234,6 +1251,12 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             nameof(StayMinutesMitVerteilungMontage) or
             nameof(TomTomTrafficSeverityMode) or
             nameof(TomTomEnableTileCache) or
+            nameof(WebfleetEnabled) or
+            nameof(WebfleetAccountName) or
+            nameof(WebfleetUserName) or
+            nameof(WebfleetApiKey) or
+            nameof(WebfleetPassword) or
+            nameof(WebfleetPositionRefreshSeconds) or
             nameof(BackupsEnabled) or
             nameof(BackupDir) or
             nameof(BackupModeDefault) or
@@ -1339,6 +1362,36 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         catch (Exception ex)
         {
             StatusText = $"PostgreSQL-Verbindung fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    private async Task TestWebfleetConnectionAsync()
+    {
+        try
+        {
+            var service = new WebfleetConnectService();
+            var result = await service.TestConnectionAsync(new WebfleetConnectionSettings
+            {
+                AccountName = WebfleetAccountName.Trim(),
+                UserName = WebfleetUserName.Trim(),
+                ApiKey = WebfleetApiKey.Trim(),
+                Password = WebfleetPassword,
+                PositionRefreshSeconds = WebfleetPositionRefreshSeconds
+            });
+            StatusText = result;
+            ToastNotificationService.ShowInfo(result);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"WEBFLEET-Verbindung fehlgeschlagen: {ex.Message}";
+        }
+    }
+
+    private void RaiseWebfleetCommandStates()
+    {
+        if (TestWebfleetConnectionCommand is AsyncCommand command)
+        {
+            command.RaiseCanExecuteChanged();
         }
     }
 
@@ -1603,6 +1656,15 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         model.StorageMode = StorageMode;
         model.PostgreSqlStorage = BuildPostgreSqlStorageSettings();
         model.TomTomApiKey = (TomTomApiKey ?? string.Empty).Trim();
+        model.Webfleet = new WebfleetConnectionSettings
+        {
+            IsEnabled = WebfleetEnabled,
+            AccountName = (WebfleetAccountName ?? string.Empty).Trim(),
+            UserName = (WebfleetUserName ?? string.Empty).Trim(),
+            ApiKey = WebfleetCredentialProtector.Protect((WebfleetApiKey ?? string.Empty).Trim()),
+            Password = WebfleetCredentialProtector.Protect(WebfleetPassword),
+            PositionRefreshSeconds = Math.Clamp(WebfleetPositionRefreshSeconds, 30, 3600)
+        };
         model.TomTomTrafficRefreshSeconds = Math.Max(15, TomTomTrafficRefreshSeconds);
         model.TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000);
         model.TomTomVehicleOnlyMaxSpeedKmh = Math.Clamp(TomTomVehicleOnlyMaxSpeedKmh, 1, 250);
@@ -1683,6 +1745,13 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
             : userPreference.MapRouteCapacityWarningThresholdPercent;
         TomTomApiKey = settings.TomTomApiKey ?? string.Empty;
+        var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
+        WebfleetEnabled = webfleet.IsEnabled;
+        WebfleetAccountName = string.IsNullOrWhiteSpace(webfleet.AccountName) ? "gawela" : webfleet.AccountName;
+        WebfleetUserName = string.IsNullOrWhiteSpace(webfleet.UserName) ? "Janine Fäsi" : webfleet.UserName;
+        WebfleetApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
+        WebfleetPassword = WebfleetCredentialProtector.Unprotect(webfleet.Password);
+        WebfleetPositionRefreshSeconds = webfleet.PositionRefreshSeconds is < 30 or > 3600 ? 60 : webfleet.PositionRefreshSeconds;
         TomTomTrafficRefreshSeconds = userPreference.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : userPreference.TomTomTrafficRefreshSeconds;
         TomTomRouteRecalcDebounceMs = userPreference.TomTomRouteRecalcDebounceMs is < 100 or > 10000 ? AppSettings.DefaultTomTomRouteRecalcDebounceMs : userPreference.TomTomRouteRecalcDebounceMs;
         TomTomVehicleOnlyMaxSpeedKmh = userPreference.TomTomVehicleOnlyMaxSpeedKmh is < 1 or > 250 ? AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh : userPreference.TomTomVehicleOnlyMaxSpeedKmh;

@@ -130,6 +130,15 @@ internal static class MapHtmlDocumentBuilder
                    .gawela-info-card-weight strong { font-weight: 800; color: #111827; }
                    .gawela-info-card-tail-wrap { height: 10px; display: flex; justify-content: center; margin-top: -1px; }
                    .gawela-info-card-tail { width: 18px; height: 10px; background: #ffffff; border-left: 1px solid #e6e8ee; border-right: 1px solid #e6e8ee; border-bottom: 1px solid #e6e8ee; clip-path: polygon(50% 100%, 0 0, 100% 0); box-sizing: border-box; }
+                   .gawela-fleet-popup { min-width: 210px; max-width: min(78vw, 320px); background: #ffffff; border: 1px solid #e6e8ee; border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15); color: #111827; overflow: hidden; font: 14px/1.35 Segoe UI, sans-serif; }
+                   .gawela-fleet-popup-header { padding: 12px 14px 8px; }
+                   .gawela-fleet-popup-name { font-size: 15px; font-weight: 800; }
+                   .gawela-fleet-popup-driver { margin-top: 2px; color: #475569; }
+                   .gawela-fleet-popup-section { padding: 9px 14px; border-top: 1px solid #eceef3; color: #1f2937; }
+                   .gawela-fleet-popup-line + .gawela-fleet-popup-line { margin-top: 3px; }
+                   .gawela-fleet-popup-label { font-weight: 700; }
+                   .gawela-fleet-popup-tail-wrap { height: 10px; display: flex; justify-content: center; margin-top: -1px; }
+                   .gawela-fleet-popup-tail { width: 18px; height: 10px; background: #ffffff; border-left: 1px solid #e6e8ee; border-right: 1px solid #e6e8ee; border-bottom: 1px solid #e6e8ee; clip-path: polygon(50% 100%, 0 0, 100% 0); box-sizing: border-box; }
                  </style>
                </head>
                <body>
@@ -209,6 +218,7 @@ internal static class MapHtmlDocumentBuilder
                    };
 
                    window.gawelaSetMarkers = function() {};
+                   window.gawelaSetFleetVehicles = function() {};
                    window.gawelaSetRoute = function() {};
                    window.gawelaSetCompanyMarker = function() {};
                    window.gawelaSetPlannedTourOverlays = function() {};
@@ -360,6 +370,7 @@ internal static class MapHtmlDocumentBuilder
                          let markerMap = new Map();
                          let routeMarkerMap = new Map();
                          let mapMarkers = [];
+                         let fleetMarkers = [];
                          let companyMarkers = [];
                          let routeMarkers = [];
                          let tempSearchMarker = null;
@@ -1741,6 +1752,22 @@ internal static class MapHtmlDocumentBuilder
                              map.fitBounds(bounds, { padding: 24, maxZoom: 14 });
                              hasAppliedInitialMarkerFit = true;
                            }
+                         };
+
+                         window.gawelaSetFleetVehicles = function(vehicles) {
+                           clearMarkers(fleetMarkers);
+                           if (!Array.isArray(vehicles)) return;
+                           vehicles.forEach(v => {
+                             if (!v || typeof v.lat !== 'number' || typeof v.lon !== 'number') return;
+                             const el = document.createElement('div');
+                             el.style.cssText = 'width:30px;height:30px;border-radius:50%;background:#0f766e;border:3px solid white;box-shadow:0 2px 7px rgba(15,23,42,.45);color:white;font:700 16px Segoe UI,sans-serif;display:flex;align-items:center;justify-content:center;';
+                             el.textContent = '🚚';
+                             const safe = value => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                             const popup = new ttSdk.Popup({ offset: 18, anchor: 'bottom' }).setHTML(`<div class='gawela-fleet-popup'><header class='gawela-fleet-popup-header'><div class='gawela-fleet-popup-name'>${safe(v.name)}</div><div class='gawela-fleet-popup-driver'>${safe(v.driver || 'Kein Fahrer')}</div></header><section class='gawela-fleet-popup-section'><div class='gawela-fleet-popup-line'>${safe(v.position || '')}</div><div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Stand:</span> ${safe(v.positionTime || '-')}</div>${v.orderId ? `<div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Auftrag:</span> ${safe(v.orderId)}</div>` : ''}${v.destination ? `<div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Ziel:</span> ${safe(v.destination)}</div>` : ''}</section></div><div class='gawela-fleet-popup-tail-wrap'><div class='gawela-fleet-popup-tail'></div></div>`);
+                             const marker = new ttSdk.Marker({ element: el, anchor: 'center' }).setLngLat([v.lon, v.lat]).setPopup(popup).addTo(map);
+                             applyMarkerStackOrder(marker, 60, 'gawela-fleet-marker-layer');
+                             fleetMarkers.push(marker);
+                           });
                          };
 
                          window.gawelaSetCompanyMarker = function(company) {

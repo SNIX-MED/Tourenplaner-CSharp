@@ -6,6 +6,8 @@ public sealed class Vehicle
     public string Type { get; set; } = "other";
     public string Name { get; set; } = string.Empty;
     public string LicensePlate { get; set; } = string.Empty;
+    public string WebfleetObjectUid { get; set; } = string.Empty;
+    public string WebfleetObjectNumber { get; set; } = string.Empty;
     public int MaxPayloadKg { get; set; }
     public int MaxTrailerLoadKg { get; set; }
     public int GrossWeightKg { get; set; }

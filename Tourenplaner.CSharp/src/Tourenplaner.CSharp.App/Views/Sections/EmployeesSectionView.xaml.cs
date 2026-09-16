@@ -51,14 +51,28 @@ public partial class EmployeesSectionView : UserControl
             return;
         }
 
-        var dialog = new EmployeeEditorDialogWindow(vm.CreateSeedForCreate())
+        var seed = vm.CreateSeedForCreate();
+        var dialog = new EmployeeEditorDialogWindow(
+            seed,
+            await GetWebfleetVehiclesSafeAsync(vm, seed.Id),
+            vm.GetWebfleetAssignmentHint(seed.Id),
+            vm.HasDuplicateWebfleetAssignment(seed.Id))
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
         if (dialog.ShowDialog() == true && dialog.Result is not null)
         {
-            var warning = await vm.ApplyEditorResultAsync(dialog.Result);
+            string? warning;
+            try
+            {
+                warning = await vm.ApplyEditorResultAsync(dialog.Result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(ex.Message, "WEBFLEET-Gerät", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             if (!string.IsNullOrWhiteSpace(warning))
             {
                 Tourenplaner.CSharp.App.Services.AppMessageBox.Show(warning, "Abwesenheit prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -74,7 +88,12 @@ public partial class EmployeesSectionView : UserControl
             return;
         }
 
-        var dialog = new EmployeeEditorDialogWindow(vm.CreateSeedForEdit(entry))
+        var seed = vm.CreateSeedForEdit(entry);
+        var dialog = new EmployeeEditorDialogWindow(
+            seed,
+            await GetWebfleetVehiclesSafeAsync(vm, seed.Id),
+            vm.GetWebfleetAssignmentHint(seed.Id),
+            vm.HasDuplicateWebfleetAssignment(seed.Id))
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
@@ -97,11 +116,37 @@ public partial class EmployeesSectionView : UserControl
 
         if (dialogResult == true && dialog.Result is not null)
         {
-            var warning = await vm.ApplyEditorResultAsync(dialog.Result);
+            string? warning;
+            try
+            {
+                warning = await vm.ApplyEditorResultAsync(dialog.Result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(ex.Message, "WEBFLEET-Gerät", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             if (!string.IsNullOrWhiteSpace(warning))
             {
                 Tourenplaner.CSharp.App.Services.AppMessageBox.Show(warning, "Abwesenheit prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+        }
+    }
+
+    private static async Task<IReadOnlyList<Tourenplaner.CSharp.App.Services.WebfleetVehicleSnapshot>> GetWebfleetVehiclesSafeAsync(EmployeesSectionViewModel viewModel, string? employeeId)
+    {
+        try
+        {
+            return await viewModel.GetWebfleetVehiclesAsync(employeeId);
+        }
+        catch (Exception ex)
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"WEBFLEET-Objekte konnten nicht geladen werden. Eine bestehende Zuordnung bleibt unverändert.{Environment.NewLine}{ex.Message}",
+                "WEBFLEET",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return [];
         }
     }
 }

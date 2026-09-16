@@ -254,6 +254,10 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.TemporarySearchPin, UiRefreshDebounceMilliseconds);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.WebfleetVehicleRevision))
+        {
+            QueueMapRefresh(MapRefreshOperation.Markers, UiRefreshDebounceMilliseconds);
+        }
         else if (e.PropertyName == nameof(KarteSectionViewModel.IsDetailsOpen) ||
                  e.PropertyName == nameof(KarteSectionViewModel.IsDetailsPanelExpanded) ||
                  e.PropertyName == nameof(KarteSectionViewModel.DetailsToggleGlyph))
@@ -743,6 +747,13 @@ public partial class KarteSectionView : UserControl
 
         var json = JsonSerializer.Serialize(markers);
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetMarkers === 'function') window.gawelaSetMarkers({json});");
+        var webfleetVehicles = vm.GetWebfleetVehicleSnapshot().Select(x => new
+        {
+            name = x.Name, driver = x.DriverName, lat = x.Latitude, lon = x.Longitude,
+            positionTime = x.PositionTime?.ToLocalTime().ToString("dd.MM.yyyy HH:mm"), position = x.PositionText,
+            orderId = x.CurrentOrderId, destination = x.DestinationText
+        }).ToList();
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetVehicles === 'function') window.gawelaSetFleetVehicles({JsonSerializer.Serialize(webfleetVehicles)});");
         var company = vm.CompanyMarker is null
             ? null
             : new

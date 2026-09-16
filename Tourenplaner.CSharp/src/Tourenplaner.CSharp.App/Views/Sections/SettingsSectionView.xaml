@@ -602,6 +602,37 @@
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="webfleet">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="WEBFLEET.connect" />
+                                            <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextSecondary}" TextWrapping="Wrap" Text="Verbindet Tourenplaner mit Fahrzeugen, Live-Positionen und Aufträgen in WEBFLEET. Für den Test werden Account, Benutzer, API-Key und Passwort benötigt." />
+                                            <CheckBox Margin="0,16,0,0" Content="Live-Fahrzeugdaten und Auftragsversand aktivieren" IsChecked="{Binding WebfleetEnabled, Mode=TwoWay}" />
+                                            <Grid Margin="0,14,0,0">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="WEBFLEET Account" /><TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding WebfleetAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /></StackPanel></Border>
+                                                <Border Grid.Column="1" Margin="0,0,0,14" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="WEBFLEET.connect Benutzer" /><TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding WebfleetUserName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /></StackPanel></Border>
+                                            </Grid>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="API Key" /><TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding WebfleetApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /></StackPanel></Border>
+                                                <Border Grid.Column="1" Margin="0,0,0,14" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Passwort" /><PasswordBox x:Name="WebfleetPasswordBox" Margin="0,8,0,0" PasswordChanged="OnWebfleetPasswordChanged" /></StackPanel></Border>
+                                            </Grid>
+                                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Positions-Aktualisierung (Sekunden)" /><TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding WebfleetPositionRefreshSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /></StackPanel></Border><StackPanel Grid.Column="1" Margin="14,0,0,14" VerticalAlignment="Center"><Button Content="Verbindung testen" Command="{Binding TestWebfleetConnectionCommand}" Style="{StaticResource SecondaryButtonStyle}" /><TextBlock Margin="0,8,0,0" Foreground="{DynamicResource Brush.TextSecondary}" TextWrapping="Wrap" Text="Mindestens 30 Sekunden empfohlen." /></StackPanel></Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel>
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
                                                 <DataTrigger Binding="{Binding SelectedSettingsCategoryKey}" Value="general">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
@@ -1924,14 +1955,22 @@
                                                                                        Text="{Binding MatchSummary}"
                                                                                        TextWrapping="Wrap" />
                                                                         </StackPanel>
-                                                                        <Button Grid.Column="1"
-                                                                                Width="104"
+                                                                        <StackPanel Grid.Column="1"
+                                                                                    Margin="14,0,0,0"
+                                                                                    VerticalAlignment="Top">
+                                                                            <Button Width="104"
                                                                                 Height="32"
-                                                                                Margin="14,0,0,0"
                                                                                 VerticalAlignment="Top"
                                                                                 Content="Bearbeiten"
                                                                                 Command="{Binding EditCommand}"
                                                                                 Style="{StaticResource SecondaryButtonStyle}" />
+                                                                            <Button Width="104"
+                                                                                    Height="32"
+                                                                                    Margin="0,8,0,0"
+                                                                                    Content="Erneut pruefen"
+                                                                                    Command="{Binding RecheckCommand}"
+                                                                                    Style="{StaticResource SecondaryButtonStyle}" />
+                                                                        </StackPanel>
                                                                     </Grid>
                                                                 </Border>
                                                             </DataTemplate>

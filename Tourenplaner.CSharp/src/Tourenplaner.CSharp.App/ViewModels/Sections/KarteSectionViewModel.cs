@@ -81,6 +81,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly List<OsrmRouteTrafficSegment> _routeTrafficSegments = new();
     private readonly List<RouteStopItem> _timedStops = new();
     private readonly List<PlannedTourRouteOverlay> _plannedTourRouteOverlays = new();
+    private readonly List<WebfleetVehicleSnapshot> _webfleetVehicles = new();
+    private int _webfleetVehicleRevision;
+    private bool _areWebfleetVehiclesVisible;
     private VehicleDataRecord _vehicleData = new();
 
     private string _searchText = string.Empty;
@@ -246,6 +249,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         ExportRouteCommand = new AsyncCommand(ExportRouteAsync, CanExportRoute);
         SaveRouteAsTourCommand = new AsyncCommand(SaveRouteAsTourAsync, () => RouteStops.Any(x => !IsCompanyStop(x)));
         SaveCurrentTourCommand = new AsyncCommand(SaveCurrentTourAsync, CanSaveCurrentTour);
+        SendCurrentTourToWebfleetCommand = new AsyncCommand(SendCurrentTourToWebfleetAsync, CanSendCurrentTourToWebfleet);
+        RefreshWebfleetVehiclesCommand = new AsyncCommand(ToggleWebfleetVehiclesAsync);
         DeleteSelectedTourCommand = new AsyncCommand(DeleteSelectedTourAsync, CanEditOrLeaveSelectedTour);
         OpenSelectedTourOverviewCommand = new AsyncCommand(OpenSelectedTourOverviewAsync, CanOpenSelectedTourOverview);
         ClearRouteCommand = new DelegateCommand(ClearRoute, () => RouteStops.Any(x => !IsCompanyStop(x)));
@@ -309,6 +314,18 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public ICommand SaveRouteAsTourCommand { get; }
 
     public ICommand SaveCurrentTourCommand { get; }
+    public ICommand SendCurrentTourToWebfleetCommand { get; }
+    public ICommand RefreshWebfleetVehiclesCommand { get; }
+    public int WebfleetVehicleRevision => _webfleetVehicleRevision;
+    public bool AreWebfleetVehiclesVisible => _areWebfleetVehiclesVisible;
+    public string WebfleetVehiclesButtonToolTip => _areWebfleetVehiclesVisible
+        ? "Live-Fahrzeugstandorte ausblenden"
+        : "Live-Fahrzeugstandorte anzeigen und aktualisieren";
+    public string WebfleetVehiclesButtonImagePath => _areWebfleetVehiclesVisible
+        ? "/Assets/Webfleet-Fahrzeuge-ausblenden.png"
+        : "/Assets/Webfleet-Fahrzeuge-einblenden.jpg";
+
+    public IReadOnlyList<WebfleetVehicleSnapshot> GetWebfleetVehicleSnapshot() => _webfleetVehicles.ToList();
 
     public ICommand DeleteSelectedTourCommand { get; }
 
@@ -2493,6 +2510,105 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         await OpenCreateTourDialogAsync();
+    }
+
+    private async Task SendCurrentTourToWebfleetAsync()
+    {
+        var tourId = ResolveCurrentTourId();
+        var tours = (await _tourRepository.LoadAsync()).ToList();
+        var tour = tours.FirstOrDefault(x => x.Id == tourId);
+        if (tour is null)
+        {
+            StatusText = "Bitte zuerst eine gespeicherte Tour auswählen.";
+            return;
+        }
+
+        var settings = await _settingsRepository.LoadAsync();
+        var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
+        webfleet.ApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
+        webfleet.Password = WebfleetCredentialProtector.Unprotect(webfleet.Password);
+        if (!webfleet.IsEnabled || !webfleet.HasCredentials)
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show("WEBFLEET ist noch nicht vollständig eingerichtet. Bitte zuerst unter Einstellungen > WEBFLEET aktivieren, API-Key und Passwort eingeben und die Verbindung testen.", "WEBFLEET", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var employees = await _employeeRepository.LoadAsync();
+        var driverCandidates = employees.Where(employee => (tour.EmployeeIds ?? []).Any(id => string.Equals(id, employee.Id, StringComparison.OrdinalIgnoreCase)) && !string.IsNullOrWhiteSpace(employee.WebfleetObjectUid)).ToList();
+        if (driverCandidates.Count == 0)
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show("Keinem der für die Tour zugeordneten Mitarbeiter ist ein WEBFLEET-Gerät zugeordnet.", "WEBFLEET-Fahrer prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var driver = driverCandidates[0];
+        if (driverCandidates.Count > 1)
+        {
+            var dialog = new WebfleetDriverSelectionDialogWindow(driverCandidates) { Owner = System.Windows.Application.Current?.MainWindow };
+            if (dialog.ShowDialog() != true || dialog.SelectedDriver is null) return;
+            driver = dialog.SelectedDriver;
+        }
+        var vehicle = new Vehicle { Id = driver.Id, Name = driver.DisplayName, WebfleetObjectUid = driver.WebfleetObjectUid, WebfleetObjectNumber = driver.WebfleetObjectNumber };
+        var dispatch = new WebfleetTourDispatchService();
+        var errors = dispatch.Validate(tour, vehicle);
+        if (errors.Count > 0)
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(string.Join(Environment.NewLine, errors), "WEBFLEET-Versand prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var dispatchStopCount = tour.Stops.Count(x =>
+            !string.Equals(x.StopKind, "company", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(x.StopKind, "pause", StringComparison.OrdinalIgnoreCase));
+        if (Tourenplaner.CSharp.App.Services.AppMessageBox.Show($"Tour \"{tour.Name}\" mit {dispatchStopCount} Aufträgen an \"{vehicle!.Name}\" senden?", "WEBFLEET-Tour senden", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        await dispatch.DispatchAsync(tour, vehicle!, webfleet, new WebfleetConnectService());
+        await _tourRepository.SaveAsync(tours);
+        StatusText = tour.WebfleetDispatch.LastMessage;
+        await RefreshAsync();
+    }
+
+    private async Task ToggleWebfleetVehiclesAsync()
+    {
+        if (_areWebfleetVehiclesVisible)
+        {
+            _webfleetVehicles.Clear();
+            _areWebfleetVehiclesVisible = false;
+            _webfleetVehicleRevision++;
+            OnPropertyChanged(nameof(WebfleetVehicleRevision));
+            OnPropertyChanged(nameof(AreWebfleetVehiclesVisible));
+            OnPropertyChanged(nameof(WebfleetVehiclesButtonToolTip));
+            OnPropertyChanged(nameof(WebfleetVehiclesButtonImagePath));
+            StatusText = "WEBFLEET-Fahrzeugpositionen ausgeblendet.";
+            return;
+        }
+
+        await RefreshWebfleetVehiclesAsync();
+    }
+
+    private async Task RefreshWebfleetVehiclesAsync()
+    {
+        var settings = await _settingsRepository.LoadAsync();
+        var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
+        webfleet.ApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
+        webfleet.Password = WebfleetCredentialProtector.Unprotect(webfleet.Password);
+        if (!webfleet.IsEnabled || !webfleet.HasCredentials)
+        {
+            StatusText = "WEBFLEET ist noch nicht eingerichtet.";
+            return;
+        }
+        var vehicles = await new WebfleetConnectService().GetVehiclesAsync(webfleet);
+        _webfleetVehicles.Clear();
+        _webfleetVehicles.AddRange(vehicles.Where(x => x.Latitude.HasValue && x.Longitude.HasValue));
+        _areWebfleetVehiclesVisible = true;
+        _webfleetVehicleRevision++;
+        OnPropertyChanged(nameof(WebfleetVehicleRevision));
+        OnPropertyChanged(nameof(AreWebfleetVehiclesVisible));
+        OnPropertyChanged(nameof(WebfleetVehiclesButtonToolTip));
+        OnPropertyChanged(nameof(WebfleetVehiclesButtonImagePath));
+        StatusText = $"WEBFLEET: {_webfleetVehicles.Count} Fahrzeugposition(en) aktualisiert.";
     }
 
     private async Task SaveSelectedTourOverviewStartTimeAsync(
@@ -4938,6 +5054,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         RaiseCanExecuteChangedIfSupported(ExportRouteCommand);
         RaiseCanExecuteChangedIfSupported(SaveRouteAsTourCommand);
         RaiseCanExecuteChangedIfSupported(SaveCurrentTourCommand);
+        RaiseCanExecuteChangedIfSupported(SendCurrentTourToWebfleetCommand);
         RaiseCanExecuteChangedIfSupported(OpenSelectedTourOverviewCommand);
         RaiseCanExecuteChangedIfSupported(ClearRouteCommand);
         RaiseCanExecuteChangedIfSupported(LeaveSelectedTourCommand);
@@ -5009,6 +5126,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         return _activeTourId <= 0 && _selectedTourOverviewId > 0;
     }
+
+    private bool CanSendCurrentTourToWebfleet() => ResolveCurrentTourId() > 0;
 
     private bool CanOpenSelectedTourOverview()
     {

@@ -313,6 +313,25 @@ public class AddressGeocodingServiceTests
         Assert.NotNull(orders[2].Location);
     }
 
+    [Fact]
+    public async Task TryResolveOrderWithDiagnosticsAsync_ReportsMissingApiKeyWhenNoCachedMatchExists()
+    {
+        ClearGeocodingMemoryCaches();
+        try
+        {
+            var order = CreateMapOrder("diagnostic", "Musterstrasse", "1", "9999", "Unbekanntdorf");
+
+            var resolution = await AddressGeocodingService.TryResolveOrderWithDiagnosticsAsync(order, tomTomApiKey: null);
+
+            Assert.Null(resolution.Result);
+            Assert.Equal(AddressGeocodingFailureReason.MissingApiKey, resolution.FailureReason);
+        }
+        finally
+        {
+            ClearGeocodingMemoryCaches();
+        }
+    }
+
     private static Order CreateMapOrder(
         string id,
         string street,

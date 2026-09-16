@@ -79,6 +79,8 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
     private bool _registerOutage;
     private string _outageStartDate;
     private string _outageEndDate;
+    private string _webfleetObjectUid;
+    private string _webfleetObjectNumber;
 
     public VehicleEditorDialogViewModel(VehicleEditorSeed seed)
     {
@@ -101,6 +103,8 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         _registerOutage = seed.RegisterOutage;
         _outageStartDate = seed.OutageStartDate ?? string.Empty;
         _outageEndDate = seed.OutageEndDate ?? string.Empty;
+        _webfleetObjectUid = seed.WebfleetObjectUid ?? string.Empty;
+        _webfleetObjectNumber = seed.WebfleetObjectNumber ?? string.Empty;
     }
 
     public string Heading => IsTrailer ? "Anhänger" : "Zugfahrzeug";
@@ -218,6 +222,9 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         get => _outageEndDate;
         set => SetProperty(ref _outageEndDate, value);
     }
+
+    public string WebfleetObjectUid { get => _webfleetObjectUid; set => SetProperty(ref _webfleetObjectUid, value); }
+    public string WebfleetObjectNumber { get => _webfleetObjectNumber; set => SetProperty(ref _webfleetObjectNumber, value); }
 
     public DateTime? OutageStartSelectedDate
     {
@@ -346,7 +353,9 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
             Notes: (Notes ?? string.Empty).Trim(),
             RegisterOutage: RegisterOutage,
             OutageStartDate: (OutageStartDate ?? string.Empty).Trim(),
-            OutageEndDate: (OutageEndDate ?? string.Empty).Trim());
+            OutageEndDate: (OutageEndDate ?? string.Empty).Trim(),
+            WebfleetObjectUid: (WebfleetObjectUid ?? string.Empty).Trim(),
+            WebfleetObjectNumber: (WebfleetObjectNumber ?? string.Empty).Trim());
         return true;
     }
 
