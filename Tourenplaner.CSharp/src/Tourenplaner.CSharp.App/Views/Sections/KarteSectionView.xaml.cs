@@ -764,7 +764,14 @@ public partial class KarteSectionView : UserControl
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetVehicles === 'function') window.gawelaSetFleetVehicles({JsonSerializer.Serialize(webfleetVehicles)});");
         var fleetTrackOptions = vm.GetWebfleetTrackEmployeeOptions().Select(x => new { uid = x.ObjectUid, name = x.EmployeeName, number = x.ObjectNumber, objectName = x.ObjectName }).ToList();
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetTrackOptions === 'function') window.gawelaSetFleetTrackOptions({JsonSerializer.Serialize(fleetTrackOptions)});");
-        var fleetTrack = vm.GetWebfleetTrackSnapshot().Select(x => new { lat = x.Latitude, lon = x.Longitude, time = x.PositionTime.ToLocalTime().ToString("dd.MM.yyyy HH:mm"), speed = x.SpeedKmh }).ToList();
+        var fleetTrack = vm.GetWebfleetTrackSnapshot().Select(x => new
+        {
+            lat = x.Latitude,
+            lon = x.Longitude,
+            time = x.PositionTime.ToLocalTime().ToString("dd.MM.yyyy HH:mm"),
+            speed = x.SpeedKmh,
+            course = x.CourseDegrees
+        }).ToList();
         var fleetTrackMeta = new { name = vm.WebfleetTrackVehicleName, compare = vm.WebfleetTrackComparisonEnabled };
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetTrack === 'function') window.gawelaSetFleetTrack({JsonSerializer.Serialize(fleetTrack)}, {JsonSerializer.Serialize(fleetTrackMeta)});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetTrackStatus === 'function') window.gawelaSetFleetTrackStatus({JsonSerializer.Serialize(vm.WebfleetTrackStatusText)});");

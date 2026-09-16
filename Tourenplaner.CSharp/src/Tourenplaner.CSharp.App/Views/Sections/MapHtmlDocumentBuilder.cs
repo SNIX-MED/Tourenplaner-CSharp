@@ -110,8 +110,10 @@ internal static class MapHtmlDocumentBuilder
                    .fleet-tracks-actions button.primary { background: #0f766e; border-color: #0f766e; color: #fff; }
                    .fleet-track-legend { margin-top: 12px; padding: 9px 10px; border-radius: 8px; background: #f8fafc; font-size: 12px; color: #475569; line-height: 1.45; }
                    .fleet-track-status { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; font-size: 12px; line-height: 1.4; }
-                   .fleet-track-swatch { display: inline-block; width: 18px; height: 4px; border-radius: 99px; background: #f97316; vertical-align: middle; margin-right: 5px; }
+                   .fleet-track-swatch { display: inline-block; width: 18px; height: 4px; border-radius: 99px; background: #65a30d; vertical-align: middle; margin-right: 5px; }
                    .planned-track-swatch { background: #2563eb; }
+                   .fleet-track-popup { min-width: 178px; padding: 7px 10px; font: 600 12px Segoe UI,sans-serif; color: #1e293b; line-height: 1.45; }
+                   .fleet-track-popup strong { color: #0f172a; }
                    .map-options-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 10px; border-bottom: 1px solid #e2e8f0; }
                    .map-options-title { font-size: 25px; font-weight: 700; color: #0f172a; margin: 0; }
                    .map-options-close { border: 0; background: transparent; font-size: 24px; line-height: 1; cursor: pointer; color: #475569; padding: 2px; }
@@ -187,7 +189,7 @@ internal static class MapHtmlDocumentBuilder
                    <div class="fleet-tracks-content">
                      <div class="map-option-section"><h4>Mitarbeiter</h4><select id="fleetTrackVehicle"><option value="">Mitarbeiter auswählen</option></select></div>
                      <div class="map-option-section"><h4>Tag</h4><div class="fleet-date-picker-wrap"><button id="fleetTrackDate" class="fleet-date-button" type="button"><span></span><span>&#x1F4C5;</span></button><div id="fleetTrackDatePicker" class="fleet-date-picker"></div></div></div>
-                     <div class="map-option-section"><label class="switch-row"><input id="fleetTrackCompare" type="checkbox" checked /> Geplante Tour gegenüberstellen</label><p class="option-help">Orange: effektiv gefahrene Strecke. Blau: aktuell auf der Karte geöffnete geplante Tour.</p></div>
+                     <div class="map-option-section"><label class="switch-row"><input id="fleetTrackCompare" type="checkbox" checked /> Geplante Tour gegenüberstellen</label><p class="option-help">Grün: effektiv gefahrene Strecke. Blau: aktuell auf der Karte geöffnete geplante Tour. Über die grüne Strecke fahren, um Details zu sehen.</p></div>
                      <div class="fleet-tracks-actions"><button id="fleetTrackClear" type="button">Ausblenden</button><button id="fleetTrackLoad" class="primary" type="button">Verlauf laden</button></div>
                      <div id="fleetTrackStatus" class="fleet-track-status" role="status" hidden></div>
                      <div id="fleetTrackLegend" class="fleet-track-legend" hidden><span class="fleet-track-swatch"></span><span id="fleetTrackLegendText"></span></div>
@@ -1289,6 +1291,14 @@ internal static class MapHtmlDocumentBuilder
                              if (map.getLayer(plannedTourOverlaysSelectedLayerId)) {
                                map.moveLayer(plannedTourOverlaysSelectedLayerId);
                              }
+
+                             // The actual WEBFLEET trace remains the foremost route layer,
+                             // so it is visible and hoverable even where it matches the planned tour.
+                             ['gawela-fleet-track-outline-layer', 'gawela-fleet-track-layer'].forEach(id => {
+                               if (map.getLayer(id)) {
+                                 map.moveLayer(id);
+                               }
+                             });
                            } catch (_) {
                              // ignore ordering errors if style is in transition
                            }
@@ -1837,6 +1847,34 @@ internal static class MapHtmlDocumentBuilder
 
                          const fleetTrackSourceId = 'gawela-fleet-track-source';
                          const fleetTrackLayerId = 'gawela-fleet-track-layer';
+                         const fleetTrackOutlineLayerId = 'gawela-fleet-track-outline-layer';
+                         let fleetTrackHoverPopup = null;
+                         let fleetTrackHoveredSegmentId = null;
+                         let fleetTrackHoverHandlers = null;
+                         const removeFleetTrackHoverHandlers = () => {
+                           if (!fleetTrackHoverHandlers) return;
+                           map.off('mouseenter', fleetTrackLayerId, fleetTrackHoverHandlers.enter);
+                           map.off('mousemove', fleetTrackLayerId, fleetTrackHoverHandlers.move);
+                           map.off('mouseleave', fleetTrackLayerId, fleetTrackHoverHandlers.leave);
+                           fleetTrackHoverHandlers = null;
+                         };
+                         const clearFleetTrackHover = () => {
+                           if (fleetTrackHoveredSegmentId !== null && map.getSource(fleetTrackSourceId)) {
+                             map.setFeatureState({ source: fleetTrackSourceId, id: fleetTrackHoveredSegmentId }, { hover: false });
+                           }
+                           fleetTrackHoveredSegmentId = null;
+                           if (fleetTrackHoverPopup) fleetTrackHoverPopup.remove();
+                         };
+                         const formatFleetTrackSegmentPopup = properties => {
+                           const start = escapeHtml(String(properties && properties.startTime || ''));
+                           const end = escapeHtml(String(properties && properties.endTime || ''));
+                           const speed = Number(properties && properties.speed);
+                           const course = Number(properties && properties.course);
+                           const speedText = Number.isFinite(speed) ? `${Math.round(speed)} km/h` : 'Geschwindigkeit nicht verfügbar';
+                           const courseText = Number.isFinite(course) ? ` · Kurs ${Math.round(course)}°` : '';
+                           const timeText = `${start}${end && end !== start ? ` – ${end}` : ''}` || 'Zeitpunkt nicht verfügbar';
+                           return `<div class='gawela-fleet-popup'><div class='gawela-fleet-popup-header'><div class='gawela-fleet-popup-name'>Gefahrener Abschnitt</div><div class='gawela-fleet-popup-driver'>${timeText}</div></div><div class='gawela-fleet-popup-section'><div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Geschwindigkeit:</span> ${speedText}${courseText}</div></div></div><div class='gawela-fleet-popup-tail-wrap'><div class='gawela-fleet-popup-tail'></div></div>`;
+                         };
                          window.gawelaSetFleetTrackOptions = function(vehicles) {
                            if (!fleetTracksToggleEl || !fleetTrackVehicleEl) return;
                            const list = Array.isArray(vehicles) ? vehicles.filter(v => v && v.uid) : [];
@@ -1847,15 +1885,44 @@ internal static class MapHtmlDocumentBuilder
                            else if (list.length === 1) fleetTrackVehicleEl.value = String(list[0].uid);
                          };
                          window.gawelaSetFleetTrack = function(points, meta) {
-                           const path = Array.isArray(points) ? points.filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon))).map(p => [Number(p.lon), Number(p.lat)]) : [];
+                           const validPoints = Array.isArray(points) ? points.filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon))) : [];
+                           const path = validPoints.map(p => [Number(p.lon), Number(p.lat)]);
                            if (fleetTrackLoadEl) fleetTrackLoadEl.textContent = path.length > 1 ? 'Verlauf aktualisieren' : 'Verlauf laden';
                            const plannedRouteLayer = map.getLayer('gawela-route-layer');
                            if (plannedRouteLayer) map.setLayoutProperty('gawela-route-layer', 'visibility', !meta || meta.compare ? 'visible' : 'none');
+                           removeFleetTrackHoverHandlers();
+                           clearFleetTrackHover();
                            if (map.getLayer(fleetTrackLayerId)) map.removeLayer(fleetTrackLayerId);
+                           if (map.getLayer(fleetTrackOutlineLayerId)) map.removeLayer(fleetTrackOutlineLayerId);
                            if (map.getSource(fleetTrackSourceId)) map.removeSource(fleetTrackSourceId);
                            if (path.length > 1) {
-                             map.addSource(fleetTrackSourceId, { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: path } } });
-                             map.addLayer({ id: fleetTrackLayerId, type: 'line', source: fleetTrackSourceId, paint: { 'line-color': '#f97316', 'line-width': 6, 'line-opacity': .94 } });
+                             const features = validPoints.slice(1).map((point, index) => ({
+                               type: 'Feature', id: index,
+                               properties: { startTime: validPoints[index].time || '', endTime: point.time || '', speed: point.speed, course: point.course },
+                               geometry: { type: 'LineString', coordinates: [path[index], path[index + 1]] }
+                             }));
+                             map.addSource(fleetTrackSourceId, { type: 'geojson', data: { type: 'FeatureCollection', features } });
+                             map.addLayer({ id: fleetTrackOutlineLayerId, type: 'line', source: fleetTrackSourceId, paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .96 } });
+                             map.addLayer({ id: fleetTrackLayerId, type: 'line', source: fleetTrackSourceId, paint: { 'line-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#84cc16', '#65a30d'], 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 7, 5], 'line-opacity': .98 } });
+                             ensureRouteLayersOnTop();
+                             const enter = () => { map.getCanvas().style.cursor = 'pointer'; };
+                             const move = event => {
+                               const feature = event && event.features && event.features[0];
+                               if (!feature) return;
+                               const id = feature.id;
+                               if (fleetTrackHoveredSegmentId !== id) {
+                                 clearFleetTrackHover();
+                                 fleetTrackHoveredSegmentId = id;
+                                 map.setFeatureState({ source: fleetTrackSourceId, id }, { hover: true });
+                               }
+                               if (!fleetTrackHoverPopup) fleetTrackHoverPopup = new ttSdk.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
+                               fleetTrackHoverPopup.setLngLat(event.lngLat).setHTML(formatFleetTrackSegmentPopup(feature.properties)).addTo(map);
+                             };
+                             const leave = () => { map.getCanvas().style.cursor = 'grab'; clearFleetTrackHover(); };
+                             fleetTrackHoverHandlers = { enter, move, leave };
+                             map.on('mouseenter', fleetTrackLayerId, enter);
+                             map.on('mousemove', fleetTrackLayerId, move);
+                             map.on('mouseleave', fleetTrackLayerId, leave);
                            }
                            if (fleetTrackLegendEl && fleetTrackLegendTextEl) {
                              fleetTrackLegendEl.hidden = path.length < 2;
