@@ -2009,7 +2009,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         {
             Position = 0,
             OrderId = order.OrderId,
-            Customer = order.Customer,
+            Customer = ResolveRouteStopName(order.OrderId, order.Customer),
             Address = BuildRouteStopAddressLine(order.Street, order.PostalCodeCity, order.Address),
             Latitude = order.Latitude,
             Longitude = order.Longitude,
@@ -3535,7 +3535,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                         OrderId = isPause
                             ? (string.IsNullOrWhiteSpace(stop.Id) ? $"{PauseStopIdPrefix}{Guid.NewGuid():N}" : stop.Id.Trim())
                             : ExtractTourStopOrderId(stop),
-                        Customer = isPause ? "Pause" : NormalizeTourStopName(stop.Name),
+                        Customer = isPause ? "Pause" : ResolveRouteStopName(ExtractTourStopOrderId(stop), stop.Name),
                         Address = isPause
                             ? string.Empty
                             : ResolveRouteStopAddress(ExtractTourStopOrderId(stop), stop.Address),
@@ -4314,7 +4314,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 {
                     Position = stop.Position,
                     OrderId = stop.OrderId ?? string.Empty,
-                    Customer = stop.Customer ?? string.Empty,
+                    Customer = ResolveRouteStopName(stop.OrderId, stop.Customer),
                     Address = ResolveRouteStopAddress(stop.OrderId, stop.Address),
                     Latitude = stop.Latitude,
                     Longitude = stop.Longitude,
@@ -6332,7 +6332,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 continue;
             }
 
-            stop.Customer = order.CustomerName;
+            stop.Customer = ResolveRouteStopName(order);
             stop.Address = BuildRouteStopAddressLine(
                 ResolveStreet(order),
                 ResolvePostalCodeCity(order),
@@ -7920,6 +7920,29 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             ResolveStreet(order),
             ResolvePostalCodeCity(order),
             order.Address);
+    }
+
+    private string ResolveRouteStopName(string? orderId, string? fallbackName)
+    {
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
+        return order is null ? NormalizeTourStopName(fallbackName) : ResolveRouteStopName(order);
+    }
+
+    private static string ResolveRouteStopName(Order order)
+    {
+        var deliveryAddressName = NormalizeUiText(order.DeliveryAddress?.Name);
+        if (!string.IsNullOrWhiteSpace(deliveryAddressName))
+        {
+            return deliveryAddressName;
+        }
+
+        var customerName = NormalizeUiText(order.CustomerName);
+        if (!string.IsNullOrWhiteSpace(customerName))
+        {
+            return customerName;
+        }
+
+        return NormalizeUiText(order.OrderAddress?.Name);
     }
 
     private static string StripTrailingStandaloneNumber(string? value)
