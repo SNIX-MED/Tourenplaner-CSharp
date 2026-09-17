@@ -84,7 +84,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
     public async Task<IReadOnlyList<WebfleetVehicleSnapshot>> GetWebfleetVehiclesAsync(string? employeeId = null)
     {
         var settings = await _settingsRepository.LoadAsync();
-        var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
+        var webfleet = await WebfleetUserSettingsService.LoadOrMigrateLegacyAsync(settings, LocalUserSessionService.CurrentUserName) ?? new WebfleetConnectionSettings();
         webfleet.ApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
         webfleet.Password = WebfleetCredentialProtector.Unprotect(webfleet.Password);
         if (!webfleet.IsEnabled)

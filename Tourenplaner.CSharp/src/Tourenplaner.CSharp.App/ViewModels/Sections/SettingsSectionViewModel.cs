@@ -1102,6 +1102,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             var settings = await _repository.LoadAsync();
             _activeStorageMode = settings.StorageMode;
             ApplyModel(settings);
+            await ApplyWebfleetUserProfileAsync(settings);
             OnPropertyChanged(nameof(ActiveStorageModeDisplayName));
             OnPropertyChanged(nameof(ActiveStorageModeDetailText));
             UpdateBackupStatus(BackupDir);
@@ -1135,6 +1136,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         }
 
         await _repository.SaveAsync(model);
+        await WebfleetUserSettingsService.SaveAsync(_currentUserName, BuildWebfleetUserProfile());
         ValidationSummary = string.Empty;
         UpdateBackupStatus(model.BackupDir);
         _dataSyncService?.PublishSettings(_instanceId);
@@ -1656,15 +1658,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         model.StorageMode = StorageMode;
         model.PostgreSqlStorage = BuildPostgreSqlStorageSettings();
         model.TomTomApiKey = (TomTomApiKey ?? string.Empty).Trim();
-        model.Webfleet = new WebfleetConnectionSettings
-        {
-            IsEnabled = WebfleetEnabled,
-            AccountName = (WebfleetAccountName ?? string.Empty).Trim(),
-            UserName = (WebfleetUserName ?? string.Empty).Trim(),
-            ApiKey = WebfleetCredentialProtector.Protect((WebfleetApiKey ?? string.Empty).Trim()),
-            Password = WebfleetCredentialProtector.Protect(WebfleetPassword),
-            PositionRefreshSeconds = Math.Clamp(WebfleetPositionRefreshSeconds, 30, 3600)
-        };
         model.TomTomTrafficRefreshSeconds = Math.Max(15, TomTomTrafficRefreshSeconds);
         model.TomTomRouteRecalcDebounceMs = Math.Clamp(TomTomRouteRecalcDebounceMs, 100, 10000);
         model.TomTomVehicleOnlyMaxSpeedKmh = Math.Clamp(TomTomVehicleOnlyMaxSpeedKmh, 1, 250);
@@ -1745,13 +1738,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
             : userPreference.MapRouteCapacityWarningThresholdPercent;
         TomTomApiKey = settings.TomTomApiKey ?? string.Empty;
-        var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
-        WebfleetEnabled = webfleet.IsEnabled;
-        WebfleetAccountName = string.IsNullOrWhiteSpace(webfleet.AccountName) ? "gawela" : webfleet.AccountName;
-        WebfleetUserName = string.IsNullOrWhiteSpace(webfleet.UserName) ? "Janine Fäsi" : webfleet.UserName;
-        WebfleetApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
-        WebfleetPassword = WebfleetCredentialProtector.Unprotect(webfleet.Password);
-        WebfleetPositionRefreshSeconds = webfleet.PositionRefreshSeconds is < 30 or > 3600 ? 60 : webfleet.PositionRefreshSeconds;
         TomTomTrafficRefreshSeconds = userPreference.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : userPreference.TomTomTrafficRefreshSeconds;
         TomTomRouteRecalcDebounceMs = userPreference.TomTomRouteRecalcDebounceMs is < 100 or > 10000 ? AppSettings.DefaultTomTomRouteRecalcDebounceMs : userPreference.TomTomRouteRecalcDebounceMs;
         TomTomVehicleOnlyMaxSpeedKmh = userPreference.TomTomVehicleOnlyMaxSpeedKmh is < 1 or > 250 ? AppSettings.DefaultTomTomVehicleOnlyMaxSpeedKmh : userPreference.TomTomVehicleOnlyMaxSpeedKmh;
@@ -1802,6 +1788,29 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
         XmlImportFilePath = settings.XmlImportFilePath ?? string.Empty;
         ApplyXmlImportMapping(settings.XmlImportMapping);
+    }
+
+    private WebfleetConnectionSettings BuildWebfleetUserProfile() => new()
+    {
+        IsEnabled = WebfleetEnabled,
+        AccountName = (WebfleetAccountName ?? string.Empty).Trim(),
+        UserName = (WebfleetUserName ?? string.Empty).Trim(),
+        ApiKey = WebfleetCredentialProtector.Protect((WebfleetApiKey ?? string.Empty).Trim()),
+        Password = WebfleetCredentialProtector.Protect(WebfleetPassword),
+        PositionRefreshSeconds = Math.Clamp(WebfleetPositionRefreshSeconds, 30, 3600)
+    };
+
+    private async Task ApplyWebfleetUserProfileAsync(AppSettings settings)
+    {
+        var profile = await WebfleetUserSettingsService.LoadOrMigrateLegacyAsync(settings, _currentUserName);
+        WebfleetEnabled = profile?.IsEnabled ?? false;
+        WebfleetAccountName = string.IsNullOrWhiteSpace(profile?.AccountName) ? "gawela" : profile.AccountName;
+        WebfleetUserName = profile?.UserName ?? string.Empty;
+        WebfleetApiKey = profile is null ? string.Empty : WebfleetCredentialProtector.Unprotect(profile.ApiKey);
+        WebfleetPassword = profile is null ? string.Empty : WebfleetCredentialProtector.Unprotect(profile.Password);
+        WebfleetPositionRefreshSeconds = profile is null || profile.PositionRefreshSeconds is < 30 or > 3600
+            ? 60
+            : profile.PositionRefreshSeconds;
     }
 
     private PostgreSqlStorageSettings BuildPostgreSqlStorageSettings()

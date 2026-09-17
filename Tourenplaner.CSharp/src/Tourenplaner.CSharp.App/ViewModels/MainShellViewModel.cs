@@ -70,6 +70,7 @@ public sealed partial class MainShellViewModel : ObservableObject
         _employeesRepository = repositories.EmployeeDataStore;
         _geocodeCachePath = Path.Combine(repositories.DataRootPath, "geocode-cache.json");
         LocalUserSessionService.Initialize(repositories.DataRootPath);
+        WebfleetUserSettingsService.Initialize(repositories.DataRootPath);
         var map = new KarteSectionViewModel(
             repositories.OrderRepository,
             repositories.TourRecordStore,

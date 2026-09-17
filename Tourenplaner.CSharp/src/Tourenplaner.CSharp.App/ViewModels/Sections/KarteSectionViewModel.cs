@@ -357,9 +357,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         var from = new DateTimeOffset(localStart);
         var to = from.AddDays(1).AddTicks(-1);
         var settings = await _settingsRepository.LoadAsync();
-        var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
-        webfleet.ApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
-        webfleet.Password = WebfleetCredentialProtector.Unprotect(webfleet.Password);
+        var webfleet = await ResolveWebfleetSettingsAsync(settings);
         if (!webfleet.IsEnabled || !webfleet.HasCredentials)
         {
             _webfleetTrackStatusText = "WEBFLEET ist noch nicht eingerichtet.";
@@ -2617,9 +2615,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _scheduleService.ApplySchedule(tour);
 
         var settings = await _settingsRepository.LoadAsync();
-        var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
-        webfleet.ApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
-        webfleet.Password = WebfleetCredentialProtector.Unprotect(webfleet.Password);
+        var webfleet = await ResolveWebfleetSettingsAsync(settings);
         if (!webfleet.IsEnabled || !webfleet.HasCredentials)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show("WEBFLEET ist noch nicht vollständig eingerichtet. Bitte zuerst unter Einstellungen > WEBFLEET aktivieren, API-Key und Passwort eingeben und die Verbindung testen.", "WEBFLEET", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -2720,7 +2716,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             try
             {
                 var settings = await _settingsRepository.LoadAsync();
-                var refreshSeconds = Math.Clamp(settings.Webfleet?.PositionRefreshSeconds ?? 60, 30, 3600);
+                var webfleet = await ResolveWebfleetSettingsAsync(settings);
+                var refreshSeconds = Math.Clamp(webfleet.PositionRefreshSeconds, 30, 3600);
                 await Task.Delay(TimeSpan.FromSeconds(refreshSeconds), cancellationToken);
                 if (cancellationToken.IsCancellationRequested || !_areWebfleetVehiclesVisible)
                 {
@@ -2743,9 +2740,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private async Task RefreshWebfleetVehiclesAsync(CancellationToken cancellationToken = default)
     {
         var settings = await _settingsRepository.LoadAsync();
-        var webfleet = settings.Webfleet ?? new WebfleetConnectionSettings();
-        webfleet.ApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
-        webfleet.Password = WebfleetCredentialProtector.Unprotect(webfleet.Password);
+        var webfleet = await ResolveWebfleetSettingsAsync(settings);
         if (!webfleet.IsEnabled || !webfleet.HasCredentials)
         {
             StatusText = "WEBFLEET ist noch nicht eingerichtet.";
@@ -7038,6 +7033,15 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         var environmentUser = (Environment.UserName ?? string.Empty).Trim();
         return string.IsNullOrWhiteSpace(environmentUser) ? "default" : environmentUser;
+    }
+
+    private static async Task<WebfleetConnectionSettings> ResolveWebfleetSettingsAsync(AppSettings settings)
+    {
+        var profile = await WebfleetUserSettingsService.LoadOrMigrateLegacyAsync(settings, ResolveCurrentSettingsUserName(settings))
+            ?? new WebfleetConnectionSettings();
+        profile.ApiKey = WebfleetCredentialProtector.Unprotect(profile.ApiKey);
+        profile.Password = WebfleetCredentialProtector.Unprotect(profile.Password);
+        return profile;
     }
 
     private static string NormalizeMapOverlayStyle(string? value)
