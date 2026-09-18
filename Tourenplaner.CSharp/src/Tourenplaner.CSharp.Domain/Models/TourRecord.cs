@@ -16,6 +16,7 @@ public sealed class TourRecord
     public bool IsArchived { get; set; }
     public Dictionary<string, int> TravelTimeCache { get; set; } = new();
     public Dictionary<string, TourTravelTimeProfile> TravelTimeProfileCache { get; set; } = new();
+    public List<GeoPoint> RouteGeometryPoints { get; set; } = new();
     public string? ConcurrencyToken { get; set; }
     public WebfleetDispatchRecord WebfleetDispatch { get; set; } = new();
 }

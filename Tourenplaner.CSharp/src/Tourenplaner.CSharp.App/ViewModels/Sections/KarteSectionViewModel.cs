@@ -1534,7 +1534,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public IReadOnlyList<PlannedTourRouteOverlay> GetPlannedTourRouteOverlaySnapshot()
     {
-        if (!IsAllPlannedToursVisible)
+        if (!IsAllPlannedToursVisible && _selectedTourOverviewId <= 0)
         {
             return [];
         }
@@ -3440,7 +3440,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                         RealisticMinutes = Math.Max(0, x.Value?.RealisticMinutes ?? 0),
                         PessimisticMinutes = Math.Max(0, x.Value?.PessimisticMinutes ?? 0)
                     },
-                    StringComparer.OrdinalIgnoreCase)
+                    StringComparer.OrdinalIgnoreCase),
+            RouteGeometryPoints = (source.RouteGeometryPoints ?? [])
+                .Where(point => point.Latitude is >= -90 and <= 90 && point.Longitude is >= -180 and <= 180)
+                .Select(point => new GeoPoint(point.Latitude, point.Longitude))
+                .ToList()
         };
     }
 
@@ -3823,6 +3827,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     {
         tour.TravelTimeCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         tour.TravelTimeProfileCache = new Dictionary<string, TourTravelTimeProfile>(StringComparer.OrdinalIgnoreCase);
+        tour.RouteGeometryPoints = _routeGeometryPoints
+            .Where(point => point.Latitude is >= -90 and <= 90 && point.Longitude is >= -180 and <= 180)
+            .Select(point => new GeoPoint(point.Latitude, point.Longitude))
+            .ToList();
 
         var orderedStops = (tour.Stops ?? [])
             .Where(x => x is not null)
@@ -4798,17 +4806,27 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private void RebuildPlannedTourRouteOverlays()
     {
         _plannedTourRouteOverlays.Clear();
-        if (IsAllPlannedToursVisible)
+        if (IsAllPlannedToursVisible || _selectedTourOverviewId > 0)
         {
-            foreach (var tour in _savedTours.Where(x => !x.IsArchived))
+            foreach (var tour in _savedTours.Where(x =>
+                         !x.IsArchived &&
+                         x.Id != _activeTourId &&
+                         (IsAllPlannedToursVisible || x.Id == _selectedTourOverviewId)))
             {
-                var points = (tour.Stops ?? [])
-                    .OrderBy(x => x.Order)
-                    .Where(x => !IsCompanyEndTourStop(x))
-                    .Select(TryMapStopToPoint)
-                    .Where(x => x is not null)
-                    .Select(x => x!)
+                var points = (tour.RouteGeometryPoints ?? [])
+                    .Where(point => point.Latitude is >= -90 and <= 90 && point.Longitude is >= -180 and <= 180)
+                    .Select(point => new GeoPoint(point.Latitude, point.Longitude))
                     .ToList();
+                if (points.Count < 2)
+                {
+                    points = (tour.Stops ?? [])
+                        .OrderBy(x => x.Order)
+                        .Where(x => !IsCompanyEndTourStop(x))
+                        .Select(TryMapStopToPoint)
+                        .Where(x => x is not null)
+                        .Select(x => x!)
+                        .ToList();
+                }
                 if (points.Count < 2)
                 {
                     continue;
@@ -6887,6 +6905,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     {
         _selectedTourOverviewId = selection?.TourId ?? 0;
         OnPropertyChanged(nameof(PlannedTourOverlayHighlightTourId));
+        RebuildPlannedTourRouteOverlays();
         if (_selectedTourOverviewId <= 0)
         {
             UpdateRouteSummary();

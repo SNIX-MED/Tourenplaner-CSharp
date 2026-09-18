@@ -50,6 +50,35 @@ public class JsonToursRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task SaveAndLoadAsync_PreservesCalculatedRouteGeometryAndAllEmployees()
+    {
+        var root = CreateTempRoot();
+        var file = Path.Combine(root, "tours.json");
+
+        try
+        {
+            var repository = new JsonToursRepository(file);
+            await repository.SaveAsync(
+            [
+                new TourRecord
+                {
+                    Id = 42,
+                    EmployeeIds = ["employee-a", "employee-b", "employee-c"],
+                    RouteGeometryPoints = [new GeoPoint(47.3769, 8.5417), new GeoPoint(47.4230, 9.3748)]
+                }
+            ]);
+
+            var tour = Assert.Single(await repository.LoadAsync());
+            Assert.Equal(["employee-a", "employee-b", "employee-c"], tour.EmployeeIds);
+            Assert.Equal([new GeoPoint(47.3769, 8.5417), new GeoPoint(47.4230, 9.3748)], tour.RouteGeometryPoints);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     private static string CreateTempRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));

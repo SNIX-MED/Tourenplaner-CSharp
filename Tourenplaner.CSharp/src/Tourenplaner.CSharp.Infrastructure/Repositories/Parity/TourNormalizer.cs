@@ -32,7 +32,6 @@ internal static class TourNormalizer
             .Select(x => (x ?? string.Empty).Trim())
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct()
-            .Take(2)
             .ToList();
 
         source.TravelTimeCache = source.TravelTimeCache
@@ -48,6 +47,10 @@ internal static class TourNormalizer
                     RealisticMinutes = Math.Max(0, x.Value?.RealisticMinutes ?? x.Value?.OptimisticMinutes ?? 0),
                     PessimisticMinutes = Math.Max(0, x.Value?.PessimisticMinutes ?? x.Value?.RealisticMinutes ?? x.Value?.OptimisticMinutes ?? 0)
                 });
+        source.RouteGeometryPoints = (source.RouteGeometryPoints ?? [])
+            .Where(point => point.Latitude is >= -90 and <= 90 && point.Longitude is >= -180 and <= 180)
+            .Select(point => new GeoPoint(point.Latitude, point.Longitude))
+            .ToList();
 
         return source;
     }

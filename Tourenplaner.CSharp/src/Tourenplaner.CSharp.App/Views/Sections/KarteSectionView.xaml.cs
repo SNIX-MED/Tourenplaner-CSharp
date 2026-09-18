@@ -200,6 +200,10 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.Route, DataRefreshDebounceMilliseconds);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedTourOverviewItem))
+        {
+            QueueMapRefresh(MapRefreshOperation.Markers, UiRefreshDebounceMilliseconds);
+        }
         else if (e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedStatus) ||
                  e.PropertyName == nameof(KarteSectionViewModel.DetailOrderStatus) ||
                  e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedAvisoStatus) ||
