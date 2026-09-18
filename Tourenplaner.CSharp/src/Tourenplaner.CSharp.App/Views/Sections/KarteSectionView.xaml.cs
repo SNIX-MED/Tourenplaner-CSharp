@@ -772,8 +772,16 @@ public partial class KarteSectionView : UserControl
             speed = x.SpeedKmh,
             course = x.CourseDegrees
         }).ToList();
-        var fleetTrackMeta = new { name = vm.WebfleetTrackVehicleName, compare = vm.WebfleetTrackComparisonEnabled };
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetTrack === 'function') window.gawelaSetFleetTrack({JsonSerializer.Serialize(fleetTrack)}, {JsonSerializer.Serialize(fleetTrackMeta)});");
+        var fleetTrackMeta = new { name = vm.WebfleetTrackVehicleName };
+        var fleetPauses = vm.GetWebfleetPauseSnapshot().Select(x => new
+        {
+            lat = x.Latitude,
+            lon = x.Longitude,
+            start = x.StartTime.ToLocalTime().ToString("dd.MM.yyyy HH:mm"),
+            end = x.EndTime?.ToLocalTime().ToString("dd.MM.yyyy HH:mm"),
+            active = x.IsActive
+        }).ToList();
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetTrack === 'function') window.gawelaSetFleetTrack({JsonSerializer.Serialize(fleetTrack)}, {JsonSerializer.Serialize(fleetTrackMeta)}, {JsonSerializer.Serialize(fleetPauses)});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetFleetTrackStatus === 'function') window.gawelaSetFleetTrackStatus({JsonSerializer.Serialize(vm.WebfleetTrackStatusText)});");
         var company = vm.CompanyMarker is null
             ? null
@@ -1096,9 +1104,9 @@ public partial class KarteSectionView : UserControl
         if (raw.StartsWith("webfleetTrack:", StringComparison.OrdinalIgnoreCase))
         {
             var parts = raw["webfleetTrack:".Length..].Split('|');
-            if (parts.Length >= 3 && DateOnly.TryParse(parts[1], CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            if (parts.Length >= 2 && DateOnly.TryParse(parts[1], CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
             {
-                _ = LoadWebfleetTrackSafeAsync(vm, parts[0], date, string.Equals(parts[2], "1", StringComparison.Ordinal));
+                _ = LoadWebfleetTrackSafeAsync(vm, parts[0], date);
             }
             return;
         }
@@ -1172,11 +1180,11 @@ public partial class KarteSectionView : UserControl
         vm.SelectOrderFromMapPin(raw);
     }
 
-    private static async Task LoadWebfleetTrackSafeAsync(KarteSectionViewModel viewModel, string objectUid, DateOnly date, bool compareWithPlannedTour)
+    private static async Task LoadWebfleetTrackSafeAsync(KarteSectionViewModel viewModel, string objectUid, DateOnly date)
     {
         try
         {
-            await viewModel.LoadWebfleetTrackAsync(objectUid, date, compareWithPlannedTour);
+            await viewModel.LoadWebfleetTrackAsync(objectUid, date);
         }
         catch (Exception ex)
         {

@@ -60,7 +60,10 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             IsFavorite: false,
             RegisterAbsence: false,
             AbsenceStartDate: string.Empty,
-            AbsenceEndDate: string.Empty);
+            AbsenceEndDate: string.Empty,
+            WebfleetDriverUid: string.Empty,
+            WebfleetDriverNumber: string.Empty,
+            WebfleetDriverName: string.Empty);
     }
 
     public EmployeeEditorSeed CreateSeedForEdit(EmployeeCardItem entry)
@@ -78,7 +81,10 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             AbsenceStartDate: editablePeriod?.StartDate.ToString("dd.MM.yyyy") ?? string.Empty,
             AbsenceEndDate: editablePeriod?.EndDate.ToString("dd.MM.yyyy") ?? string.Empty,
             WebfleetObjectUid: source?.WebfleetObjectUid ?? string.Empty,
-            WebfleetObjectNumber: source?.WebfleetObjectNumber ?? string.Empty);
+            WebfleetObjectNumber: source?.WebfleetObjectNumber ?? string.Empty,
+            WebfleetDriverUid: source?.WebfleetDriverUid ?? string.Empty,
+            WebfleetDriverNumber: source?.WebfleetDriverNumber ?? string.Empty,
+            WebfleetDriverName: source?.WebfleetDriverName ?? string.Empty);
     }
 
     public async Task<IReadOnlyList<WebfleetVehicleSnapshot>> GetWebfleetVehiclesAsync(string? employeeId = null)
@@ -104,6 +110,27 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return (await new WebfleetConnectService().GetVehiclesAsync(webfleet))
             .Where(x => !assignedObjectUids.Contains(x.ObjectUid))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<WebfleetDriverSnapshot>> GetWebfleetDriversAsync(string? employeeId = null)
+    {
+        var settings = await _settingsRepository.LoadAsync();
+        var webfleet = await WebfleetUserSettingsService.LoadOrMigrateLegacyAsync(settings, LocalUserSessionService.CurrentUserName) ?? new WebfleetConnectionSettings();
+        webfleet.ApiKey = WebfleetCredentialProtector.Unprotect(webfleet.ApiKey);
+        webfleet.Password = WebfleetCredentialProtector.Unprotect(webfleet.Password);
+        if (!webfleet.IsEnabled || !webfleet.HasCredentials)
+        {
+            throw new InvalidOperationException("WEBFLEET ist noch nicht vollständig eingerichtet. Bitte die Verbindung unter Einstellungen > WEBFLEET prüfen.");
+        }
+
+        var assignedDriverUids = _employees
+            .Where(x => !string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.WebfleetDriverUid)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return (await new WebfleetConnectService().GetDriversAsync(webfleet))
+            .Where(x => !assignedDriverUids.Contains(x.DriverUid))
             .ToList();
     }
 
@@ -142,6 +169,14 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         {
             throw new InvalidOperationException($"Das WEBFLEET-Gerät {result.WebfleetObjectNumber} ist bereits dem Mitarbeiter \"{conflictingEmployee.DisplayName}\" zugeordnet.");
         }
+        var conflictingDriver = _employees.FirstOrDefault(x =>
+            !string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(result.WebfleetDriverUid) &&
+            string.Equals(x.WebfleetDriverUid, result.WebfleetDriverUid, StringComparison.OrdinalIgnoreCase));
+        if (conflictingDriver is not null)
+        {
+            throw new InvalidOperationException($"Der WEBFLEET-Fahrer {result.WebfleetDriverName} ist bereits dem Mitarbeiter \"{conflictingDriver.DisplayName}\" zugeordnet.");
+        }
         var periods = new List<ResourceUnavailabilityPeriod>();
 
         string? warning = null;
@@ -171,6 +206,9 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             Phone = result.Phone.Trim(),
             WebfleetObjectUid = result.WebfleetObjectUid.Trim(),
             WebfleetObjectNumber = result.WebfleetObjectNumber.Trim(),
+            WebfleetDriverUid = result.WebfleetDriverUid.Trim(),
+            WebfleetDriverNumber = result.WebfleetDriverNumber.Trim(),
+            WebfleetDriverName = result.WebfleetDriverName.Trim(),
             HasProgramProfile = result.HasProgramProfile,
             IsFavorite = result.IsFavorite,
             Role = result.ShortCode.Trim(),
@@ -371,7 +409,10 @@ public sealed record EmployeeEditorSeed(
     string AbsenceStartDate,
     string AbsenceEndDate,
     string WebfleetObjectUid = "",
-    string WebfleetObjectNumber = "");
+    string WebfleetObjectNumber = "",
+    string WebfleetDriverUid = "",
+    string WebfleetDriverNumber = "",
+    string WebfleetDriverName = "");
 
 public sealed record EmployeeEditorResult(
     string? Id,
@@ -384,4 +425,7 @@ public sealed record EmployeeEditorResult(
     string AbsenceStartDate,
     string AbsenceEndDate,
     string WebfleetObjectUid = "",
-    string WebfleetObjectNumber = "");
+    string WebfleetObjectNumber = "",
+    string WebfleetDriverUid = "",
+    string WebfleetDriverNumber = "",
+    string WebfleetDriverName = "");

@@ -75,6 +75,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly TourConflictService _conflictService;
     private readonly Dictionary<string, string> _employeeLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _employeeLabelsByWebfleetObjectUid = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, WebfleetTrackDriverAssignment> _webfleetTrackDriversByObjectUid = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Order> _allOrders = new();
     private readonly List<TourRecord> _savedTours = new();
     private readonly List<GeoPoint> _routeGeometryPoints = new();
@@ -84,11 +85,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly List<PlannedTourRouteOverlay> _plannedTourRouteOverlays = new();
     private readonly List<WebfleetVehicleSnapshot> _webfleetVehicles = new();
     private readonly List<WebfleetTrackPoint> _webfleetTrackPoints = new();
+    private readonly List<WebfleetPauseMarker> _webfleetPauseMarkers = new();
     private int _webfleetVehicleRevision;
     private int _webfleetTrackRevision;
     private bool _areWebfleetVehiclesVisible;
     private string _webfleetTrackVehicleName = string.Empty;
-    private bool _webfleetTrackComparisonEnabled = true;
     private string _webfleetTrackStatusText = string.Empty;
     private VehicleDataRecord _vehicleData = new();
 
@@ -241,7 +242,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SearchCommand = new AsyncCommand(SearchAsync);
-        AddToRouteCommand = new DelegateCommand(AddSelectedOrderToRoute, () => SelectedOrder is not null);
+        AddToRouteCommand = new DelegateCommand(AddSelectedOrderToRoute, CanAddSelectedOrderToCurrentRoute);
+        AddToNewTourCommand = new DelegateCommand(AddSelectedOrderToNewTour, CanAddSelectedOrderToNewTour);
         AddSelectedOrdersToRouteCommand = new DelegateCommand(AddSelectedOrdersToRoute, CanAddSelectedOrdersToRoute);
         RemoveOrderFromTourCommand = new AsyncCommand(RemoveSelectedOrderFromTourAsync, CanRemoveSelectedOrderFromTour);
         RemoveSelectedOrdersFromTourCommand = new AsyncCommand(RemoveSelectedOrdersFromTourAsync, CanRemoveSelectedOrdersFromTour);
@@ -293,6 +295,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public ICommand AddToRouteCommand { get; }
 
+    public ICommand AddToNewTourCommand { get; }
+
     public ICommand AddSelectedOrdersToRouteCommand { get; }
 
     public ICommand RemoveOrderFromTourCommand { get; }
@@ -340,11 +344,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         .OrderBy(option => option.EmployeeName, StringComparer.CurrentCultureIgnoreCase)
         .ToList();
     public IReadOnlyList<WebfleetTrackPoint> GetWebfleetTrackSnapshot() => _webfleetTrackPoints.ToList();
+    public IReadOnlyList<WebfleetPauseMarker> GetWebfleetPauseSnapshot() => _webfleetPauseMarkers.ToList();
     public string WebfleetTrackVehicleName => _webfleetTrackVehicleName;
-    public bool WebfleetTrackComparisonEnabled => _webfleetTrackComparisonEnabled;
     public string WebfleetTrackStatusText => _webfleetTrackStatusText;
 
-    public async Task LoadWebfleetTrackAsync(string objectUid, DateOnly date, bool compareWithPlannedTour)
+    public async Task LoadWebfleetTrackAsync(string objectUid, DateOnly date)
     {
         var vehicle = _webfleetVehicles.FirstOrDefault(x => string.Equals(x.ObjectUid, objectUid, StringComparison.OrdinalIgnoreCase));
         if (vehicle is null)
@@ -366,19 +370,48 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        _webfleetTrackStatusText = $"Verlauf für {vehicle.Name} wird geladen …";
+        _webfleetTrackStatusText = string.Empty;
         OnPropertyChanged(nameof(WebfleetTrackStatusText));
-        var points = await new WebfleetConnectService().GetTrackAsync(webfleet, vehicle.ObjectUid, from, to);
+        var webfleetService = new WebfleetConnectService();
+        var points = await webfleetService.GetTrackAsync(webfleet, vehicle.ObjectUid, from, to);
+
+        // Publish the actual track immediately. Loading pauses and the planned tour must never delay the visible trace.
         _webfleetTrackPoints.Clear();
         _webfleetTrackPoints.AddRange(points);
+        _webfleetPauseMarkers.Clear();
         _webfleetTrackVehicleName = _employeeLabelsByWebfleetObjectUid.TryGetValue(vehicle.ObjectUid, out var employeeName) ? employeeName : vehicle.Name;
-        _webfleetTrackComparisonEnabled = compareWithPlannedTour;
         _webfleetTrackRevision++;
         OnPropertyChanged(nameof(WebfleetTrackRevision));
         OnPropertyChanged(nameof(WebfleetTrackVehicleName));
-        OnPropertyChanged(nameof(WebfleetTrackComparisonEnabled));
         _webfleetTrackStatusText = points.Count > 1
-            ? $"{points.Count} Positionen für {date:dd.MM.yyyy} geladen."
+            ? string.Empty
+            : $"Kein Positionsverlauf für den {date:dd.MM.yyyy} verfügbar.";
+        OnPropertyChanged(nameof(WebfleetTrackStatusText));
+
+        var pauses = Array.Empty<WebfleetPauseMarker>();
+        string? pauseWarning = null;
+        if (_webfleetTrackDriversByObjectUid.TryGetValue(vehicle.ObjectUid, out var driverAssignment))
+        {
+            try
+            {
+                var workingTimes = await webfleetService.GetWorkingTimesAsync(webfleet, driverAssignment.DriverUid, vehicle.ObjectUid, from, to);
+                pauses = BuildWebfleetPauseMarkers(workingTimes, points).ToArray();
+            }
+            catch (Exception ex)
+            {
+                pauseWarning = $"Pausen konnten nicht geladen werden: {ex.Message}";
+            }
+        }
+        else
+        {
+            pauseWarning = "Kein WEBFLEET-Fahrer für diesen Mitarbeiter hinterlegt.";
+        }
+        _webfleetPauseMarkers.Clear();
+        _webfleetPauseMarkers.AddRange(pauses);
+        _webfleetTrackRevision++;
+        OnPropertyChanged(nameof(WebfleetTrackRevision));
+        _webfleetTrackStatusText = points.Count > 1
+            ? pauseWarning ?? string.Empty
             : $"Kein Positionsverlauf für den {date:dd.MM.yyyy} verfügbar.";
         OnPropertyChanged(nameof(WebfleetTrackStatusText));
         StatusText = points.Count > 1
@@ -389,12 +422,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public void ClearWebfleetTrack()
     {
         _webfleetTrackPoints.Clear();
+        _webfleetPauseMarkers.Clear();
         _webfleetTrackVehicleName = string.Empty;
-        _webfleetTrackComparisonEnabled = true;
         _webfleetTrackRevision++;
         OnPropertyChanged(nameof(WebfleetTrackRevision));
         OnPropertyChanged(nameof(WebfleetTrackVehicleName));
-        OnPropertyChanged(nameof(WebfleetTrackComparisonEnabled));
         _webfleetTrackStatusText = string.Empty;
         OnPropertyChanged(nameof(WebfleetTrackStatusText));
         StatusText = "WEBFLEET-Positionsverlauf ausgeblendet.";
@@ -1251,6 +1283,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             _geocodeCachePath);
         _employeeLabelsById.Clear();
         _employeeLabelsByWebfleetObjectUid.Clear();
+        _webfleetTrackDriversByObjectUid.Clear();
         foreach (var employee in await employeesTask)
         {
             if (!string.IsNullOrWhiteSpace(employee.Id))
@@ -1260,6 +1293,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             if (!string.IsNullOrWhiteSpace(employee.WebfleetObjectUid) && !string.IsNullOrWhiteSpace(employee.DisplayName))
             {
                 _employeeLabelsByWebfleetObjectUid[employee.WebfleetObjectUid.Trim()] = employee.DisplayName;
+                if (!string.IsNullOrWhiteSpace(employee.WebfleetDriverUid))
+                {
+                    _webfleetTrackDriversByObjectUid[employee.WebfleetObjectUid.Trim()] = new WebfleetTrackDriverAssignment(
+                        employee.WebfleetDriverUid.Trim(),
+                        employee.WebfleetDriverName.Trim());
+                }
             }
         }
         EnsureCompanyAnchors();
@@ -1286,7 +1325,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public string DetailAddress => FormatOrderAddress(FindSelectedOrderModel());
     public string DetailCustomer => FormatDeliveryAddress(FindSelectedOrderModel());
     public string DetailOrderNumber => SelectedOrder?.OrderId ?? "n/a";
-    public string DetailOrderStatus => FindSelectedOrderModel()?.OrderStatus ?? SelectedOrder?.StatusLabel ?? Order.DefaultOrderStatus;
+    public string DetailOrderStatus => ResolveEffectiveOrderStatus(FindSelectedOrderModel());
     public string DetailOrderStatusColor => ResolveOrderStatusColor(FindSelectedOrderModel(), isAssigned: false);
     public string DetailOrderStatusBadgeBackgroundColor => CreateOrderStatusBackground(FindSelectedOrderModel(), DetailOrderStatusColor);
     public string DetailAvisoStatus => NormalizeAvisoStatus(FindSelectedOrderModel()?.AvisoStatus);
@@ -1461,7 +1500,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         var isAssigned = IsOrderAssignedOrInDraftRoute(order);
         return new MapOrderVisualInfo(
             DeliveryLabel: NormalizeDeliveryType(order.DeliveryType),
-            StatusLabel: NormalizeOrderStatus(order.OrderStatus),
+            StatusLabel: ResolveEffectiveOrderStatus(order),
             IsAssigned: isAssigned,
             AvisoStatusLabel: NormalizeAvisoStatus(order.AvisoStatus),
             HasPendingPreparation: HasPendingPreparationProduct(order.Products),
@@ -1800,6 +1839,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
             await _orderRepository.SaveAllAsync(_allOrders);
             RebuildOrderGrid(order.Id);
+            RebuildTourOverviewItems();
             OnPropertyChanged(nameof(RouteStops));
             OnPropertyChanged(nameof(DetailAvisoStatus));
             PublishOrderChange(order.Id, order.Id);
@@ -1995,6 +2035,30 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         RebuildPositions();
         RebuildOrderGrid();
         MarkRouteChanged();
+    }
+
+    private bool CanAddSelectedOrderToCurrentRoute()
+    {
+        return SelectedOrder is not null && ShowRouteStopsPanel;
+    }
+
+    private bool CanAddSelectedOrderToNewTour()
+    {
+        return SelectedOrder is not null && !ShowRouteStopsPanel;
+    }
+
+    private void AddSelectedOrderToNewTour()
+    {
+        if (SelectedOrder is null)
+        {
+            return;
+        }
+
+        // A route only selected in the overview is not loaded for editing. Clear that
+        // selection before adding, otherwise saving would overwrite the selected tour
+        // with a route containing only the newly added stop.
+        ClearRoute();
+        AddSelectedOrderToRoute();
     }
 
     private bool TryAddOrderToDraftRoute(MapOrderItem order)
@@ -2325,7 +2389,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         order.AssignedTourId = string.Empty;
         order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
         await _orderRepository.SaveAllAsync(_allOrders);
-        _dataSyncService.PublishOrders(_instanceId, selectedOrderId, selectedOrderId);
+        PublishOrderChange(selectedOrderId, selectedOrderId);
 
         var currentTourId = ResolveCurrentTourId();
         await RefreshAsync();
@@ -2423,7 +2487,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             }
 
             await _orderRepository.SaveAllAsync(_allOrders);
-            _dataSyncService.PublishOrders(_instanceId);
+            PublishOrderChange(null, null);
         }
 
         if (removedFromDraftRoute > 0 || assignedOrders.Count > 0)
@@ -2676,6 +2740,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             StopWebfleetVehicleAutoRefresh();
             _webfleetVehicles.Clear();
             _webfleetTrackPoints.Clear();
+            _webfleetPauseMarkers.Clear();
             _areWebfleetVehiclesVisible = false;
             _webfleetVehicleRevision++;
             _webfleetTrackRevision++;
@@ -3051,7 +3116,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             }
 
             await _orderRepository.SaveAllAsync(_allOrders);
-            _dataSyncService.PublishOrders(_instanceId);
+            PublishOrderChange(null, null);
             await RefreshAsync();
             await FocusTourAsync(nextId);
             SetRouteChanged(false);
@@ -3191,7 +3256,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             }
 
             await _orderRepository.SaveAllAsync(_allOrders);
-            _dataSyncService.PublishOrders(_instanceId);
+            PublishOrderChange(null, null);
             await RefreshAsync();
             SetRouteChanged(false);
             ClearDraftRouteStopRemovalUndoHistory();
@@ -3466,6 +3531,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         ApplyTourStopsToRoute(tour);
+        RequestRouteGeometryRebuild();
         SetRouteChanged(false);
         ClearDraftRouteStopRemovalUndoHistory();
         StatusText = "Tour auf Karte geladen.";
@@ -4510,7 +4576,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         await _orderRepository.SaveAllAsync(_allOrders);
         _dataSyncService.PublishTours(_instanceId, tourKey, null);
-        _dataSyncService.PublishOrders(_instanceId);
+        PublishOrderChange(null, null);
 
         await RefreshAsync();
         ClearRoute();
@@ -4558,7 +4624,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 }
 
                 await _orderRepository.SaveAllAsync(_allOrders);
-                _dataSyncService.PublishOrders(_instanceId);
+                PublishOrderChange(null, null);
                 changedOrderCount = affectedOrders.Count;
             }
         }
@@ -5187,6 +5253,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private void RaiseCommandStates()
     {
         RaiseCanExecuteChangedIfSupported(AddToRouteCommand);
+        RaiseCanExecuteChangedIfSupported(AddToNewTourCommand);
         RaiseCanExecuteChangedIfSupported(AddSelectedOrdersToRouteCommand);
         RaiseCanExecuteChangedIfSupported(RemoveOrderFromTourCommand);
         RaiseCanExecuteChangedIfSupported(RemoveSelectedOrdersFromTourCommand);
@@ -6191,6 +6258,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         RebuildOrderGrid(order.Id);
+        RebuildTourOverviewItems();
         OnPropertyChanged(nameof(RouteStops));
         OnPropertyChanged(nameof(DetailOrderStatus));
         OnPropertyChanged(nameof(DetailOrderStatusColor));
@@ -6281,6 +6349,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         RebuildOrderGrid(order.Id);
+        RebuildTourOverviewItems();
         OnPropertyChanged(nameof(RouteStops));
         OnPropertyChanged(nameof(DetailAvisoStatus));
         PublishOrderChange(order.Id, order.Id);
@@ -6294,6 +6363,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         _allOrders.Clear();
         _allOrders.AddRange(await _orderRepository.GetAllAsync());
+        if (SyncDerivedOrderStatuses(_allOrders))
+        {
+            await _orderRepository.SaveAllAsync(_allOrders);
+            PublishOrderChange(preferredSelectedOrderId, preferredSelectedOrderId);
+        }
 
         await LoadSavedToursAsync(ResolveCurrentTourId());
         RefreshOrderFilterOptions();
@@ -6371,6 +6445,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private void PublishOrderChange(string? previousOrderId, string? currentOrderId)
     {
+        RebuildTourOverviewItems();
         _dataSyncService.PublishOrders(_instanceId, previousOrderId, currentOrderId);
     }
 
@@ -6734,13 +6809,57 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 ? "--:--"
                 : (tour.StartTime ?? string.Empty).Trim();
             var stopCount = (tour.Stops ?? []).Count(IsCustomerTourStop);
+            var status = ResolveTourOverviewStatus(tour, parsedDate);
             TourOverviewItems.Add(new SavedTourOverviewItem(
                 tour.Id,
                 BuildTourLookupLabel(tour),
                 dateText,
                 startTimeText,
-                stopCount));
+                stopCount,
+                status.Label,
+                status.Background,
+                status.Foreground,
+                status.Glyph));
         }
+    }
+
+    private (string Label, string Background, string Foreground, string Glyph) ResolveTourOverviewStatus(TourRecord tour, DateTime parsedDate)
+    {
+        var tourDate = parsedDate == DateTime.MinValue ? DateTime.MaxValue.Date : parsedDate.Date;
+        if (tourDate < DateTime.Today)
+        {
+            return ("Abgeschlossen", "#DCFCE7", "#15803D", "✓");
+        }
+
+        if (tourDate == DateTime.Today)
+        {
+            return ("Aktiv", "#F3E8FF", "#7E22CE", "▶");
+        }
+
+        var orderIds = (tour.Stops ?? [])
+            .Where(IsCustomerTourStop)
+            .Select(ExtractTourStopOrderId)
+            .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
+            .Select(orderId => orderId.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var avisoStates = orderIds
+            .Select(orderId => _allOrders.FirstOrDefault(order => string.Equals(order.Id, orderId, StringComparison.OrdinalIgnoreCase)))
+            .Select(order => NormalizeAvisoStatus(order?.AvisoStatus))
+            .ToList();
+
+        if (avisoStates.Count > 0 && avisoStates.All(status => string.Equals(status, "Bestätigt", StringComparison.OrdinalIgnoreCase)))
+        {
+            return ("Bestätigt", "#DBEAFE", "#2563EB", "◷");
+        }
+
+        if (avisoStates.Count > 0 &&
+            avisoStates.All(status => !string.Equals(status, "nicht avisiert", StringComparison.OrdinalIgnoreCase)))
+        {
+            return ("Avisiert", "#FFEDD5", "#EA580C", "◷");
+        }
+
+        return ("Geplant", "#FEE2E2", "#DC2626", "◷");
     }
 
     private void ApplyTourOverviewSelection(SavedTourOverviewItem? selection)
@@ -7760,7 +7879,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             Latitude = order.Location?.Latitude ?? double.NaN,
             Longitude = order.Location?.Longitude ?? double.NaN,
             DeliveryLabel = NormalizeDeliveryType(order.DeliveryType),
-            StatusLabel = NormalizeOrderStatus(order.OrderStatus),
+            StatusLabel = ResolveEffectiveOrderStatus(order),
             StatusColorHex = ResolveOrderStatusColor(order, isAssigned),
             AvisoStatusLabel = NormalizeAvisoStatus(order.AvisoStatus),
             TourStatusLabel = ResolveTourStatus(order),
@@ -7908,6 +8027,30 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         return $"{normalizedStreet}, {normalizedPostalCodeCity}";
     }
 
+    private static IReadOnlyList<WebfleetPauseMarker> BuildWebfleetPauseMarkers(
+        IReadOnlyList<WebfleetWorkingTimeInterval> workingTimes,
+        IReadOnlyList<WebfleetTrackPoint> trackPoints)
+    {
+        return workingTimes
+            .Where(interval => interval.WorkState == 2)
+            .Select(interval =>
+            {
+                var fallbackPoint = trackPoints
+                    .Where(point => point.PositionTime <= interval.StartTime)
+                    .OrderByDescending(point => point.PositionTime)
+                    .FirstOrDefault()
+                    ?? trackPoints.OrderBy(point => point.PositionTime).FirstOrDefault();
+                var latitude = interval.Latitude ?? fallbackPoint?.Latitude;
+                var longitude = interval.Longitude ?? fallbackPoint?.Longitude;
+                return latitude.HasValue && longitude.HasValue
+                    ? new WebfleetPauseMarker(interval.StartTime, interval.EndTime, latitude.Value, longitude.Value, !interval.EndTime.HasValue)
+                    : null;
+            })
+            .Where(marker => marker is not null)
+            .Cast<WebfleetPauseMarker>()
+            .ToList();
+    }
+
     private string ResolveRouteStopAddress(string? orderId, string? fallbackAddress)
     {
         var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
@@ -7987,6 +8130,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     {
         return (products ?? []).Any(product =>
             product is not null &&
+            !string.IsNullOrWhiteSpace(product.Name) &&
             string.Equals(
                 OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus),
                 OrderProductInfo.PendingPreparationStatus,
@@ -8034,6 +8178,18 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         return string.Equals(normalized, "Bereits eingeplant", StringComparison.OrdinalIgnoreCase)
             ? Order.DefaultOrderStatus
             : Order.NormalizeOrderStatus(normalized);
+    }
+
+    private static string ResolveEffectiveOrderStatus(Order? order)
+    {
+        if (order is null)
+        {
+            return Order.DefaultOrderStatus;
+        }
+
+        return (order.Products ?? []).Count > 0
+            ? Order.ResolveOrderStatusFromProducts(order.Products)
+            : NormalizeOrderStatus(order.OrderStatus);
     }
 
     private static string NormalizeDeliveryType(string? deliveryType)
@@ -8117,15 +8273,17 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         if ((order.Products ?? []).Any(product =>
+                product is not null &&
+                !string.IsNullOrWhiteSpace(product.Name) &&
                 string.Equals(
-                    OrderProductInfo.NormalizeDeliveryStatus(product?.DeliveryStatus),
+                    OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus),
                     OrderProductInfo.DefaultDeliveryStatus,
                     StringComparison.OrdinalIgnoreCase)))
         {
             return _statusColorNotSpecified;
         }
 
-        var normalizedStatus = NormalizeOrderStatus(order.OrderStatus);
+        var normalizedStatus = ResolveEffectiveOrderStatus(order);
         if (string.Equals(normalizedStatus, Order.PartiallyPendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
         {
             var baseStatus = Order.ResolvePartiallyPendingPreparationBaseStatus(order.Products);
@@ -8214,7 +8372,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private static string CreateOrderStatusBackground(Order? order, string? statusColor)
     {
-        var normalizedStatus = Order.NormalizeOrderStatus(order?.OrderStatus);
+        var normalizedStatus = ResolveEffectiveOrderStatus(order);
         if (string.Equals(normalizedStatus, Order.DefaultOrderStatus, StringComparison.OrdinalIgnoreCase))
         {
             return "#FFFFFFFF";
@@ -8799,6 +8957,10 @@ public sealed class PlannedTourRouteOverlay
 
 public sealed record WebfleetTrackEmployeeOption(string ObjectUid, string EmployeeName, string ObjectNumber, string ObjectName);
 
+public sealed record WebfleetPauseMarker(DateTimeOffset StartTime, DateTimeOffset? EndTime, double Latitude, double Longitude, bool IsActive);
+
+internal sealed record WebfleetTrackDriverAssignment(string DriverUid, string DriverName);
+
 public sealed class SavedTourLookupItem
 {
     public int TourId { get; set; }
@@ -8812,13 +8974,17 @@ public sealed class SavedTourLookupItem
 
 public sealed class SavedTourOverviewItem
 {
-    public SavedTourOverviewItem(int tourId, string tourName, string dateText, string startTimeText, int stopCount)
+    public SavedTourOverviewItem(int tourId, string tourName, string dateText, string startTimeText, int stopCount, string statusLabel, string statusBackground, string statusForeground, string statusGlyph)
     {
         TourId = tourId;
         TourName = string.IsNullOrWhiteSpace(tourName) ? $"Tour {tourId}" : tourName.Trim();
         DateText = string.IsNullOrWhiteSpace(dateText) ? "-" : dateText.Trim();
         StartTimeText = string.IsNullOrWhiteSpace(startTimeText) ? "--:--" : startTimeText.Trim();
         StopCount = Math.Max(0, stopCount);
+        StatusLabel = statusLabel;
+        StatusBackground = statusBackground;
+        StatusForeground = statusForeground;
+        StatusGlyph = statusGlyph;
     }
 
     public int TourId { get; }
@@ -8827,6 +8993,10 @@ public sealed class SavedTourOverviewItem
     public string StartTimeText { get; }
     public int StopCount { get; }
     public string StopCountText => $"{StopCount} Stopps";
+    public string StatusLabel { get; }
+    public string StatusBackground { get; }
+    public string StatusForeground { get; }
+    public string StatusGlyph { get; }
 }
 
 internal sealed class RouteComputationCacheEntry

@@ -55,6 +55,7 @@ public partial class EmployeesSectionView : UserControl
         var dialog = new EmployeeEditorDialogWindow(
             seed,
             await GetWebfleetVehiclesSafeAsync(vm, seed.Id),
+            await GetWebfleetDriversSafeAsync(vm, seed.Id),
             vm.GetWebfleetAssignmentHint(seed.Id),
             vm.HasDuplicateWebfleetAssignment(seed.Id))
         {
@@ -92,6 +93,7 @@ public partial class EmployeesSectionView : UserControl
         var dialog = new EmployeeEditorDialogWindow(
             seed,
             await GetWebfleetVehiclesSafeAsync(vm, seed.Id),
+            await GetWebfleetDriversSafeAsync(vm, seed.Id),
             vm.GetWebfleetAssignmentHint(seed.Id),
             vm.HasDuplicateWebfleetAssignment(seed.Id))
         {
@@ -143,6 +145,23 @@ public partial class EmployeesSectionView : UserControl
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 $"WEBFLEET-Objekte konnten nicht geladen werden. Eine bestehende Zuordnung bleibt unverändert.{Environment.NewLine}{ex.Message}",
+                "WEBFLEET",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return [];
+        }
+    }
+
+    private static async Task<IReadOnlyList<Tourenplaner.CSharp.App.Services.WebfleetDriverSnapshot>> GetWebfleetDriversSafeAsync(EmployeesSectionViewModel viewModel, string? employeeId)
+    {
+        try
+        {
+            return await viewModel.GetWebfleetDriversAsync(employeeId);
+        }
+        catch (Exception ex)
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"WEBFLEET-Fahrer konnten nicht geladen werden. Eine bestehende Zuordnung bleibt unverändert.{Environment.NewLine}{ex.Message}",
                 "WEBFLEET",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);

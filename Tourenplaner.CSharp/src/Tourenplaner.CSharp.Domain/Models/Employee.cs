@@ -9,6 +9,9 @@ public sealed class Employee
     public string Phone { get; set; } = string.Empty;
     public string WebfleetObjectUid { get; set; } = string.Empty;
     public string WebfleetObjectNumber { get; set; } = string.Empty;
+    public string WebfleetDriverUid { get; set; } = string.Empty;
+    public string WebfleetDriverNumber { get; set; } = string.Empty;
+    public string WebfleetDriverName { get; set; } = string.Empty;
     public bool HasProgramProfile { get; set; } = true;
     public bool IsFavorite { get; set; }
     public bool Active { get; set; } = true;

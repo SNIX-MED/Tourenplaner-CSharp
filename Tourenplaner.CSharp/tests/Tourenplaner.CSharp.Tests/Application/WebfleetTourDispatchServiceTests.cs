@@ -120,4 +120,15 @@ public sealed class WebfleetTourDispatchServiceTests
 
         Assert.Equal("Tour 22.09.2026 · Stopp 1: Tunap AG", text);
     }
+
+    [Fact]
+    public void BuildOrderId_UsesUnpaddedTourAndEffectiveStopPosition()
+    {
+        var method = typeof(WebfleetTourDispatchService).GetMethod("BuildOrderId", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var orderId = Assert.IsType<string>(method.Invoke(null, [2, 1, "221770"]));
+
+        Assert.Equal("T2-1-221770", orderId);
+    }
 }

@@ -98,16 +98,10 @@ public sealed class WebfleetTourDispatchService
         IReadOnlyList<TourStopRecord> stops,
         CancellationToken cancellationToken)
     {
-        var priorOrderIdsByStopId = dispatch.Stops
-            .Where(stop => !string.IsNullOrWhiteSpace(stop.StopId) && !string.IsNullOrWhiteSpace(stop.WebfleetOrderId))
-            .GroupBy(stop => stop.StopId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First().WebfleetOrderId, StringComparer.OrdinalIgnoreCase);
         var items = stops.Select((stop, dispatchPosition) =>
         {
             var sourceOrder = IsCompanyEndStop(stop) ? "ENDE" : stop.Auftragsnummer ?? string.Empty;
-            var orderId = priorOrderIdsByStopId.TryGetValue(stop.Id, out var priorOrderId)
-                ? priorOrderId
-                : BuildOrderId(tour.Id, stop.Order, sourceOrder);
+            var orderId = BuildOrderId(tour.Id, dispatchPosition + 1, sourceOrder);
             var arrivalWindow = BuildWebfleetArrivalWindow(tour, stop);
             return new SynchronizationItem(stop, new WebfleetDestinationOrderRequest(
                 vehicle.WebfleetObjectUid,
@@ -144,8 +138,8 @@ public sealed class WebfleetTourDispatchService
             var companyOrderNumber = IsCompanyStartStop(companyStop)
                 ? TourStopIdentity.CompanyStartOrderNumber
                 : TourStopIdentity.CompanyEndOrderNumber;
-            var legacyCompanyOrderId = BuildOrderId(tour.Id, companyStop.Order, companyStop.Auftragsnummer ?? companyOrderNumber);
-            if (!desiredOrderIds.Contains(legacyCompanyOrderId) && await client.GetOrderAsync(settings, legacyCompanyOrderId, cancellationToken) is not null)
+            var legacyCompanyOrderId = BuildLegacyPaddedOrderId(tour.Id, companyStop.Order, companyStop.Auftragsnummer ?? companyOrderNumber);
+            if (await client.GetOrderAsync(settings, legacyCompanyOrderId, cancellationToken) is not null)
             {
                 orderIdsToDelete.Add(legacyCompanyOrderId);
             }
@@ -202,7 +196,17 @@ public sealed class WebfleetTourDispatchService
         Unchanged
     }
 
-    private static string BuildOrderId(int tourId, int stopOrder, string sourceOrder) => $"T{tourId:D5}-{stopOrder:D3}-{sourceOrder}".Length <= 20 ? $"T{tourId:D5}-{stopOrder:D3}-{sourceOrder}" : $"T{tourId:D5}-{stopOrder:D3}";
+    private static string BuildOrderId(int tourId, int dispatchPosition, string sourceOrder)
+    {
+        var prefix = $"T{tourId}-{dispatchPosition}";
+        return $"{prefix}-{sourceOrder}".Length <= 20 ? $"{prefix}-{sourceOrder}" : prefix;
+    }
+
+    private static string BuildLegacyPaddedOrderId(int tourId, int stopOrder, string sourceOrder)
+    {
+        var prefix = $"T{tourId:D5}-{stopOrder:D3}";
+        return $"{prefix}-{sourceOrder}".Length <= 20 ? $"{prefix}-{sourceOrder}" : prefix;
+    }
     private static string BuildOrderText(TourRecord tour, TourStopRecord stop, int dispatchPosition) => $"{tour.Name} · Stopp {dispatchPosition}: {stop.Name}";
     private static bool IsDispatchableStop(TourStopRecord stop) =>
         !IsCompanyStartStop(stop) &&

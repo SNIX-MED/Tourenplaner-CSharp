@@ -39,6 +39,15 @@ public sealed record WebfleetTrackPoint(
     int? SpeedKmh,
     int? CourseDegrees);
 
+public sealed record WebfleetDriverSnapshot(string DriverNumber, string DriverUid, string Name);
+
+public sealed record WebfleetWorkingTimeInterval(
+    DateTimeOffset StartTime,
+    DateTimeOffset? EndTime,
+    double? Latitude,
+    double? Longitude,
+    int WorkState);
+
 public sealed record WebfleetOrderSnapshot(
     string OrderId,
     string OrderText,
@@ -92,6 +101,24 @@ public sealed class WebfleetConnectService
         return $"Verbindung erfolgreich. {vehicles.Count} WEBFLEET-Fahrzeug(e) gefunden.";
     }
 
+    public async Task<IReadOnlyList<WebfleetDriverSnapshot>> GetDriversAsync(
+        WebfleetConnectionSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCredentials(settings);
+        var query = new Dictionary<string, string?>
+        {
+            ["account"] = settings.AccountName,
+            ["apikey"] = settings.ApiKey,
+            ["lang"] = "de",
+            ["useUTF8"] = "true",
+            ["action"] = "showDriverReportExtern",
+            ["outputformat"] = "csv",
+            ["columnfilter"] = "driverno,driveruid,name1,name2,name3"
+        };
+        return ParseDrivers(await SendAsync(settings, query, cancellationToken, treatNoDataAsEmpty: true));
+    }
+
     public async Task<IReadOnlyList<WebfleetTrackPoint>> GetTrackAsync(
         WebfleetConnectionSettings settings,
         string objectUid,
@@ -119,6 +146,38 @@ public sealed class WebfleetConnectService
             ["columnfilter"] = "pos_time,latitude,longitude,speed,course"
         };
         return ParseTrackPoints(await SendAsync(settings, query, cancellationToken, treatNoDataAsEmpty: true));
+    }
+
+    public async Task<IReadOnlyList<WebfleetWorkingTimeInterval>> GetWorkingTimesAsync(
+        WebfleetConnectionSettings settings,
+        string driverUid,
+        string? objectUid,
+        DateTimeOffset from,
+        DateTimeOffset to,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCredentials(settings);
+        if (string.IsNullOrWhiteSpace(driverUid)) throw new ArgumentException("WEBFLEET-Fahrer ist erforderlich.", nameof(driverUid));
+        if (to <= from || to - from > TimeSpan.FromDays(31)) throw new ArgumentException("Arbeitszeiten dürfen maximal einen Monat umfassen.");
+
+        var query = new Dictionary<string, string?>
+        {
+            ["account"] = settings.AccountName,
+            ["apikey"] = settings.ApiKey,
+            ["lang"] = "de",
+            ["useUTF8"] = "true",
+            ["useISO8601"] = "true",
+            ["action"] = "showWorkingTimes",
+            ["outputformat"] = "csv",
+            ["driveruid"] = driverUid.Trim(),
+            ["objectuid"] = string.IsNullOrWhiteSpace(objectUid) ? null : objectUid.Trim(),
+            ["timelineType"] = "3",
+            ["range_pattern"] = "ud",
+            ["rangefrom_string"] = from.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+            ["rangeto_string"] = to.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
+            ["columnfilter"] = "start_time,end_time,start_latitude,start_longitude,workstate"
+        };
+        return ParseWorkingTimes(await SendAsync(settings, query, cancellationToken, treatNoDataAsEmpty: true));
     }
 
     public Task SendDestinationOrderAsync(WebfleetConnectionSettings settings, WebfleetDestinationOrderRequest order, CancellationToken cancellationToken = default)
@@ -306,6 +365,56 @@ public sealed class WebfleetConnectService
             .Where(x => x is not null)
             .Cast<WebfleetTrackPoint>()
             .OrderBy(x => x.PositionTime)
+            .ToList();
+    }
+
+    private static IReadOnlyList<WebfleetDriverSnapshot> ParseDrivers(string csv)
+    {
+        var rows = ParseCsv(csv);
+        if (rows.Count == 0) return [];
+        var hasHeaderRow = rows[0].Any(value => string.Equals(value.Trim().TrimStart('\uFEFF'), "driveruid", StringComparison.OrdinalIgnoreCase));
+        IEnumerable<string> headerValues = hasHeaderRow ? rows[0] : ["driverno", "driveruid", "name1", "name2", "name3"];
+        var headers = headerValues
+            .Select((value, index) => new { Value = value.Trim().TrimStart('\uFEFF'), index })
+            .ToDictionary(x => x.Value, x => x.index, StringComparer.OrdinalIgnoreCase);
+        string Get(IReadOnlyList<string> row, string name) => headers.TryGetValue(name, out var index) && index < row.Count ? row[index].Trim() : string.Empty;
+        return rows.Skip(hasHeaderRow ? 1 : 0)
+            .Select(row =>
+            {
+                var name = string.Join(' ', new[] { Get(row, "name1"), Get(row, "name2"), Get(row, "name3") }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)));
+                return new WebfleetDriverSnapshot(Get(row, "driverno"), Get(row, "driveruid"),
+                    string.IsNullOrWhiteSpace(name) ? Get(row, "drivername") : name);
+            })
+            .Where(driver => !string.IsNullOrWhiteSpace(driver.DriverUid))
+            .OrderBy(driver => driver.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
+    private static IReadOnlyList<WebfleetWorkingTimeInterval> ParseWorkingTimes(string csv)
+    {
+        var rows = ParseCsv(csv);
+        if (rows.Count == 0) return [];
+        var hasHeaderRow = rows[0].Any(value => string.Equals(value.Trim().TrimStart('\uFEFF'), "workstate", StringComparison.OrdinalIgnoreCase));
+        IEnumerable<string> headerValues = hasHeaderRow ? rows[0] : ["start_time", "end_time", "start_latitude", "start_longitude", "workstate"];
+        var headers = headerValues
+            .Select((value, index) => new { Value = value.Trim().TrimStart('\uFEFF'), index })
+            .ToDictionary(x => x.Value, x => x.index, StringComparer.OrdinalIgnoreCase);
+        string Get(IReadOnlyList<string> row, string name) => headers.TryGetValue(name, out var index) && index < row.Count ? row[index].Trim() : string.Empty;
+        return rows.Skip(hasHeaderRow ? 1 : 0)
+            .Select(row =>
+            {
+                var hasStart = DateTimeOffset.TryParse(Get(row, "start_time"), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var start);
+                var hasEnd = DateTimeOffset.TryParse(Get(row, "end_time"), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var end);
+                var latitude = ParseCoordinate(Get(row, "start_latitude"), string.Empty);
+                var longitude = ParseCoordinate(Get(row, "start_longitude"), string.Empty);
+                return hasStart && int.TryParse(Get(row, "workstate"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var workState)
+                    ? new WebfleetWorkingTimeInterval(start, hasEnd ? end : null, latitude, longitude, workState)
+                    : null;
+            })
+            .Where(interval => interval is not null)
+            .Cast<WebfleetWorkingTimeInterval>()
+            .OrderBy(interval => interval.StartTime)
             .ToList();
     }
 

@@ -85,7 +85,9 @@ public sealed class Order
     public static string ResolveOrderStatusFromProducts(IEnumerable<OrderProductInfo>? products)
     {
         var normalizedStatuses = (products ?? [])
-            .Where(x => x is not null)
+            // The UI deliberately omits empty product rows. Treat import placeholders
+            // the same way here so an invisible row cannot keep an order partially ready.
+            .Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Name))
             .Select(x => OrderProductInfo.NormalizeDeliveryStatus(x.DeliveryStatus))
             .ToList();
 
@@ -149,7 +151,7 @@ public sealed class Order
     public static string ResolvePartiallyPendingPreparationBaseStatus(IEnumerable<OrderProductInfo>? products)
     {
         var normalizedStatuses = (products ?? [])
-            .Where(x => x is not null)
+            .Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Name))
             .Select(x => OrderProductInfo.NormalizeDeliveryStatus(x.DeliveryStatus))
             .ToList();
 

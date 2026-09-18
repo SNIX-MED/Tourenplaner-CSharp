@@ -43,7 +43,8 @@ internal static class MapHtmlDocumentBuilder
                    html, body { border-radius: 14px; overflow: hidden; }
                    body { font-family: Segoe UI, sans-serif; background: transparent; }
                    #map { background: #f8fafc; }
-                   .status { position: absolute; left: auto !important; top: auto !important; right: 10px !important; bottom: 10px !important; z-index: 1000; background: rgba(255,255,255,.9); border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 8px; font-size: 12px; color: #334155; }
+                   .status { position: absolute; left: auto !important; top: auto !important; right: 10px !important; bottom: 44px !important; z-index: 1000; display: none; background: rgba(255,255,255,.96); border: 1px solid #fca5a5; border-radius: 8px; padding: 6px 8px; font-size: 12px; color: #b91c1c; }
+                   .status.visible { display: block; }
                    .gawela-pin-wrap { position: relative; width: 28px; height: 28px; transform-origin: center bottom; transform: scale(var(--gawela-pin-scale, 1.1)); }
                   .gawela-pin-highlight-ring { position: absolute; left: -2px; top: -2px; width: 32px; height: 32px; border-radius: 50%; pointer-events: none; opacity: 0; transform: scale(0.94); transition: opacity .12s ease, transform .12s ease; box-shadow: 0 0 0 3px rgba(255,255,255,.96), 0 0 0 5px rgba(15,23,42,.24), 0 0 10px rgba(15,23,42,.18), 0 6px 14px rgba(15,23,42,.28); z-index: 0; }
                   .gawela-pin-highlighted .gawela-pin-highlight-ring,
@@ -68,6 +69,15 @@ internal static class MapHtmlDocumentBuilder
                   .gawela-pin-dimmed { opacity: .35; }
                    .gawela-company-marker { width: 22px; height: 22px; border-radius: 50%; background: #0f766e; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; }
                    .gawela-company-marker svg { width: 12px; height: 12px; fill: #ffffff; display: block; }
+                   .map-zoom-controls { position: absolute; right: 12px; top: 60px; z-index: 1350; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 4px 14px rgba(15,23,42,.18); }
+                   .map-zoom-button { width: 40px; height: 40px; padding: 0; border: 0; background: rgba(255,255,255,.96); color: #0f172a; cursor: pointer; font: 600 26px/1 Segoe UI, sans-serif; display: flex; align-items: center; justify-content: center; }
+                   .map-zoom-button + .map-zoom-button { border-top: 1px solid #cbd5e1; }
+                   .map-zoom-button:hover { background: #e9edf6; }
+                   .map-zoom-button:active { opacity: .82; }
+                   .map-style-switch { position: absolute; right: 12px; bottom: 10px; z-index: 1350; display: inline-flex; gap: 3px; padding: 4px; border: 1px solid #cbd5e1; border-radius: 10px; background: rgba(255,255,255,.96); box-shadow: 0 4px 14px rgba(15,23,42,.18); }
+                   .map-style-switch-button { min-width: 62px; height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #334155; cursor: pointer; font: 600 12px/1 Segoe UI, sans-serif; }
+                   .map-style-switch-button:hover { background: #f1f5f9; }
+                   .map-style-switch-button.active { background: #800080; color: #ffffff; box-shadow: 0 1px 3px rgba(88,28,135,.28); }
                    .map-top-controls { position: absolute; right: 12px; top: 12px; z-index: 1350; display: inline-flex; align-items: center; gap: 8px; }
                    .speed-limit-badge { width: 40px; height: 40px; min-width: 40px; min-height: 40px; border-radius: 50%; background: #ffffff; border: 5px solid #e30613; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
                    .speed-limit-badge.hidden { display: none !important; }
@@ -87,12 +97,16 @@ internal static class MapHtmlDocumentBuilder
                    .fleet-tracks-toggle { border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; padding: 0; color: #0f172a; cursor: pointer; font-size: 18px; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: none; align-items: center; justify-content: center; width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
                    .fleet-tracks-toggle.visible { display: inline-flex; }
                    .fleet-tracks-toggle img { display: block; width: 28px; height: 28px; object-fit: contain; }
-                   .fleet-tracks-overlay { position: absolute; right: 58px; top: 8px; width: min(330px, calc(84vw - 66px)); z-index: 1500; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 18px; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: none; overflow: hidden; }
+                   .fleet-tracks-overlay { position: absolute; right: 58px; top: 8px; width: min(300px, calc(84vw - 66px)); z-index: 1500; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 16px; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: none; overflow: visible; }
                    .fleet-tracks-overlay.open { display: block; }
-                   .fleet-tracks-content { padding: 12px 16px 16px; }
-                   .fleet-tracks-content select, .fleet-tracks-content input { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 9px; color: #0f172a; background: #fff; font: 14px Segoe UI,sans-serif; }
+                   .fleet-tracks-overlay .map-options-header { padding: 12px 14px 8px; }
+                   .fleet-tracks-overlay .map-options-title { font-size: 22px; }
+                   .fleet-tracks-content { padding: 8px 14px 14px; }
+                   .fleet-tracks-content .map-option-section { margin-top: 10px; }
+                   .fleet-tracks-content .map-option-section h4 { margin-bottom: 6px; }
+                   .fleet-tracks-content select, .fleet-tracks-content input { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 8px; color: #0f172a; background: #fff; font: 13px Segoe UI,sans-serif; }
                    .fleet-date-picker-wrap { position: relative; }
-                   .fleet-date-button { width: 100%; box-sizing: border-box; border: 1px solid #b8c7dd; border-radius: 8px; padding: 10px 11px; color: #1e293b; background: #fff; font: 14px Segoe UI,sans-serif; text-align: left; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+                   .fleet-date-button { width: 100%; box-sizing: border-box; border: 1px solid #b8c7dd; border-radius: 8px; padding: 8px 9px; color: #1e293b; background: #fff; font: 13px Segoe UI,sans-serif; text-align: left; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
                    .fleet-date-button:hover, .fleet-date-button.open { border-color: #8b5cf6; box-shadow: 0 0 0 2px rgba(139,92,246,.12); }
                    .fleet-date-picker { position: absolute; top: calc(100% + 6px); left: 0; width: 264px; padding: 10px 12px 12px; box-sizing: border-box; background: #fff; border: 1px solid #b8c7dd; border-radius: 14px; box-shadow: 0 12px 28px rgba(15,23,42,.18); z-index: 1800; display: none; }
                    .fleet-date-picker.open { display: block; }
@@ -105,8 +119,10 @@ internal static class MapHtmlDocumentBuilder
                    .fleet-calendar-day:hover { background: #f1f5f9; }
                    .fleet-calendar-day.outside { color: #94a3b8; }
                    .fleet-calendar-day.selected { border: 1.5px solid #a21caf; color: #86198f; font-weight: 700; background: #fdf4ff; }
-                   .fleet-tracks-actions { display: flex; gap: 8px; margin-top: 12px; }
-                   .fleet-tracks-actions button { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px; cursor: pointer; font: 600 13px Segoe UI,sans-serif; background: #fff; color: #0f172a; }
+                   .fleet-tracks-content .switch-row { gap: 8px; margin-bottom: 0; font-size: 13px; }
+                   .fleet-tracks-content .switch-row input { width: 18px; height: 18px; }
+                   .fleet-tracks-actions { display: flex; gap: 8px; margin-top: 10px; }
+                   .fleet-tracks-actions button { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; cursor: pointer; font: 600 12px Segoe UI,sans-serif; background: #fff; color: #0f172a; }
                    .fleet-tracks-actions button.primary { background: #0f766e; border-color: #0f766e; color: #fff; }
                    .fleet-track-legend { margin-top: 12px; padding: 9px 10px; border-radius: 8px; background: #f8fafc; font-size: 12px; color: #475569; line-height: 1.45; }
                    .fleet-track-status { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; font-size: 12px; line-height: 1.4; }
@@ -176,6 +192,14 @@ internal static class MapHtmlDocumentBuilder
                  <div id="map"></div>
                  <div id="status" class="status">Karte wird initialisiert...</div>
                  <div id="tourHoverTooltip" class="tour-hover-tooltip" aria-hidden="true"></div>
+                 <div class="map-zoom-controls" aria-label="Kartenzoom">
+                   <button id="mapZoomIn" class="map-zoom-button" type="button" aria-label="Karte vergrössern" title="Vergrössern">+</button>
+                   <button id="mapZoomOut" class="map-zoom-button" type="button" aria-label="Karte verkleinern" title="Verkleinern">−</button>
+                 </div>
+                 <div class="map-style-switch" aria-label="Kartendarstellung">
+                   <button class="map-style-switch-button" type="button" data-quick-map-style="standard">Karte</button>
+                   <button class="map-style-switch-button" type="button" data-quick-map-style="satellite">Satellit</button>
+                 </div>
                  <div class="map-top-controls">
                    <div id="speedLimitBadge" class="speed-limit-badge __SPEED_LIMIT_BADGE_HIDDEN__" aria-label="Aktuell berücksichtigte Höchstgeschwindigkeit">
                      <span>__CURRENT_ROUTE_MAX_SPEED__</span>
@@ -189,10 +213,8 @@ internal static class MapHtmlDocumentBuilder
                    <div class="fleet-tracks-content">
                      <div class="map-option-section"><h4>Mitarbeiter</h4><select id="fleetTrackVehicle"><option value="">Mitarbeiter auswählen</option></select></div>
                      <div class="map-option-section"><h4>Tag</h4><div class="fleet-date-picker-wrap"><button id="fleetTrackDate" class="fleet-date-button" type="button"><span></span><span>&#x1F4C5;</span></button><div id="fleetTrackDatePicker" class="fleet-date-picker"></div></div></div>
-                     <div class="map-option-section"><label class="switch-row"><input id="fleetTrackCompare" type="checkbox" checked /> Geplante Tour gegenüberstellen</label><p class="option-help">Grün: effektiv gefahrene Strecke. Blau: aktuell auf der Karte geöffnete geplante Tour. Über die grüne Strecke fahren, um Details zu sehen.</p></div>
                      <div class="fleet-tracks-actions"><button id="fleetTrackClear" type="button">Ausblenden</button><button id="fleetTrackLoad" class="primary" type="button">Verlauf laden</button></div>
                      <div id="fleetTrackStatus" class="fleet-track-status" role="status" hidden></div>
-                     <div id="fleetTrackLegend" class="fleet-track-legend" hidden><span class="fleet-track-swatch"></span><span id="fleetTrackLegendText"></span></div>
                    </div>
                  </aside>
                  <aside id="mapOptionsOverlay" class="map-options-overlay" aria-hidden="true">
@@ -257,17 +279,18 @@ internal static class MapHtmlDocumentBuilder
                    const fleetTrackVehicleEl = document.getElementById('fleetTrackVehicle');
                    const fleetTrackDateEl = document.getElementById('fleetTrackDate');
                    const fleetTrackDatePickerEl = document.getElementById('fleetTrackDatePicker');
-                   const fleetTrackCompareEl = document.getElementById('fleetTrackCompare');
                    const fleetTrackLoadEl = document.getElementById('fleetTrackLoad');
                    const fleetTrackClearEl = document.getElementById('fleetTrackClear');
-                   const fleetTrackLegendEl = document.getElementById('fleetTrackLegend');
-                   const fleetTrackLegendTextEl = document.getElementById('fleetTrackLegendText');
                    const fleetTrackStatusEl = document.getElementById('fleetTrackStatus');
                    let fleetTrackSelectedDate = new Date();
                    let fleetTrackCalendarMonth = new Date(fleetTrackSelectedDate.getFullYear(), fleetTrackSelectedDate.getMonth(), 1);
                    const pad2 = value => String(value).padStart(2, '0');
                    const formatFleetTrackDate = value => `${pad2(value.getDate())}.${pad2(value.getMonth() + 1)}.${value.getFullYear()}`;
                    const toFleetTrackIsoDate = value => `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`;
+                   const requestFleetTrackLoad = () => {
+                     if (!fleetTrackVehicleEl || !fleetTrackVehicleEl.value) return;
+                     window.chrome.webview.postMessage(`webfleetTrack:${fleetTrackVehicleEl.value}|${toFleetTrackIsoDate(fleetTrackSelectedDate)}`);
+                   };
                    const renderFleetTrackCalendar = () => {
                      if (!fleetTrackDatePickerEl || !fleetTrackDateEl) return;
                      const year = fleetTrackCalendarMonth.getFullYear(); const month = fleetTrackCalendarMonth.getMonth();
@@ -286,11 +309,15 @@ internal static class MapHtmlDocumentBuilder
                    const setFleetTracksOverlayOpen = (open) => { if (!fleetTracksOverlayEl) return; fleetTracksOverlayEl.classList.toggle('open', open); fleetTracksOverlayEl.setAttribute('aria-hidden', open ? 'false' : 'true'); };
                    if (fleetTracksToggleEl) fleetTracksToggleEl.addEventListener('click', () => setFleetTracksOverlayOpen(!fleetTracksOverlayEl.classList.contains('open')));
                    if (fleetTracksCloseEl) fleetTracksCloseEl.addEventListener('click', () => setFleetTracksOverlayOpen(false));
-                   if (fleetTrackLoadEl) fleetTrackLoadEl.addEventListener('click', () => { if (!fleetTrackVehicleEl.value) return; window.chrome.webview.postMessage(`webfleetTrack:${fleetTrackVehicleEl.value}|${toFleetTrackIsoDate(fleetTrackSelectedDate)}|${fleetTrackCompareEl.checked ? '1' : '0'}`); });
+                   if (fleetTrackLoadEl) fleetTrackLoadEl.addEventListener('click', requestFleetTrackLoad);
                    if (fleetTrackClearEl) fleetTrackClearEl.addEventListener('click', () => { window.chrome.webview.postMessage('webfleetTrack:clear'); });
 
                    const statusEl = document.getElementById('status');
-                   const setStatus = (t) => { if (statusEl) statusEl.textContent = t; };
+                   const setStatus = (t, isError = false) => {
+                     if (!statusEl) return;
+                     statusEl.textContent = t;
+                     statusEl.classList.toggle('visible', !!isError);
+                   };
                    const postDiag = (ok, reason) => {
                      if (window.chrome && window.chrome.webview) {
                        window.chrome.webview.postMessage(`mapdiag:${ok ? 'ok' : 'error'}:${reason || ''}`);
@@ -338,7 +365,7 @@ internal static class MapHtmlDocumentBuilder
                    window.gawelaAddToRoute = function() {};
 
                    if (!apiKey || !apiKey.trim()) {
-                     setStatus('TomTom API-Key fehlt.');
+                     setStatus('TomTom API-Key fehlt.', true);
                      postDiag(false, 'TomTom API-Key fehlt.');
                    } else {
                      const loadCss = (href) => new Promise((resolve, reject) => {
@@ -406,6 +433,17 @@ internal static class MapHtmlDocumentBuilder
                            useVehicleWeightRestrictions: !!useVehicleWeightRestrictions,
                            useDepartAtTraffic: !!useDepartAtTraffic
                          };
+                         const postMapOptions = () => {
+                           if (!(window.chrome && window.chrome.webview)) return;
+                           const trafficFlowToken = mapState.trafficFlow ? '1' : '0';
+                           const trafficIncidentsToken = mapState.trafficIncidents ? '1' : '0';
+                           const showRoadLabelsToken = mapState.showRoadLabels ? '1' : '0';
+                           const showPoiToken = mapState.showPoi ? '1' : '0';
+                           const useVehicleDimensionsToken = mapState.useVehicleDimensions ? '1' : '0';
+                           const useVehicleWeightRestrictionsToken = mapState.useVehicleWeightRestrictions ? '1' : '0';
+                           const useDepartAtTrafficToken = mapState.useDepartAtTraffic ? '1' : '0';
+                           window.chrome.webview.postMessage(`mapopts:${mapState.style}|${trafficFlowToken}|${trafficIncidentsToken}|${showRoadLabelsToken}|${showPoiToken}|${useVehicleDimensionsToken}|${useVehicleWeightRestrictionsToken}|${useDepartAtTrafficToken}`);
+                         };
                          const cacheSuffix = useTileCache ? '' : `&nocache=${Date.now()}`;
 
                          const applyStyleThumbPreviews = () => {};
@@ -445,6 +483,22 @@ internal static class MapHtmlDocumentBuilder
                            maxBounds: mapMaxBounds
                          });
                          const mapCanvas = map.getCanvas();
+                         const mapZoomInEl = document.getElementById('mapZoomIn');
+                         const mapZoomOutEl = document.getElementById('mapZoomOut');
+                         const changeMapZoom = (delta) => {
+                           const currentZoom = Number(map.getZoom());
+                           if (!Number.isFinite(currentZoom)) return;
+                           const minZoom = typeof map.getMinZoom === 'function' ? Number(map.getMinZoom()) : 6.5;
+                           const maxZoom = typeof map.getMaxZoom === 'function' ? Number(map.getMaxZoom()) : 22;
+                           const nextZoom = Math.max(Number.isFinite(minZoom) ? minZoom : 6.5, Math.min(Number.isFinite(maxZoom) ? maxZoom : 22, currentZoom + delta));
+                           if (typeof map.easeTo === 'function') {
+                             map.easeTo({ zoom: nextZoom, duration: 220 });
+                           } else if (typeof map.setZoom === 'function') {
+                             map.setZoom(nextZoom);
+                           }
+                         };
+                         if (mapZoomInEl) mapZoomInEl.addEventListener('click', () => changeMapZoom(1));
+                         if (mapZoomOutEl) mapZoomOutEl.addEventListener('click', () => changeMapZoom(-1));
                          mapCanvas.style.cursor = 'grab';
                          mapCanvas.addEventListener('mousedown', () => { mapCanvas.style.cursor = 'grabbing'; });
                          mapCanvas.addEventListener('mouseup', () => { mapCanvas.style.cursor = 'grab'; });
@@ -1580,6 +1634,30 @@ internal static class MapHtmlDocumentBuilder
                            });
                          };
 
+                         const updateQuickMapStyleSelection = () => {
+                           const satelliteActive = mapState.style === 'satellite';
+                           document.querySelectorAll('[data-quick-map-style]').forEach(button => {
+                             const isSatelliteButton = button.getAttribute('data-quick-map-style') === 'satellite';
+                             button.classList.toggle('active', isSatelliteButton === satelliteActive);
+                           });
+                         };
+
+                         const initQuickMapStyleSwitch = () => {
+                           document.querySelectorAll('[data-quick-map-style]').forEach(button => {
+                             button.addEventListener('click', () => {
+                               const requested = button.getAttribute('data-quick-map-style');
+                               if (!requested || requested === mapState.style) return;
+                               mapState.style = requested;
+                               updateQuickMapStyleSelection();
+                               updateStyleButtonSelection();
+                               applyBaseStyle();
+                               applyTrafficLayers();
+                               postMapOptions();
+                             });
+                           });
+                           updateQuickMapStyleSelection();
+                         };
+
                          const initOptionsOverlay = () => {
                            const overlay = document.getElementById('mapOptionsOverlay');
                            const toggleBtn = document.getElementById('mapOptionsToggle');
@@ -1620,21 +1698,6 @@ internal static class MapHtmlDocumentBuilder
                            const syncRoutingOptionToggles = () => {
                              vehicleDimensionsToggle.checked = mapState.useVehicleDimensions;
                              vehicleWeightRestrictionsToggle.checked = mapState.useVehicleWeightRestrictions;
-                           };
-
-                           const postMapOptions = () => {
-                             if (!(window.chrome && window.chrome.webview)) {
-                               return;
-                             }
-
-                             const trafficFlowToken = mapState.trafficFlow ? '1' : '0';
-                             const trafficIncidentsToken = mapState.trafficIncidents ? '1' : '0';
-                             const showRoadLabelsToken = mapState.showRoadLabels ? '1' : '0';
-                             const showPoiToken = mapState.showPoi ? '1' : '0';
-                             const useVehicleDimensionsToken = mapState.useVehicleDimensions ? '1' : '0';
-                             const useVehicleWeightRestrictionsToken = mapState.useVehicleWeightRestrictions ? '1' : '0';
-                             const useDepartAtTrafficToken = mapState.useDepartAtTraffic ? '1' : '0';
-                             window.chrome.webview.postMessage(`mapopts:${mapState.style}|${trafficFlowToken}|${trafficIncidentsToken}|${showRoadLabelsToken}|${showPoiToken}|${useVehicleDimensionsToken}|${useVehicleWeightRestrictionsToken}|${useDepartAtTrafficToken}`);
                            };
 
                            const openOverlay = () => {
@@ -1734,6 +1797,7 @@ internal static class MapHtmlDocumentBuilder
                                if (!requested || requested === mapState.style) return;
                                mapState.style = requested;
                                updateStyleButtonSelection();
+                               updateQuickMapStyleSelection();
                                applyBaseStyle();
                                applyTrafficLayers();
                                postMapOptions();
@@ -1747,6 +1811,7 @@ internal static class MapHtmlDocumentBuilder
                            applyPoiVisibility();
                            applyTrafficLayers();
                            initOptionsOverlay();
+                           initQuickMapStyleSwitch();
                            ensureRouteStopCanvasClickBinding();
                            setStatus('TomTom Karte aktiv');
                            postDiag(true, `Karte aktiv (TomTom SDK: ${loadedJs}, CSS: ${loadedCss})`);
@@ -1775,7 +1840,7 @@ internal static class MapHtmlDocumentBuilder
 
                          map.on('error', (e) => {
                            const reason = e && e.error && e.error.message ? e.error.message : 'Unbekannter Kartenfehler';
-                           setStatus(`Kartenfehler: ${reason}`);
+                           setStatus(`Kartenfehler: ${reason}`, true);
                            postDiag(false, `Kartenfehler: ${reason}`);
                          });
 
@@ -1848,9 +1913,31 @@ internal static class MapHtmlDocumentBuilder
                          const fleetTrackSourceId = 'gawela-fleet-track-source';
                          const fleetTrackLayerId = 'gawela-fleet-track-layer';
                          const fleetTrackOutlineLayerId = 'gawela-fleet-track-outline-layer';
+                         const ensureFleetTrackLayersOnTop = () => {
+                           try {
+                             [fleetTrackOutlineLayerId, fleetTrackLayerId].forEach(id => {
+                               if (map.getLayer(id)) map.moveLayer(id);
+                             });
+                           } catch (_) {
+                             // A style change can briefly invalidate layer ordering; the next map update retries it.
+                           }
+                         };
+                         const ensureFleetTrackSourceAndLayers = () => {
+                           if (!map.getSource(fleetTrackSourceId)) {
+                             map.addSource(fleetTrackSourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+                           }
+                           if (!map.getLayer(fleetTrackOutlineLayerId)) {
+                             map.addLayer({ id: fleetTrackOutlineLayerId, type: 'line', source: fleetTrackSourceId, layout: { visibility: 'none' }, paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .96 } });
+                           }
+                           if (!map.getLayer(fleetTrackLayerId)) {
+                             map.addLayer({ id: fleetTrackLayerId, type: 'line', source: fleetTrackSourceId, layout: { visibility: 'none' }, paint: { 'line-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#84cc16', '#65a30d'], 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 7, 5], 'line-opacity': .98 } });
+                           }
+                         };
                          let fleetTrackHoverPopup = null;
                          let fleetTrackHoveredSegmentId = null;
                          let fleetTrackHoverHandlers = null;
+                         let fleetPauseMarkers = [];
+                         const clearFleetPauseMarkers = () => { fleetPauseMarkers.forEach(marker => marker.remove()); fleetPauseMarkers = []; };
                          const removeFleetTrackHoverHandlers = () => {
                            if (!fleetTrackHoverHandlers) return;
                            map.off('mouseenter', fleetTrackLayerId, fleetTrackHoverHandlers.enter);
@@ -1869,11 +1956,9 @@ internal static class MapHtmlDocumentBuilder
                            const start = escapeHtml(String(properties && properties.startTime || ''));
                            const end = escapeHtml(String(properties && properties.endTime || ''));
                            const speed = Number(properties && properties.speed);
-                           const course = Number(properties && properties.course);
                            const speedText = Number.isFinite(speed) ? `${Math.round(speed)} km/h` : 'Geschwindigkeit nicht verfügbar';
-                           const courseText = Number.isFinite(course) ? ` · Kurs ${Math.round(course)}°` : '';
                            const timeText = `${start}${end && end !== start ? ` – ${end}` : ''}` || 'Zeitpunkt nicht verfügbar';
-                           return `<div class='gawela-fleet-popup'><div class='gawela-fleet-popup-header'><div class='gawela-fleet-popup-name'>Gefahrener Abschnitt</div><div class='gawela-fleet-popup-driver'>${timeText}</div></div><div class='gawela-fleet-popup-section'><div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Geschwindigkeit:</span> ${speedText}${courseText}</div></div></div><div class='gawela-fleet-popup-tail-wrap'><div class='gawela-fleet-popup-tail'></div></div>`;
+                           return `<div class='gawela-fleet-popup'><div class='gawela-fleet-popup-header'><div class='gawela-fleet-popup-name'>Gefahrener Abschnitt</div><div class='gawela-fleet-popup-driver'>${timeText}</div></div><div class='gawela-fleet-popup-section'><div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Geschwindigkeit:</span> ${speedText}</div></div></div><div class='gawela-fleet-popup-tail-wrap'><div class='gawela-fleet-popup-tail'></div></div>`;
                          };
                          window.gawelaSetFleetTrackOptions = function(vehicles) {
                            if (!fleetTracksToggleEl || !fleetTrackVehicleEl) return;
@@ -1884,27 +1969,31 @@ internal static class MapHtmlDocumentBuilder
                            if (list.some(v => String(v.uid) === selected)) fleetTrackVehicleEl.value = selected;
                            else if (list.length === 1) fleetTrackVehicleEl.value = String(list[0].uid);
                          };
-                         window.gawelaSetFleetTrack = function(points, meta) {
+                         window.gawelaSetFleetTrack = function(points, meta, pauses) {
                            const validPoints = Array.isArray(points) ? points.filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon))) : [];
                            const path = validPoints.map(p => [Number(p.lon), Number(p.lat)]);
                            if (fleetTrackLoadEl) fleetTrackLoadEl.textContent = path.length > 1 ? 'Verlauf aktualisieren' : 'Verlauf laden';
-                           const plannedRouteLayer = map.getLayer('gawela-route-layer');
-                           if (plannedRouteLayer) map.setLayoutProperty('gawela-route-layer', 'visibility', !meta || meta.compare ? 'visible' : 'none');
                            removeFleetTrackHoverHandlers();
                            clearFleetTrackHover();
-                           if (map.getLayer(fleetTrackLayerId)) map.removeLayer(fleetTrackLayerId);
-                           if (map.getLayer(fleetTrackOutlineLayerId)) map.removeLayer(fleetTrackOutlineLayerId);
-                           if (map.getSource(fleetTrackSourceId)) map.removeSource(fleetTrackSourceId);
-                           if (path.length > 1) {
-                             const features = validPoints.slice(1).map((point, index) => ({
+                           clearFleetPauseMarkers();
+                           const features = path.length > 1
+                             ? validPoints.slice(1).map((point, index) => ({
                                type: 'Feature', id: index,
                                properties: { startTime: validPoints[index].time || '', endTime: point.time || '', speed: point.speed, course: point.course },
                                geometry: { type: 'LineString', coordinates: [path[index], path[index + 1]] }
-                             }));
-                             map.addSource(fleetTrackSourceId, { type: 'geojson', data: { type: 'FeatureCollection', features } });
-                             map.addLayer({ id: fleetTrackOutlineLayerId, type: 'line', source: fleetTrackSourceId, paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .96 } });
-                             map.addLayer({ id: fleetTrackLayerId, type: 'line', source: fleetTrackSourceId, paint: { 'line-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#84cc16', '#65a30d'], 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 7, 5], 'line-opacity': .98 } });
-                             ensureRouteLayersOnTop();
+                             }))
+                             : [];
+                           ensureFleetTrackSourceAndLayers();
+                           const fleetTrackSource = map.getSource(fleetTrackSourceId);
+                           if (fleetTrackSource && typeof fleetTrackSource.setData === 'function') {
+                             fleetTrackSource.setData({ type: 'FeatureCollection', features });
+                           }
+                           const trackVisibility = path.length > 1 ? 'visible' : 'none';
+                           map.setLayoutProperty(fleetTrackOutlineLayerId, 'visibility', trackVisibility);
+                           map.setLayoutProperty(fleetTrackLayerId, 'visibility', trackVisibility);
+                           ensureRouteLayersOnTop();
+                           ensureFleetTrackLayersOnTop();
+                           if (path.length > 1) {
                              const enter = () => { map.getCanvas().style.cursor = 'pointer'; };
                              const move = event => {
                                const feature = event && event.features && event.features[0];
@@ -1924,11 +2013,18 @@ internal static class MapHtmlDocumentBuilder
                              map.on('mousemove', fleetTrackLayerId, move);
                              map.on('mouseleave', fleetTrackLayerId, leave);
                            }
-                           if (fleetTrackLegendEl && fleetTrackLegendTextEl) {
-                             fleetTrackLegendEl.hidden = path.length < 2;
-                             const comparison = meta && meta.compare ? ` · <span class='fleet-track-swatch planned-track-swatch'></span>Geplante Tour` : '';
-                             fleetTrackLegendTextEl.innerHTML = path.length > 1 ? `${escapeHtml((meta && meta.name) || 'Fahrzeug')}: ${path.length} Positionen${comparison}` : '';
-                           }
+                           const validPauses = Array.isArray(pauses) ? pauses.filter(p => p && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon))) : [];
+                           validPauses.forEach(pause => {
+                             const markerElement = document.createElement('div');
+                             markerElement.style.cssText = `width:30px;height:30px;border-radius:50%;background:${pause.active ? '#dc2626' : '#b45309'};border:3px solid white;box-shadow:0 2px 7px rgba(15,23,42,.45);color:white;font:700 16px Segoe UI Emoji,Segoe UI,sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;`;
+                             markerElement.textContent = '☕';
+                             markerElement.title = pause.active ? 'Pause läuft' : 'Pause';
+                             const start = escapeHtml(String(pause.start || 'Zeitpunkt nicht verfügbar'));
+                             const end = escapeHtml(String(pause.end || 'läuft aktuell'));
+                             const state = pause.active ? 'Pause läuft' : 'Pause beendet';
+                             const popup = new ttSdk.Popup({ offset: 18, anchor: 'bottom' }).setHTML(`<div class='gawela-fleet-popup'><header class='gawela-fleet-popup-header'><div class='gawela-fleet-popup-name'>☕ ${state}</div><div class='gawela-fleet-popup-driver'>${start}${end ? ` – ${end}` : ''}</div></header></div><div class='gawela-fleet-popup-tail-wrap'><div class='gawela-fleet-popup-tail'></div></div>`);
+                             fleetPauseMarkers.push(new ttSdk.Marker({ element: markerElement, anchor: 'center' }).setLngLat([Number(pause.lon), Number(pause.lat)]).setPopup(popup).addTo(map));
+                           });
                          };
                          window.gawelaSetFleetTrackStatus = function(message) {
                            if (!fleetTrackStatusEl) return;
@@ -2042,6 +2138,7 @@ internal static class MapHtmlDocumentBuilder
                            ensureRouteLayer(path, routeColor || '#2563EB');
                            renderTrafficRouteSegments(path, trafficSegments);
                            ensureRouteLayersOnTop();
+                           ensureFleetTrackLayersOnTop();
 
                            if (routeKey && routeKey !== lastAutoCenteredRouteKey) {
                              const bounds = new ttSdk.LngLatBounds();
@@ -2183,7 +2280,8 @@ internal static class MapHtmlDocumentBuilder
 
                          window.gawelaSetRouteInfo = function(text) {
                            const t = (text || '').toString().trim();
-                           setStatus(t.length > 0 ? t : 'TomTom Karte aktiv');
+                           const isError = /fehler|fehlgeschlagen|nicht verfügbar/i.test(t);
+                           setStatus(t.length > 0 ? t : 'TomTom Karte aktiv', isError);
                          };
 
                          window.gawelaSetStickyPopupOrderId = function(orderId) {
@@ -2341,7 +2439,7 @@ internal static class MapHtmlDocumentBuilder
                          window.gawelaMapReady = true;
                        } catch (err) {
                          const msg = err && err.message ? err.message : 'Unbekannter Initialisierungsfehler';
-                         setStatus(`Karteninitialisierung fehlgeschlagen: ${msg}`);
+                         setStatus(`Karteninitialisierung fehlgeschlagen: ${msg}`, true);
                          postDiag(false, `Karteninitialisierung fehlgeschlagen: ${msg}`);
                        }
                      })();

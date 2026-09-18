@@ -9,10 +9,10 @@ namespace Tourenplaner.CSharp.App.Views.Dialogs;
 
 public partial class EmployeeEditorDialogWindow : Window
 {
-    public EmployeeEditorDialogWindow(EmployeeEditorSeed seed, IReadOnlyList<WebfleetVehicleSnapshot>? webfleetVehicles = null, string? noWebfleetVehiclesMessage = null, bool hasDuplicateWebfleetAssignment = false)
+    public EmployeeEditorDialogWindow(EmployeeEditorSeed seed, IReadOnlyList<WebfleetVehicleSnapshot>? webfleetVehicles = null, IReadOnlyList<WebfleetDriverSnapshot>? webfleetDrivers = null, string? noWebfleetVehiclesMessage = null, bool hasDuplicateWebfleetAssignment = false)
     {
         InitializeComponent();
-        ViewModel = new EmployeeEditorDialogViewModel(seed, webfleetVehicles, noWebfleetVehiclesMessage, hasDuplicateWebfleetAssignment);
+        ViewModel = new EmployeeEditorDialogViewModel(seed, webfleetVehicles, webfleetDrivers, noWebfleetVehiclesMessage, hasDuplicateWebfleetAssignment);
         DataContext = ViewModel;
     }
 
@@ -92,9 +92,13 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
     private string _absenceEndDate;
     private string _webfleetObjectUid;
     private string _webfleetObjectNumber;
+    private string _webfleetDriverUid;
+    private string _webfleetDriverNumber;
+    private string _webfleetDriverName;
     private WebfleetVehicleOption? _selectedWebfleetVehicle;
+    private WebfleetEmployeeDriverOption? _selectedWebfleetDriver;
 
-    public EmployeeEditorDialogViewModel(EmployeeEditorSeed seed, IReadOnlyList<WebfleetVehicleSnapshot>? webfleetVehicles = null, string? noWebfleetVehiclesMessage = null, bool hasDuplicateWebfleetAssignment = false)
+    public EmployeeEditorDialogViewModel(EmployeeEditorSeed seed, IReadOnlyList<WebfleetVehicleSnapshot>? webfleetVehicles = null, IReadOnlyList<WebfleetDriverSnapshot>? webfleetDrivers = null, string? noWebfleetVehiclesMessage = null, bool hasDuplicateWebfleetAssignment = false)
     {
         _id = seed.Id;
         _name = seed.Name ?? string.Empty;
@@ -107,6 +111,9 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
         _absenceEndDate = seed.AbsenceEndDate ?? string.Empty;
         _webfleetObjectUid = seed.WebfleetObjectUid ?? string.Empty;
         _webfleetObjectNumber = seed.WebfleetObjectNumber ?? string.Empty;
+        _webfleetDriverUid = seed.WebfleetDriverUid ?? string.Empty;
+        _webfleetDriverNumber = seed.WebfleetDriverNumber ?? string.Empty;
+        _webfleetDriverName = seed.WebfleetDriverName ?? string.Empty;
         var availableWebfleetVehicles = (webfleetVehicles ?? [])
             .Select(WebfleetVehicleOption.Create)
             .OrderBy(x => x.Label, StringComparer.CurrentCultureIgnoreCase)
@@ -130,6 +137,20 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
         NoWebfleetVehiclesMessage = string.IsNullOrWhiteSpace(noWebfleetVehiclesMessage)
             ? "Keine WEBFLEET-Objekte geladen. Bitte Verbindung und Berechtigungen prüfen."
             : noWebfleetVehiclesMessage;
+        var availableWebfleetDrivers = (webfleetDrivers ?? [])
+            .Select(WebfleetEmployeeDriverOption.Create)
+            .OrderBy(x => x.Label, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+        HasAvailableWebfleetDrivers = availableWebfleetDrivers.Count > 0;
+        WebfleetDrivers = [WebfleetEmployeeDriverOption.None, .. availableWebfleetDrivers];
+        _selectedWebfleetDriver = WebfleetDrivers.FirstOrDefault(x =>
+            !x.IsNone && string.Equals(x.DriverUid, _webfleetDriverUid, StringComparison.OrdinalIgnoreCase));
+        if (HasAvailableWebfleetDrivers && _selectedWebfleetDriver is null)
+        {
+            _webfleetDriverUid = string.Empty;
+            _webfleetDriverNumber = string.Empty;
+            _webfleetDriverName = string.Empty;
+        }
     }
 
     public bool HasExistingEntry => !string.IsNullOrWhiteSpace(_id);
@@ -184,10 +205,16 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
 
     public string WebfleetObjectUid { get => _webfleetObjectUid; set => SetProperty(ref _webfleetObjectUid, value); }
     public string WebfleetObjectNumber { get => _webfleetObjectNumber; set => SetProperty(ref _webfleetObjectNumber, value); }
+    public string WebfleetDriverUid { get => _webfleetDriverUid; set => SetProperty(ref _webfleetDriverUid, value); }
+    public string WebfleetDriverNumber { get => _webfleetDriverNumber; set => SetProperty(ref _webfleetDriverNumber, value); }
+    public string WebfleetDriverName { get => _webfleetDriverName; set => SetProperty(ref _webfleetDriverName, value); }
     public IReadOnlyList<WebfleetVehicleOption> WebfleetVehicles { get; }
+    public IReadOnlyList<WebfleetEmployeeDriverOption> WebfleetDrivers { get; }
     public bool HasAvailableWebfleetVehicles { get; }
+    public bool HasAvailableWebfleetDrivers { get; }
     public bool HasDuplicateWebfleetAssignment { get; }
     public string NoWebfleetVehiclesMessage { get; }
+    public string NoWebfleetDriversMessage => "Keine WEBFLEET-Fahrer geladen. Bitte Verbindung und Berechtigungen prüfen.";
 
     public WebfleetVehicleOption? SelectedWebfleetVehicle
     {
@@ -201,6 +228,22 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
 
             WebfleetObjectNumber = value.ObjectNumber;
             WebfleetObjectUid = value.ObjectUid;
+        }
+    }
+
+    public WebfleetEmployeeDriverOption? SelectedWebfleetDriver
+    {
+        get => _selectedWebfleetDriver;
+        set
+        {
+            if (!SetProperty(ref _selectedWebfleetDriver, value) || value is null)
+            {
+                return;
+            }
+
+            WebfleetDriverNumber = value.DriverNumber;
+            WebfleetDriverUid = value.DriverUid;
+            WebfleetDriverName = value.Name;
         }
     }
 
@@ -262,7 +305,10 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
             AbsenceStartDate: (AbsenceStartDate ?? string.Empty).Trim(),
             AbsenceEndDate: (AbsenceEndDate ?? string.Empty).Trim(),
             WebfleetObjectUid: (WebfleetObjectUid ?? string.Empty).Trim(),
-            WebfleetObjectNumber: (WebfleetObjectNumber ?? string.Empty).Trim());
+            WebfleetObjectNumber: (WebfleetObjectNumber ?? string.Empty).Trim(),
+            WebfleetDriverUid: (WebfleetDriverUid ?? string.Empty).Trim(),
+            WebfleetDriverNumber: (WebfleetDriverNumber ?? string.Empty).Trim(),
+            WebfleetDriverName: (WebfleetDriverName ?? string.Empty).Trim());
         return true;
     }
 
@@ -290,5 +336,16 @@ public sealed record WebfleetVehicleOption(string ObjectNumber, string ObjectUid
     {
         var name = string.IsNullOrWhiteSpace(source.Name) ? "Ohne Bezeichnung" : source.Name;
         return new WebfleetVehicleOption(source.ObjectNumber, source.ObjectUid, $"{source.ObjectNumber} – {name}");
+    }
+}
+
+public sealed record WebfleetEmployeeDriverOption(string DriverNumber, string DriverUid, string Name, string Label, bool IsNone = false)
+{
+    public static WebfleetEmployeeDriverOption None { get; } = new(string.Empty, string.Empty, string.Empty, "Keine WEBFLEET-Fahrerzuordnung", true);
+
+    public static WebfleetEmployeeDriverOption Create(WebfleetDriverSnapshot source)
+    {
+        var name = string.IsNullOrWhiteSpace(source.Name) ? "Ohne Bezeichnung" : source.Name;
+        return new WebfleetEmployeeDriverOption(source.DriverNumber, source.DriverUid, name, $"{source.DriverNumber} – {name}");
     }
 }

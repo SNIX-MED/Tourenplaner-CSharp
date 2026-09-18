@@ -45,6 +45,34 @@ public class OrderStatusDerivationTests
     }
 
     [Fact]
+    public void ResolveOrderStatusFromProducts_DerivesReadyToDeliverWhenEveryProductIsInStock()
+    {
+        var products = new[]
+        {
+            new OrderProductInfo { Name = "Produkt A", DeliveryStatus = OrderProductInfo.InStockStatus },
+            new OrderProductInfo { Name = "Produkt B", DeliveryStatus = OrderProductInfo.InStockStatus }
+        };
+
+        var status = Order.ResolveOrderStatusFromProducts(products);
+
+        Assert.Equal(Order.ReadyToDeliverStatus, status);
+    }
+
+    [Fact]
+    public void ResolveOrderStatusFromProducts_IgnoresEmptyImportProductRows()
+    {
+        var products = new[]
+        {
+            new OrderProductInfo { Name = "Produkt A", DeliveryStatus = OrderProductInfo.InStockStatus },
+            new OrderProductInfo { Name = " ", DeliveryStatus = OrderProductInfo.DefaultDeliveryStatus }
+        };
+
+        var status = Order.ResolveOrderStatusFromProducts(products);
+
+        Assert.Equal(Order.ReadyToDeliverStatus, status);
+    }
+
+    [Fact]
     public void ResolveOrderStatusFromProducts_KeepsNotSpecifiedProductStatus()
     {
         var notSpecifiedProducts = new[]

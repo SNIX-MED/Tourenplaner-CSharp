@@ -59,6 +59,38 @@ public sealed class WebfleetConnectServiceTests
     }
 
     [Fact]
+    public void ParseDrivers_ParsesWebfleetDriverIdentity()
+    {
+        const string response = "driverno;driveruid;name1;name2;name3\n007;driver-uid-7;Pascal;Zander;";
+        var method = typeof(WebfleetConnectService).GetMethod("ParseDrivers", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var drivers = Assert.IsAssignableFrom<IReadOnlyList<WebfleetDriverSnapshot>>(method.Invoke(null, [response]));
+
+        var driver = Assert.Single(drivers);
+        Assert.Equal("007", driver.DriverNumber);
+        Assert.Equal("driver-uid-7", driver.DriverUid);
+        Assert.Equal("Pascal Zander", driver.Name);
+    }
+
+    [Fact]
+    public void ParseWorkingTimes_ParsesPauseWithWorkAppCoordinates()
+    {
+        const string response = "start_time;end_time;start_latitude;start_longitude;workstate\n2026-09-17T10:30:00Z;2026-09-17T11:00:00Z;47581820;9066929;2";
+        var method = typeof(WebfleetConnectService).GetMethod("ParseWorkingTimes", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var intervals = Assert.IsAssignableFrom<IReadOnlyList<WebfleetWorkingTimeInterval>>(method.Invoke(null, [response]));
+
+        var interval = Assert.Single(intervals);
+        Assert.Equal(2, interval.WorkState);
+        Assert.Equal(new DateTimeOffset(2026, 9, 17, 10, 30, 0, TimeSpan.Zero), interval.StartTime);
+        Assert.Equal(new DateTimeOffset(2026, 9, 17, 11, 0, 0, TimeSpan.Zero), interval.EndTime);
+        Assert.Equal(47.58182, interval.Latitude);
+        Assert.Equal(9.066929, interval.Longitude);
+    }
+
+    [Fact]
     public void ParseOrderIds_ReturnsOnlyOrderIdColumn()
     {
         const string response = "orderdate;orderid;objectuid;orderstate\n2026-09-16;T00001-002-221949;object-uid;100\n2026-09-16;T00001-003-ENDE;object-uid;100";

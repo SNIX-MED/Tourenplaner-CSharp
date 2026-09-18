@@ -4,7 +4,7 @@
         xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
         Title="Mitarbeiter"
         Width="540"
-        Height="700"
+        Height="760"
         MinHeight="520"
         MaxHeight="900"
         WindowStartupLocation="CenterOwner"
@@ -102,10 +102,6 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
                 <TextBlock Margin="0,6,0,0"
-                           Foreground="{DynamicResource Brush.TextMuted}"
-                           TextWrapping="Wrap"
-                           Text="{Binding SelectedWebfleetVehicle.ObjectUid, StringFormat=Objekt-UID: {0}}" />
-                <TextBlock Margin="0,6,0,0"
                            Foreground="#B45309"
                            TextWrapping="Wrap"
                            Text="Doppelte WEBFLEET-Zuordnung erkannt. Diese Zuordnung wird beim Speichern entfernt.">
@@ -128,6 +124,32 @@
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasAvailableWebfleetVehicles}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="WEBFLEET-Fahrer" />
+                <ComboBox Margin="0,6,0,0"
+                          Height="38"
+                          ItemsSource="{Binding WebfleetDrivers}"
+                          SelectedItem="{Binding SelectedWebfleetDriver, Mode=TwoWay}"
+                          ToolTip="WEBFLEET-Fahrer auswählen">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Margin="0,4,0,0"
+                           Foreground="{DynamicResource Brush.TextMuted}"
+                           Text="{Binding NoWebfleetDriversMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasAvailableWebfleetDrivers}" Value="False">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
