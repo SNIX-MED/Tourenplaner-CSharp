@@ -1145,16 +1145,19 @@
                                                                         HorizontalAlignment="Right"
                                                                         CornerRadius="10"
                                                                         Background="{Binding StatusBackground}">
-                                                                    <StackPanel Orientation="Horizontal">
-                                                                        <TextBlock FontFamily="Segoe UI Symbol"
+                                                                    <StackPanel VerticalAlignment="Center"
+                                                                                Orientation="Horizontal">
+                                                                        <TextBlock FontFamily="Segoe MDL2 Assets"
                                                                                    FontSize="11"
                                                                                    FontWeight="SemiBold"
                                                                                    Foreground="{Binding StatusForeground}"
+                                                                                   VerticalAlignment="Center"
                                                                                    Text="{Binding StatusGlyph}" />
                                                                         <TextBlock Margin="4,0,0,0"
                                                                                    FontSize="11"
                                                                                    FontWeight="SemiBold"
                                                                                    Foreground="{Binding StatusForeground}"
+                                                                                   VerticalAlignment="Center"
                                                                                    Text="{Binding StatusLabel}" />
                                                                     </StackPanel>
                                                                 </Border>
@@ -1749,7 +1752,94 @@
                             </Grid>
                         </Border>
 
-                        <Border Grid.Row="3" Margin="0,10,0,8" Style="{StaticResource SoftCardStyle}" Padding="10">
+                        <Border Grid.Row="3"
+                                Margin="0,10,0,8"
+                                Padding="10">
+                            <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowTourOverviewPanel}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding SelectedTourOverviewItem}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                           Text="{Binding SelectedTourOverviewItem.TourName}" />
+                                <Grid Grid.Row="1" Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Margin="0,0,5,0" Padding="9" CornerRadius="9" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource Brush.TextPrimary}" VerticalAlignment="Center" Text="&#xE707;" />
+                                            <StackPanel Margin="8,0,0,0">
+                                                <TextBlock FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="Stopps" />
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourOverviewItem.StopCount}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1" Margin="5,0,0,0" Padding="9" CornerRadius="9" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource Brush.TextPrimary}" VerticalAlignment="Center" Text="&#xE77B;" />
+                                            <StackPanel Margin="8,0,0,0">
+                                                <TextBlock FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="Mitarbeiter" />
+                                                <TextBlock MaxWidth="140" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding SelectedTourOverviewItem.EmployeeNames}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <Grid Grid.Row="2" Margin="0,5,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Margin="0,0,5,0" Padding="9" CornerRadius="9" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource Brush.TextPrimary}" VerticalAlignment="Center" Text="&#xE8B7;" />
+                                            <StackPanel Margin="8,0,0,0">
+                                                <TextBlock FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="Gesamtgewicht" />
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourOverviewItem.TotalWeightText}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1" Margin="5,0,0,0" Padding="9" CornerRadius="9" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource Brush.TextPrimary}" VerticalAlignment="Center" Text="&#xE7B8;" />
+                                            <StackPanel Margin="8,0,0,0">
+                                                <TextBlock FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="Ladegewicht" />
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourOverviewItem.LoadCapacityText}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="3" Margin="0,10,0,8" Padding="10">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ShowTourOverviewPanel}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <StackPanel>
                                 <TextBlock FontWeight="SemiBold" Text="{Binding RouteTotalWeightText}" />
                                 <TextBlock Margin="0,4,0,0"

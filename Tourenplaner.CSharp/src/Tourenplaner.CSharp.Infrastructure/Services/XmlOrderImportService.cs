@@ -15,6 +15,9 @@ public interface IXmlOrderImportService
 
 public sealed class XmlOrderImportService : IXmlOrderImportService
 {
+    private const string MontageArticleId = "973d1a2f-155b-11ec-8a65-40b076de1f8f";
+    private const string DistributionDeliveryArticleId = "1be04ec6-080a-11ec-8a64-40b076de1f8f";
+
     static XmlOrderImportService()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -184,6 +187,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                             ArtikelNummer = ReadString(productElement, effectiveMapping.ProductArticleNumber),
                             Bezeichnung = ReadString(productElement, effectiveMapping.ProductDescription),
                             Lieferant = ReadSupplierName(productElement, effectiveMapping.ProductSupplier),
+                            Lieferzeit = ReadString(productElement, effectiveMapping.OrderDeliveryTime),
                             Menge = ReadDecimal(productElement, effectiveMapping.ProductQuantity),
                             Gewicht = productWeight,
                             Bruttogewicht = 0m
@@ -326,6 +330,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         ProductDescription = "bezeichnung",
         ProductQuantity = "menge",
         ProductWeight = "gewicht",
+        ProductPositionCode = "poscode",
         OrderAddressNumber = sourceMapping.OrderAddressNumber,
         OrderDeliveryAddressNumber = sourceMapping.OrderDeliveryAddressNumber,
         OrderContactPerson = sourceMapping.OrderContactPerson,
@@ -334,6 +339,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         OrderDeliveryAddressBlock = sourceMapping.OrderDeliveryAddressBlock,
         ExcludedProductArticleNumbers = sourceMapping.ExcludedProductArticleNumbers,
         ExcludedProductDescriptions = sourceMapping.ExcludedProductDescriptions,
+        ExcludedProductPositionCodes = sourceMapping.ExcludedProductPositionCodes,
         DeliveryTypeFreiBordsteinkanteArticleNumbers = sourceMapping.DeliveryTypeFreiBordsteinkanteArticleNumbers,
         DeliveryTypeMitVerteilungArticleNumbers = sourceMapping.DeliveryTypeMitVerteilungArticleNumbers,
         DeliveryTypeMitVerteilungMontageArticleNumbers = sourceMapping.DeliveryTypeMitVerteilungMontageArticleNumbers,
@@ -384,8 +390,10 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         ProductDescription = XmlImportMappingSettings.LegacyProductDescription,
         ProductQuantity = XmlImportMappingSettings.LegacyProductQuantity,
         ProductWeight = XmlImportMappingSettings.LegacyProductWeight,
+        ProductPositionCode = sourceMapping.ProductPositionCode,
         ExcludedProductArticleNumbers = sourceMapping.ExcludedProductArticleNumbers,
         ExcludedProductDescriptions = sourceMapping.ExcludedProductDescriptions,
+        ExcludedProductPositionCodes = sourceMapping.ExcludedProductPositionCodes,
         DeliveryTypeFreiBordsteinkanteArticleNumbers = sourceMapping.DeliveryTypeFreiBordsteinkanteArticleNumbers,
         DeliveryTypeMitVerteilungArticleNumbers = sourceMapping.DeliveryTypeMitVerteilungArticleNumbers,
         DeliveryTypeMitVerteilungMontageArticleNumbers = sourceMapping.DeliveryTypeMitVerteilungMontageArticleNumbers,
@@ -463,6 +471,11 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         IReadOnlyList<XElement> matchedProducts,
         XmlImportMappingSettings mapping)
     {
+        if (HasMontageAndDistributionDeliveryMarkers(matchedProducts))
+        {
+            return DeliveryMethodExtensions.MitVerteilungMontage;
+        }
+
         var rules = GetDeliveryTypeRules(mapping);
         if (rules.Count == 0)
         {
@@ -539,14 +552,48 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
 
     private static bool IsDeliveryTypeMarker(XElement productElement, XmlImportMappingSettings mapping)
     {
+        if (IsMontageOrDistributionDeliveryMarker(productElement))
+        {
+            return true;
+        }
+
         var productArticleNumber = GetDeliveryTypeMatchArticleNumber(productElement, mapping);
         return !string.IsNullOrWhiteSpace(productArticleNumber) &&
                GetDeliveryTypeRules(mapping).Any(rule => rule.MatchValues.Contains(productArticleNumber));
     }
 
+    private static bool HasMontageAndDistributionDeliveryMarkers(IEnumerable<XElement> productElements)
+    {
+        var articleIds = productElements
+            .Select(ReadExportArticleId)
+            .Where(articleId => !string.IsNullOrWhiteSpace(articleId))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return articleIds.Contains(MontageArticleId) && articleIds.Contains(DistributionDeliveryArticleId);
+    }
+
+    private static bool IsMontageOrDistributionDeliveryMarker(XElement productElement)
+    {
+        var articleId = ReadExportArticleId(productElement);
+        return string.Equals(articleId, MontageArticleId, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(articleId, DistributionDeliveryArticleId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ReadExportArticleId(XElement productElement)
+    {
+        return NormalizeDeliveryTypeArticleNumber(ReadString(productElement, "artikelid"));
+    }
+
     private static bool ShouldSkipProductPosition(XElement productElement, XmlImportMappingSettings mapping)
     {
         if (IsDeliveryTypeMarker(productElement, mapping))
+        {
+            return true;
+        }
+
+        var positionCode = NormalizeProductExclusionValue(ReadString(productElement, mapping.ProductPositionCode));
+        if (!string.IsNullOrWhiteSpace(positionCode) &&
+            ParseDelimitedProductExclusionValues(mapping.ExcludedProductPositionCodes).Contains(positionCode))
         {
             return true;
         }

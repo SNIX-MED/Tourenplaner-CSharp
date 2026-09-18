@@ -3093,7 +3093,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => x.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(2)
                 .ToList();
 
             var previewTours = tours.ToList();
@@ -3219,7 +3218,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(x => x.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(2)
                 .ToList();
 
             var previewTours = tours.ToList();
@@ -6809,6 +6807,26 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 ? "--:--"
                 : (tour.StartTime ?? string.Empty).Trim();
             var stopCount = (tour.Stops ?? []).Count(IsCustomerTourStop);
+            var orderIds = (tour.Stops ?? [])
+                .Where(IsCustomerTourStop)
+                .Select(ExtractTourStopOrderId)
+                .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
+                .Select(orderId => orderId.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var totalWeightKg = orderIds.Count > 0
+                ? orderIds.Sum(FindOrderWeightKg)
+                : _allOrders
+                    .Where(order => !order.IsArchived && string.Equals(order.AssignedTourId, tour.Id.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase))
+                    .Sum(order => FindOrderWeightKg(order.Id));
+            var employeeNames = (tour.EmployeeIds ?? [])
+                .Select(ResolveEmployeeLabel)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var loadCapacityKg = BuildVehicleAssignments(tour.VehicleId, tour.TrailerId, tour.SecondaryVehicleId, tour.SecondaryTrailerId)
+                .Select(assignment => VehicleCombinationDisplayResolver.Resolve(_vehicleData, assignment.VehicleId, assignment.TrailerId))
+                .Sum(display => display.VehiclePayloadKg.GetValueOrDefault() + display.TrailerLoadKg.GetValueOrDefault());
             var status = ResolveTourOverviewStatus(tour, parsedDate);
             TourOverviewItems.Add(new SavedTourOverviewItem(
                 tour.Id,
@@ -6819,7 +6837,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 status.Label,
                 status.Background,
                 status.Foreground,
-                status.Glyph));
+                status.Glyph,
+                string.Join(", ", employeeNames),
+                totalWeightKg,
+                loadCapacityKg));
         }
     }
 
@@ -6850,16 +6871,16 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         if (avisoStates.Count > 0 && avisoStates.All(status => string.Equals(status, "Bestätigt", StringComparison.OrdinalIgnoreCase)))
         {
-            return ("Bestätigt", "#DBEAFE", "#2563EB", "◷");
+            return ("Bestätigt", "#DCFCE7", "#15803D", "\uE73E");
         }
 
         if (avisoStates.Count > 0 &&
             avisoStates.All(status => !string.Equals(status, "nicht avisiert", StringComparison.OrdinalIgnoreCase)))
         {
-            return ("Avisiert", "#FFEDD5", "#EA580C", "◷");
+            return ("Avisiert", "#FFEDD5", "#EA580C", "\uE121");
         }
 
-        return ("Geplant", "#FEE2E2", "#DC2626", "◷");
+        return ("Geplant", "#FEE2E2", "#DC2626", "\uE121");
     }
 
     private void ApplyTourOverviewSelection(SavedTourOverviewItem? selection)
@@ -8974,7 +8995,7 @@ public sealed class SavedTourLookupItem
 
 public sealed class SavedTourOverviewItem
 {
-    public SavedTourOverviewItem(int tourId, string tourName, string dateText, string startTimeText, int stopCount, string statusLabel, string statusBackground, string statusForeground, string statusGlyph)
+    public SavedTourOverviewItem(int tourId, string tourName, string dateText, string startTimeText, int stopCount, string statusLabel, string statusBackground, string statusForeground, string statusGlyph, string employeeNames, double totalWeightKg, int loadCapacityKg)
     {
         TourId = tourId;
         TourName = string.IsNullOrWhiteSpace(tourName) ? $"Tour {tourId}" : tourName.Trim();
@@ -8985,6 +9006,9 @@ public sealed class SavedTourOverviewItem
         StatusBackground = statusBackground;
         StatusForeground = statusForeground;
         StatusGlyph = statusGlyph;
+        EmployeeNames = string.IsNullOrWhiteSpace(employeeNames) ? "Nicht zugewiesen" : employeeNames;
+        TotalWeightText = $"{totalWeightKg:0.##} kg";
+        LoadCapacityText = $"{Math.Max(0, loadCapacityKg)} kg";
     }
 
     public int TourId { get; }
@@ -8997,6 +9021,9 @@ public sealed class SavedTourOverviewItem
     public string StatusBackground { get; }
     public string StatusForeground { get; }
     public string StatusGlyph { get; }
+    public string EmployeeNames { get; }
+    public string TotalWeightText { get; }
+    public string LoadCapacityText { get; }
 }
 
 internal sealed class RouteComputationCacheEntry

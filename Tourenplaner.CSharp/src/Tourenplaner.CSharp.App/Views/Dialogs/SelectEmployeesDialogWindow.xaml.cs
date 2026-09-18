@@ -26,10 +26,10 @@ public partial class SelectEmployeesDialogWindow : Window
 
     private void OnSaveClicked(object sender, RoutedEventArgs e)
     {
-        var selected = ViewModel.Employees.Where(x => x.IsSelected).Select(x => x.Id).Take(2).ToList();
-        if (selected.Count is < 1 or > 2)
+        var selected = ViewModel.Employees.Where(x => x.IsSelected).Select(x => x.Id).ToList();
+        if (selected.Count < 1)
         {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, "Bitte 1 bis 2 Mitarbeiter auswählen.", "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, "Bitte mindestens 1 Mitarbeiter auswählen.", "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -57,7 +57,7 @@ public sealed class SelectEmployeesDialogViewModel : ObservableObject
 
     public ObservableCollection<SelectableEmployee> Employees { get; }
 
-    private string _summaryText = "0 von 2 Mitarbeitern ausgewählt.";
+    private string _summaryText = "0 Mitarbeiter ausgewählt.";
     public string SummaryText
     {
         get => _summaryText;
@@ -66,28 +66,12 @@ public sealed class SelectEmployeesDialogViewModel : ObservableObject
 
     private void OnEmployeePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(SelectableEmployee.IsSelected) || sender is not SelectableEmployee changed || !changed.IsSelected)
-        {
-            RefreshSummary();
-            return;
-        }
-
-        var selected = Employees.Where(x => x.IsSelected).ToList();
-        if (selected.Count > 2)
-        {
-            var toDisable = selected.FirstOrDefault(x => x != changed);
-            if (toDisable is not null)
-            {
-                toDisable.IsSelected = false;
-            }
-        }
-
         RefreshSummary();
     }
 
     private void RefreshSummary()
     {
-        SummaryText = $"{Employees.Count(x => x.IsSelected)} von 2 Mitarbeitern ausgewählt.";
+        SummaryText = $"{Employees.Count(x => x.IsSelected)} Mitarbeiter ausgewählt.";
     }
 }
 

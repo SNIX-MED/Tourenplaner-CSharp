@@ -362,9 +362,9 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         }
 
         var employees = Employees.Where(x => x.IsSelected).Select(x => x.Id).ToList();
-        if (employees.Count is < 1 or > 2)
+        if (employees.Count < 1)
         {
-            error = "Bitte 1 bis 2 Mitarbeiter auswählen.";
+            error = "Bitte mindestens 1 Mitarbeiter auswählen.";
             return false;
         }
 

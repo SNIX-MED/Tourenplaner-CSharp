@@ -103,6 +103,40 @@ public class OrderImportServiceTests
     }
 
     [Fact]
+    public async Task ImportOrdersAsync_UsesProductDeliveryTimeAndSupplierForInitialProductStatus()
+    {
+        var xmlOrder = CreateSqlOrder("A-17", "Kunde Siebzehn", "Mit Verteilung", "Neu");
+        xmlOrder.Produkte =
+        [
+            new XmlOrderProductData
+            {
+                PosNummer = 1,
+                Bezeichnung = "Direkt ab Lager",
+                Lieferzeit = "ab Lager (Zwischenverkauf vorbehalten)",
+                Lieferant = "Anderer Lieferant",
+                Menge = 1,
+                Gewicht = 1
+            },
+            new XmlOrderProductData
+            {
+                PosNummer = 2,
+                Bezeichnung = "Esnova ab Lager",
+                Lieferzeit = "ab Lager (Zwischenverkauf vorbehalten)",
+                Lieferant = "Esnova Racks S.A. | Plg. Los Campones s/n - Tremanes | ES-33211 Gijón | 111362",
+                Menge = 1,
+                Gewicht = 1
+            }
+        ];
+
+        var repository = new FakeOrderRepository([]);
+        await new OrderImportService().ImportOrdersAsync([xmlOrder], repository);
+
+        var products = Assert.Single(repository.StoredOrders).Products;
+        Assert.Equal(OrderProductInfo.InStockStatus, products[0].DeliveryStatus);
+        Assert.Equal(OrderProductInfo.PendingPreparationStatus, products[1].DeliveryStatus);
+    }
+
+    [Fact]
     public async Task ImportOrdersAsync_WhenMarkedAsXmlImport_MarksCreatedAndUpdatedOrders()
     {
         var existingOrder = CreateOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis alt");

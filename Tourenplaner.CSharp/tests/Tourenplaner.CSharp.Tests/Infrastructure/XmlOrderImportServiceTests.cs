@@ -659,6 +659,136 @@ public class XmlOrderImportServiceTests
     }
 
     [Fact]
+    public void LoadOrdersFromFileDetailed_SkipsDefaultExcludedPositionCodes()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var xmlPath = Path.Combine(root, "orders.xml");
+
+        try
+        {
+            File.WriteAllText(xmlPath,
+                """
+                <belege>
+                  <beleg>
+                    <ident>order-1</ident>
+                    <typ>SALES</typ>
+                    <kopf>A-306</kopf>
+                    <datum>15.07.2026 00:00:00</datum>
+                    <versandart>Post</versandart>
+                    <archiv>False</archiv>
+                    <positionen>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <artikel>PRODUKT-G</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Produkt G</bezeichnung>
+                        <gewicht>2.5</gewicht>
+                      </position>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <poscode>RAB</poscode>
+                        <artikel>RABATT</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Rabattposition</bezeichnung>
+                        <gewicht>0</gewicht>
+                      </position>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <poscode>zwi</poscode>
+                        <artikel>ZWISCHENZEILE</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Zwischenzeile</bezeichnung>
+                        <gewicht>0</gewicht>
+                      </position>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <poscode>TXT</poscode>
+                        <artikel>TEXTZEILE</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Textzeile</bezeichnung>
+                        <gewicht>0</gewicht>
+                      </position>
+                    </positionen>
+                  </beleg>
+                </belege>
+                """);
+
+            var service = new XmlOrderImportService();
+            var result = service.LoadOrdersFromFileDetailed(xmlPath);
+
+            Assert.Single(result.Orders);
+            Assert.Single(result.Orders[0].Produkte);
+            Assert.Equal("PRODUKT-G", result.Orders[0].Produkte[0].ArtikelNummer);
+            Assert.Empty(result.Errors);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void LoadOrdersFromFileDetailed_UsesCombinedMontageAndDistributionMarkers()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var xmlPath = Path.Combine(root, "orders.xml");
+
+        try
+        {
+            File.WriteAllText(xmlPath,
+                """
+                <belege>
+                  <beleg>
+                    <ident>order-1</ident>
+                    <typ>SALES</typ>
+                    <kopf>A-307</kopf>
+                    <datum>15.07.2026 00:00:00</datum>
+                    <archiv>False</archiv>
+                    <positionen>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <artikel>PRODUKT-H</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Produkt H</bezeichnung>
+                        <gewicht>2.5</gewicht>
+                      </position>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <artikelid>973d1a2f-155b-11ec-8a65-40b076de1f8f</artikelid>
+                        <menge>1</menge>
+                        <bezeichnung>Montagekosten</bezeichnung>
+                        <gewicht>0</gewicht>
+                      </position>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <artikelid>1be04ec6-080a-11ec-8a64-40b076de1f8f</artikelid>
+                        <menge>1</menge>
+                        <bezeichnung>Lieferkosten mit Warenverteilung</bezeichnung>
+                        <gewicht>0</gewicht>
+                      </position>
+                    </positionen>
+                  </beleg>
+                </belege>
+                """);
+
+            var service = new XmlOrderImportService();
+            var result = service.LoadOrdersFromFileDetailed(xmlPath);
+
+            Assert.Single(result.Orders);
+            Assert.Equal(DeliveryMethodExtensions.MitVerteilungMontage, result.Orders[0].Lieferbedingung);
+            Assert.Single(result.Orders[0].Produkte);
+            Assert.Equal("PRODUKT-H", result.Orders[0].Produkte[0].ArtikelNummer);
+            Assert.Empty(result.Errors);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void LoadOrdersFromFileDetailed_AddsWarningsForSilentAssumptions()
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));

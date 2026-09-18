@@ -1896,7 +1896,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             new XmlImportMappingFieldViewModel("Bezeichnung", XmlImportMappingSettings.DefaultProductDescription, XmlImportMappingSettings.DefaultProductDescription),
             new XmlImportMappingFieldViewModel("Lieferant", XmlImportMappingSettings.DefaultProductSupplier, XmlImportMappingSettings.DefaultProductSupplier),
             new XmlImportMappingFieldViewModel("Menge", XmlImportMappingSettings.DefaultProductQuantity, XmlImportMappingSettings.DefaultProductQuantity),
-            new XmlImportMappingFieldViewModel("Gewicht", XmlImportMappingSettings.DefaultProductWeight, XmlImportMappingSettings.DefaultProductWeight)
+            new XmlImportMappingFieldViewModel("Gewicht", XmlImportMappingSettings.DefaultProductWeight, XmlImportMappingSettings.DefaultProductWeight),
+            new XmlImportMappingFieldViewModel("Positionscode", XmlImportMappingSettings.DefaultProductPositionCode, XmlImportMappingSettings.DefaultProductPositionCode)
         ];
     }
 
@@ -1905,7 +1906,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         return
         [
             new XmlImportMappingFieldViewModel("Artikelnummern", "(keine)", XmlImportMappingSettings.DefaultExcludedProductArticleNumbers),
-            new XmlImportMappingFieldViewModel("Bezeichnungen", XmlImportMappingSettings.DefaultExcludedProductDescriptions, XmlImportMappingSettings.DefaultExcludedProductDescriptions)
+            new XmlImportMappingFieldViewModel("Bezeichnungen", XmlImportMappingSettings.DefaultExcludedProductDescriptions, XmlImportMappingSettings.DefaultExcludedProductDescriptions),
+            new XmlImportMappingFieldViewModel("Positionscodes", XmlImportMappingSettings.DefaultExcludedProductPositionCodes, XmlImportMappingSettings.DefaultExcludedProductPositionCodes)
         ];
     }
 
@@ -1983,8 +1985,10 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             ProductSupplier = XmlImportProductFields[3].XmlName,
             ProductQuantity = XmlImportProductFields[4].XmlName,
             ProductWeight = XmlImportProductFields[5].XmlName,
+            ProductPositionCode = XmlImportProductFields[6].XmlName,
             ExcludedProductArticleNumbers = XmlImportProductExclusionFields[0].XmlName,
             ExcludedProductDescriptions = XmlImportProductExclusionFields[1].XmlName,
+            ExcludedProductPositionCodes = XmlImportProductExclusionFields[2].XmlName,
             DeliveryTypeFreiBordsteinkanteArticleNumbers = XmlImportDeliveryTypeFields[0].XmlName,
             DeliveryTypeMitVerteilungArticleNumbers = XmlImportDeliveryTypeFields[1].XmlName,
             DeliveryTypeMitVerteilungMontageArticleNumbers = XmlImportDeliveryTypeFields[2].XmlName,
@@ -2035,9 +2039,11 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             XmlImportProductFields[3].XmlName = effective.ProductSupplier;
             XmlImportProductFields[4].XmlName = effective.ProductQuantity;
             XmlImportProductFields[5].XmlName = effective.ProductWeight;
+            XmlImportProductFields[6].XmlName = effective.ProductPositionCode;
 
             XmlImportProductExclusionFields[0].XmlName = effective.ExcludedProductArticleNumbers;
             XmlImportProductExclusionFields[1].XmlName = effective.ExcludedProductDescriptions;
+            XmlImportProductExclusionFields[2].XmlName = effective.ExcludedProductPositionCodes;
 
             XmlImportDeliveryTypeFields[0].XmlName = effective.DeliveryTypeFreiBordsteinkanteArticleNumbers;
             XmlImportDeliveryTypeFields[1].XmlName = effective.DeliveryTypeMitVerteilungArticleNumbers;

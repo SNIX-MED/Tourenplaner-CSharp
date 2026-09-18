@@ -163,7 +163,7 @@
                                Foreground="{DynamicResource Brush.TextMuted}"
                                TextWrapping="Wrap"
                                FontSize="12"
-                               Text="1 bis 2 Mitarbeiter wählen. Bei zwei Fahrzeugen sind mindestens 2 nötig." />
+                               Text="Mindestens 1 Mitarbeiter wählen. Bei zwei Fahrzeugen sind mindestens 2 nötig." />
                 </Grid>
             </Border>
 

@@ -50,6 +50,7 @@ public class XmlOrderProductData
     public string ArtikelNummer { get; set; } = string.Empty;
     public string Bezeichnung { get; set; } = string.Empty;
     public string Lieferant { get; set; } = string.Empty;
+    public string Lieferzeit { get; set; } = string.Empty;
     public decimal Menge { get; set; }
     public decimal Gewicht { get; set; }
     public decimal Bruttogewicht { get; set; }

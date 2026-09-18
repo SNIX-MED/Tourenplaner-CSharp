@@ -86,8 +86,10 @@ public sealed class XmlImportMappingSettings
     public const string DefaultProductSupplier = "lieferant";
     public const string DefaultProductQuantity = "menge";
     public const string DefaultProductWeight = "gewicht";
+    public const string DefaultProductPositionCode = "poscode";
     public const string DefaultExcludedProductArticleNumbers = "";
     public const string DefaultExcludedProductDescriptions = "Zwischentotal;Zwischensumme;Subtotal;Textblock;Textblöcke;Rabatt";
+    public const string DefaultExcludedProductPositionCodes = "RAB;ZWI;TXT";
 
     public const string DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers = "FRACHT-O-VERT;FRACHT-O-VERT-alt";
     public const string DefaultDeliveryTypeMitVerteilungArticleNumbers = "FRACHT-M-VERT;FRACHT-M-VERT-Pneu";
@@ -143,8 +145,10 @@ public sealed class XmlImportMappingSettings
     public string ProductSupplier { get; set; } = DefaultProductSupplier;
     public string ProductQuantity { get; set; } = DefaultProductQuantity;
     public string ProductWeight { get; set; } = DefaultProductWeight;
+    public string ProductPositionCode { get; set; } = DefaultProductPositionCode;
     public string ExcludedProductArticleNumbers { get; set; } = DefaultExcludedProductArticleNumbers;
     public string ExcludedProductDescriptions { get; set; } = DefaultExcludedProductDescriptions;
+    public string ExcludedProductPositionCodes { get; set; } = DefaultExcludedProductPositionCodes;
 
     public string DeliveryTypeFreiBordsteinkanteArticleNumbers { get; set; } = DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers;
     public string DeliveryTypeMitVerteilungArticleNumbers { get; set; } = DefaultDeliveryTypeMitVerteilungArticleNumbers;
@@ -206,8 +210,10 @@ public sealed class XmlImportMappingSettings
             ProductSupplier = Normalize(ProductSupplier, DefaultProductSupplier),
             ProductQuantity = Normalize(ProductQuantity, DefaultProductQuantity),
             ProductWeight = Normalize(ProductWeight, DefaultProductWeight),
+            ProductPositionCode = Normalize(ProductPositionCode, DefaultProductPositionCode),
             ExcludedProductArticleNumbers = Normalize(ExcludedProductArticleNumbers, DefaultExcludedProductArticleNumbers),
             ExcludedProductDescriptions = Normalize(ExcludedProductDescriptions, DefaultExcludedProductDescriptions),
+            ExcludedProductPositionCodes = Normalize(ExcludedProductPositionCodes, DefaultExcludedProductPositionCodes),
             DeliveryTypeFreiBordsteinkanteArticleNumbers = Normalize(DeliveryTypeFreiBordsteinkanteArticleNumbers, DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers),
             DeliveryTypeMitVerteilungArticleNumbers = Normalize(DeliveryTypeMitVerteilungArticleNumbers, DefaultDeliveryTypeMitVerteilungArticleNumbers),
             DeliveryTypeMitVerteilungMontageArticleNumbers = Normalize(DeliveryTypeMitVerteilungMontageArticleNumbers, DefaultDeliveryTypeMitVerteilungMontageArticleNumbers),
@@ -250,6 +256,7 @@ public sealed class XmlImportMappingSettings
             effective.ProductSupplier = DefaultProductSupplier;
             effective.ProductQuantity = DefaultProductQuantity;
             effective.ProductWeight = DefaultProductWeight;
+            effective.ProductPositionCode = DefaultProductPositionCode;
         }
 
         return effective;

@@ -256,7 +256,7 @@ public class OrderImportService : IOrderImportService
                 WeightKg = (double)(sqlProduct.Gewicht * sqlProduct.Menge),
                 Dimensions = previousProduct?.Dimensions ?? string.Empty,
                 DeliveryStatus = previousProduct is null
-                    ? ResolveImportedProductDeliveryStatus(deliveryTime)
+                    ? ResolveImportedProductDeliveryStatus(sqlProduct.Lieferzeit, deliveryTime, sqlProduct.Lieferant)
                     : OrderProductInfo.NormalizeDeliveryStatus(previousProduct.DeliveryStatus)
             });
         }
@@ -264,12 +264,19 @@ public class OrderImportService : IOrderImportService
         return products;
     }
 
-    private static string ResolveImportedProductDeliveryStatus(string? deliveryTime)
+    private static string ResolveImportedProductDeliveryStatus(string? productDeliveryTime, string? orderDeliveryTime, string? supplier)
     {
-        return (deliveryTime ?? string.Empty).Trim()
-            .StartsWith("ab Lager", StringComparison.OrdinalIgnoreCase)
-                ? OrderProductInfo.InStockStatus
-                : OrderProductInfo.OrderedStatus;
+        var deliveryTime = !string.IsNullOrWhiteSpace(productDeliveryTime)
+            ? productDeliveryTime
+            : orderDeliveryTime;
+        if (!(deliveryTime ?? string.Empty).Trim().StartsWith("ab Lager", StringComparison.OrdinalIgnoreCase))
+        {
+            return OrderProductInfo.OrderedStatus;
+        }
+
+        return (supplier ?? string.Empty).Trim().StartsWith("Esnova Racks S.A.", StringComparison.OrdinalIgnoreCase)
+            ? OrderProductInfo.PendingPreparationStatus
+            : OrderProductInfo.InStockStatus;
     }
 
     private static void ApplyImportedData(Order existingOrder, Order importedOrder)

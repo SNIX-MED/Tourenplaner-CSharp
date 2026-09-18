@@ -729,7 +729,6 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         target.EmployeeIds = AvailableEmployees
             .Where(e => e.IsSelected)
             .Select(e => e.Id)
-            .Take(2)
             .ToList();
 
         var availabilityError = await BuildAvailabilityErrorAsync(
@@ -1679,7 +1678,6 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(2)
             .ToList();
 
         var availabilityError = await BuildAvailabilityErrorAsync(
@@ -2724,7 +2722,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         preview.StartTime = (EditorStartTime ?? string.Empty).Trim();
         preview.VehicleId = SelectedVehicle?.Id;
         preview.TrailerId = SelectedTrailer?.Id;
-        preview.EmployeeIds = AvailableEmployees.Where(e => e.IsSelected).Select(e => e.Id).Take(2).ToList();
+        preview.EmployeeIds = AvailableEmployees.Where(e => e.IsSelected).Select(e => e.Id).ToList();
 
         var warnings = BuildPlanningWarnings(previewTours, selectedTourId);
         if (warnings.Count == 0)
