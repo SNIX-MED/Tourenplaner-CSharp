@@ -29,6 +29,7 @@ public sealed record WebfleetDestinationOrderRequest(
     string PostalCode,
     string City,
     string Street,
+    DateOnly ScheduledDate,
     DateTimeOffset? PlannedArrival,
     int? ArrivalToleranceMinutes);
 
@@ -202,19 +203,25 @@ public sealed class WebfleetConnectService
     {
         EnsureCredentials(settings);
         if (string.IsNullOrWhiteSpace(order.ObjectUid) || string.IsNullOrWhiteSpace(order.OrderId)) throw new ArgumentException("WEBFLEET-Fahrzeug und Auftragsnummer sind erforderlich.");
-        var query = new Dictionary<string, string?>
+        var query = BuildDestinationOrderQuery(settings, order, action);
+        _ = await SendAsync(settings, query, cancellationToken);
+    }
+
+    private static Dictionary<string, string?> BuildDestinationOrderQuery(WebfleetConnectionSettings settings, WebfleetDestinationOrderRequest order, string action)
+    {
+        return new Dictionary<string, string?>
         {
             ["account"] = settings.AccountName, ["apikey"] = settings.ApiKey,
             ["lang"] = "de", ["useUTF8"] = "true", ["action"] = action, ["objectuid"] = order.ObjectUid,
             ["orderid"] = order.OrderId, ["ordertext"] = order.OrderText, ["ordertype"] = "3",
             ["latitude"] = Math.Round(order.Latitude * 1_000_000d).ToString(CultureInfo.InvariantCulture), ["longitude"] = Math.Round(order.Longitude * 1_000_000d).ToString(CultureInfo.InvariantCulture),
             ["country"] = order.Country, ["zip"] = order.PostalCode, ["city"] = order.City, ["street"] = order.Street,
-            ["useISO8601"] = order.PlannedArrival.HasValue ? "true" : null,
-            ["orderdate"] = order.PlannedArrival?.ToString("yyyy-MM-ddzzz", CultureInfo.InvariantCulture),
+            ["useISO8601"] = "true",
+            // A tour day is a calendar date, not midnight in the sending computer's time zone.
+            ["orderdate"] = order.ScheduledDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["ordertime"] = order.PlannedArrival?.ToString("HH:mm:ss", CultureInfo.InvariantCulture),
             ["arrivaltolerance"] = order.ArrivalToleranceMinutes?.ToString(CultureInfo.InvariantCulture)
         };
-        _ = await SendAsync(settings, query, cancellationToken);
     }
 
     /// <summary>Returns the requested order IDs that still exist for an object on the specified day.</summary>

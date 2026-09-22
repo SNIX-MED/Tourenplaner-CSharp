@@ -5,6 +5,31 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class WebfleetConnectServiceTests
 {
+    [Theory]
+    [InlineData("sendDestinationOrderExtern", 2, true)]
+    [InlineData("updateDestinationOrderExtern", 1, true)]
+    [InlineData("sendDestinationOrderExtern", -7, true)]
+    [InlineData("sendDestinationOrderExtern", 2, false)]
+    [InlineData("updateDestinationOrderExtern", 2, false)]
+    public void DestinationOrderQuery_PreservesTourDayWithoutTimezoneOrArrivalTime(string action, int offsetHours, bool hasArrival)
+    {
+        var order = new WebfleetDestinationOrderRequest("vehicle", "T4-3-221871", "Tour", 47, 9,
+            "CH", "", "", "Street", new DateOnly(2026, 9, 22),
+            hasArrival ? new DateTimeOffset(2026, 9, 22, 9, 0, 0, TimeSpan.FromHours(offsetHours)) : null,
+            hasArrival ? 60 : null);
+        var method = typeof(WebfleetConnectService).GetMethod("BuildDestinationOrderQuery", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var query = Assert.IsType<Dictionary<string, string?>>(method.Invoke(null,
+            [new Tourenplaner.CSharp.Domain.Models.WebfleetConnectionSettings(), order, action]));
+
+        Assert.Equal(action, query["action"]);
+        Assert.Equal("true", query["useISO8601"]);
+        Assert.Equal("2026-09-22", query["orderdate"]);
+        Assert.Equal(hasArrival ? "09:00:00" : null, query["ordertime"]);
+        Assert.Equal(hasArrival ? "60" : null, query["arrivaltolerance"]);
+    }
+
     [Fact]
     public void ParseVehicles_ParsesSingleHeaderlessObjectReportRow()
     {

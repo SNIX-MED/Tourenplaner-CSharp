@@ -7,6 +7,24 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class WebfleetTourDispatchServiceTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void IsChanged_CorrectsWrongTourDayEvenWithoutArrivalTime(bool hasArrival)
+    {
+        var desired = new WebfleetDestinationOrderRequest("vehicle", "order", "Tour", 47, 9,
+            "CH", "", "", "Street", new DateOnly(2026, 9, 22),
+            hasArrival ? new DateTimeOffset(2026, 9, 22, 9, 0, 0, TimeSpan.FromHours(2)) : null,
+            hasArrival ? 60 : null);
+        var remote = new WebfleetOrderSnapshot("order", "Tour", 47, 9, "Street",
+            new DateOnly(2026, 9, 21), hasArrival ? new TimeOnly(9, 0) : null, hasArrival ? 60 : null);
+        var method = typeof(WebfleetTourDispatchService).GetMethod("IsChanged", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        Assert.True(Assert.IsType<bool>(method.Invoke(null, [remote, desired])));
+        Assert.False(Assert.IsType<bool>(method.Invoke(null, [remote with { ScheduledDate = desired.ScheduledDate }, desired])));
+    }
+
     [Fact]
     public void Validate_IgnoresLegacyCompanyStartStop()
     {
@@ -79,7 +97,7 @@ public sealed class WebfleetTourDispatchServiceTests
     }
 
     [Fact]
-    public void BuildWebfleetArrivalWindow_UsesRoundedWindowStartAndTolerance()
+    public void BuildWebfleetArrivalWindow_UsesRoundedCalculatedArrivalAndPreservesTolerance()
     {
         var method = typeof(WebfleetTourDispatchService).GetMethod("BuildWebfleetArrivalWindow", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
@@ -93,8 +111,39 @@ public sealed class WebfleetTourDispatchServiceTests
 
         var result = ((DateTimeOffset? PlannedArrival, int? ArrivalToleranceMinutes))method.Invoke(null, [tour, stop])!;
 
-        Assert.Equal(new DateTime(2026, 9, 22, 7, 30, 0), result.PlannedArrival!.Value.DateTime);
+        Assert.Equal(new DateTime(2026, 9, 22, 7, 45, 0), result.PlannedArrival!.Value.DateTime);
         Assert.Equal(15, result.ArrivalToleranceMinutes);
+    }
+
+    [Theory]
+    [InlineData("08:19", "08:00", "09:00", 8, 15)]
+    [InlineData("08:49", "08:30", "09:30", 8, 45)]
+    [InlineData("09:22", "09:00", "10:00", 9, 30)]
+    [InlineData("09:21", "09:00", "10:00", 9, 15)]
+    [InlineData("09:52", "09:30", "10:30", 10, 0)]
+    [InlineData("09:30", "09:00", "10:00", 9, 30)]
+    public void BuildWebfleetArrivalWindow_RoundsCalculatedTimeIndependentlyOfWindow(
+        string arrival, string optimistic, string pessimistic, int hour, int minute)
+    {
+        var method = typeof(WebfleetTourDispatchService).GetMethod("BuildWebfleetArrivalWindow", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var tour = new TourRecord { Date = "22.09.2026" };
+        var stop = new TourStopRecord
+        {
+            PlannedArrival = arrival,
+            PlannedArrivalOptimistic = optimistic,
+            PlannedArrivalPessimistic = pessimistic
+        };
+
+        var result = ((DateTimeOffset? PlannedArrival, int? ArrivalToleranceMinutes))method.Invoke(null, [tour, stop])!;
+
+        Assert.Equal(new DateTime(2026, 9, 22, hour, minute, 0), result.PlannedArrival!.Value.DateTime);
+        Assert.Equal(60, result.ArrivalToleranceMinutes);
+
+        stop.PlannedArrivalOptimistic = string.Empty;
+        stop.PlannedArrivalPessimistic = string.Empty;
+        result = ((DateTimeOffset? PlannedArrival, int? ArrivalToleranceMinutes))method.Invoke(null, [tour, stop])!;
+        Assert.Equal(new DateTime(2026, 9, 22, hour, minute, 0), result.PlannedArrival!.Value.DateTime);
+        Assert.Equal(0, result.ArrivalToleranceMinutes);
     }
 
     [Fact]

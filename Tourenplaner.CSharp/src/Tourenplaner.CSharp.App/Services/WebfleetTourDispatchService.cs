@@ -113,6 +113,7 @@ public sealed class WebfleetTourDispatchService
                 string.Empty,
                 string.Empty,
                 stop.Address,
+                ParseTourDate(tour.Date),
                 arrivalWindow.PlannedArrival,
                 arrivalWindow.ArrivalToleranceMinutes));
         }).ToList();
@@ -158,9 +159,9 @@ public sealed class WebfleetTourDispatchService
         !AreSameCoordinates(remoteOrder.Latitude, desiredOrder.Latitude) ||
         !AreSameCoordinates(remoteOrder.Longitude, desiredOrder.Longitude) ||
         (!string.IsNullOrWhiteSpace(remoteOrder.Street) && !string.Equals(remoteOrder.Street, desiredOrder.Street, StringComparison.Ordinal)) ||
+        remoteOrder.ScheduledDate != desiredOrder.ScheduledDate ||
         (desiredOrder.PlannedArrival.HasValue &&
-            (remoteOrder.ScheduledDate != DateOnly.FromDateTime(desiredOrder.PlannedArrival.Value.Date) ||
-             remoteOrder.PlannedArrivalTime != TimeOnly.FromDateTime(desiredOrder.PlannedArrival.Value.DateTime) ||
+            (remoteOrder.PlannedArrivalTime != TimeOnly.FromDateTime(desiredOrder.PlannedArrival.Value.DateTime) ||
              remoteOrder.ArrivalToleranceMinutes != desiredOrder.ArrivalToleranceMinutes));
 
     private static bool AreSameCoordinates(double? first, double second) => first.HasValue && Math.Abs(first.Value - second) < 0.000001d;
@@ -242,11 +243,19 @@ public sealed class WebfleetTourDispatchService
                 date.ToDateTime(realistic),
                 date.ToDateTime(pessimistic));
             var tolerance = (int)(range.Pessimistic - range.Optimistic).TotalMinutes;
-            return (new DateTimeOffset(range.Optimistic), tolerance);
+            return (RoundWebfleetArrival(new DateTimeOffset(date.ToDateTime(realistic))), tolerance);
         }
 
         var plannedArrival = ParseArrival(tour, stop);
-        return (plannedArrival, plannedArrival.HasValue ? 0 : null);
+        return (plannedArrival.HasValue ? RoundWebfleetArrival(plannedArrival.Value) : null, plannedArrival.HasValue ? 0 : null);
+    }
+
+    private static DateTimeOffset RoundWebfleetArrival(DateTimeOffset arrival)
+    {
+        var rounded = new DateTimeOffset(arrival.Year, arrival.Month, arrival.Day,
+            arrival.Hour, arrival.Minute / 15 * 15, 0, arrival.Offset);
+        // The agreed minute-based rule rounds up from minute 7 (e.g. 09:22 -> 09:30).
+        return arrival.Minute % 15 >= 7 ? rounded.AddMinutes(15) : rounded;
     }
 
     private static bool TryParseTourTime(string? value, out TimeOnly time) =>
