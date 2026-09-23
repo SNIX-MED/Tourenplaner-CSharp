@@ -1583,6 +1583,14 @@ internal static class MapHtmlDocumentBuilder
                              map.setFilter(plannedTourOverlaysOutlineSelectedLayerId, ['==', ['get', 'id'], -1]);
                              map.setFilter(plannedTourOverlaysSelectedLayerId, ['==', ['get', 'id'], -1]);
                            }
+
+                           // Satellite imagery needs a higher-contrast selected-tour line.
+                           map.setPaintProperty(
+                             plannedTourOverlaysSelectedLayerId,
+                             'line-color',
+                             mapState.style === 'satellite'
+                               ? '#7DD3FC'
+                               : ['coalesce', ['get', 'color'], '#0f172a']);
                          };
 
                          const applyPoiVisibility = () => {
@@ -1825,7 +1833,10 @@ internal static class MapHtmlDocumentBuilder
                           if (window.__gawelaLastRoutePayload) {
                             const last = window.__gawelaLastRoutePayload;
                              window.gawelaSetRoute(last.routeStops, last.geometryPoints, last.routeColor, last.trafficSegments);
-                            }
+                           }
+                          if (window.__gawelaLastPlannedTourOverlays) {
+                            window.gawelaSetPlannedTourOverlays(window.__gawelaLastPlannedTourOverlays);
+                          }
                           });
                          map.on('zoom', schedulePopupScaleRecompute);
                          map.on('zoom', scheduleMarkerFanOutRecompute);
@@ -2347,6 +2358,7 @@ internal static class MapHtmlDocumentBuilder
                          };
 
                          window.gawelaSetPlannedTourOverlays = function(overlays) {
+                           window.__gawelaLastPlannedTourOverlays = Array.isArray(overlays) ? overlays : [];
                            ensurePlannedTourOverlayLayers();
                            const features = (Array.isArray(overlays) ? overlays : [])
                              .map(o => {

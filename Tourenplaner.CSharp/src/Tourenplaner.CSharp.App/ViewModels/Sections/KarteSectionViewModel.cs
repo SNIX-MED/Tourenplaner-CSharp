@@ -6867,12 +6867,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         var tourDate = parsedDate == DateTime.MinValue ? DateTime.MaxValue.Date : parsedDate.Date;
         if (tourDate < DateTime.Today)
         {
-            return ("Abgeschlossen", "#DCFCE7", "#15803D", "✓");
+            return ("Abgeschlossen", "#DCFCE7", "#15803D", "\uE73E");
         }
 
         if (tourDate == DateTime.Today)
         {
-            return ("Aktiv", "#F3E8FF", "#7E22CE", "▶");
+            return ("Aktiv", "#F3E8FF", "#7E22CE", "\uE768");
         }
 
         var orderIds = (tour.Stops ?? [])

@@ -1393,29 +1393,12 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
-                                            <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="TomTom API Key" />
-                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TomTomApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
-                                            <StackPanel>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Hinweis" />
-                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
-                                                            ToolTip="Kartenstil, Traffic-Anzeige und Routing-Optionen werden direkt auf der Karte eingestellt. Fahrzeugmasse kommen aus der Fahrzeugverwaltung.">
-                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
-                                                    </Border>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
+                                    <Border Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="TomTom API Key" />
+                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TomTomApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+                                    </Border>
                                     </StackPanel>
 
                                     <StackPanel>
@@ -1429,9 +1412,8 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
-                                        <StackPanel>
-                                            <Grid>
+                                    <StackPanel>
+                                        <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
@@ -1442,17 +1424,6 @@
                                                 <CheckBox Margin="0,12,0,0"
                                                           Content="WebView-Cache für Kartentiles nutzen"
                                                           IsChecked="{Binding TomTomEnableTileCache, Mode=TwoWay}" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
-                                            <StackPanel>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Verwendung" />
-                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
-                                                            ToolTip="Diese Werte gelten im Hintergrund für TomTom. Die sichtbaren Kartenoptionen stellst du direkt auf der Karte ein.">
-                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
-                                                    </Border>
-                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
                                     </Grid>
@@ -1476,8 +1447,7 @@
                                         </Border>
                                     </Grid>
 
-                                        </StackPanel>
-                                    </Expander>
+                                    </StackPanel>
                                     </StackPanel>
 
                                     <StackPanel>
