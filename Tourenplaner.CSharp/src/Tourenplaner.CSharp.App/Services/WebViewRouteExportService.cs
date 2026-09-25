@@ -11,7 +11,7 @@ namespace Tourenplaner.CSharp.App.Services;
 
 public sealed class WebViewRouteExportService
 {
-    public async Task<byte[]?> CaptureMapImageAsync(RouteExportSnapshot snapshot)
+    public async Task<byte[]?> CaptureMapImageAsync(RouteExportSnapshot snapshot, string? tomTomApiKey)
     {
         try
         {
@@ -30,7 +30,7 @@ public sealed class WebViewRouteExportService
                 using var stream = new MemoryStream();
                 await webView.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream);
                 return stream.ToArray();
-            }, BuildMapHtml(), 1400, 900);
+            }, BuildMapHtml(tomTomApiKey), 1400, 900);
         }
         catch
         {
@@ -331,9 +331,9 @@ public sealed class WebViewRouteExportService
         return null;
     }
 
-    private static string BuildMapHtml()
+    private static string BuildMapHtml(string? tomTomApiKey)
     {
-        return """
+        var html = """
                <!doctype html>
                <html>
                <head>
@@ -356,9 +356,11 @@ public sealed class WebViewRouteExportService
                      zoomSnap: 0.1,
                      zoomDelta: 0.5
                    }).setView([47.3769, 8.5417], 10);
-                   const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                     maxZoom: 20,
-                     subdomains: 'abcd'
+                   const apiKey = __TT_KEY_JSON__;
+                   const tileLayer = L.tileLayer('https://{s}.api.tomtom.com/maps/orbis/map-display/tile/{z}/{x}/{y}.png?apiVersion=1&style=street-light&tileSize=256&language=de-DE&key=' + encodeURIComponent(apiKey), {
+                     maxZoom: 22,
+                     subdomains: 'abcd',
+                     tileSize: 256
                    }).addTo(map);
 
                    let layerGroup = L.layerGroup().addTo(map);
@@ -427,5 +429,10 @@ public sealed class WebViewRouteExportService
                </body>
                </html>
                """;
+
+        return html.Replace(
+            "__TT_KEY_JSON__",
+            JsonSerializer.Serialize((tomTomApiKey ?? string.Empty).Trim()),
+            StringComparison.Ordinal);
     }
 }

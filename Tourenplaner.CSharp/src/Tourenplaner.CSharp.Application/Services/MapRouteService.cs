@@ -7,6 +7,8 @@ public sealed class MapRouteService
 {
     private const string PauseStopKind = "pause";
     private const string PauseStopIdPrefix = "pause:";
+    private const string ManualStopKind = "manual";
+    private const string ManualStopIdPrefix = "manual:";
 
     public int DetermineNextTourId(IEnumerable<TourRecord>? tours)
     {
@@ -119,9 +121,11 @@ public sealed class MapRouteService
         {
             Id = IsPauseRouteStop(x)
                 ? (string.IsNullOrWhiteSpace(x.OrderId) ? $"{PauseStopIdPrefix}{Guid.NewGuid():N}" : x.OrderId)
-                : $"auftrag:{x.OrderId}",
-            StopKind = IsPauseRouteStop(x) ? PauseStopKind : string.Empty,
-            Auftragsnummer = IsPauseRouteStop(x) ? string.Empty : x.OrderId,
+                : IsManualRouteStop(x)
+                    ? (string.IsNullOrWhiteSpace(x.OrderId) ? $"{ManualStopIdPrefix}{Guid.NewGuid():N}" : x.OrderId)
+                    : $"auftrag:{x.OrderId}",
+            StopKind = IsPauseRouteStop(x) ? PauseStopKind : IsManualRouteStop(x) ? ManualStopKind : string.Empty,
+            Auftragsnummer = IsPauseRouteStop(x) || IsManualRouteStop(x) ? string.Empty : x.OrderId,
             Name = IsPauseRouteStop(x) ? "Pause" : x.Customer,
             Address = IsPauseRouteStop(x) ? string.Empty : x.Address,
             Order = x.Position + 1,
@@ -159,7 +163,7 @@ public sealed class MapRouteService
     public IReadOnlySet<string> ExtractRouteOrderIds(IReadOnlyList<MapRouteStop>? routeStops)
     {
         return Normalize(routeStops)
-            .Where(x => !IsPauseRouteStop(x))
+            .Where(x => !IsPauseRouteStop(x) && !IsManualRouteStop(x))
             .Select(x => x.OrderId)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -171,6 +175,14 @@ public sealed class MapRouteService
         var orderId = (stop.OrderId ?? string.Empty).Trim();
         return string.Equals(stopKind, PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
                orderId.StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsManualRouteStop(MapRouteStop stop)
+    {
+        var stopKind = (stop.StopKind ?? string.Empty).Trim();
+        var orderId = (stop.OrderId ?? string.Empty).Trim();
+        return string.Equals(stopKind, ManualStopKind, StringComparison.OrdinalIgnoreCase) ||
+               orderId.StartsWith(ManualStopIdPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryParseTourDate(string? value, out DateOnly result)

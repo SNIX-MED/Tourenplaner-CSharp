@@ -288,6 +288,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             if (SetProperty(ref _isEditingEnabled, value))
             {
                 OnPropertyChanged(nameof(CanEditOrRemoveProductLine));
+                OnPropertyChanged(nameof(CanEditDeliveryCanOccurEarlier));
             }
         }
     }
@@ -321,8 +322,24 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     public string DeliveryDateText
     {
         get => _deliveryDateText;
-        set => SetProperty(ref _deliveryDateText, value);
+        set
+        {
+            if (!SetProperty(ref _deliveryDateText, value))
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                DeliveryCanOccurEarlier = false;
+            }
+
+            OnPropertyChanged(nameof(CanEditDeliveryCanOccurEarlier));
+        }
     }
+
+    public bool CanEditDeliveryCanOccurEarlier =>
+        IsEditingEnabled && !string.IsNullOrWhiteSpace(DeliveryDateText);
 
     public bool DeliveryCanOccurEarlier
     {
@@ -559,7 +576,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Id = id,
             ScheduledDate = DateOnly.FromDateTime(parsedOrderDate),
             DeliveryDate = deliveryDate,
-            DeliveryCanOccurEarlier = DeliveryCanOccurEarlier,
+            DeliveryCanOccurEarlier = deliveryDate.HasValue && DeliveryCanOccurEarlier,
             Type = DeliveryMethodExtensions.ResolveOrderType(SelectedDeliveryType),
             CustomerName = deliveryName,
             Address = $"{deliveryStreetLine}, {deliveryPostalCode} {deliveryCity}",
@@ -664,7 +681,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         OrderNumber = existingOrder.Id;
         OrderDateText = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         DeliveryDateText = FormatNullableDeliveryDate(existingOrder.DeliveryDate);
-        DeliveryCanOccurEarlier = existingOrder.DeliveryCanOccurEarlier;
+        DeliveryCanOccurEarlier = !string.IsNullOrWhiteSpace(DeliveryDateText) && existingOrder.DeliveryCanOccurEarlier;
         OrderAddressName = existingOrder.OrderAddress?.Name ?? string.Empty;
         OrderAddressContactPerson = existingOrder.OrderAddress?.ContactPerson ?? string.Empty;
         OrderAddressStreet = existingOrder.OrderAddress?.Street ?? string.Empty;
@@ -766,6 +783,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
 {
     private string _name = string.Empty;
     private string _supplier = string.Empty;
+    private string _expectedDelivery = string.Empty;
     private int _quantity = 1;
     private double _unitWeightKg;
     private string _dimensions = string.Empty;
@@ -793,6 +811,18 @@ public sealed class ProductLineInput : INotifyPropertyChanged
         set
         {
             if (SetProperty(ref _supplier, value))
+            {
+                OnPropertyChanged(nameof(Summary));
+            }
+        }
+    }
+
+    public string ExpectedDelivery
+    {
+        get => _expectedDelivery;
+        set
+        {
+            if (SetProperty(ref _expectedDelivery, value))
             {
                 OnPropertyChanged(nameof(Summary));
             }
@@ -869,6 +899,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
         {
             Name = (Name ?? string.Empty).Trim(),
             Supplier = (Supplier ?? string.Empty).Trim(),
+            ExpectedDelivery = (ExpectedDelivery ?? string.Empty).Trim(),
             Quantity = Math.Max(1, Quantity),
             UnitWeightKg = Math.Max(0d, UnitWeightKg),
             WeightKg = Math.Max(1, Quantity) * Math.Max(0d, UnitWeightKg),
@@ -883,6 +914,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
         {
             Name = product.Name ?? string.Empty,
             Supplier = product.Supplier ?? string.Empty,
+            ExpectedDelivery = product.ExpectedDelivery ?? string.Empty,
             Quantity = Math.Max(1, product.Quantity),
             UnitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(product),
             Dimensions = product.Dimensions ?? string.Empty,

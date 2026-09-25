@@ -108,6 +108,28 @@ public class MapRouteServiceTests
     }
 
     [Fact]
+    public void BuildTour_PreservesManualStop_AndDoesNotTreatItAsOrder()
+    {
+        var service = new MapRouteService();
+        var manualId = $"manual:{Guid.NewGuid():N}";
+        var stops = new[]
+        {
+            new MapRouteStop(1, "A-100", "Kunde A", "A-Strasse", 47.1, 8.1),
+            new MapRouteStop(2, manualId, "Material abholen", "47.200000, 8.200000", 47.2, 8.2, 25, "Beim Empfang melden", "manual")
+        };
+
+        var tour = service.BuildTour(stops, 1, "Tour", "25.09.2026", "08:00");
+        var manualStop = Assert.Single(tour.Stops, x => x.StopKind == "manual");
+
+        Assert.Equal(manualId, manualStop.Id);
+        Assert.Equal(string.Empty, manualStop.Auftragsnummer);
+        Assert.Equal("Material abholen", manualStop.Name);
+        Assert.Equal(25, manualStop.ServiceMinutes);
+        Assert.Equal("Beim Empfang melden", manualStop.EmployeeInfoText);
+        Assert.Equal(["A-100"], service.ExtractRouteOrderIds(stops));
+    }
+
+    [Fact]
     public void DetermineNextTourId_UsesMaxPlusOne_AndHandlesEmptySet()
     {
         var service = new MapRouteService();

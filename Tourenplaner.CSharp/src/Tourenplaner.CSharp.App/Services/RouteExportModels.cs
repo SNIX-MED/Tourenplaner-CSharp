@@ -25,7 +25,8 @@ public sealed record RouteExportStopInfo(
     string ArrivalRange,
     string WeightText,
     string EmployeeInfoText,
-    int PauseAfterMinutes);
+    int PauseAfterMinutes,
+    string Notes = "");
 
 public sealed record RouteExportSnapshot(
     string TourName,

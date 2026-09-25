@@ -128,6 +128,14 @@ public static class TourPdfHtmlBuilder
                        line-height: 1.45;
                        white-space: pre-line;
                      }
+                     .stop-notes {
+                       margin-top: 5px;
+                       font-size: 12px;
+                       line-height: 1.4;
+                       color: #dc2626;
+                       font-weight: 700;
+                       white-space: pre-line;
+                     }
                      .stop-with-pause {
                        display: flex;
                        flex-direction: column;
@@ -284,6 +292,9 @@ public static class TourPdfHtmlBuilder
         var deliveryTypeHtml = string.IsNullOrWhiteSpace(stop.DeliveryType)
             ? string.Empty
             : $"<div class=\"stop-address\">{Html(stop.DeliveryType.Trim())}</div>";
+        var notesHtml = string.IsNullOrWhiteSpace(stop.Notes)
+            ? string.Empty
+            : $"<div class=\"stop-notes\">{Html(stop.Notes.Trim())}</div>";
 
         var pauseHtml = stop.PauseAfterMinutes <= 0
             ? string.Empty
@@ -305,6 +316,7 @@ public static class TourPdfHtmlBuilder
                        <div class="stop-address">{{Html(stop.Address)}}</div>
                        {{deliveryTypeHtml}}
                        {{extraHtml}}
+                       {{notesHtml}}
                      </div>
                    </div>
                    {{pauseHtml}}

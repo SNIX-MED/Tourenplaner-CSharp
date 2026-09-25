@@ -830,8 +830,8 @@ public partial class KarteSectionView : UserControl
                     isAssigned = visual.IsAssigned,
                     hasPendingPreparation = visual.HasPendingPreparation,
                     istVorauszahlung = visual.IstVorauszahlung,
-                    color = visual.StatusColorHex,
-                    shape = ResolveDeliveryShape(visual.DeliveryLabel),
+                    color = r.IsManualStop ? "#374151" : visual.StatusColorHex,
+                    shape = r.IsManualStop ? "circle" : ResolveDeliveryShape(visual.DeliveryLabel),
                     lat = r.Latitude,
                     lon = r.Longitude
                 };
@@ -1100,6 +1100,19 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
+        if (raw.StartsWith("addManualStop:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = raw.Split(':');
+            if (parts.Length == 3 &&
+                double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var latitude) &&
+                double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var longitude))
+            {
+                _ = vm.AddManualRouteStopAsync(latitude, longitude);
+            }
+
+            return;
+        }
+
         if (string.Equals(raw, "webfleetTrack:clear", StringComparison.OrdinalIgnoreCase))
         {
             vm.ClearWebfleetTrack();
@@ -1354,6 +1367,14 @@ public partial class KarteSectionView : UserControl
         await vm.EditSelectedRouteStopStayMinutesAsync();
     }
 
+    private async void OnManualStopDetailEditClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is KarteSectionViewModel vm && vm.IsSelectedRouteStopManual)
+        {
+            await vm.EditSelectedRouteStopStayMinutesAsync();
+        }
+    }
+
     private void OnRouteStopMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
@@ -1404,7 +1425,8 @@ public partial class KarteSectionView : UserControl
         if (DataContext is not KarteSectionViewModel vm ||
             sender is not FrameworkElement element ||
             element.DataContext is not RouteStopItem stopItem ||
-            stopItem.IsCompanyAnchor)
+            stopItem.IsCompanyAnchor ||
+            stopItem.IsManualStop)
         {
             return;
         }
@@ -1780,7 +1802,8 @@ public partial class KarteSectionView : UserControl
 
         try
         {
-            var mapImageBytes = await _routeExportService.CaptureMapImageAsync(snapshot);
+            var tomTomApiKey = (DataContext as KarteSectionViewModel)?.TomTomApiKey;
+            var mapImageBytes = await _routeExportService.CaptureMapImageAsync(snapshot, tomTomApiKey);
             var mapImageBase64 = mapImageBytes is null || mapImageBytes.Length == 0
                 ? null
                 : Convert.ToBase64String(mapImageBytes);

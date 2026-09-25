@@ -1280,6 +1280,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             {
                 Name = p.Name,
                 Supplier = p.Supplier,
+                ExpectedDelivery = p.ExpectedDelivery,
                 Quantity = p.Quantity,
                 UnitWeightKg = p.UnitWeightKg,
                 WeightKg = p.WeightKg,

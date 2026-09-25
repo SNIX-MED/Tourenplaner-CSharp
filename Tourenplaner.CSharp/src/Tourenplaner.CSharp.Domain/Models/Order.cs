@@ -230,6 +230,7 @@ public sealed class OrderProductInfo
 
     public string Name { get; set; } = string.Empty;
     public string Supplier { get; set; } = string.Empty;
+    public string ExpectedDelivery { get; set; } = string.Empty;
     public int Quantity { get; set; } = 1;
     public double UnitWeightKg { get; set; }
     public double WeightKg { get; set; }
@@ -253,5 +254,14 @@ public sealed class OrderProductInfo
         var normalized = NormalizeDeliveryStatus(value);
         return string.Equals(normalized, InStockStatus, StringComparison.OrdinalIgnoreCase) ||
                string.Equals(normalized, PendingPreparationStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool ShouldShowExpectedDelivery(string? expectedDelivery, string? deliveryStatus)
+    {
+        return !string.IsNullOrWhiteSpace(expectedDelivery) &&
+               !string.Equals(
+                   NormalizeDeliveryStatus(deliveryStatus),
+                   InStockStatus,
+                   StringComparison.OrdinalIgnoreCase);
     }
 }

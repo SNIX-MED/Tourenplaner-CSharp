@@ -32,6 +32,23 @@ public class ManualOrderDialogViewModelTests
     }
 
     [Fact]
+    public void ClearingDeliveryDate_DisablesEarlierDeliveryAndPersistsNoDate()
+    {
+        var source = CreateOrder();
+        source.DeliveryDate = new DateOnly(2026, 9, 25);
+        source.DeliveryCanOccurEarlier = true;
+        var viewModel = new ManualOrderDialogViewModel(source);
+
+        viewModel.DeliveryDateText = string.Empty;
+
+        Assert.False(viewModel.DeliveryCanOccurEarlier);
+        Assert.False(viewModel.CanEditDeliveryCanOccurEarlier);
+        Assert.True(viewModel.TryBuildOrder(out var order, out var error), error);
+        Assert.Null(order!.DeliveryDate);
+        Assert.False(order.DeliveryCanOccurEarlier);
+    }
+
+    [Fact]
     public void AlternativeDeliveryOption_UsesOnlyTheOppositeDispatchChannel()
     {
         var mapViewModel = new ManualOrderDialogViewModel(CreateOrder());
@@ -73,8 +90,10 @@ public class ManualOrderDialogViewModelTests
         Assert.False(viewModel.IsEditingEnabled);
         Assert.True(viewModel.ShowAlternativeDeliveryOption);
         Assert.True(viewModel.IsAlternativeDeliveryEnabled);
+        viewModel.Notes = "Manuell ergänzte Notiz";
         Assert.True(viewModel.TryBuildOrder(out var order, out var error), error);
         Assert.True(order!.IsAlternativeDeliveryEnabled);
+        Assert.Equal("Manuell ergänzte Notiz", order.Notes);
     }
 
     private static Order CreateOrder()

@@ -25,6 +25,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private const string CompanyEndStopId = "__company_end__";
     private const string PauseStopKind = "pause";
     private const string PauseStopIdPrefix = "pause:";
+    private const string ManualStopKind = "manual";
+    private const string ManualStopIdPrefix = "manual:";
     private const int DefaultPauseMinutes = 15;
     private const int MaxDraftRouteUndoEntries = 30;
     private const string PlannedTourStatus = "Eingeplant";
@@ -1110,6 +1112,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(DetailDeliveryDate));
                 OnPropertyChanged(nameof(DetailDeliveryCanOccurEarlier));
                 OnPropertyChanged(nameof(DetailNotes));
+                OnPropertyChanged(nameof(HasDetailNotes));
                 RaiseCommandStates();
             }
         }
@@ -1126,8 +1129,18 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 _preferLegSelectionVisual = false;
                 if (value is not null && !IsCompanyStop(value))
                 {
-                    SelectOrderDetailsById(value.OrderId);
+                    if (IsManualStop(value))
+                    {
+                        SelectedOrder = null;
+                        IsDetailsOpen = true;
+                        IsDetailsPanelExpanded = true;
+                    }
+                    else
+                    {
+                        SelectOrderDetailsById(value.OrderId);
+                    }
                 }
+                NotifyManualStopDetailsChanged();
                 RaiseCommandStates();
             }
         }
@@ -1386,6 +1399,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public string DetailDeliveryDate => OrderDeliveryDateDisplayService.BuildDisplayText(FindSelectedOrderModel(), _savedTours);
     public bool DetailDeliveryCanOccurEarlier => FindSelectedOrderModel()?.DeliveryCanOccurEarlier == true;
     public string DetailNotes => NormalizeUiText(FindSelectedOrderModel()?.Notes);
+    public bool HasDetailNotes => !string.IsNullOrWhiteSpace(FindSelectedOrderModel()?.Notes);
+    public bool IsSelectedRouteStopManual => SelectedRouteStop is not null && IsManualStop(SelectedRouteStop);
+    public string ManualStopDetailName => IsSelectedRouteStopManual ? SelectedRouteStop!.Customer : string.Empty;
+    public string ManualStopDetailAddress => IsSelectedRouteStopManual ? SelectedRouteStop!.Address : string.Empty;
+    public string ManualStopDetailStay => IsSelectedRouteStopManual ? $"{SelectedRouteStop!.PlannedStayMinutes} min" : string.Empty;
+    public string ManualStopDetailNotes => IsSelectedRouteStopManual ? SelectedRouteStop!.EmployeeInfoText : string.Empty;
 
     public CompanyMarkerInfo? CompanyMarker =>
         _companyLocation is null
@@ -1486,7 +1505,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 Latitude = x.Latitude,
                 Longitude = x.Longitude,
                 PlannedStayMinutes = x.PlannedStayMinutes,
-                EmployeeInfoText = x.EmployeeInfoText
+                EmployeeInfoText = x.EmployeeInfoText,
+                IsManualStop = x.IsManualStop
             })
             .ToList();
     }
@@ -1809,20 +1829,51 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public async Task EditSelectedRouteStopStayMinutesAsync()
     {
-        if (SelectedRouteStop is null || IsCompanyStop(SelectedRouteStop))
+        var selectedStop = SelectedRouteStop;
+        if (selectedStop is null || IsCompanyStop(selectedStop))
         {
             return;
         }
 
-        var order = IsPauseStop(SelectedRouteStop)
+        var isManualStop = IsManualStop(selectedStop);
+        if (isManualStop)
+        {
+            var manualDialog = new ManualRouteStopDialogWindow(
+                selectedStop.Customer,
+                selectedStop.PlannedStayMinutes,
+                selectedStop.EmployeeInfoText)
+            {
+                Owner = System.Windows.Application.Current?.MainWindow
+            };
+            if (manualDialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            selectedStop.Customer = manualDialog.StopName;
+            selectedStop.PlannedStayMinutes = manualDialog.StayMinutes;
+            selectedStop.EmployeeInfoText = manualDialog.Notes;
+            NotifyManualStopDetailsChanged();
+            RebuildPositions();
+            SelectedRouteStop = selectedStop;
+            SelectedOrder = null;
+            IsDetailsOpen = true;
+            IsDetailsPanelExpanded = true;
+            NotifyManualStopDetailsChanged();
+            MarkRouteChanged();
+            StatusText = $"Stopp \"{selectedStop.Customer}\" gespeichert.";
+            return;
+        }
+
+        var order = IsPauseStop(selectedStop) || isManualStop
             ? null
-            : _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedRouteStop.OrderId, StringComparison.OrdinalIgnoreCase));
+            : _allOrders.FirstOrDefault(x => string.Equals(x.Id, selectedStop.OrderId, StringComparison.OrdinalIgnoreCase));
         var currentAvisoStatus = NormalizeAvisoStatus(order?.AvisoStatus);
         var dialog = new RouteStopStayMinutesDialogWindow(
-            SelectedRouteStop.PlannedStayMinutes,
-            _avisoStatusOptions,
+            selectedStop.PlannedStayMinutes,
+            order is null ? [] : _avisoStatusOptions,
             currentAvisoStatus,
-            SelectedRouteStop.EmployeeInfoText)
+            selectedStop.EmployeeInfoText)
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
@@ -1832,8 +1883,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        SelectedRouteStop.PlannedStayMinutes = dialog.StayMinutes.Value;
-        SelectedRouteStop.EmployeeInfoText = dialog.EmployeeInfoText;
+        selectedStop.PlannedStayMinutes = dialog.StayMinutes.Value;
+        selectedStop.EmployeeInfoText = dialog.EmployeeInfoText;
 
         var selectedAvisoStatus = NormalizeAvisoStatus(dialog.SelectedAvisoStatus);
         if (order is not null &&
@@ -1855,9 +1906,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
         RefreshDriveTimesFromCurrentRoute();
         MarkRouteChanged();
-        StatusText = IsPauseStop(SelectedRouteStop)
-            ? $"Pausendauer gespeichert: {SelectedRouteStop.PlannedStayMinutes} min."
-            : $"Stoppdaten für Auftrag {SelectedRouteStop.OrderId} gespeichert (Aufenthalt {SelectedRouteStop.PlannedStayMinutes} min, Aviso {selectedAvisoStatus}).";
+        StatusText = IsPauseStop(selectedStop)
+            ? $"Pausendauer gespeichert: {selectedStop.PlannedStayMinutes} min."
+            : isManualStop
+                ? $"Aufenthaltsdauer für Stopp \"{selectedStop.Customer}\" gespeichert: {selectedStop.PlannedStayMinutes} min."
+                : $"Stoppdaten für Auftrag {selectedStop.OrderId} gespeichert (Aufenthalt {selectedStop.PlannedStayMinutes} min, Aviso {selectedAvisoStatus}).";
 
     }
 
@@ -1904,6 +1957,65 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         MarkRouteChanged();
         StatusText = $"Pause mit {pauseStop.PlannedStayMinutes} min eingefügt.";
         return Task.CompletedTask;
+    }
+
+    public async Task AddManualRouteStopAsync(double latitude, double longitude)
+    {
+        if (!ShowRouteStopsPanel || !RouteStops.Any(IsOrderStop))
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                "Bitte zuerst eine Tour laden oder eine neue Tour mit mindestens einem Auftrag erstellen.",
+                "Stopp hinzufügen",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            return;
+        }
+
+        if (latitude is < -90 or > 90 || longitude is < -180 or > 180)
+        {
+            return;
+        }
+
+        var dialog = new ManualRouteStopDialogWindow
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        StatusText = "Adresse für den neuen Stopp wird ermittelt...";
+        var resolvedAddress = await AddressGeocodingService.TryReverseGeocodeAddressAsync(
+            latitude,
+            longitude,
+            _tomTomApiKey);
+        var address = string.IsNullOrWhiteSpace(resolvedAddress)
+            ? $"{latitude:F6}, {longitude:F6}"
+            : resolvedAddress;
+
+        var manualStop = new RouteStopItem
+        {
+            OrderId = $"{ManualStopIdPrefix}{Guid.NewGuid():N}",
+            Customer = dialog.StopName,
+            Address = address,
+            Latitude = latitude,
+            Longitude = longitude,
+            PlannedStayMinutes = dialog.StayMinutes,
+            IsManualStop = true,
+            EmployeeInfoText = dialog.Notes
+        };
+
+        var endIndex = RouteStops
+            .Select((stop, index) => new { stop, index })
+            .FirstOrDefault(x => IsCompanyStop(x.stop) && string.Equals(x.stop.OrderId, CompanyEndStopId, StringComparison.OrdinalIgnoreCase))
+            ?.index ?? RouteStops.Count;
+
+        RouteStops.Insert(endIndex, manualStop);
+        SelectedRouteStop = manualStop;
+        RebuildPositions();
+        MarkRouteChanged();
+        StatusText = $"Stopp \"{manualStop.Customer}\" mit {manualStop.PlannedStayMinutes} min hinzugefügt.";
     }
 
     public Task EditPauseAfterSelectedRouteStopAsync()
@@ -3607,22 +3719,26 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 .Select(stop =>
                 {
                     var isPause = IsPauseTourStop(stop);
+                    var isManual = IsManualTourStop(stop);
                     return new RouteStopItem
                     {
                         OrderId = isPause
                             ? (string.IsNullOrWhiteSpace(stop.Id) ? $"{PauseStopIdPrefix}{Guid.NewGuid():N}" : stop.Id.Trim())
-                            : ExtractTourStopOrderId(stop),
-                        Customer = isPause ? "Pause" : ResolveRouteStopName(ExtractTourStopOrderId(stop), stop.Name),
+                            : isManual
+                                ? (string.IsNullOrWhiteSpace(stop.Id) ? $"{ManualStopIdPrefix}{Guid.NewGuid():N}" : stop.Id.Trim())
+                                : ExtractTourStopOrderId(stop),
+                        Customer = isPause ? "Pause" : isManual ? stop.Name : ResolveRouteStopName(ExtractTourStopOrderId(stop), stop.Name),
                         Address = isPause
                             ? string.Empty
-                            : ResolveRouteStopAddress(ExtractTourStopOrderId(stop), stop.Address),
+                            : isManual ? stop.Address : ResolveRouteStopAddress(ExtractTourStopOrderId(stop), stop.Address),
                         Latitude = isPause ? double.NaN : stop.Lat ?? double.NaN,
                         Longitude = isPause ? double.NaN : stop.Lng ?? stop.Lon ?? double.NaN,
                         IsCompanyAnchor = false,
                         IsPauseStop = isPause,
+                        IsManualStop = isManual,
                         PlannedStayMinutes = isPause
                             ? Math.Max(0, stop.ServiceMinutes)
-                            : ResolvePlannedStayMinutes(stop.ServiceMinutes, ExtractTourStopOrderId(stop)),
+                            : isManual ? Math.Max(0, stop.ServiceMinutes) : ResolvePlannedStayMinutes(stop.ServiceMinutes, ExtractTourStopOrderId(stop)),
                         EmployeeInfoText = isPause ? string.Empty : stop.EmployeeInfoText ?? string.Empty
                     };
                 })
@@ -3722,6 +3838,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         var id = (stop.Id ?? string.Empty).Trim();
         return string.Equals(stopKind, PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
                id.StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsManualTourStop(TourStopRecord stop)
+    {
+        var stopKind = (stop.StopKind ?? string.Empty).Trim();
+        var id = (stop.Id ?? string.Empty).Trim();
+        return string.Equals(stopKind, ManualStopKind, StringComparison.OrdinalIgnoreCase) ||
+               id.StartsWith(ManualStopIdPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsCustomerTourStop(TourStopRecord stop)
@@ -4161,7 +4285,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                     ResolveArrivalRangeText(stop.OrderId),
                     ResolveWeightText(stop.OrderId),
                     stop.EmployeeInfoText,
-                    GetPauseStopsAfter(stop).Sum(x => Math.Max(0, x.PlannedStayMinutes)));
+                    GetPauseStopsAfter(stop).Sum(x => Math.Max(0, x.PlannedStayMinutes)),
+                    ResolveOrderNotes(stop.OrderId));
             })
             .ToList();
 
@@ -4308,6 +4433,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         return stop?.Gewicht ?? string.Empty;
     }
 
+    private string ResolveOrderNotes(string orderId)
+    {
+        return _allOrders.FirstOrDefault(x =>
+            string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase))?.Notes ?? string.Empty;
+    }
+
     private string? ResolveVehicleLabel(string? vehicleId)
     {
         if (string.IsNullOrWhiteSpace(vehicleId))
@@ -4371,7 +4502,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 x.Longitude,
                 x.PlannedStayMinutes,
                 x.EmployeeInfoText,
-                x.IsPauseStop ? PauseStopKind : string.Empty))
+                x.IsPauseStop ? PauseStopKind : x.IsManualStop ? ManualStopKind : string.Empty))
             .ToList();
     }
 
@@ -4402,6 +4533,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                     IsCompanyAnchor = false,
                     IsPauseStop = string.Equals((stop.StopKind ?? string.Empty).Trim(), PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
                                   (stop.OrderId ?? string.Empty).StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase),
+                    IsManualStop = string.Equals((stop.StopKind ?? string.Empty).Trim(), ManualStopKind, StringComparison.OrdinalIgnoreCase) ||
+                                   (stop.OrderId ?? string.Empty).StartsWith(ManualStopIdPrefix, StringComparison.OrdinalIgnoreCase),
                     IsArchivedOrder = IsRouteStopArchived(stop.OrderId),
                     PlannedStayMinutes = string.Equals((stop.StopKind ?? string.Empty).Trim(), PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
                                          (stop.OrderId ?? string.Empty).StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase)
@@ -5664,6 +5797,15 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         SelectedRouteStop = null;
     }
 
+    private void NotifyManualStopDetailsChanged()
+    {
+        OnPropertyChanged(nameof(IsSelectedRouteStopManual));
+        OnPropertyChanged(nameof(ManualStopDetailName));
+        OnPropertyChanged(nameof(ManualStopDetailAddress));
+        OnPropertyChanged(nameof(ManualStopDetailStay));
+        OnPropertyChanged(nameof(ManualStopDetailNotes));
+    }
+
     private void SendEmailToSelectedOrder()
     {
         var order = FindSelectedOrderModel();
@@ -6413,7 +6555,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private void RefreshRouteStopsFromOrders(OrderChangedEventArgs args)
     {
         var removedAny = false;
-        foreach (var stop in RouteStops.Where(IsOrderStop).ToList())
+        foreach (var stop in RouteStops.Where(x => IsOrderStop(x) && !IsManualStop(x)).ToList())
         {
             if (!string.IsNullOrWhiteSpace(args.PreviousOrderId) &&
                 string.Equals(stop.OrderId, args.PreviousOrderId, StringComparison.OrdinalIgnoreCase) &&
@@ -6803,6 +6945,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     {
         var orderId = (stop.OrderId ?? string.Empty).Trim();
         return stop.IsPauseStop || orderId.StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsManualStop(RouteStopItem stop)
+    {
+        var orderId = (stop.OrderId ?? string.Empty).Trim();
+        return stop.IsManualStop || orderId.StartsWith(ManualStopIdPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsOrderStop(RouteStopItem stop)
@@ -8392,6 +8540,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 i,
                 $"{quantity}x {product.Name.Trim()}",
                 (product.Supplier ?? string.Empty).Trim(),
+                OrderProductInfo.ShouldShowExpectedDelivery(product.ExpectedDelivery, deliveryStatus)
+                    ? product.ExpectedDelivery.Trim()
+                    : string.Empty,
                 dimensionsLine,
                 weightLine,
                 totalLine,
@@ -8472,6 +8623,7 @@ public sealed class DetailProductItem
         int productIndex,
         string title,
         string supplier,
+        string expectedDelivery,
         string dimensionsLine,
         string weightLine,
         string totalLine,
@@ -8483,6 +8635,7 @@ public sealed class DetailProductItem
         ProductIndex = productIndex;
         Title = title;
         Supplier = supplier ?? string.Empty;
+        ExpectedDelivery = expectedDelivery ?? string.Empty;
         DimensionsLine = dimensionsLine ?? string.Empty;
         WeightLine = weightLine ?? string.Empty;
         TotalLine = totalLine ?? string.Empty;
@@ -8495,6 +8648,7 @@ public sealed class DetailProductItem
     public int ProductIndex { get; }
     public string Title { get; }
     public string Supplier { get; }
+    public string ExpectedDelivery { get; }
     public string DimensionsLine { get; }
     public string WeightLine { get; }
     public string TotalLine { get; }
@@ -8503,6 +8657,7 @@ public sealed class DetailProductItem
     public string BorderColor { get; }
     public bool IsSelected { get; }
     public bool HasSupplier => !string.IsNullOrWhiteSpace(Supplier);
+    public bool HasExpectedDelivery => !string.IsNullOrWhiteSpace(ExpectedDelivery);
     public bool HasDimensions => !string.IsNullOrWhiteSpace(DimensionsLine);
 }
 
@@ -8570,6 +8725,7 @@ public sealed class RouteStopItem : ObservableObject
     private double _longitude;
     private bool _isCompanyAnchor;
     private bool _isPauseStop;
+    private bool _isManualStop;
     private bool _isStopSelected;
     private bool _isLegSelected;
     private bool _isDropTargetBefore;
@@ -8708,6 +8864,19 @@ public sealed class RouteStopItem : ObservableObject
                 OnPropertyChanged(nameof(DisplayNameWithOrder));
                 OnPropertyChanged(nameof(DisplayAddress));
                 OnPropertyChanged(nameof(DisplayEmployeeInfo));
+            }
+        }
+    }
+
+    public bool IsManualStop
+    {
+        get => _isManualStop;
+        set
+        {
+            if (SetProperty(ref _isManualStop, value))
+            {
+                OnPropertyChanged(nameof(DisplayOrder));
+                OnPropertyChanged(nameof(DisplayNameWithOrder));
             }
         }
     }
@@ -8905,7 +9074,7 @@ public sealed class RouteStopItem : ObservableObject
         }
     }
     public string DisplayWindow => "--";
-    public string DisplayOrder => IsPauseStop ? string.Empty : (string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId);
+    public string DisplayOrder => IsPauseStop || IsManualStop ? string.Empty : (string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId);
     public string DisplayStay => IsCompanyDisplay ? string.Empty : $"{PlannedStayMinutes} min";
     public string DisplayEta => string.IsNullOrWhiteSpace(EtaText) ? "--:--" : EtaText;
     public string DisplayEmployeeInfo => IsCompanyDisplay || IsPauseStop ? string.Empty : EmployeeInfoText;

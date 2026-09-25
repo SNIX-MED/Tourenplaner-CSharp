@@ -62,6 +62,74 @@ public static class AddressGeocodingService
             cacheFilePath)).Result;
     }
 
+    public static async Task<string?> TryReverseGeocodeAddressAsync(
+        double latitude,
+        double longitude,
+        string? tomTomApiKey)
+    {
+        if (string.IsNullOrWhiteSpace(tomTomApiKey) ||
+            latitude is < -90 or > 90 ||
+            longitude is < -180 or > 180)
+        {
+            return null;
+        }
+
+        var latitudeToken = latitude.ToString("0.######", CultureInfo.InvariantCulture);
+        var longitudeToken = longitude.ToString("0.######", CultureInfo.InvariantCulture);
+        var url = $"https://api.tomtom.com/search/2/reverseGeocode/{latitudeToken},{longitudeToken}.json?key={Uri.EscapeDataString(tomTomApiKey.Trim())}&language=de-DE";
+
+        try
+        {
+            using var response = await Client.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var document = await JsonDocument.ParseAsync(stream);
+            if (!document.RootElement.TryGetProperty("addresses", out var addresses) ||
+                addresses.ValueKind != JsonValueKind.Array ||
+                addresses.GetArrayLength() == 0 ||
+                !addresses[0].TryGetProperty("address", out var address))
+            {
+                return null;
+            }
+
+            return BuildReverseGeocodedAddress(address);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? BuildReverseGeocodedAddress(JsonElement address)
+    {
+        var streetLine = GetJsonString(address, "streetNameAndNumber");
+        if (string.IsNullOrWhiteSpace(streetLine))
+        {
+            var streetName = GetJsonString(address, "streetName");
+            var streetNumber = GetJsonString(address, "streetNumber");
+            streetLine = string.Join(" ", new[] { streetName, streetNumber }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        }
+
+        var postalCode = GetJsonString(address, "postalCode");
+        var municipality = GetJsonString(address, "municipality");
+        var localityLine = string.Join(" ", new[] { postalCode, municipality }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        var formatted = string.Join(", ", new[] { streetLine, localityLine }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        return string.IsNullOrWhiteSpace(formatted)
+            ? GetJsonString(address, "freeformAddress")
+            : formatted;
+    }
+
+    private static string GetJsonString(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
+            ? (property.GetString() ?? string.Empty).Trim()
+            : string.Empty;
+    }
+
     public static async Task<AddressGeocodingResolution> TryResolveOrderWithDiagnosticsAsync(
         Order order,
         string? tomTomApiKey = null,

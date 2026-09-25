@@ -171,6 +171,7 @@ public class OrderImportServiceTests
         var existingChangedOrder = CreateOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis alt");
         existingChangedOrder.Products[0].DeliveryStatus = "An Lager";
         existingChangedOrder.Products[0].Supplier = "Lieferant A";
+        existingChangedOrder.Products[0].ExpectedDelivery = "KW 42";
         existingChangedOrder.Products[0].Dimensions = "120x80";
         existingChangedOrder.OrderStatus = Order.ResolveOrderStatusFromProducts(existingChangedOrder.Products);
 
@@ -197,6 +198,7 @@ public class OrderImportServiceTests
         Assert.Equal("Hinweis neu", storedChanged.Notes);
         Assert.Equal("An Lager", storedChanged.Products[0].DeliveryStatus);
         Assert.Equal("Lieferant A", storedChanged.Products[0].Supplier);
+        Assert.Equal("KW 42", storedChanged.Products[0].ExpectedDelivery);
         Assert.Equal("120x80", storedChanged.Products[0].Dimensions);
 
         var storedUnchanged = Assert.Single(repository.StoredOrders, x => x.Id == "A-2");
@@ -528,6 +530,7 @@ public class OrderImportServiceTests
             {
                 Name = x.Name,
                 Supplier = x.Supplier,
+                ExpectedDelivery = x.ExpectedDelivery,
                 Quantity = x.Quantity,
                 UnitWeightKg = x.UnitWeightKg,
                 WeightKg = x.WeightKg,

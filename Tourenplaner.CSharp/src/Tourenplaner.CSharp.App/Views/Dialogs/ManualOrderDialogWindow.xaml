@@ -259,11 +259,12 @@
                     <StackPanel Grid.Column="2">
                         <TextBlock FontWeight="SemiBold" Text="Lieferdatum" />
                         <controls:ModernDatePickerField Margin="0,4,10,0"
+                                                        AllowClear="True"
                                                         IsReadOnly="{Binding IsEditingEnabled, Converter={StaticResource InverseBooleanConverter}}"
                                                         SelectedDateText="{Binding DeliveryDateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         <CheckBox Margin="0,8,0,0"
                                   Content="Lieferung kann auch früher erfolgen"
-                                  IsEnabled="{Binding IsEditingEnabled}"
+                                  IsEnabled="{Binding CanEditDeliveryCanOccurEarlier}"
                                   IsChecked="{Binding DeliveryCanOccurEarlier, Mode=TwoWay}" />
                     </StackPanel>
                     <Grid Grid.Column="3" Margin="10,0,0,0">
@@ -614,6 +615,7 @@
                                            Text="Notizen" />
                                 <TextBox MinHeight="420"
                                          AcceptsReturn="True"
+                                         IsReadOnly="False"
                                          VerticalScrollBarVisibility="Auto"
                                          TextWrapping="Wrap"
                                          Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" />
@@ -654,7 +656,6 @@
                         Height="40"
                         Content="Speichern"
                         Style="{StaticResource SuccessButtonStyle}"
-                        IsEnabled="{Binding IsEditingEnabled}"
                         IsDefault="True"
                         Click="OnSaveClicked" />
             </Grid>

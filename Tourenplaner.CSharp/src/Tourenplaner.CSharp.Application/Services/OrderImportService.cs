@@ -293,6 +293,7 @@ public class OrderImportService : IOrderImportService
                 Supplier = !string.IsNullOrWhiteSpace(sqlProduct.Lieferant)
                     ? sqlProduct.Lieferant.Trim()
                     : previousProduct?.Supplier ?? string.Empty,
+                ExpectedDelivery = previousProduct?.ExpectedDelivery ?? string.Empty,
                 Quantity = (int)sqlProduct.Menge,
                 UnitWeightKg = (double)sqlProduct.Gewicht,
                 WeightKg = (double)(sqlProduct.Gewicht * sqlProduct.Menge),

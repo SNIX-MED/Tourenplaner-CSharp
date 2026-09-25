@@ -179,6 +179,13 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <Button Margin="0,8,0,0"
+                            Height="32"
+                            Content="Datum entfernen"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Visibility="{Binding AllowClear, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Click="OnClearDateClicked" />
                 </StackPanel>
             </Border>
         </Popup>

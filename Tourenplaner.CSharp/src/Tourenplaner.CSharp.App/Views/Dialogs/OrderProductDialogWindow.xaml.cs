@@ -43,6 +43,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
 {
     private string _name = string.Empty;
     private string _supplier = string.Empty;
+    private string _expectedDelivery = string.Empty;
     private string _quantityText = "1";
     private string _unitWeightKgText = string.Empty;
     private string _dimensions = string.Empty;
@@ -57,6 +58,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
 
         _name = existingProduct.Name;
         _supplier = existingProduct.Supplier;
+        _expectedDelivery = existingProduct.ExpectedDelivery;
         _quantityText = Math.Max(1, existingProduct.Quantity).ToString(CultureInfo.InvariantCulture);
         _unitWeightKgText = existingProduct.UnitWeightKg.ToString("0.###", CultureInfo.InvariantCulture);
         _dimensions = existingProduct.Dimensions;
@@ -84,6 +86,18 @@ public sealed class OrderProductDialogViewModel : ObservableObject
         set
         {
             if (SetProperty(ref _supplier, value))
+            {
+                OnPropertyChanged(nameof(SummaryText));
+            }
+        }
+    }
+
+    public string ExpectedDelivery
+    {
+        get => _expectedDelivery;
+        set
+        {
+            if (SetProperty(ref _expectedDelivery, value))
             {
                 OnPropertyChanged(nameof(SummaryText));
             }
@@ -152,6 +166,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
             {
                 Name = (Name ?? string.Empty).Trim(),
                 Supplier = (Supplier ?? string.Empty).Trim(),
+                ExpectedDelivery = (ExpectedDelivery ?? string.Empty).Trim(),
                 Quantity = quantity,
                 UnitWeightKg = unitWeightKg,
                 WeightKg = totalWeightKg,
@@ -189,6 +204,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
         {
             Name = Name.Trim(),
             Supplier = (Supplier ?? string.Empty).Trim(),
+            ExpectedDelivery = (ExpectedDelivery ?? string.Empty).Trim(),
             Quantity = quantity,
             UnitWeightKg = unitWeightKg,
             Dimensions = (Dimensions ?? string.Empty).Trim(),

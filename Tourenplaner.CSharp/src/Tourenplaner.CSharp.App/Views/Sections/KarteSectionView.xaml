@@ -1255,6 +1255,9 @@
                                                                                 <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
                                                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                                                 </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding IsManualStop}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
                                                                     </MenuItem.Style>
@@ -2235,7 +2238,8 @@
                                             CornerRadius="12"
                                             Background="{DynamicResource Brush.CardSoft}"
                                             BorderBrush="{DynamicResource Brush.BorderSoft}"
-                                            BorderThickness="1">
+                                            BorderThickness="1"
+                                            Visibility="{Binding HasDetailNotes, Converter={StaticResource BoolToVisibilityConverter}}">
                                         <StackPanel>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -2258,32 +2262,19 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <Grid Margin="0,10,0,0">
-                                        <Grid.Style>
-                                            <Style TargetType="Grid">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding DetailNotes}" Value="">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding DetailNotes}" Value="{x:Null}">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Grid.Style>
-                                        <Border Margin="0,0,0,0"
-                                                Padding="10"
-                                                CornerRadius="12"
-                                                Background="{DynamicResource Brush.CardSoft}"
-                                                BorderBrush="{DynamicResource Brush.BorderSoft}"
-                                                BorderThickness="1">
-                                            <TextBlock Text="{Binding DetailNotes}"
+                                    <Border Margin="0,10,0,0"
+                                            Padding="10"
+                                            CornerRadius="12"
+                                            Background="{DynamicResource Brush.CardSoft}"
+                                            BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                            BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock FontWeight="Bold"
+                                                       Foreground="#DC2626"
                                                        TextWrapping="Wrap"
-                                                       FontWeight="Bold"
-                                                       Foreground="#DC2626" />
-                                        </Border>
-                                    </Grid>
+                                                       Text="{Binding DetailNotes, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Border>
 
                                     <Grid Margin="0,10,0,0">
                                         <Grid.ColumnDefinitions>
@@ -2362,22 +2353,37 @@
                                                                                FontWeight="SemiBold"
                                                                                Text="{Binding Title}"
                                                                                TextWrapping="Wrap" />
-                                                                    <TextBlock Grid.Column="1"
-                                                                               Margin="12,0,0,0"
-                                                                               FontWeight="SemiBold"
-                                                                               Foreground="{DynamicResource Brush.TextMuted}"
-                                                                               Text="{Binding Supplier}">
-                                                                        <TextBlock.Style>
-                                                                            <Style TargetType="TextBlock">
-                                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding HasSupplier}" Value="True">
-                                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </TextBlock.Style>
-                                                                    </TextBlock>
+                                                                    <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                                                        <TextBlock FontWeight="SemiBold"
+                                                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                                                   Text="{Binding Supplier}">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding HasSupplier}" Value="True">
+                                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                        <TextBlock Margin="0,3,0,0"
+                                                                                   Foreground="{DynamicResource Brush.TextSecondary}"
+                                                                                   Text="{Binding ExpectedDelivery, StringFormat=Lieferung erwartet: {0}}"
+                                                                                   TextWrapping="Wrap">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding HasExpectedDelivery}" Value="True">
+                                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                    </StackPanel>
                                                                 </Grid>
                                                                 <StackPanel Margin="0,4,0,0"
                                                                             Orientation="Horizontal">
@@ -2568,6 +2574,108 @@
                                     </Grid>
                                 </StackPanel>
                             </Grid>
+
+                            <Border Grid.Row="0"
+                                    Grid.RowSpan="2"
+                                    Panel.ZIndex="10"
+                                    Background="{DynamicResource Brush.WindowBackground}"
+                                    Visibility="{Binding IsSelectedRouteStopManual, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="40" />
+                                            <ColumnDefinition Width="40" />
+                                            <ColumnDefinition Width="40" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="22"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding ManualStopDetailName}"
+                                                   TextWrapping="Wrap" />
+                                        <Button Grid.Column="1"
+                                                Margin="0,0,6,0"
+                                                Style="{StaticResource DetailsHeaderToggleButtonStyle}"
+                                                Click="OnManualStopDetailEditClick">
+                                            <TextBlock FontFamily="Segoe MDL2 Assets"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       Text="&#xE70F;" />
+                                        </Button>
+                                        <Button Grid.Column="2"
+                                                Margin="0,0,6,0"
+                                                Style="{StaticResource DetailsHeaderToggleButtonStyle}"
+                                                Command="{Binding CloseDetailsCommand}">
+                                            <TextBlock FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       Text="X" />
+                                        </Button>
+                                        <Button Grid.Column="3"
+                                                Style="{StaticResource DetailsHeaderToggleButtonStyle}"
+                                                Command="{Binding ToggleDetailsPanelCommand}">
+                                            <TextBlock FontSize="17"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       Text="{Binding DetailsToggleGlyph}" />
+                                        </Button>
+                                    </Grid>
+
+                                    <ScrollViewer Grid.Row="1"
+                                                  Margin="0,14,0,0"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <StackPanel>
+                                            <Border Padding="10"
+                                                    CornerRadius="12"
+                                                    Background="{DynamicResource Brush.CardSoft}"
+                                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                    BorderThickness="1">
+                                                <StackPanel>
+                                                    <TextBlock FontWeight="SemiBold" Text="Adresse:" />
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               Text="{Binding ManualStopDetailAddress}"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Margin="0,10,0,0"
+                                                    Padding="10"
+                                                    CornerRadius="12"
+                                                    Background="{DynamicResource Brush.CardSoft}"
+                                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                    BorderThickness="1">
+                                                <StackPanel>
+                                                    <TextBlock FontWeight="SemiBold" Text="Aufenthaltsdauer:" />
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               Text="{Binding ManualStopDetailStay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Margin="0,10,0,0"
+                                                    Padding="10"
+                                                    CornerRadius="12"
+                                                    Background="{DynamicResource Brush.CardSoft}"
+                                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                    BorderThickness="1">
+                                                <StackPanel>
+                                                    <TextBlock FontWeight="SemiBold" Text="Notizen:" />
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               FontWeight="Bold"
+                                                               Foreground="#DC2626"
+                                                               Text="{Binding ManualStopDetailNotes}"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Border>
                         </Grid>
                     </Border>
                 </Grid>

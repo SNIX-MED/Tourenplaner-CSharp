@@ -147,6 +147,10 @@ internal static class MapHtmlDocumentBuilder
                    .range-value { min-width: 44px; text-align: right; font-size: 13px; font-weight: 700; color: #475569; }
                    .option-help { margin: 6px 0 0; font-size: 12px; color: #64748b; line-height: 1.35; }
                    .tour-hover-tooltip { position: absolute; z-index: 1400; pointer-events: none; transform: translate(-50%, calc(-100% - 10px)); background: rgba(15,23,42,.94); color: #f8fafc; border: 1px solid rgba(148,163,184,.45); border-radius: 8px; padding: 4px 8px; font-size: 12px; font-weight: 600; white-space: nowrap; box-shadow: 0 6px 16px rgba(2,6,23,.32); opacity: 0; transition: opacity .08s linear; }
+                   .map-context-menu { position: absolute; z-index: 1700; display: none; min-width: 170px; padding: 5px; border: 1px solid #cbd5e1; border-radius: 10px; background: rgba(255,255,255,.98); box-shadow: 0 10px 28px rgba(15,23,42,.22); }
+                   .map-context-menu.open { display: block; }
+                   .map-context-menu button { width: 100%; padding: 9px 11px; border: 0; border-radius: 7px; background: transparent; color: #0f172a; cursor: pointer; text-align: left; font: 600 13px Segoe UI,sans-serif; }
+                   .map-context-menu button:hover { background: #f1f5f9; }
                    .tt-popup-content, .mapboxgl-popup-content { transform: scale(var(--gawela-pin-scale, 1)); transform-origin: center bottom; display: inline-block; padding: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
                    .tt-popup-tip, .mapboxgl-popup-tip { display: none !important; }
                    .tt-popup, .tt-popup *, .mapboxgl-popup, .mapboxgl-popup * { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; -webkit-user-drag: none !important; }
@@ -192,6 +196,9 @@ internal static class MapHtmlDocumentBuilder
                  <div id="map"></div>
                  <div id="status" class="status">Karte wird initialisiert...</div>
                  <div id="tourHoverTooltip" class="tour-hover-tooltip" aria-hidden="true"></div>
+                 <div id="mapContextMenu" class="map-context-menu" aria-hidden="true">
+                   <button id="addManualStopButton" type="button">Stopp hinzufügen</button>
+                 </div>
                  <div class="map-zoom-controls" aria-label="Kartenzoom">
                    <button id="mapZoomIn" class="map-zoom-button" type="button" aria-label="Karte vergrössern" title="Vergrössern">+</button>
                    <button id="mapZoomOut" class="map-zoom-button" type="button" aria-label="Karte verkleinern" title="Verkleinern">−</button>
@@ -272,6 +279,8 @@ internal static class MapHtmlDocumentBuilder
                    const useTileCache = __TT_TILE_CACHE__;
                    window.gawelaMapReady = false;
                    const tourHoverTooltipEl = document.getElementById('tourHoverTooltip');
+                   const mapContextMenuEl = document.getElementById('mapContextMenu');
+                   const addManualStopButtonEl = document.getElementById('addManualStopButton');
                    const detailsToggleEl = document.getElementById('detailsToggle');
                    const fleetTracksToggleEl = document.getElementById('fleetTracksToggle');
                    const fleetTracksOverlayEl = document.getElementById('fleetTracksOverlay');
@@ -483,6 +492,36 @@ internal static class MapHtmlDocumentBuilder
                            maxBounds: mapMaxBounds
                          });
                          const mapCanvas = map.getCanvas();
+                         let manualStopContextCoordinates = null;
+                         const closeMapContextMenu = () => {
+                           manualStopContextCoordinates = null;
+                           if (!mapContextMenuEl) return;
+                           mapContextMenuEl.classList.remove('open');
+                           mapContextMenuEl.setAttribute('aria-hidden', 'true');
+                         };
+                         mapCanvas.addEventListener('contextmenu', event => event.preventDefault());
+                         map.on('contextmenu', evt => {
+                           if (!evt || !evt.lngLat || !mapContextMenuEl) return;
+                           const point = evt.point || map.project(evt.lngLat);
+                           manualStopContextCoordinates = { lat: Number(evt.lngLat.lat), lon: Number(evt.lngLat.lng) };
+                           mapContextMenuEl.style.left = `${Math.max(8, Math.min(point.x, mapCanvas.clientWidth - 190))}px`;
+                           mapContextMenuEl.style.top = `${Math.max(8, Math.min(point.y, mapCanvas.clientHeight - 55))}px`;
+                           mapContextMenuEl.classList.add('open');
+                           mapContextMenuEl.setAttribute('aria-hidden', 'false');
+                         });
+                         map.on('click', closeMapContextMenu);
+                         map.on('dragstart', closeMapContextMenu);
+                         if (addManualStopButtonEl) {
+                           addManualStopButtonEl.addEventListener('click', event => {
+                             event.stopPropagation();
+                             const coordinates = manualStopContextCoordinates;
+                             closeMapContextMenu();
+                             if (!coordinates || !Number.isFinite(coordinates.lat) || !Number.isFinite(coordinates.lon)) return;
+                             if (window.chrome && window.chrome.webview) {
+                               window.chrome.webview.postMessage(`addManualStop:${coordinates.lat.toFixed(6)}:${coordinates.lon.toFixed(6)}`);
+                             }
+                           });
+                         }
                          const mapZoomInEl = document.getElementById('mapZoomIn');
                          const mapZoomOutEl = document.getElementById('mapZoomOut');
                          const changeMapZoom = (delta) => {
@@ -1620,13 +1659,14 @@ internal static class MapHtmlDocumentBuilder
                              map.setFilter(plannedTourOverlaysSelectedLayerId, ['==', ['get', 'id'], -1]);
                            }
 
-                           // Satellite imagery needs a higher-contrast selected-tour line.
+                           // Keep the selected tour clearly blue on every base map. Satellite
+                           // imagery uses a lighter blue for additional contrast.
                            map.setPaintProperty(
                              plannedTourOverlaysSelectedLayerId,
                              'line-color',
                              mapState.style === 'satellite'
                                ? '#7DD3FC'
-                               : ['coalesce', ['get', 'color'], '#0f172a']);
+                               : '#2563EB');
                          };
 
                          const applyPoiVisibility = () => {

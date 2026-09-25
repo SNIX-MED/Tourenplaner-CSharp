@@ -42,6 +42,13 @@ public partial class ModernDatePickerField : UserControl, INotifyPropertyChanged
             typeof(ModernDatePickerField),
             new PropertyMetadata(false));
 
+    public static readonly DependencyProperty AllowClearProperty =
+        DependencyProperty.Register(
+            nameof(AllowClear),
+            typeof(bool),
+            typeof(ModernDatePickerField),
+            new PropertyMetadata(false));
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<ModernDatePickerDayItem> CalendarDays { get; }
@@ -62,6 +69,12 @@ public partial class ModernDatePickerField : UserControl, INotifyPropertyChanged
     {
         get => (bool)GetValue(IsReadOnlyProperty);
         set => SetValue(IsReadOnlyProperty, value);
+    }
+
+    public bool AllowClear
+    {
+        get => (bool)GetValue(AllowClearProperty);
+        set => SetValue(AllowClearProperty, value);
     }
 
     public string DisplayText
@@ -178,6 +191,13 @@ public partial class ModernDatePickerField : UserControl, INotifyPropertyChanged
         }
 
         SelectedDateText = day.Date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        PickerPopup.IsOpen = false;
+        RebuildCalendarDays();
+    }
+
+    private void OnClearDateClicked(object sender, RoutedEventArgs e)
+    {
+        SelectedDateText = string.Empty;
         PickerPopup.IsOpen = false;
         RebuildCalendarDays();
     }
