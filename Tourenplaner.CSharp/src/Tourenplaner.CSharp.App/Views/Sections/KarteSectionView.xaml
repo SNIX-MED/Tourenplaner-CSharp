@@ -2041,10 +2041,22 @@
                                             VerticalAlignment="Top">
                                     <TextBlock FontWeight="SemiBold"
                                                Foreground="{DynamicResource Brush.TextMuted}"
-                                               Text="Auftragsadresse:" />
+                                               Text="Lieferart:" />
                                     <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
-                                               Text="{Binding DetailAddress}"
+                                               Text="{Binding DetailDeliveryType}"
                                                TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                               Text="Lieferdatum:" />
+                                    <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
+                                               Text="{Binding DetailDeliveryDate}"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                               Text="Lieferung kann auch früher erfolgen"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding DetailDeliveryCanOccurEarlier, Converter={StaticResource BoolToVisibilityConverter}}" />
                                 </StackPanel>
                                 <Button Grid.Row="0"
                                         Grid.Column="1"
@@ -2180,14 +2192,13 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <StackPanel Grid.Row="0" Margin="0,0,0,10">
                                     <Grid Margin="0,0,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
                                         <Border Grid.Column="0"
@@ -2205,28 +2216,47 @@
 
                                         <Border Grid.Column="1"
                                                 Margin="6,0,0,0"
-                                                Width="160"
-                                                HorizontalAlignment="Left"
                                                 Padding="10"
                                                 CornerRadius="12"
                                                 Background="{DynamicResource Brush.CardSoft}"
                                                 BorderBrush="{DynamicResource Brush.BorderSoft}"
                                                 BorderThickness="1">
                                             <StackPanel>
-                                                <Grid>
-                                                    <TextBlock VerticalAlignment="Center"
-                                                               FontWeight="SemiBold"
-                                                               Text="Kontaktdaten:" />
-                                                </Grid>
-                                                <TextBlock Margin="0,6,0,0" FontWeight="SemiBold" Text="E-Mail:" />
-                                                <TextBlock Margin="0,2,0,0"
-                                                           Text="{Binding DetailEmail}"
+                                                <TextBlock FontWeight="SemiBold" Text="Auftragsadresse:" />
+                                                <TextBlock Margin="0,4,0,0"
+                                                           Text="{Binding DetailAddress}"
                                                            TextWrapping="Wrap" />
-                                                <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Text="Telefon:" />
-                                                <TextBlock Text="{Binding DetailPhone}" TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Border>
                                     </Grid>
+
+                                    <Border Margin="0,10,0,0"
+                                            Padding="10"
+                                            CornerRadius="12"
+                                            Background="{DynamicResource Brush.CardSoft}"
+                                            BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                            BorderThickness="1">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock FontWeight="SemiBold" Text="E-Mail:" />
+                                                    <TextBlock Margin="0,2,0,0"
+                                                               Text="{Binding DetailEmail}"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                                    <TextBlock FontWeight="SemiBold" Text="Telefon:" />
+                                                    <TextBlock Margin="0,2,0,0"
+                                                               Text="{Binding DetailPhone}"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
 
                                     <Grid Margin="0,10,0,0">
                                         <Grid.Style>
@@ -2429,16 +2459,7 @@
                                     </StackPanel>
                                 </ScrollViewer>
 
-                                <StackPanel Grid.Row="2" Margin="0,0,0,10">
-                                    <TextBlock FontWeight="SemiBold" Text="Lieferart:" />
-                                    <TextBlock Text="{Binding DetailDeliveryType}" />
-                                    <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Text="Lieferdatum:" />
-                                    <TextBlock Text="{Binding DetailDeliveryDate}" />
-                                    <TextBlock Margin="0,4,0,0" Text="Lieferung kann auch früher erfolgen"
-                                               Visibility="{Binding DetailDeliveryCanOccurEarlier, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="3" Margin="0,0,0,8">
+                                <StackPanel Grid.Row="2" Margin="0,0,0,8">
                                     <Border Margin="0,0,0,8"
                                             Padding="8,6"
                                             CornerRadius="10"

@@ -49,7 +49,7 @@ public sealed class OrderPartitionService
             order.Type = DeliveryMethodExtensions.ResolveOrderType(order.DeliveryType);
         }
 
-        if (order.Type == OrderType.NonMap)
+        if (!DeliveryMethodExtensions.CanUseLiefertour(order))
         {
             order.Location = null;
             order.AssignedTourId = string.Empty;

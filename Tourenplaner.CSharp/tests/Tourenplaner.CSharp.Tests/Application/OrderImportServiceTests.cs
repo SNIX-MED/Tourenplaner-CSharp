@@ -7,6 +7,126 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public class OrderImportServiceTests
 {
+    [Theory]
+    [InlineData("Frei Bordsteinkante", "Frei Bordsteinkante", true)]
+    [InlineData("Frei Bordsteinkante", "Mit Verteilung", false)]
+    [InlineData("Frei Bordsteinkante", "Spediteur", false)]
+    [InlineData("Spediteur", "Spediteur", true)]
+    [InlineData("Spediteur", "Post", false)]
+    public async Task XmlReimport_PreservesAlternativeOnlyWhileOrderedDeliveryTypeIsUnchanged(
+        string existingDeliveryType,
+        string importedDeliveryType,
+        bool expectedAlternative)
+    {
+        var existing = CreateOrder("A-1", "Kunde", existingDeliveryType, "Notiz");
+        existing.IsAlternativeDeliveryEnabled = true;
+        var repository = new FakeOrderRepository([existing]);
+        var xmlOrder = CreateSqlOrder("A-1", "Kunde", importedDeliveryType, "Notiz");
+
+        var result = await new OrderImportService().ImportOrdersAsync([xmlOrder], repository);
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(expectedAlternative, Assert.Single(repository.StoredOrders).IsAlternativeDeliveryEnabled);
+    }
+
+    [Fact]
+    public async Task XmlArchiving_SpediteurWithAlternativeLiefertour_IsProtectedWhileTourIsActive()
+    {
+        var existing = CreateOrder("A-1", "Kunde", "Spediteur", "Notiz");
+        existing.IsAlternativeDeliveryEnabled = true;
+        existing.AssignedTourId = "7";
+        var repository = new FakeOrderRepository([existing]);
+        var xmlOrder = CreateSqlOrder("A-1", "Kunde", "Spediteur", "Notiz");
+        xmlOrder.Archiviert = true;
+        var tours = new[] { new TourRecord { Id = 7, Stops = [new TourStopRecord { Auftragsnummer = "A-1" }] } };
+
+        var activeResult = await new OrderImportService().ImportOrdersAsync([xmlOrder], repository, tours: tours);
+
+        Assert.Equal(1, activeResult.UpdatedOrders);
+        Assert.False(Assert.Single(repository.StoredOrders).IsArchived);
+
+        tours[0].IsArchived = true;
+        var completedResult = await new OrderImportService().ImportOrdersAsync([xmlOrder], repository, tours: tours);
+        Assert.Equal(1, completedResult.UpdatedOrders);
+        Assert.True(Assert.Single(repository.StoredOrders).IsArchived);
+    }
+
+    [Theory]
+    [InlineData("Frei Bordsteinkante", false, false)]
+    [InlineData("Mit Verteilung", false, false)]
+    [InlineData("Mit Verteilung und Montage", false, false)]
+    [InlineData("Tresor Bordstein", false, false)]
+    [InlineData("Tresor Verwendung", false, false)]
+    [InlineData("Frei Bordsteinkante", true, true)]
+    [InlineData("Post", false, true)]
+    [InlineData("Selbstabholung", false, true)]
+    [InlineData("Spediteur", false, true)]
+    [InlineData("Post", true, true)]
+    [InlineData("Selbstabholung", true, true)]
+    [InlineData("Spediteur", true, true)]
+    public async Task XmlArchiving_RespectsTourStateAndDeliveryMethod(string deliveryType, bool completed, bool expectedArchived)
+    {
+        var repository = new FakeOrderRepository([CreateOrder("A-1", "Kunde", deliveryType, "Alt")]);
+        var xmlOrder = CreateSqlOrder("A-1", "Kunde", deliveryType, "Neu");
+        xmlOrder.Archiviert = true;
+        var tours = new[] { new TourRecord { IsArchived = completed, Stops = [new TourStopRecord { Auftragsnummer = " a-1 " }] } };
+        var service = new OrderImportService();
+
+        var preview = await service.PreviewImportAsync([xmlOrder], repository, tours);
+        Assert.Empty(preview.Errors);
+        Assert.Equal(expectedArchived, Assert.Single(preview.Items).Changes.Any(change => change.StartsWith("Archiviert:")));
+        Assert.False(Assert.Single(repository.StoredOrders).IsArchived);
+
+        var result = await service.ImportOrdersAsync([xmlOrder], repository, tours: tours);
+        Assert.Empty(result.Errors);
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal(expectedArchived, stored.IsArchived);
+        Assert.Equal("Neu", stored.Notes);
+    }
+
+    [Fact]
+    public async Task XmlArchiving_ActiveTourWinsUntilCompleted_ThenReimportArchivesOnce()
+    {
+        var repository = new FakeOrderRepository([CreateOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz")]);
+        var xmlOrder = CreateSqlOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        xmlOrder.Archiviert = true;
+        var activeTour = new TourRecord { Stops = [new TourStopRecord { Auftragsnummer = "A-1" }] };
+        var tours = new[] { new TourRecord { IsArchived = true, Stops = [new TourStopRecord { Auftragsnummer = "A-1" }] }, activeTour };
+        var service = new OrderImportService();
+
+        var preview = await service.PreviewImportAsync([xmlOrder], repository, tours);
+        Assert.Equal(1, preview.UnchangedOrders);
+        var protectedResult = await service.ImportOrdersAsync([xmlOrder], repository, tours: tours);
+        Assert.Equal(1, protectedResult.UnchangedOrders);
+        Assert.Equal(0, repository.SaveAllCalls);
+
+        activeTour.IsArchived = true;
+        var result = await service.ImportOrdersAsync([xmlOrder], repository, tours: tours);
+        Assert.Equal(1, result.UpdatedOrders);
+        Assert.True(Assert.Single(repository.StoredOrders).IsArchived);
+        var repeated = await service.ImportOrdersAsync([xmlOrder], repository, tours: tours);
+        Assert.Equal(1, repeated.UnchangedOrders);
+        Assert.Equal(1, repository.SaveAllCalls);
+    }
+
+    [Fact]
+    public async Task XmlArchiving_WithoutActualTourStopAndForNewOrders_FollowsXml()
+    {
+        var existing = CreateOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        existing.AssignedTourId = "1";
+        var repository = new FakeOrderRepository([existing]);
+        var imports = new[] { "A-1", "A-2" }.Select(id => CreateSqlOrder(id, "Kunde", "Frei Bordsteinkante", "Notiz")).ToList();
+        imports.ForEach(order => order.Archiviert = true);
+        var tours = new[] { new TourRecord { Id = 1, Stops = [new TourStopRecord { Auftragsnummer = "A-2" }] } };
+
+        var result = await new OrderImportService().ImportOrdersAsync(imports, repository, tours: tours);
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(1, result.CreatedOrders);
+        Assert.Equal(1, result.UpdatedOrders);
+        Assert.All(repository.StoredOrders, order => Assert.True(order.IsArchived));
+    }
+
     [Fact]
     public async Task PreviewImportAsync_ClassifiesCreatedUpdatedAndUnchangedOrders()
     {
@@ -415,6 +535,7 @@ public class OrderImportServiceTests
                 DeliveryStatus = x.DeliveryStatus
             }).ToList(),
             DeliveryType = order.DeliveryType,
+            IsAlternativeDeliveryEnabled = order.IsAlternativeDeliveryEnabled,
             OrderStatus = order.OrderStatus,
             AvisoStatus = order.AvisoStatus,
             Notes = order.Notes,

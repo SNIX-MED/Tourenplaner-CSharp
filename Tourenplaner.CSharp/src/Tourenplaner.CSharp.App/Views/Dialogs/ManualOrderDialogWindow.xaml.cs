@@ -60,6 +60,24 @@ public partial class ManualOrderDialogWindow : Window
             return;
         }
 
+        if (order is not null &&
+            !string.IsNullOrWhiteSpace(order.AssignedTourId) &&
+            !DeliveryMethodExtensions.CanUseLiefertour(order))
+        {
+            var confirmation = AppMessageBox.ShowConfirmation(
+                this,
+                $"Der Auftrag ist in Tour {order.AssignedTourId} eingeplant. Soll er aus dieser Tour entfernt und ohne Liefertour gespeichert werden?",
+                "Tourzuordnung entfernen",
+                "Abbrechen",
+                "Aus Tour entfernen");
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            order.AssignedTourId = string.Empty;
+        }
+
         DeleteRequested = false;
         CreatedOrder = order;
         DialogResult = true;
@@ -221,6 +239,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private bool _istVorauszahlung;
     private bool _istVorauszahlungBezahlt;
     private bool _isArchived;
+    private bool _isAlternativeDeliveryEnabled;
     private bool _isXmlImported;
     private bool _isEditingEnabled = true;
 
@@ -398,8 +417,36 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     public string SelectedDeliveryType
     {
         get => _selectedDeliveryType;
-        set => SetProperty(ref _selectedDeliveryType, value);
+        set
+        {
+            var previous = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(_selectedDeliveryType);
+            if (!SetProperty(ref _selectedDeliveryType, value))
+            {
+                return;
+            }
+
+            var current = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(value);
+            if (!string.Equals(previous, current, StringComparison.OrdinalIgnoreCase))
+            {
+                IsAlternativeDeliveryEnabled = false;
+            }
+
+            OnPropertyChanged(nameof(ShowAlternativeDeliveryOption));
+            OnPropertyChanged(nameof(AlternativeDeliveryLabel));
+        }
     }
+
+    public bool IsAlternativeDeliveryEnabled
+    {
+        get => _isAlternativeDeliveryEnabled;
+        set => SetProperty(ref _isAlternativeDeliveryEnabled, value);
+    }
+
+    public bool ShowAlternativeDeliveryOption =>
+        DeliveryMethodExtensions.SupportsAlternativeDelivery(SelectedDeliveryType);
+
+    public string AlternativeDeliveryLabel =>
+        DeliveryMethodExtensions.GetAlternativeDeliveryLabel(SelectedDeliveryType);
 
     public string SelectedStatus
     {
@@ -539,6 +586,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Products = products,
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(
                 (SelectedDeliveryType ?? _deliveryTypes[0]).Trim()),
+            IsAlternativeDeliveryEnabled = ShowAlternativeDeliveryOption && IsAlternativeDeliveryEnabled,
             OrderStatus = Order.ResolveOrderStatusFromProducts(products),
             IstVorauszahlung = IstVorauszahlung,
             IstVorauszahlungBezahlt = IstVorauszahlungBezahlt,
@@ -639,6 +687,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         SelectedDeliveryType = _deliveryTypes.Any(x => string.Equals(x, normalizedDeliveryType, StringComparison.OrdinalIgnoreCase))
             ? _deliveryTypes.First(x => string.Equals(x, normalizedDeliveryType, StringComparison.OrdinalIgnoreCase))
             : _deliveryTypes[0];
+        IsAlternativeDeliveryEnabled = existingOrder.IsAlternativeDeliveryEnabled && ShowAlternativeDeliveryOption;
         Notes = existingOrder.Notes ?? string.Empty;
         IstVorauszahlung = existingOrder.IstVorauszahlung;
         IstVorauszahlungBezahlt = existingOrder.IstVorauszahlungBezahlt;

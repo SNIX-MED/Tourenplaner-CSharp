@@ -1242,7 +1242,6 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var updated = dialog.CreatedOrder;
-        updated.AssignedTourId = existing.AssignedTourId;
         var updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, existing.Location);
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 

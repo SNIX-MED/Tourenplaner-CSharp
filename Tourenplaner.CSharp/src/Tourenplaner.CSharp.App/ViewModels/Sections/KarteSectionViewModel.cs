@@ -1373,7 +1373,16 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         : "Ctrl + Linksklick für Mehrfachauswahl";
     public string DetailEmail => FindSelectedOrderModel()?.Email ?? "n/a";
     public string DetailPhone => FindSelectedOrderModel()?.Phone ?? "n/a";
-    public string DetailDeliveryType => FindSelectedOrderModel()?.DeliveryType ?? SelectedOrder?.DeliveryLabel ?? "Frei Bordsteinkante";
+    public string DetailDeliveryType
+    {
+        get
+        {
+            var order = FindSelectedOrderModel();
+            return order is null
+                ? SelectedOrder?.DeliveryLabel ?? DeliveryMethodExtensions.FreiBordsteinkante
+                : DeliveryMethodExtensions.GetPlanningDeliveryDisplayLabel(order);
+        }
+    }
     public string DetailDeliveryDate => OrderDeliveryDateDisplayService.BuildDisplayText(FindSelectedOrderModel(), _savedTours);
     public bool DetailDeliveryCanOccurEarlier => FindSelectedOrderModel()?.DeliveryCanOccurEarlier == true;
     public string DetailNotes => NormalizeUiText(FindSelectedOrderModel()?.Notes);
@@ -5763,7 +5772,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         var updated = dialog.CreatedOrder;
-        updated.AssignedTourId = selected.AssignedTourId;
 
         if (!await ConfirmManualArchiveForAssignedActiveTourAsync(selected, updated))
         {
@@ -7867,7 +7875,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     {
         var changed = false;
         var candidates = _allOrders
-            .Where(x => x.Type == OrderType.Map &&
+            .Where(x => DeliveryMethodExtensions.CanUseLiefertour(x) &&
                         !x.IsArchived &&
                         (x.Location is null || AddressGeocodingService.IsLikelyCountryCentroid(x.Location)))
             .ToList();
@@ -7914,6 +7922,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
             DeliveryDate = OrderDeliveryDateDisplayService.BuildDisplayText(order, _savedTours),
             DeliveryCanOccurEarlier = order.DeliveryCanOccurEarlier,
+            IsAlternativeLiefertour = order.IsAlternativeDeliveryEnabled &&
+                                       string.Equals(
+                                           DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
+                                           DeliveryMethodExtensions.Spediteur,
+                                           StringComparison.OrdinalIgnoreCase),
             AssignedTourId = order.AssignedTourId ?? string.Empty,
             IsAssigned = isAssigned,
             Latitude = order.Location?.Latitude ?? double.NaN,
@@ -8506,6 +8519,7 @@ public sealed class MapOrderItem
     public string ScheduledDate { get; set; } = string.Empty;
     public string DeliveryDate { get; set; } = string.Empty;
     public bool DeliveryCanOccurEarlier { get; set; }
+    public bool IsAlternativeLiefertour { get; set; }
     public string AssignedTourId { get; set; } = string.Empty;
     public bool IsAssigned { get; set; }
     public double Latitude { get; set; }

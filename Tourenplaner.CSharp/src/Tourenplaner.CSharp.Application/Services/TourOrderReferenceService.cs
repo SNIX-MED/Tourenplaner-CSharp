@@ -134,7 +134,7 @@ public static class TourOrderReferenceService
         foreach (var order in orders ?? [])
         {
             var orderId = (order.Id ?? string.Empty).Trim();
-            if (!string.IsNullOrWhiteSpace(orderId) && order.Type == OrderType.Map)
+            if (!string.IsNullOrWhiteSpace(orderId) && DeliveryMethodExtensions.CanUseLiefertour(order))
             {
                 orderById[orderId] = order;
             }

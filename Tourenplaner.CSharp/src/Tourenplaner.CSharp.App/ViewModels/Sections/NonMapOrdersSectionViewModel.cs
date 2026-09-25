@@ -310,7 +310,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders);
         await _repository.SaveAllAsync(_allOrders);
         PublishOrderChange(SelectedOrder?.Id, SelectedOrder?.Id);
-        StatusText = $"Post/Spedition/Abholung gespeichert: {_allOrders.Count(x => x.Type == OrderType.NonMap)}";
+        StatusText = $"Post/Spedition/Abholung gespeichert: {_allOrders.Count(DeliveryMethodExtensions.CanUseSpediteurView)}";
     }
 
     private void AddOrder()
@@ -398,7 +398,6 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         }
 
         var updated = dialog.CreatedOrder;
-        updated.AssignedTourId = existing.AssignedTourId;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
         if (!await ConfirmManualArchiveForAssignedActiveTourAsync(existing, updated.IsArchived))
@@ -493,7 +492,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         }
 
         var targets = _allOrders
-            .Where(x => x.Type == OrderType.NonMap && selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase))
+            .Where(x => DeliveryMethodExtensions.CanUseSpediteurView(x) && selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase))
             .ToList();
         if (targets.Count == 0)
         {
@@ -625,7 +624,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         }
 
         var targets = _allOrders
-            .Where(x => x.Type == OrderType.NonMap && selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase))
+            .Where(x => DeliveryMethodExtensions.CanUseSpediteurView(x) && selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase))
             .ToList();
         if (targets.Count == 0)
         {
@@ -723,7 +722,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             : preferredSelectedId;
         var query = (_searchText ?? string.Empty).Trim();
         var items = _allOrders
-            .Where(o => o.Type == OrderType.NonMap)
+            .Where(DeliveryMethodExtensions.CanUseSpediteurView)
             .Where(o => o.IsArchived == ShowArchivedOrders)
             .Where(MatchesTourAssignmentFilter)
             .Where(MatchesSelectedFilters)
@@ -882,7 +881,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         }
 
         var statusOptions = _allOrders
-            .Where(o => o.Type == OrderType.NonMap)
+            .Where(DeliveryMethodExtensions.CanUseSpediteurView)
             .Where(o => o.IsArchived == ShowArchivedOrders)
             .Select(o => NormalizeOrderStatus(o.OrderStatus))
             .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -922,7 +921,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         try
         {
             var orders = _allOrders
-                .Where(o => o.Type == OrderType.NonMap)
+                .Where(DeliveryMethodExtensions.CanUseSpediteurView)
                 .Where(o => o.IsArchived == ShowArchivedOrders)
                 .ToList();
 
@@ -1319,6 +1318,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
                 DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(p.DeliveryStatus)
             }).ToList(),
             DeliveryType = source.DeliveryType,
+            IsAlternativeDeliveryEnabled = source.IsAlternativeDeliveryEnabled,
             OrderStatus = source.OrderStatus,
             Notes = source.Notes,
             IstVorauszahlung = source.IstVorauszahlung,

@@ -31,6 +31,52 @@ public class ManualOrderDialogViewModelTests
         Assert.Null(order.DeliveryDate);
     }
 
+    [Fact]
+    public void AlternativeDeliveryOption_UsesOnlyTheOppositeDispatchChannel()
+    {
+        var mapViewModel = new ManualOrderDialogViewModel(CreateOrder());
+        Assert.True(mapViewModel.ShowAlternativeDeliveryOption);
+        Assert.Equal("Evtl. Spediteur", mapViewModel.AlternativeDeliveryLabel);
+
+        mapViewModel.IsAlternativeDeliveryEnabled = true;
+        Assert.True(mapViewModel.TryBuildOrder(out var mapOrder, out var mapError), mapError);
+        Assert.True(mapOrder!.IsAlternativeDeliveryEnabled);
+        Assert.True(DeliveryMethodExtensions.CanUseLiefertour(mapOrder));
+        Assert.True(DeliveryMethodExtensions.CanUseSpediteurView(mapOrder));
+
+        mapViewModel.SelectedDeliveryType = DeliveryMethodExtensions.Spediteur;
+        Assert.False(mapViewModel.IsAlternativeDeliveryEnabled);
+        Assert.Equal("Evtl. Liefertour", mapViewModel.AlternativeDeliveryLabel);
+        mapViewModel.IsAlternativeDeliveryEnabled = true;
+        Assert.True(mapViewModel.TryBuildOrder(out var carrierOrder, out var carrierError), carrierError);
+        Assert.True(DeliveryMethodExtensions.CanUseLiefertour(carrierOrder!));
+        Assert.True(DeliveryMethodExtensions.CanUseSpediteurView(carrierOrder!));
+
+        mapViewModel.SelectedDeliveryType = DeliveryMethodExtensions.Post;
+        Assert.False(mapViewModel.ShowAlternativeDeliveryOption);
+        Assert.False(mapViewModel.IsAlternativeDeliveryEnabled);
+        Assert.True(mapViewModel.TryBuildOrder(out var postOrder, out var postError), postError);
+        Assert.False(postOrder!.IsAlternativeDeliveryEnabled);
+        Assert.False(DeliveryMethodExtensions.CanUseLiefertour(postOrder));
+        Assert.True(DeliveryMethodExtensions.CanUseSpediteurView(postOrder));
+    }
+
+    [Fact]
+    public void AlternativeDeliveryOption_IsAvailableForLockedXmlOrder()
+    {
+        var source = CreateOrder();
+        source.IsXmlImported = true;
+        source.IsAlternativeDeliveryEnabled = true;
+
+        var viewModel = new ManualOrderDialogViewModel(source);
+
+        Assert.False(viewModel.IsEditingEnabled);
+        Assert.True(viewModel.ShowAlternativeDeliveryOption);
+        Assert.True(viewModel.IsAlternativeDeliveryEnabled);
+        Assert.True(viewModel.TryBuildOrder(out var order, out var error), error);
+        Assert.True(order!.IsAlternativeDeliveryEnabled);
+    }
+
     private static Order CreateOrder()
     {
         return new Order

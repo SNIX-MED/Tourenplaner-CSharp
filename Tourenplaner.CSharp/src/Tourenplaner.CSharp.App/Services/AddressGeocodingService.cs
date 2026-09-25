@@ -855,7 +855,7 @@ public static class AddressGeocodingService
         }
 
         var suspiciousGroups = orders
-            .Where(x => x.Type == OrderType.Map && x.Location is not null)
+            .Where(x => DeliveryMethodExtensions.CanUseLiefertour(x) && x.Location is not null)
             .GroupBy(x => BuildCoordinateKey(x.Location!))
             .Where(group =>
             {

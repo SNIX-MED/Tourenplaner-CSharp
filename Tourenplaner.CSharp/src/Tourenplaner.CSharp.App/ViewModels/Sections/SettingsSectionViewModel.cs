@@ -29,6 +29,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private readonly SettingsValidator _validator;
     private readonly BackupManager _backupManager;
     private readonly IOrderRepository? _orderRepository;
+    private readonly ITourRecordStore? _tourRecordStore;
     private readonly IOrderMutationRepository? _orderMutationRepository;
     private readonly ISettingsRepository? _settingsRepository;
     private readonly AppDataSyncService? _dataSyncService;
@@ -158,13 +159,15 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         IOrderRepository? orderRepository = null,
         ISettingsRepository? settingsRepository = null,
         AppDataSyncService? dataSyncService = null,
-        AppStorageMode activeStorageMode = AppStorageMode.JsonFiles)
+        AppStorageMode activeStorageMode = AppStorageMode.JsonFiles,
+        ITourRecordStore? tourRecordStore = null)
         : base("Settings", "Appearance, backup policy and restore operations.")
     {
         _repository = settingsStore;
         _validator = new SettingsValidator();
         _backupManager = new BackupManager();
         _orderRepository = orderRepository;
+        _tourRecordStore = tourRecordStore;
         _orderMutationRepository = orderRepository as IOrderMutationRepository;
         _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService;
@@ -2296,7 +2299,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         var allOrders = (await _orderRepository.GetAllAsync()).ToList();
         var geocoded = 0;
 
-        foreach (var order in allOrders.Where(x => x.Type == OrderType.Map))
+        foreach (var order in allOrders.Where(DeliveryMethodExtensions.CanUseLiefertour))
         {
             var needsGeocoding = order.Location is null || AddressGeocodingService.IsLikelyCountryCentroid(order.Location);
             if (!needsGeocoding)

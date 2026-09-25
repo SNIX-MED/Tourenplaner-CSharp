@@ -7,7 +7,7 @@ public static class OrderPinAssignmentWarningService
 {
     public static void ShowIfNeeded(Order order, AddressGeocodingResult? geocodingResult)
     {
-        if (order.Type != OrderType.Map)
+        if (!DeliveryMethodExtensions.CanUseLiefertour(order))
         {
             return;
         }

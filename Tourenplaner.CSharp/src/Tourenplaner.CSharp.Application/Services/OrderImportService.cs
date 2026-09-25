@@ -19,24 +19,28 @@ public interface IOrderImportService
     Task<ImportResult> ImportOrdersAsync(
         List<XmlOrderImportData> xmlOrders,
         IOrderRepository orderRepository,
-        bool markAsXmlImported = false);
+        bool markAsXmlImported = false,
+        IEnumerable<TourRecord>? tours = null);
 
     Task<ImportPreviewResult> PreviewImportAsync(
         List<XmlOrderImportData> xmlOrders,
-        IOrderRepository orderRepository);
+        IOrderRepository orderRepository,
+        IEnumerable<TourRecord>? tours = null);
 }
 
 public class OrderImportService : IOrderImportService
 {
     public async Task<ImportPreviewResult> PreviewImportAsync(
         List<XmlOrderImportData> xmlOrders,
-        IOrderRepository orderRepository)
+        IOrderRepository orderRepository,
+        IEnumerable<TourRecord>? tours = null)
     {
         var preview = new ImportPreviewResult
         {
             InputOrderCount = xmlOrders?.Count ?? 0
         };
 
+        var protectedOrderIds = GetActiveTourOrderIds(tours);
         var existingOrders = (await orderRepository.GetAllAsync()).ToList();
         var existingById = existingOrders
             .Where(x => !string.IsNullOrWhiteSpace(x.Id))
@@ -47,7 +51,7 @@ public class OrderImportService : IOrderImportService
         {
             try
             {
-                var previewItem = BuildPreviewItem(xmlOrder, existingById);
+                var previewItem = BuildPreviewItem(xmlOrder, existingById, protectedOrderIds);
                 preview.Items.Add(previewItem);
 
                 switch (previewItem.Action)
@@ -75,9 +79,11 @@ public class OrderImportService : IOrderImportService
     public async Task<ImportResult> ImportOrdersAsync(
         List<XmlOrderImportData> sqlOrders,
         IOrderRepository orderRepository,
-        bool markAsXmlImported = false)
+        bool markAsXmlImported = false,
+        IEnumerable<TourRecord>? tours = null)
     {
         var result = new ImportResult { ImportedAt = DateTime.Now };
+        var protectedOrderIds = GetActiveTourOrderIds(tours);
         var existingOrders = (await orderRepository.GetAllAsync()).ToList();
 
         foreach (var sqlOrder in sqlOrders ?? [])
@@ -103,6 +109,7 @@ public class OrderImportService : IOrderImportService
                 }
 
                 var importedOrder = CreateImportedOrder(sqlOrder, isMapOrder, existingOrder, markAsXmlImported);
+                PreserveActiveTourOrder(existingOrder, importedOrder, protectedOrderIds);
                 var changes = DescribeDifferences(existingOrder, importedOrder);
                 if (changes.Count == 0)
                 {
@@ -133,7 +140,8 @@ public class OrderImportService : IOrderImportService
 
     private ImportPreviewItem BuildPreviewItem(
         XmlOrderImportData sqlOrder,
-        IReadOnlyDictionary<string, Order> existingById)
+        IReadOnlyDictionary<string, Order> existingById,
+        IReadOnlySet<string> protectedOrderIds)
     {
         var deliveryMethod = DeliveryMethodExtensions.ParseDeliveryMethod(sqlOrder.Lieferbedingung);
         var isMapOrder = deliveryMethod.IsMapOrder();
@@ -157,6 +165,7 @@ public class OrderImportService : IOrderImportService
         }
 
         var importedOrder = CreateImportedOrder(sqlOrder, isMapOrder, existingOrder);
+        PreserveActiveTourOrder(existingOrder, importedOrder, protectedOrderIds);
         var changes = DescribeDifferences(existingOrder, importedOrder);
         return new ImportPreviewItem
         {
@@ -167,6 +176,33 @@ public class OrderImportService : IOrderImportService
             OrderTypeLabel = FormatOrderType(importedOrder.Type),
             Changes = changes
         };
+    }
+
+    private static HashSet<string> GetActiveTourOrderIds(IEnumerable<TourRecord>? tours) =>
+        (tours ?? [])
+            .Where(tour => !tour.IsArchived)
+            .SelectMany(tour => tour.Stops)
+            .Where(stop => !TourStopIdentity.IsCompanyStop(stop) &&
+                           !string.Equals(stop.StopKind?.Trim(), "pause", StringComparison.OrdinalIgnoreCase))
+            .Select(stop => (stop.Auftragsnummer ?? string.Empty).Trim())
+            .Where(id => id.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static void PreserveActiveTourOrder(Order existingOrder, Order importedOrder, IReadOnlySet<string> protectedOrderIds)
+    {
+        var deliveryMethod = DeliveryMethodExtensions.ParseDeliveryMethod(importedOrder.DeliveryType);
+        var normalizedDeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(importedOrder.DeliveryType);
+        if (deliveryMethod == DeliveryMethodType.Selbstabholung ||
+            string.Equals(normalizedDeliveryType, DeliveryMethodExtensions.Post, StringComparison.OrdinalIgnoreCase) ||
+            (deliveryMethod == DeliveryMethodType.Fracht_mit_Spediteur && !importedOrder.IsAlternativeDeliveryEnabled))
+        {
+            return;
+        }
+
+        if (importedOrder.IsArchived && protectedOrderIds.Contains(existingOrder.Id.Trim()))
+        {
+            importedOrder.IsArchived = existingOrder.IsArchived;
+        }
     }
 
     private Order CreateImportedOrder(
@@ -220,6 +256,12 @@ public class OrderImportService : IOrderImportService
             Phone = resolvedPhone,
             Products = BuildProducts(sqlOrder.Produkte, existingOrder?.Products, sqlOrder.Lieferzeit),
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
+            IsAlternativeDeliveryEnabled = existingOrder?.IsAlternativeDeliveryEnabled == true &&
+                                           string.Equals(
+                                               DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(existingOrder.DeliveryType),
+                                               DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
+                                               StringComparison.OrdinalIgnoreCase) &&
+                                           DeliveryMethodExtensions.SupportsAlternativeDelivery(sqlOrder.Lieferbedingung),
             OrderStatus = Order.DefaultOrderStatus,
             Notes = sqlOrder.Notiz,
             IstVorauszahlung = sqlOrder.IstVorauszahlung,
@@ -293,6 +335,7 @@ public class OrderImportService : IOrderImportService
         existingOrder.Phone = importedOrder.Phone;
         existingOrder.Products = importedOrder.Products;
         existingOrder.DeliveryType = importedOrder.DeliveryType;
+        existingOrder.IsAlternativeDeliveryEnabled = importedOrder.IsAlternativeDeliveryEnabled;
         existingOrder.OrderStatus = importedOrder.OrderStatus;
         existingOrder.Notes = importedOrder.Notes;
         existingOrder.IstVorauszahlung = importedOrder.IstVorauszahlung;
@@ -319,6 +362,10 @@ public class OrderImportService : IOrderImportService
         AddChange(changes, "Termin", FormatDate(existingOrder.ScheduledDate), FormatDate(importedOrder.ScheduledDate));
         AddChange(changes, "Typ", FormatOrderType(existingOrder.Type), FormatOrderType(importedOrder.Type));
         AddChange(changes, "Lieferart", existingOrder.DeliveryType, importedOrder.DeliveryType);
+        if (existingOrder.IsAlternativeDeliveryEnabled && !importedOrder.IsAlternativeDeliveryEnabled)
+        {
+            changes.Add($"Alternative Planung: {DeliveryMethodExtensions.GetAlternativeDeliveryLabel(existingOrder.DeliveryType)} -> zurückgesetzt");
+        }
         AddChange(changes, "Auftragsadresse", FormatAddress(existingOrder.OrderAddress), FormatAddress(importedOrder.OrderAddress));
         AddChange(changes, "Lieferadresse", FormatDeliveryAddress(existingOrder.DeliveryAddress), FormatDeliveryAddress(importedOrder.DeliveryAddress));
         AddChange(changes, "E-Mail", existingOrder.Email, importedOrder.Email);

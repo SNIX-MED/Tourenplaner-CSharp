@@ -285,7 +285,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders);
         await _repository.SaveAllAsync(_allOrders);
         PublishOrderChange(SelectedOrder?.Id, SelectedOrder?.Id);
-        StatusText = $"Aufträge gespeichert: {_allOrders.Count(x => x.Type == OrderType.Map)}";
+        StatusText = $"Aufträge gespeichert: {_allOrders.Count(DeliveryMethodExtensions.CanUseLiefertour)}";
     }
 
     private void AddOrder()
@@ -334,7 +334,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         SelectOrderById(createdOrder.Id);
         PublishOrderChange(null, createdOrder.Id);
         OrderPinAssignmentWarningService.ShowIfNeeded(createdOrder, geocodingResult);
-        StatusText = createdOrder.Type == OrderType.Map && createdOrder.Location is null
+        StatusText = DeliveryMethodExtensions.CanUseLiefertour(createdOrder) && createdOrder.Location is null
             ? $"Auftrag {createdOrder.Id} gespeichert, aber Adresse konnte nicht automatisch geokodiert werden."
             : $"Auftrag {createdOrder.Id} wurde gespeichert.";
         ToastNotificationService.ShowInfo($"Auftrag {createdOrder.Id} wurde erstellt.");
@@ -375,7 +375,6 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
 
         var updated = dialog.CreatedOrder;
-        updated.AssignedTourId = existing.AssignedTourId;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
         if (!await ConfirmManualArchiveForAssignedActiveTourAsync(existing, updated.IsArchived))
@@ -596,7 +595,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
 
         var targets = _allOrders
-            .Where(x => x.Type == OrderType.Map && selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase))
+            .Where(x => DeliveryMethodExtensions.CanUseLiefertour(x) && selectedOrderIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase))
             .ToList();
         if (targets.Count == 0)
         {
@@ -694,7 +693,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             : preferredSelectedId;
         var query = (_searchText ?? string.Empty).Trim();
         var map = _allOrders
-            .Where(o => o.Type == OrderType.Map)
+            .Where(DeliveryMethodExtensions.CanUseLiefertour)
             .Where(o => o.IsArchived == ShowArchivedOrders)
             .Where(MatchesTourAssignmentFilter)
             .Where(MatchesSelectedFilters)
@@ -879,7 +878,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
 
         var statusOptions = _allOrders
-            .Where(o => o.Type == OrderType.Map)
+            .Where(DeliveryMethodExtensions.CanUseLiefertour)
             .Where(o => o.IsArchived == ShowArchivedOrders)
             .Select(o => NormalizeOrderStatus(o.OrderStatus))
             .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -919,7 +918,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         try
         {
             var orders = _allOrders
-                .Where(o => o.Type == OrderType.Map)
+                .Where(DeliveryMethodExtensions.CanUseLiefertour)
                 .Where(o => o.IsArchived == ShowArchivedOrders)
                 .ToList();
 
@@ -1288,6 +1287,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(p.DeliveryStatus)
             }).ToList(),
             DeliveryType = source.DeliveryType,
+            IsAlternativeDeliveryEnabled = source.IsAlternativeDeliveryEnabled,
             OrderStatus = source.OrderStatus,
             Notes = source.Notes,
             IstVorauszahlung = source.IstVorauszahlung,

@@ -530,6 +530,7 @@ internal static class MapHtmlDocumentBuilder
                            const value = Number.isFinite(scale) ? Math.max(0.35, Math.min(2.4, scale)) : 1.0;
                            markerScale = value;
                            document.documentElement.style.setProperty('--gawela-pin-scale', String(value));
+                           scheduleMarkerFanOutRecompute();
                          };
                          const getZoomBasedInfoCardScale = (zoom) => {
                            const strength = Number.isFinite(popupZoomBehaviorStrength)
@@ -620,11 +621,23 @@ internal static class MapHtmlDocumentBuilder
                          };
 
                          const scheduleOverlapHoverReset = () => {
-                           clearOverlapHoverReset();
+                           if (!hoveredOverlapGroupKey || overlapHoverResetHandle) return;
                            overlapHoverResetHandle = window.setTimeout(() => {
                              overlapHoverResetHandle = 0;
                              setHoveredOverlapGroupKey('');
                            }, 140);
+                         };
+
+                         const handleOverlapPointerMove = (evt) => {
+                           if (!hoveredOverlapGroupKey) return;
+                           const pin = evt.target?.closest?.('[data-overlap-group-key]');
+                           if (pin?.dataset.overlapGroupKey === hoveredOverlapGroupKey) {
+                             clearOverlapHoverReset();
+                           } else {
+                             // Leaving the group must collapse it even when the pointer stays
+                             // on the map. Continued movement must not postpone the timeout.
+                             scheduleOverlapHoverReset();
+                           }
                          };
 
                          const getOverlapRadiusPixels = (groupSize, isExpanded) => {
@@ -641,15 +654,20 @@ internal static class MapHtmlDocumentBuilder
                            return Math.max(4, Math.min(11, compactRadius * zoomFactor));
                          };
 
-                         const spreadOverlappingMarkers = (markers, expandedGroupKey) => {
+                         const spreadOverlappingMarkers = (markers, expandedGroupKey, reserveRouteCenter = true) => {
                            if (!Array.isArray(markers) || markers.length === 0) return [];
 
                            const groups = groupOverlappingMarkers(markers);
+                           // Keep free orders outside the route pins' fan-out at the same address.
+                           const routeStops = window.__gawelaLastRoutePayload?.routeStops || [];
+                           const routeGroups = reserveRouteCenter ? groupOverlappingMarkers(routeStops) : new Map();
 
                            const spreadMarkers = [];
                            groups.forEach((group, groupKey) => {
                               if (!Array.isArray(group) || group.length === 0) return;
-                              if (group.length === 1) {
+                              const routeGroup = routeGroups.get(groupKey);
+                              const hasRouteStop = !!routeGroup;
+                              if (group.length === 1 && !hasRouteStop) {
                                 spreadMarkers.push({
                                   ...group[0].marker,
                                   __overlapSourceIndex: group[0].index,
@@ -663,7 +681,14 @@ internal static class MapHtmlDocumentBuilder
                               const centerLat = group.reduce((sum, entry) => sum + Number(entry.marker.lat), 0) / group.length;
                               const centerLon = group.reduce((sum, entry) => sum + Number(entry.marker.lon), 0) / group.length;
                               const centerPoint = map.project([centerLon, centerLat]);
-                              const radiusPixels = getOverlapRadiusPixels(group.length, groupKey === expandedGroupKey);
+                              const routeRadius = routeGroup && routeGroup.length > 1
+                                ? Math.max(getOverlapRadiusPixels(routeGroup.length, true), routeGroup.length * 16 * markerScale / Math.PI)
+                                : 0;
+                              const radiusPixels = hasRouteStop
+                                ? routeRadius + Math.max(32, 32 * markerScale, (group.length * 24 * markerScale) / (2 * Math.PI))
+                                : groupKey === expandedGroupKey
+                                  ? Math.max(getOverlapRadiusPixels(group.length, true), group.length * 16 * markerScale / Math.PI)
+                                  : getOverlapRadiusPixels(group.length, false);
                               const angleOffset = group.length === 2 ? 0 : -(Math.PI / 2);
                               group.forEach((entry, index) => {
                                 const angle = angleOffset + (((Math.PI * 2) / group.length) * index);
@@ -692,11 +717,7 @@ internal static class MapHtmlDocumentBuilder
                          };
 
                          const recomputeVisibleMarkerFanOut = () => {
-                           const originalMarkers = window.__gawelaLastMarkers;
-                           if (!Array.isArray(originalMarkers) || originalMarkers.length === 0 || mapMarkers.length === 0) {
-                             return;
-                           }
-
+                           const originalMarkers = window.__gawelaLastMarkers || [];
                            const resolvedMarkers = spreadOverlappingMarkers(originalMarkers, hoveredOverlapGroupKey);
                            resolvedMarkers.forEach((markerData, index) => {
                              const marker = markerData && markerData.id ? markerMap.get(markerData.id) : mapMarkers[index];
@@ -705,6 +726,16 @@ internal static class MapHtmlDocumentBuilder
                              }
 
                              marker.setLngLat([markerData.displayLon, markerData.displayLat]);
+                           });
+                           const routeStops = window.__gawelaLastRoutePayload?.routeStops || [];
+                           const resolvedRouteStops = spreadOverlappingMarkers(routeStops, hoveredOverlapGroupKey, false);
+                           routeStopHitTargets = [];
+                           resolvedRouteStops.forEach(stop => {
+                             const marker = routeMarkerMap.get(stop.id);
+                             if (!marker) return;
+                             if (!marker.__gawelaDragging) marker.setLngLat([stop.displayLon, stop.displayLat]);
+                             const position = marker.getLngLat();
+                             routeStopHitTargets.push({ id: stop.id, lat: position.lat, lon: position.lng });
                            });
                          };
 
@@ -901,6 +932,7 @@ internal static class MapHtmlDocumentBuilder
                            const totalWeightKgText = m && m.totalWeightKgText ? String(m.totalWeightKgText).trim() : '';
                            const deliveryDate = m && m.deliveryDate ? String(m.deliveryDate).trim() : '';
                            const deliveryCanOccurEarlier = !!(m && m.deliveryCanOccurEarlier);
+                           const isAlternativeLiefertour = !!(m && m.isAlternativeLiefertour);
                            const products = Array.isArray(m && m.products)
                              ? m.products.map(x => (x ?? '').toString().trim()).filter(x => x.length > 0)
                              : [];
@@ -938,6 +970,10 @@ internal static class MapHtmlDocumentBuilder
                              sections.push(
                                `<section class='gawela-info-card-section gawela-info-card-section-weight'><div class='gawela-info-card-icon-wrap'><img src='__INFO_ICON_WEIGHT__' alt='' /></div><div><p class='gawela-info-card-weight'><strong>${escapeHtml(totalWeightKgText)} kg</strong></p></div></section>`
                              );
+                           }
+
+                           if (isAlternativeLiefertour) {
+                             sections.push(`<section class='gawela-info-card-section'><div><p class='gawela-info-card-line'>Evtl. Liefertour</p></div></section>`);
                            }
 
                            if (deliveryDate.length > 0) {
@@ -1844,7 +1880,8 @@ internal static class MapHtmlDocumentBuilder
                          map.on('zoomend', scheduleMarkerFanOutRecompute);
                          map.on('load', schedulePopupScaleRecompute);
                          map.on('load', scheduleMarkerFanOutRecompute);
-                         mapCanvas.addEventListener('mouseleave', () => {
+                         map.getContainer().addEventListener('pointermove', handleOverlapPointerMove, true);
+                         map.getContainer().addEventListener('mouseleave', () => {
                            clearOverlapHoverReset();
                            setHoveredOverlapGroupKey('');
                          });
@@ -1881,6 +1918,7 @@ internal static class MapHtmlDocumentBuilder
                              marker.__gawelaOrderId = m.id ? String(m.id) : '';
                               const markerEl = marker.getElement();
                               const overlapGroupKey = m && m.__overlapGroupKey ? String(m.__overlapGroupKey) : '';
+                              markerEl.dataset.overlapGroupKey = overlapGroupKey;
                               markerEl.style.cursor = 'pointer';
                               markerEl.style.pointerEvents = 'auto';
                               applyMarkerStackOrder(marker, 40, 'gawela-order-marker-layer');
@@ -1895,7 +1933,8 @@ internal static class MapHtmlDocumentBuilder
                                 scheduleOverlapHoverReset();
                                 map.getCanvas().style.cursor = 'grab';
                               });
-                             markerEl.addEventListener('click', () => {
+                             markerEl.addEventListener('click', (evt) => {
+                               evt.stopPropagation();
                                if (window.chrome && window.chrome.webview && m.id) {
                                  stickyPopupOrderId = String(m.id);
                                  popup.addTo(map);
@@ -2124,6 +2163,7 @@ internal static class MapHtmlDocumentBuilder
                            clearMarkers(routeMarkers);
                            routeMarkerMap = new Map();
                            routeStopHitTargets = [];
+                           scheduleMarkerFanOutRecompute();
 
                            if (!Array.isArray(routeStops) || routeStops.length === 0) {
                              ensureRouteLayer([], routeColor);
@@ -2188,13 +2228,13 @@ internal static class MapHtmlDocumentBuilder
                              }
                            }
 
-                           routeStops.forEach(stop => {
+                           spreadOverlappingMarkers(routeStops, hoveredOverlapGroupKey, false).forEach(stop => {
                              if (!stop || typeof stop.lat !== 'number' || typeof stop.lon !== 'number') return;
                              if (stop.id) {
                                routeStopHitTargets.push({
                                  id: stop.id,
-                                 lat: Number(stop.lat),
-                                 lon: Number(stop.lon)
+                                 lat: stop.displayLat,
+                                 lon: stop.displayLon
                                });
                              }
 
@@ -2202,7 +2242,7 @@ internal static class MapHtmlDocumentBuilder
                               createScaledPopupHtml('')
                             );
                              const marker = new ttSdk.Marker({ element: buildMarkerElement(stop, true), draggable: true, anchor: 'center' })
-                               .setLngLat([stop.lon, stop.lat])
+                               .setLngLat([stop.displayLon, stop.displayLat])
                                .setPopup(popup)
                                .addTo(map);
                              marker.__gawelaOrderId = stop.id ? String(stop.id) : '';
@@ -2210,10 +2250,19 @@ internal static class MapHtmlDocumentBuilder
                              markerEl.style.cursor = 'pointer';
                              markerEl.style.pointerEvents = 'auto';
                              applyMarkerStackOrder(marker, 45, 'gawela-route-marker-layer');
-                             markerEl.addEventListener('mouseenter', () => { map.getCanvas().style.cursor = 'pointer'; });
-                             markerEl.addEventListener('mouseleave', () => { map.getCanvas().style.cursor = 'grab'; });
+                             markerEl.dataset.overlapGroupKey = stop.__overlapGroupKey;
+                             markerEl.addEventListener('mouseenter', () => {
+                               clearOverlapHoverReset();
+                               setHoveredOverlapGroupKey(stop.__overlapGroupKey);
+                               map.getCanvas().style.cursor = 'pointer';
+                             });
+                             markerEl.addEventListener('mouseleave', () => {
+                               scheduleOverlapHoverReset();
+                               map.getCanvas().style.cursor = 'grab';
+                             });
                              let draggedDuringInteraction = false;
                              marker.on('dragstart', () => {
+                               marker.__gawelaDragging = true;
                                draggedDuringInteraction = false;
                                markerEl.style.cursor = 'grabbing';
                              });
@@ -2221,6 +2270,7 @@ internal static class MapHtmlDocumentBuilder
                                draggedDuringInteraction = true;
                              });
                             marker.on('dragend', () => {
+                              marker.__gawelaDragging = false;
                               markerEl.style.cursor = 'pointer';
                               const p = marker.getLngLat();
                                if (window.chrome && window.chrome.webview && stop.id) {
@@ -2244,12 +2294,14 @@ internal static class MapHtmlDocumentBuilder
                               }
                              };
                              markerEl.addEventListener('pointerup', (evt) => {
+                               evt.stopPropagation();
                                if (evt && typeof evt.button === 'number' && evt.button !== 0) {
                                  return;
                                }
                                selectRouteStopFromMarker();
                              });
-                             markerEl.addEventListener('click', () => {
+                             markerEl.addEventListener('click', (evt) => {
+                               evt.stopPropagation();
                                selectRouteStopFromMarker();
                              });
 

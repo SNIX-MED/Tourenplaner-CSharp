@@ -40,6 +40,11 @@ public sealed class Order
     public string Phone { get; set; } = string.Empty;
     public List<OrderProductInfo> Products { get; set; } = new();
     public string DeliveryType { get; set; } = "Frei Bordsteinkante";
+    /// <summary>
+    /// Allows this order to be considered for the opposite dispatch channel while preserving
+    /// the delivery type received from the ERP system.
+    /// </summary>
+    public bool IsAlternativeDeliveryEnabled { get; set; }
     public string OrderStatus { get; set; } = DefaultOrderStatus;
     public string AvisoStatus { get; set; } = "nicht avisiert";
     public bool IstVorauszahlung { get; set; }

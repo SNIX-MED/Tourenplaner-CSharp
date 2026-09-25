@@ -118,4 +118,38 @@ public static class DeliveryMethodExtensions
     }
 
     public static bool RequiresMapPin(string? value) => ResolveOrderType(value) == OrderType.Map;
+
+    public static bool SupportsAlternativeDelivery(string? value)
+    {
+        var normalized = NormalizeDeliveryTypeLabel(value);
+        return ResolveOrderType(normalized) == OrderType.Map ||
+               string.Equals(normalized, Spediteur, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool CanUseLiefertour(Order order) =>
+        order.Type == OrderType.Map ||
+        (order.IsAlternativeDeliveryEnabled &&
+         string.Equals(NormalizeDeliveryTypeLabel(order.DeliveryType), Spediteur, StringComparison.OrdinalIgnoreCase));
+
+    public static bool CanUseSpediteurView(Order order) =>
+        order.Type == OrderType.NonMap ||
+        (order.IsAlternativeDeliveryEnabled && order.Type == OrderType.Map);
+
+    public static string GetAlternativeDeliveryLabel(string? value) =>
+        ResolveOrderType(value) == OrderType.Map ? "Evtl. Spediteur" : "Evtl. Liefertour";
+
+    public static string GetPlanningDeliveryDisplayLabel(Order order)
+    {
+        var normalized = NormalizeDeliveryTypeLabel(order.DeliveryType);
+        if (!order.IsAlternativeDeliveryEnabled)
+        {
+            return normalized;
+        }
+
+        return string.Equals(normalized, Spediteur, StringComparison.OrdinalIgnoreCase)
+            ? "Spediteur / Gawela"
+            : ResolveOrderType(normalized) == OrderType.Map
+                ? "Gawela / Spediteur"
+                : normalized;
+    }
 }

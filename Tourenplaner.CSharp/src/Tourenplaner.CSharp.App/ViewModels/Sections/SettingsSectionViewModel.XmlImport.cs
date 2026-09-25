@@ -13,6 +13,10 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed partial class SettingsSectionViewModel
 {
+    private Task<IReadOnlyList<TourRecord>> LoadToursForXmlImportAsync() =>
+        (_tourRecordStore ?? throw new InvalidOperationException("Touren konnten für die Archivierungsprüfung nicht geladen werden."))
+        .LoadAsync();
+
     private void DownloadXmlTemplateFile()
     {
         var dialog = new SaveFileDialog
@@ -56,7 +60,8 @@ public sealed partial class SettingsSectionViewModel
             var xmlService = new XmlOrderImportService();
             var loadResult = xmlService.LoadOrdersFromFileDetailed(XmlImportFilePath, BuildXmlImportMapping());
             var importService = new OrderImportService();
-            var preview = await importService.PreviewImportAsync(loadResult.Orders, _orderRepository);
+            var tours = await LoadToursForXmlImportAsync();
+            var preview = await importService.PreviewImportAsync(loadResult.Orders, _orderRepository, tours);
 
             var previewErrors = loadResult.Errors
                 .Concat(preview.Errors)
@@ -117,10 +122,12 @@ public sealed partial class SettingsSectionViewModel
             }
 
             var importService = new OrderImportService();
+            var tours = await LoadToursForXmlImportAsync();
             var result = await importService.ImportOrdersAsync(
                 _previewedXmlOrders.ToList(),
                 _orderRepository,
-                markAsXmlImported: true);
+                markAsXmlImported: true,
+                tours: tours);
 
             var parserErrorCount = XmlImportPreviewErrors.Count;
             if (result.Errors.Any())
@@ -268,7 +275,7 @@ public sealed partial class SettingsSectionViewModel
 
         var allOrders = (await _orderRepository.GetAllAsync()).ToList();
         var importedMapOrders = allOrders
-            .Where(x => x.Type == OrderType.Map &&
+            .Where(x => DeliveryMethodExtensions.CanUseLiefertour(x) &&
                         changedOrderIds.Contains(x.Id ?? string.Empty, StringComparer.OrdinalIgnoreCase))
             .ToList();
         if (importedMapOrders.Count == 0)
@@ -449,7 +456,6 @@ public sealed partial class SettingsSectionViewModel
         }
 
         var updated = dialog.CreatedOrder;
-        updated.AssignedTourId = existing.AssignedTourId;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
         var geocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, existing.Location);
 
@@ -485,6 +491,14 @@ public sealed partial class SettingsSectionViewModel
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;
+        }
+
+        var tours = (await LoadToursForXmlImportAsync()).ToList();
+        var reconciliation = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
+        if (reconciliation.HasChanges)
+        {
+            await _tourRecordStore!.SaveAsync(tours);
+            _dataSyncService?.PublishTours(_instanceId);
         }
 
         _dataSyncService?.PublishOrders(_instanceId, originalId, updated.Id);

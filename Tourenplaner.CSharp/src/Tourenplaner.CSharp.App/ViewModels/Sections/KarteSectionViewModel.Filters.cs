@@ -16,7 +16,7 @@ public sealed partial class KarteSectionViewModel
 
         var query = (_searchText ?? string.Empty).Trim();
         IEnumerable<Order> filtered = _allOrders
-            .Where(o => o.Type == OrderType.Map && o.Location is not null)
+            .Where(o => DeliveryMethodExtensions.CanUseLiefertour(o) && o.Location is not null)
             .Where(o => !o.IsArchived)
             .Where(o => !routeOrderIds.Contains(o.Id));
 
@@ -152,6 +152,7 @@ public sealed partial class KarteSectionViewModel
             ScheduledDate = source.ScheduledDate,
             DeliveryDate = source.DeliveryDate,
             DeliveryCanOccurEarlier = source.DeliveryCanOccurEarlier,
+            IsAlternativeLiefertour = source.IsAlternativeLiefertour,
             AssignedTourId = source.AssignedTourId,
             IsAssigned = source.IsAssigned,
             Latitude = source.Latitude,
@@ -213,7 +214,7 @@ public sealed partial class KarteSectionViewModel
         try
         {
             var mapOrders = _allOrders
-                .Where(o => o.Type == OrderType.Map && o.Location is not null)
+                .Where(o => DeliveryMethodExtensions.CanUseLiefertour(o) && o.Location is not null)
                 .Where(o => !o.IsArchived)
                 .ToList();
 

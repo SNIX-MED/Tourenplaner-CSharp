@@ -131,7 +131,8 @@ public sealed partial class MainShellViewModel : ObservableObject
             repositories.OrderRepository,
             repositories.SettingsRepository,
             dataSyncService,
-            repositories.StorageMode);
+            repositories.StorageMode,
+            repositories.TourRecordStore);
         _settingsSection = settings;
         var gps = new GpsSectionViewModel();
         _gpsSection = gps;
@@ -613,7 +614,6 @@ public sealed partial class MainShellViewModel : ObservableObject
         }
 
         var updated = dialog.CreatedOrder;
-        updated.AssignedTourId = existing.AssignedTourId;
         var updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, existing.Location);
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
