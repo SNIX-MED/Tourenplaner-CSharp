@@ -1,4 +1,5 @@
 using Tourenplaner.CSharp.App.Services;
+using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Tests.Application;
 
@@ -54,6 +55,25 @@ public sealed class TourPdfHtmlBuilderTests
 
         Assert.Contains("Vorsicht &lt;Glas&gt; &amp; zerbrechlich", html);
         Assert.Equal(1, CountOccurrences(html, "class=\"stop-notes\""));
+    }
+
+    [Fact]
+    public void Build_RendersSelectedAdditionalMaterialAndEncodesNames()
+    {
+        var snapshot = new RouteExportSnapshot(
+            "Tour 1", "25.09.2026", "07:30", null, null, [], [], [], null,
+            [new TourAdditionalMaterial
+            {
+                GroupName = "Montage & Spezial",
+                WeightKg = 42.5,
+                Items = [new AdditionalMaterialItem { Name = "Bohrer <gross>", WeightKg = 12.5 }]
+            }]);
+
+        var html = TourPdfHtmlBuilder.Build(snapshot, null);
+
+        Assert.Contains("Zusätzliches Material", html);
+        Assert.Contains("Montage &amp; Spezial (42.5 kg)", html);
+        Assert.Contains("Bohrer &lt;gross&gt; (12.5 kg)", html);
     }
 
     private static int CountOccurrences(string value, string search)

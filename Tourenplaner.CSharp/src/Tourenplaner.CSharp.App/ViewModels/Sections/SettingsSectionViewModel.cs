@@ -36,6 +36,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private readonly string _dataRoot;
     private bool _isBackgroundGeocodingRunning;
     private SettingsCategoryNavigationItem? _selectedSettingsCategory;
+    private List<AdditionalMaterialGroup> _additionalMaterialGroups = new();
 
     private string _statusText = string.Empty;
 
@@ -92,7 +93,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private int _stayMinutesMitVerteilungMontage = AppSettings.DefaultStayMinutesMitVerteilungMontage;
     private string _tomTomTrafficSeverityMode = AppSettings.DefaultTomTomTrafficSeverityMode;
     private bool _tomTomEnableTileCache = true;
-    private bool _webfleetEnabled;
     private string _webfleetAccountName = "gawela";
     private string _webfleetUserName = "Janine Fäsi";
     private string _webfleetApiKey = string.Empty;
@@ -198,7 +198,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         [
             new SettingsCategoryNavigationItem("general", "Allgemein", "Firmendaten, E-Mail-Vorlagen, Standard-Startzeit und eingeblendete Werkzeuge.", "\uE713"),
             new SettingsCategoryNavigationItem("map-display", "Karte & Darstellung", "Farben, Tourlinien, Karten-Infokarten, Filter und Zoomverhalten.", "\uE787"),
-            new SettingsCategoryNavigationItem("tour-planning", "Touren & Planung", "Aufenthaltszeiten, Kapazitätswarnungen, Geschwindigkeiten und Staupuffer.", "\uE8F1"),
+            new SettingsCategoryNavigationItem("tour-planning", "Touren & Planung", "Werkzeuggruppen, Aufenthaltszeiten, Kapazitätswarnungen, Geschwindigkeiten und Staupuffer.", "\uE8F1"),
             new SettingsCategoryNavigationItem("tomtom-routing", "TomTom & Routing", "API-Key, Karten-Cache und technische Aktualisierungswerte für TomTom.", "\uE81E"),
             new SettingsCategoryNavigationItem("webfleet", "WEBFLEET", "Fahrzeugpositionen, Auftragsversand und Verbindung zu TomTom GO Fleet.", "\uE707"),
             new SettingsCategoryNavigationItem("data-sync", "Datenquelle & Sync", "Lokale oder zentrale Datenspeicherung, PostgreSQL-Verbindung und Synchronisationsstatus.", "\uE8D4"),
@@ -407,6 +407,20 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     }
 
     public string SelectedSettingsCategoryKey => SelectedSettingsCategory?.Key ?? string.Empty;
+
+    public string AdditionalMaterialGroupsSummary => _additionalMaterialGroups.Count == 0
+        ? "Noch keine Werkzeuggruppen eingerichtet."
+        : $"{_additionalMaterialGroups.Count} Werkzeuggruppe(n) eingerichtet.";
+
+    public IReadOnlyList<AdditionalMaterialGroup> GetAdditionalMaterialGroups() =>
+        _additionalMaterialGroups.Select(CloneAdditionalMaterialGroup).ToList();
+
+    public async Task SetAdditionalMaterialGroupsAsync(IEnumerable<AdditionalMaterialGroup> groups)
+    {
+        _additionalMaterialGroups = (groups ?? []).Select(CloneAdditionalMaterialGroup).ToList();
+        OnPropertyChanged(nameof(AdditionalMaterialGroupsSummary));
+        await SaveCoreAsync(showToast: true);
+    }
 
     public string SelectedSettingsCategoryTitle => SelectedSettingsCategory?.Title ?? "Allgemein";
 
@@ -783,7 +797,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         set => SetProperty(ref _tomTomEnableTileCache, value);
     }
 
-    public bool WebfleetEnabled { get => _webfleetEnabled; set => SetProperty(ref _webfleetEnabled, value); }
     public string WebfleetAccountName { get => _webfleetAccountName; set { if (SetProperty(ref _webfleetAccountName, value)) { OnPropertyChanged(nameof(HasWebfleetCredentials)); RaiseWebfleetCommandStates(); } } }
     public string WebfleetUserName { get => _webfleetUserName; set { if (SetProperty(ref _webfleetUserName, value)) { OnPropertyChanged(nameof(HasWebfleetCredentials)); RaiseWebfleetCommandStates(); } } }
     public string WebfleetApiKey { get => _webfleetApiKey; set { if (SetProperty(ref _webfleetApiKey, value)) { OnPropertyChanged(nameof(HasWebfleetCredentials)); RaiseWebfleetCommandStates(); } } }
@@ -1256,7 +1269,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             nameof(StayMinutesMitVerteilungMontage) or
             nameof(TomTomTrafficSeverityMode) or
             nameof(TomTomEnableTileCache) or
-            nameof(WebfleetEnabled) or
             nameof(WebfleetAccountName) or
             nameof(WebfleetUserName) or
             nameof(WebfleetApiKey) or
@@ -1687,6 +1699,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         model.LastBackupIso = LastBackupIso;
         model.XmlImportFilePath = (XmlImportFilePath ?? string.Empty).Trim();
         model.XmlImportMapping = BuildXmlImportMapping().WithDefaults();
+        model.AdditionalMaterialGroups = _additionalMaterialGroups.Select(CloneAdditionalMaterialGroup).ToList();
         model.QuickAccessItems = new List<string>();
         model.SetUserPreference(currentUserName, userPreference);
 
@@ -1788,14 +1801,28 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         ShowSpediteurTool = userPreference.ShowSpediteurTool;
         SpediteurToolUrl = string.IsNullOrWhiteSpace(userPreference.SpediteurToolUrl) ? AppSettings.DefaultSpediteurToolUrl : userPreference.SpediteurToolUrl;
         TourDefaultStartTime = NormalizeTourDefaultStartTime(userPreference.TourDefaultStartTime);
+        _additionalMaterialGroups = (settings.AdditionalMaterialGroups ?? []).Select(CloneAdditionalMaterialGroup).ToList();
+        OnPropertyChanged(nameof(AdditionalMaterialGroupsSummary));
 
         XmlImportFilePath = settings.XmlImportFilePath ?? string.Empty;
         ApplyXmlImportMapping(settings.XmlImportMapping);
     }
 
+    private static AdditionalMaterialGroup CloneAdditionalMaterialGroup(AdditionalMaterialGroup source) => new()
+    {
+        Id = string.IsNullOrWhiteSpace(source.Id) ? Guid.NewGuid().ToString("N") : source.Id.Trim(),
+        Name = (source.Name ?? string.Empty).Trim(),
+        TotalWeightKg = source.TotalWeightKg,
+        Items = (source.Items ?? []).Select(x => new AdditionalMaterialItem
+        {
+            Name = (x.Name ?? string.Empty).Trim(),
+            WeightKg = Math.Max(0, x.WeightKg)
+        }).ToList()
+    };
+
     private WebfleetConnectionSettings BuildWebfleetUserProfile() => new()
     {
-        IsEnabled = WebfleetEnabled,
+        IsEnabled = HasWebfleetCredentials,
         AccountName = (WebfleetAccountName ?? string.Empty).Trim(),
         UserName = (WebfleetUserName ?? string.Empty).Trim(),
         ApiKey = WebfleetCredentialProtector.Protect((WebfleetApiKey ?? string.Empty).Trim()),
@@ -1806,7 +1833,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private async Task ApplyWebfleetUserProfileAsync(AppSettings settings)
     {
         var profile = await WebfleetUserSettingsService.LoadOrMigrateLegacyAsync(settings, _currentUserName);
-        WebfleetEnabled = profile?.IsEnabled ?? false;
         WebfleetAccountName = string.IsNullOrWhiteSpace(profile?.AccountName) ? "gawela" : profile.AccountName;
         WebfleetUserName = profile?.UserName ?? string.Empty;
         WebfleetApiKey = profile is null ? string.Empty : WebfleetCredentialProtector.Unprotect(profile.ApiKey);

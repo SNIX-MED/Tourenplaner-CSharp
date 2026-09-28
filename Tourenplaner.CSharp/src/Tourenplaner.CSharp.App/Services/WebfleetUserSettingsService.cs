@@ -110,7 +110,7 @@ internal static class WebfleetUserSettingsService
 
     private static WebfleetConnectionSettings Clone(WebfleetConnectionSettings source) => new()
     {
-        IsEnabled = source.IsEnabled,
+        IsEnabled = source.HasCredentials,
         AccountName = source.AccountName ?? string.Empty,
         UserName = source.UserName ?? string.Empty,
         ApiKey = source.ApiKey ?? string.Empty,

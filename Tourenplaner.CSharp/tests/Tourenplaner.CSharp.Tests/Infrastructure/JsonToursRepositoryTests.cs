@@ -65,13 +65,24 @@ public class JsonToursRepositoryTests
                 {
                     Id = 42,
                     EmployeeIds = ["employee-a", "employee-b", "employee-c"],
-                    RouteGeometryPoints = [new GeoPoint(47.3769, 8.5417), new GeoPoint(47.4230, 9.3748)]
+                    RouteGeometryPoints = [new GeoPoint(47.3769, 8.5417), new GeoPoint(47.4230, 9.3748)],
+                    AdditionalMaterials = [new TourAdditionalMaterial
+                    {
+                        GroupId = "montage",
+                        GroupName = "Montage",
+                        WeightKg = 45.5,
+                        Items = [new AdditionalMaterialItem { Name = "Werkzeugkiste", WeightKg = 45.5 }]
+                    }]
                 }
             ]);
 
             var tour = Assert.Single(await repository.LoadAsync());
             Assert.Equal(["employee-a", "employee-b", "employee-c"], tour.EmployeeIds);
             Assert.Equal([new GeoPoint(47.3769, 8.5417), new GeoPoint(47.4230, 9.3748)], tour.RouteGeometryPoints);
+            var material = Assert.Single(tour.AdditionalMaterials);
+            Assert.Equal("Montage", material.GroupName);
+            Assert.Equal(45.5, material.WeightKg);
+            Assert.Equal("Werkzeugkiste", Assert.Single(material.Items).Name);
         }
         finally
         {

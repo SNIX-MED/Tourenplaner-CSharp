@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Windows;
 using Tourenplaner.CSharp.App.ViewModels;
+using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Views.Dialogs;
 
@@ -21,7 +22,9 @@ public partial class CreateTourDialogWindow : Window
         string? selectedSecondaryVehicleId = null,
         string? selectedSecondaryTrailerId = null,
         IReadOnlyList<string>? selectedEmployeeIds = null,
-        bool showOpenOnMapButton = false)
+        bool showOpenOnMapButton = false,
+        IReadOnlyList<AdditionalMaterialGroup>? additionalMaterialGroups = null,
+        IReadOnlyList<TourAdditionalMaterial>? selectedAdditionalMaterials = null)
     {
         InitializeComponent();
         ViewModel = new CreateTourDialogViewModel(
@@ -37,7 +40,9 @@ public partial class CreateTourDialogWindow : Window
             selectedTrailerId,
             selectedSecondaryVehicleId,
             selectedSecondaryTrailerId,
-            selectedEmployeeIds);
+            selectedEmployeeIds,
+            additionalMaterialGroups,
+            selectedAdditionalMaterials);
         DataContext = ViewModel;
         ShowOpenOnMapButton = showOpenOnMapButton;
         OpenOnMapButton.Visibility = showOpenOnMapButton ? Visibility.Visible : Visibility.Collapsed;
@@ -119,7 +124,9 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         string? selectedTrailerId = null,
         string? selectedSecondaryVehicleId = null,
         string? selectedSecondaryTrailerId = null,
-        IReadOnlyList<string>? selectedEmployeeIds = null)
+        IReadOnlyList<string>? selectedEmployeeIds = null,
+        IReadOnlyList<AdditionalMaterialGroup>? additionalMaterialGroups = null,
+        IReadOnlyList<TourAdditionalMaterial>? selectedAdditionalMaterials = null)
     {
         HourOptions = Enumerable.Range(0, 24).Select(x => x.ToString("00", CultureInfo.InvariantCulture)).ToList();
         MinuteOptions = Enumerable.Range(0, 12).Select(x => (x * 5).ToString("00", CultureInfo.InvariantCulture)).ToList();
@@ -190,6 +197,25 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             employee.PropertyChanged += OnEmployeePropertyChanged;
         }
         RefreshEmployeesSummary();
+
+        var selectedMaterials = selectedAdditionalMaterials ?? [];
+        var selectedMaterialIds = selectedMaterials.Select(x => x.GroupId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var availableGroups = (additionalMaterialGroups ?? []).ToList();
+        foreach (var selected in selectedMaterials.Where(x => !availableGroups.Any(g => string.Equals(g.Id, x.GroupId, StringComparison.OrdinalIgnoreCase))))
+        {
+            availableGroups.Add(new AdditionalMaterialGroup
+            {
+                Id = selected.GroupId,
+                Name = selected.GroupName,
+                TotalWeightKg = selected.WeightKg,
+                Items = (selected.Items ?? []).Select(x => new AdditionalMaterialItem { Name = x.Name, WeightKg = x.WeightKg }).ToList()
+            });
+        }
+        AdditionalMaterialOptions = availableGroups
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .Select(x => new SelectableAdditionalMaterial(x, selectedMaterialIds.Contains(x.Id)))
+            .OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
     }
 
     public IReadOnlyList<string> HourOptions { get; }
@@ -203,6 +229,8 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     public List<SelectableEmployee> Employees { get; }
 
     public IReadOnlyList<string> SingleEmployeeWarningDeliveryTypes { get; }
+    public List<SelectableAdditionalMaterial> AdditionalMaterialOptions { get; }
+    public bool HasAdditionalMaterialOptions => AdditionalMaterialOptions.Count > 0;
 
     public string DateText
     {
@@ -386,7 +414,8 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             SelectedTrailer?.Id,
             UseSecondaryVehicle ? secondaryVehicleId : null,
             UseSecondaryVehicle && !string.IsNullOrWhiteSpace(secondaryTrailerId) ? secondaryTrailerId : null,
-            employees);
+            employees,
+            AdditionalMaterialOptions.Where(x => x.IsSelected).Select(x => x.CreateSnapshot()).ToList());
         return true;
     }
 
@@ -495,7 +524,26 @@ public sealed record CreateTourDialogResult(
     string? TrailerId,
     string? SecondaryVehicleId,
     string? SecondaryTrailerId,
-    IReadOnlyList<string> EmployeeIds);
+    IReadOnlyList<string> EmployeeIds,
+    IReadOnlyList<TourAdditionalMaterial> AdditionalMaterials);
+
+public sealed class SelectableAdditionalMaterial : ObservableObject
+{
+    private bool _isSelected;
+    private readonly AdditionalMaterialGroup _source;
+    public SelectableAdditionalMaterial(AdditionalMaterialGroup source, bool isSelected) { _source = source; _isSelected = isSelected; }
+    public string Name => _source.Name;
+    public double WeightKg => _source.ResolveWeightKg();
+    public string Label => $"{Name} ({WeightKg:0.##} kg)";
+    public bool IsSelected { get => _isSelected; set => SetProperty(ref _isSelected, value); }
+    public TourAdditionalMaterial CreateSnapshot() => new()
+    {
+        GroupId = _source.Id,
+        GroupName = _source.Name,
+        WeightKg = WeightKg,
+        Items = (_source.Items ?? []).Select(x => new AdditionalMaterialItem { Name = x.Name, WeightKg = x.WeightKg }).ToList()
+    };
+}
 
 
 

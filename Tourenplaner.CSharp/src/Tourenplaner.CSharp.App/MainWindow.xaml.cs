@@ -43,7 +43,7 @@ public partial class MainWindow : Window
     private CustomPopupPlacement[] ToastPopup_Placement(Size popupSize, Size targetSize, Point offset)
     {
         const double marginRight = 14d;
-        const double marginBottom = 14d;
+        const double marginBottom = 82d;
 
         var x = Math.Max(0d, targetSize.Width - popupSize.Width - marginRight);
         var y = Math.Max(0d, targetSize.Height - popupSize.Height - marginBottom);

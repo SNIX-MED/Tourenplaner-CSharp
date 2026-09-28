@@ -214,8 +214,9 @@
                                Text="{Binding SelectedNavigationItem.DisplayName}" />
                     <TextBlock Margin="0,2,0,0"
                                Foreground="{DynamicResource Brush.TextMuted}"
-                               FontSize="12"
-                               Text="GAWELA Tourenplaner" />
+                               FontSize="12">
+                        <Run Text="GAWELA Tourenplaner" /><Run Text="{Binding CurrentSection.ApplicationVersion, StringFormat=', Version {0}', Mode=OneWay}" />
+                    </TextBlock>
                 </StackPanel>
             </Grid>
 

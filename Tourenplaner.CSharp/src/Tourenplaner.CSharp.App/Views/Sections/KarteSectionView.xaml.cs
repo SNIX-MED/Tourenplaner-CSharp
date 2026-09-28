@@ -855,6 +855,7 @@ public partial class KarteSectionView : UserControl
                 label = x.Label,
                 color = x.ColorHex,
                 outlineColor = x.WarningOutlineColorHex,
+                manualStops = x.ManualStops.Select(p => new { lat = p.Latitude, lon = p.Longitude }).ToList(),
                 path = x.Points.Select(p => new { lat = p.Latitude, lon = p.Longitude }).ToList()
             })
             .ToList();

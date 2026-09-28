@@ -549,6 +549,7 @@ internal static class MapHtmlDocumentBuilder
                          let fleetMarkers = [];
                          let companyMarkers = [];
                          let routeMarkers = [];
+                         let plannedTourManualStopMarkers = [];
                          let tempSearchMarker = null;
                          let companyMarkerLocation = null;
                          let hasAppliedInitialMarkerFit = false;
@@ -2452,6 +2453,22 @@ internal static class MapHtmlDocumentBuilder
                          window.gawelaSetPlannedTourOverlays = function(overlays) {
                            window.__gawelaLastPlannedTourOverlays = Array.isArray(overlays) ? overlays : [];
                            ensurePlannedTourOverlayLayers();
+                           clearMarkers(plannedTourManualStopMarkers);
+                           (Array.isArray(overlays) ? overlays : []).forEach(o => {
+                             (Array.isArray(o.manualStops) ? o.manualStops : []).forEach(stop => {
+                               const coordinate = toMapCoordinate(stop);
+                               if (!Array.isArray(coordinate)) return;
+                               const element = buildMarkerElement({ color: '#374151', shape: 'circle' }, false);
+                               element.addEventListener('click', evt => {
+                                 evt.stopPropagation();
+                                 if (window.chrome && window.chrome.webview) {
+                                   window.chrome.webview.postMessage(`plannedTourSelect:${o.id}`);
+                                 }
+                               });
+                               plannedTourManualStopMarkers.push(new ttSdk.Marker({ element, anchor: 'center' })
+                                 .setLngLat(coordinate).addTo(map));
+                             });
+                           });
                            const features = (Array.isArray(overlays) ? overlays : [])
                              .map(o => {
                                const id = Number(o && o.id);

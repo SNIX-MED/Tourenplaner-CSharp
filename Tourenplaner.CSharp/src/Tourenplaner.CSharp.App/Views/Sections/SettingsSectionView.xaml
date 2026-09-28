@@ -77,15 +77,53 @@
             <Setter Property="Margin" Value="0,6,0,0" />
             <Setter Property="MinHeight" Value="34" />
         </Style>
+        <Style x:Key="SettingsPasswordBoxStyle" TargetType="PasswordBox">
+            <Setter Property="Margin" Value="0,6,0,0" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="Background" Value="{DynamicResource Brush.InputBackground}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.InputBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="PasswordChar" Value="●" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource Radius.ControlMd}">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Focus}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Focus}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.InputBackgroundDisabled}" />
+                                <Setter TargetName="Root" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="SettingsComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
             <Setter Property="Margin" Value="0,6,0,0" />
             <Setter Property="MinHeight" Value="34" />
         </Style>
         <Style x:Key="SettingsFieldCardStyle" TargetType="Border" BasedOn="{StaticResource SharpGlassPanelBorderStyle}">
-            <Setter Property="Padding" Value="12" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0,0,10,10" />
-            <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Background" Value="{DynamicResource Brush.GlassSurfaceSoft}" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
         </Style>
         <Style x:Key="SettingsInnerPanelStyle" TargetType="Border" BasedOn="{StaticResource SharpGlassPanelBorderStyle}">
             <Setter Property="Padding" Value="14" />
@@ -93,10 +131,106 @@
             <Setter Property="CornerRadius" Value="16" />
             <Setter Property="Background" Value="{DynamicResource Brush.GlassSurfaceSoft}" />
         </Style>
+        <Style x:Key="SettingsExpanderContentPanelStyle" TargetType="Border">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
         <Style x:Key="SettingsAdvancedExpanderStyle" TargetType="Expander">
-            <Setter Property="Margin" Value="0,12,0,0" />
+            <Setter Property="IsExpanded" Value="False" />
+            <Setter Property="Margin" Value="0,0,0,12" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Tag" Value="Weitere Einstellungen und Optionen anzeigen." />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Expander">
+                        <Border x:Name="ExpanderCard"
+                                CornerRadius="12"
+                                Background="{DynamicResource Brush.Card}"
+                                BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                BorderThickness="1">
+                        <StackPanel>
+                            <ToggleButton x:Name="HeaderToggle"
+                                          IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          HorizontalContentAlignment="Stretch"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          Padding="0">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="HeaderCard"
+                                                Padding="16,12"
+                                                Background="Transparent"
+                                                BorderThickness="0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                                                    <TextBlock FontSize="14"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource Brush.TextPrimary}"
+                                                               Text="{Binding Header, RelativeSource={RelativeSource AncestorType=Expander}}" />
+                                                    <TextBlock Margin="0,3,0,0"
+                                                               FontSize="12"
+                                                               FontWeight="Normal"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                               Text="{Binding Tag, RelativeSource={RelativeSource AncestorType=Expander}}"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1"
+                                                        Width="36" Height="36"
+                                                        CornerRadius="10"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource Brush.SurfaceRaised}">
+                                                    <TextBlock x:Name="Chevron"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               FontFamily="Segoe Fluent Icons"
+                                                               FontSize="14"
+                                                               Foreground="{DynamicResource Brush.TextPrimary}"
+                                                               Text="&#xE70D;"
+                                                               RenderTransformOrigin="0.5,0.5">
+                                                        <TextBlock.RenderTransform>
+                                                            <RotateTransform Angle="0" />
+                                                        </TextBlock.RenderTransform>
+                                                    </TextBlock>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="HeaderCard" Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="HeaderCard" Property="BorderBrush" Value="#990099" />
+                                                <Setter TargetName="Chevron" Property="RenderTransform">
+                                                    <Setter.Value><RotateTransform Angle="180" /></Setter.Value>
+                                                </Setter>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ExpandedContent"
+                                              Margin="16,0,16,14"
+                                              Visibility="Collapsed"
+                                              ContentSource="Content" />
+                        </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="ExpandedContent" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="ExpanderCard" Property="BorderBrush" Value="#990099" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style x:Key="ColorPreviewCardStyle" TargetType="Border" BasedOn="{StaticResource SharpGlassPanelBorderStyle}">
             <Setter Property="Width" Value="152" />
@@ -309,7 +443,7 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
-                <WrapPanel Margin="0,0,0,2">
+                <WrapPanel Margin="0" Visibility="Collapsed">
                     <Border Style="{StaticResource SettingsMetricCardStyle}">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -551,28 +685,6 @@
                                 <TextBlock Margin="0,6,0,0"
                                            Style="{StaticResource SettingsSectionSubtitleStyle}"
                                            Text="{Binding SelectedSettingsCategoryDescription}" />
-                                <Border Margin="0,10,0,0"
-                                        Padding="10,8"
-                                        CornerRadius="12"
-                                        Background="{DynamicResource Brush.GlassSurfaceSoft}"
-                                        BorderBrush="{DynamicResource Brush.GlassStroke}"
-                                        BorderThickness="1">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding StatusText}" Value="">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding StatusText}" Value="{x:Null}">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <TextBlock Text="{Binding StatusText}"
-                                               TextWrapping="Wrap" />
-                                </Border>
                             </StackPanel>
                             <WrapPanel Grid.Column="1"
                                        Margin="12,0,0,0"
@@ -608,22 +720,32 @@
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
-                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                    <Border Padding="16,12"
+                                            CornerRadius="12"
+                                            Background="{DynamicResource Brush.Card}"
+                                            BorderBrush="#990099"
+                                            BorderThickness="1">
                                         <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="WEBFLEET.connect" />
-                                            <TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextSecondary}" TextWrapping="Wrap" Text="Verbindet Tourenplaner mit Fahrzeugen, Live-Positionen und Aufträgen in WEBFLEET. Für den Test werden Account, Benutzer, API-Key und Passwort benötigt." />
-                                            <CheckBox Margin="0,16,0,0" Content="Live-Fahrzeugdaten und Auftragsversand aktivieren" IsChecked="{Binding WebfleetEnabled, Mode=TwoWay}" />
-                                            <Grid Margin="0,14,0,0">
+                                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="WEBFLEET.connect" />
+                                            <TextBlock Margin="0,3,0,14"
+                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                       Text="Mit vollständigen Zugangsdaten wird WEBFLEET automatisch aktiviert."
+                                                       TextWrapping="Wrap" />
+                                            <Grid>
                                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                                 <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="WEBFLEET Account" /><TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding WebfleetAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /></StackPanel></Border>
-                                                <Border Grid.Column="1" Margin="0,0,0,14" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="WEBFLEET.connect Benutzer" /><TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding WebfleetUserName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /></StackPanel></Border>
+                                                <Border Grid.Column="1" Margin="0,0,0,10" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="WEBFLEET.connect Benutzer" /><TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding WebfleetUserName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /></StackPanel></Border>
                                             </Grid>
                                             <Grid>
                                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                                 <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="API Key" /><TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding WebfleetApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /></StackPanel></Border>
-                                                <Border Grid.Column="1" Margin="0,0,0,14" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Passwort" /><PasswordBox x:Name="WebfleetPasswordBox" Margin="0,8,0,0" PasswordChanged="OnWebfleetPasswordChanged" /></StackPanel></Border>
+                                                <Border Grid.Column="1" Margin="0,0,0,10" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Passwort" /><PasswordBox x:Name="WebfleetPasswordBox" Style="{StaticResource SettingsPasswordBoxStyle}" PasswordChanged="OnWebfleetPasswordChanged" /></StackPanel></Border>
                                             </Grid>
-                                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Positions-Aktualisierung (Sekunden)" /><TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding WebfleetPositionRefreshSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /></StackPanel></Border><StackPanel Grid.Column="1" Margin="14,0,0,14" VerticalAlignment="Center"><Button Content="Verbindung testen" Command="{Binding TestWebfleetConnectionCommand}" Style="{StaticResource SecondaryButtonStyle}" /><TextBlock Margin="0,8,0,0" Foreground="{DynamicResource Brush.TextSecondary}" TextWrapping="Wrap" Text="Mindestens 30 Sekunden empfohlen." /></StackPanel></Grid>
+                                        <Grid Margin="0,8,0,0">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}"><StackPanel><TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Positions-Aktualisierung (Sekunden)" /><TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding WebfleetPositionRefreshSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" /><TextBlock Margin="0,6,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="Mindestens 30 Sekunden empfohlen." /></StackPanel></Border>
+                                            <Button Grid.Column="1" Margin="14,20,0,10" VerticalAlignment="Top" Content="Verbindung testen" Command="{Binding TestWebfleetConnectionCommand}" Style="{StaticResource SecondaryButtonStyle}" />
+                                        </Grid>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -653,12 +775,15 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                    <Expander Header="E-Mail-Vorlagen"
+                                              Tag="Standardwerte für automatisch erstellte E-Mails festlegen."
+                                              Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
                                             <StackPanel>
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="E-Mail-Betreff (Standard)" />
@@ -672,34 +797,15 @@
                                                          Text="{Binding AvisoEmailSubjectTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                         </Border>
-                                        <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
+                                        </Grid>
+                                    </Expander>
+
+                                    <Expander Header="Firmendaten"
+                                              Tag="Firmenname und Anschrift für Dokumente sowie als Standortbasis verwalten."
+                                              Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Style="{StaticResource SettingsExpanderContentPanelStyle}">
                                             <StackPanel>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Standard-Startzeit für neue Touren" />
-                                                    <Border Style="{StaticResource SettingsInfoIconStyle}"
-                                                            ToolTip="Startzeit, die bei neuen Touren automatisch vorgeschlagen wird. Format: HH:mm, z. B. 07:30.">
-                                                        <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
-                                                    </Border>
-                                                </StackPanel>
-                                                <TextBox Style="{StaticResource SettingsTextBoxStyle}"
-                                                         MaxLength="5"
-                                                         ToolTip="Format: HH:mm, z. B. 07:30"
-                                                         Text="{Binding TourDefaultStartTime, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-
-                                    <Border Style="{StaticResource SettingsInnerPanelStyle}">
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Firma" />
-                                                <Border Style="{StaticResource SettingsInfoIconStyle}"
-                                                        ToolTip="Firmendaten für Absender, Dokumente und die Standortbasis des Tourenplaners.">
-                                                    <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
-                                                </Border>
-                                            </StackPanel>
-
-                                            <Grid Margin="0,12,0,0">
+                                            <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
@@ -738,6 +844,7 @@
                                             </Grid>
                                         </StackPanel>
                                     </Border>
+                                    </Expander>
                                     </StackPanel>
 
                                     <StackPanel>
@@ -751,9 +858,24 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                    <Expander Header="Aufenthaltszeiten" IsExpanded="True" Style="{StaticResource SettingsAdvancedExpanderStyle}">
-                                        <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                    <Expander Header="Aufenthaltszeiten" Tag="Standardzeiten für Haltedauern und Pausen während der Tourenplanung." IsExpanded="False" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Style="{StaticResource SettingsExpanderContentPanelStyle}">
                                             <StackPanel>
+                                                <Border Style="{StaticResource SettingsFieldCardStyle}">
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Standard-Startzeit für neue Touren" />
+                                                            <Border Style="{StaticResource SettingsInfoIconStyle}"
+                                                                    ToolTip="Startzeit, die bei neuen Touren automatisch vorgeschlagen wird. Format: HH:mm, z. B. 07:30.">
+                                                                <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBox Style="{StaticResource SettingsTextBoxStyle}"
+                                                                 MaxLength="5"
+                                                                 ToolTip="Format: HH:mm, z. B. 07:30"
+                                                                 Text="{Binding TourDefaultStartTime, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Border>
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Standard-Aufenthaltszeiten Karte" />
                                                     <Border Style="{StaticResource SettingsInfoIconStyle}"
@@ -793,6 +915,16 @@
                                                         </StackPanel>
                                                     </Border>
                                                 </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </Expander>
+                                    <Expander Header="Zusätzliches Material" Tag="Werkzeuggruppen und zusätzliches Ladegewicht für Liefertouren verwalten." Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                    <Border Style="{StaticResource SettingsExpanderContentPanelStyle}">
+                                        <StackPanel>
+                                            <TextBlock Margin="0,0,0,12" Foreground="{DynamicResource Brush.TextMuted}"
+                                                       TextWrapping="Wrap" Text="{Binding AdditionalMaterialGroupsSummary}" />
+                                            <Button Width="220" HorizontalAlignment="Left" Content="Werkzeuggruppen verwalten"
+                                                    Click="OnEditAdditionalMaterialGroups" Style="{StaticResource SecondaryButtonStyle}" />
                                             </StackPanel>
                                         </Border>
                                     </Expander>
@@ -837,7 +969,7 @@
                                                 </StackPanel>
                                             </Border>
 
-                                            <Expander Header="Erweiterte Einstellungen" Margin="0,14,0,0">
+                                            <Expander Header="Erweiterte Einstellungen" Tag="Verbindungsdaten und technische Optionen für den zentralen Datenspeicher." Margin="0,14,0,0">
                                                 <Expander.Style>
                                                     <Style TargetType="Expander" BasedOn="{StaticResource SettingsAdvancedExpanderStyle}">
                                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -980,8 +1112,8 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <Expander Header="Synchronisationsstatus" Style="{StaticResource SettingsAdvancedExpanderStyle}">
-                                        <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                    <Expander Header="Synchronisationsstatus" Tag="Aktuellen Zustand und letzte Aktivitäten der Datensynchronisation anzeigen." Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Style="{StaticResource SettingsExpanderContentPanelStyle}">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="170" />
@@ -1038,6 +1170,10 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
+                                    <Expander Header="Statusfarben"
+                                              Tag="Farben für Auftragsstatus in Pins, Listen, Legenden und Kalenderhinweisen festlegen."
+                                              Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                    <StackPanel>
                                     <Grid Margin="0,0,0,12">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -1133,8 +1269,12 @@
                                             </Grid>
                                         </Border>
                                     </UniformGrid>
+                                    </StackPanel>
+                                    </Expander>
 
-                                    <Border Margin="0,12,0,0">
+                                    <Expander Header="Tourfarben"
+                                              Tag="Farbdarstellung der Tourlinien auf der Karte auswählen."
+                                              Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                         <StackPanel>
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Tourfarben" />
@@ -1205,7 +1345,7 @@
                                                 </RadioButton>
                                             </WrapPanel>
                                         </StackPanel>
-                                    </Border>
+                                    </Expander>
                                     </StackPanel>
 
                                     <StackPanel>
@@ -1219,10 +1359,10 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                    <Border>
+                                    <Expander Header="Kapazitätswarnungen" Tag="Warnstufen und farbliche Hinweise für ausgelastete Touren festlegen." Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                    <Border Style="{StaticResource SettingsExpanderContentPanelStyle}">
                                         <StackPanel>
-                                            <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Kalender &amp; Kapazität" />
-                                            <WrapPanel Margin="0,10,0,0">
+                                            <WrapPanel>
                                                 <Border Style="{StaticResource CompactColorRowCardStyle}" Width="360">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
@@ -1274,7 +1414,6 @@
                                                 </Grid.ColumnDefinitions>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Route rot ab Rest %" />
                                                 <TextBox Grid.Row="0" Grid.Column="1"
@@ -1282,36 +1421,10 @@
                                                          Style="{StaticResource SettingsTextBoxStyle}"
                                                          ToolTip="Ab dieser Restkapazität wird eine Tour als stark ausgelastet markiert."
                                                          Text="{Binding MapRouteCapacityWarningThresholdPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                <Border Grid.Row="1"
-                                                        Grid.Column="0"
-                                                        Grid.ColumnSpan="2"
-                                                        Margin="0,10,0,0"
-                                                        Style="{StaticResource SettingsFieldCardStyle}">
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <StackPanel Grid.Column="0" Margin="0,0,18,0">
-                                                            <StackPanel Orientation="Horizontal">
-                                                                <TextBlock FontWeight="SemiBold" Text="Details bei Pin-Klick" />
-                                                                <Border Style="{StaticResource SettingsInfoIconStyle}"
-                                                                        ToolTip="Öffnet die Auftragsdetails automatisch, sobald ein Pin auf der Karte ausgewählt wird.">
-                                                                    <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
-                                                                </Border>
-                                                            </StackPanel>
-                                                        </StackPanel>
-
-                                                        <CheckBox Grid.Column="1"
-                                                                  VerticalAlignment="Center"
-                                                                  Content="Auftragsdetails automatisch &#246;ffnen"
-                                                                  IsChecked="{Binding MapAutoOpenDetailsOnPinSelection, Mode=TwoWay}" />
-                                                    </Grid>
-                                                </Border>
                                             </Grid>
                                         </StackPanel>
                                     </Border>
+                                    </Expander>
                                     </StackPanel>
 
                                     <StackPanel>
@@ -1325,8 +1438,16 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
-                                        <Border Style="{StaticResource SettingsInnerPanelStyle}" Margin="0,0,0,0">
+                                    <Expander Header="Kartenleistung"
+                                              Tag="Lokalen Zwischenspeicher für eine schnellere Kartendarstellung konfigurieren."
+                                              Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Style="{StaticResource SettingsExpanderContentPanelStyle}">
+                                            <CheckBox Content="WebView-Cache für Kartentiles nutzen"
+                                                      IsChecked="{Binding TomTomEnableTileCache, Mode=TwoWay}" />
+                                        </Border>
+                                    </Expander>
+                                    <Expander Header="Karten-Infokarten &amp; Filter" Tag="Darstellung, Filter und Zoomverhalten der Karten-Infokarten anpassen." Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Style="{StaticResource SettingsExpanderContentPanelStyle}">
                                             <StackPanel>
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Karten-Infokarten &amp; Filter" />
@@ -1348,6 +1469,24 @@
                                                     <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Produkte anzeigen" IsChecked="{Binding MapPinInfoCardShowProducts, Mode=TwoWay}" /></Border>
                                                     <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Gesamtgewicht anzeigen" IsChecked="{Binding MapPinInfoCardShowTotalWeight, Mode=TwoWay}" /></Border>
                                                 </WrapPanel>
+                                                <Border Margin="0,18,0,0" Style="{StaticResource SettingsFieldCardStyle}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                                                            <TextBlock FontWeight="SemiBold" Text="Details bei Pin-Klick" />
+                                                            <TextBlock Margin="0,3,0,0"
+                                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                                       Text="Auftragsdetails beim Auswählen eines Karten-Pins anzeigen." />
+                                                        </StackPanel>
+                                                        <CheckBox Grid.Column="1"
+                                                                  VerticalAlignment="Center"
+                                                                  Content="Auftragsdetails automatisch öffnen"
+                                                                  IsChecked="{Binding MapAutoOpenDetailsOnPinSelection, Mode=TwoWay}" />
+                                                    </Grid>
+                                                </Border>
                                                 <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
                                                     <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Zoomverhalten" />
                                                     <Border Style="{StaticResource SettingsInfoIconStyle}"
@@ -1393,12 +1532,16 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
+                                    <Expander Header="TomTom-Zugang"
+                                              Tag="API-Zugang für Kartendaten, Verkehrsinformationen und Routenberechnung hinterlegen."
+                                              Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                     <Border Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
                                         <StackPanel>
                                             <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="TomTom API Key" />
                                             <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TomTomApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         </StackPanel>
                                     </Border>
+                                    </Expander>
                                     </StackPanel>
 
                                     <StackPanel>
@@ -1411,29 +1554,17 @@
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </StackPanel.Style>
+                                    </StackPanel.Style>
                                     <StackPanel>
+                                    <Expander Header="Aktualisierung &amp; Leistung"
+                                              Tag="Aktualisierungsintervalle und Verzögerung der Routenberechnung konfigurieren."
+                                              Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                         <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
-                                            <StackPanel>
-                                                <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Tile Cache" />
-                                                <CheckBox Margin="0,12,0,0"
-                                                          Content="WebView-Cache für Kartentiles nutzen"
-                                                          IsChecked="{Binding TomTomEnableTileCache, Mode=TwoWay}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Style="{StaticResource SettingsFieldCardStyle}">
                                             <StackPanel>
                                                 <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Traffic Refresh (s)" />
                                                 <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding TomTomTrafficRefreshSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -1447,6 +1578,7 @@
                                         </Border>
                                     </Grid>
 
+                                    </Expander>
                                     </StackPanel>
                                     </StackPanel>
 
@@ -1462,7 +1594,8 @@
                                             </Style>
                                         </StackPanel.Style>
                                     <Expander Header="Routingprofil &amp; Staupuffer"
-                                              IsExpanded="True"
+                                              Tag="Geschwindigkeiten, Verkehrsbewertung und zusätzliche Zeitpuffer konfigurieren."
+                                              IsExpanded="False"
                                               Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                         <StackPanel>
 
@@ -1567,6 +1700,9 @@
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
+                                    <Expander Header="Externe Tabs"
+                                              Tag="GPS- und Spediteur-Bereiche in der Navigation einrichten."
+                                              Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -1578,7 +1714,7 @@
                                                 <CheckBox Margin="0,14,0,0"
                                                           Content="GPS-Bereich in der Navigation anzeigen"
                                                           IsChecked="{Binding ShowGpsTool, Mode=TwoWay}" />
-                                                <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                                <Expander Header="Erweiterte Einstellungen" Tag="Standardadresse für das externe GPS-Werkzeug festlegen." Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                                     <StackPanel>
                                                         <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="GPS Standard-Link" />
                                                         <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding GpsToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -1592,15 +1728,16 @@
                                                 <CheckBox Margin="0,14,0,0"
                                                           Content="Spediteur-Bereich in der Navigation anzeigen"
                                                           IsChecked="{Binding ShowSpediteurTool, Mode=TwoWay}" />
-                                                <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                                <Expander Header="Erweiterte Einstellungen" Tag="Standardadresse für das externe Spediteur-Werkzeug festlegen." Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                                     <StackPanel>
                                                         <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Spediteur Standard-Link" />
                                                         <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding SpediteurToolUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                     </StackPanel>
                                                 </Expander>
                                             </StackPanel>
-                                        </Border>
-                                    </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Expander>
                                 </StackPanel>
 
                                 <StackPanel>
@@ -1621,7 +1758,7 @@
                                         <Button Width="164" Margin="0,0,0,8" Content="Backups bereinigen" Command="{Binding CleanupBackupsCommand}" />
                                     </WrapPanel>
 
-                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                    <Expander Header="Erweiterte Einstellungen" Tag="Speicherort, Aufbewahrung und automatische Sicherungen konfigurieren." Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                         <Border>
                                             <Grid>
                                             <Grid.ColumnDefinitions>
@@ -1744,8 +1881,8 @@
 
                                     </Grid>
 
-                                    <Expander Header="XML-Zuordnung" IsExpanded="False" Style="{StaticResource SettingsAdvancedExpanderStyle}">
-                                        <Border Style="{StaticResource SettingsInnerPanelStyle}">
+                                    <Expander Header="XML-Zuordnung" Tag="XML-Felder den Auftrags- und Produktdaten des Programms zuordnen." IsExpanded="False" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Border Style="{StaticResource SettingsExpanderContentPanelStyle}">
                                             <StackPanel>
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Feldzuordnung" />
@@ -2072,7 +2209,7 @@
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
-                                    <Expander Header="Erweiterte Einstellungen" Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                    <Expander Header="Erweiterte Einstellungen" Tag="Versions-, Diagnose- und Updateinformationen des Programms anzeigen." Style="{StaticResource SettingsAdvancedExpanderStyle}">
                                         <StackPanel>
                                             <Border Style="{StaticResource SettingsInnerPanelStyle}">
                                                 <Grid>

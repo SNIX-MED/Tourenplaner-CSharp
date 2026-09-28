@@ -69,9 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Mehrfachauswahl in Auftragsliste und Liefertouren zum Archivieren oder Löschen
-          - Lieferdatum und Option für frühere Lieferung in Auftrag, Karte und Pin-Infokarte
-          - XML-Import für das neue Beleg-Exportformat sowie Windows-1252-Kodierung erweitert
+          - Zusätzliches Material und Werkzeuggruppen mit Gewichtsberechnung und PDF-Ausgabe
+          - Manuelle Stopps werden auch in der Tourvorschau vollständig dargestellt
+          - Einstellungsseiten neu strukturiert und optisch vereinheitlicht
+          - WEBFLEET wird bei vollständigen Zugangsdaten automatisch aktiviert
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

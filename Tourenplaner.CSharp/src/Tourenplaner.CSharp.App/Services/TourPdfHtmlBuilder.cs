@@ -10,6 +10,7 @@ public static class TourPdfHtmlBuilder
         var title = string.IsNullOrWhiteSpace(snapshot.TourName) ? "Tour-Export" : snapshot.TourName.Trim();
         var meta = BuildMeta(snapshot);
         var stops = string.Join(Environment.NewLine, snapshot.Stops.Select(BuildStopHtml));
+        var additionalMaterial = BuildAdditionalMaterialHtml(snapshot.AdditionalMaterials);
         var mapContent = string.IsNullOrWhiteSpace(mapImageBase64Png)
             ? "<div class=\"map-fallback\">Kartenbild konnte für diesen Export nicht erzeugt werden.</div>"
             : $"<img class=\"map-image\" src=\"data:image/png;base64,{mapImageBase64Png}\" alt=\"Tourkarte\" />";
@@ -211,6 +212,7 @@ public static class TourPdfHtmlBuilder
                          <div class="stops">
                            {{stops}}
                          </div>
+                         {{additionalMaterial}}
                        </div>
                        <div class="panel">
                          <div class="panel-title">Kartenansicht</div>
@@ -322,6 +324,26 @@ public static class TourPdfHtmlBuilder
                    {{pauseHtml}}
                  </div>
                  """;
+    }
+
+    private static string BuildAdditionalMaterialHtml(IReadOnlyList<Tourenplaner.CSharp.Domain.Models.TourAdditionalMaterial>? materials)
+    {
+        if (materials is null || materials.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var lines = materials.SelectMany(group =>
+        {
+            var items = (group.Items ?? []).Where(x => !string.IsNullOrWhiteSpace(x.Name)).ToList();
+            if (items.Count == 0)
+            {
+                return new[] { $"<div class=\"stop-extra\">{Html($"{group.GroupName} ({group.WeightKg:0.##} kg)")}</div>" };
+            }
+            return new[] { $"<div class=\"stop-name\">{Html($"{group.GroupName} ({group.WeightKg:0.##} kg)")}</div>" }
+                .Concat(items.Select(x => $"<div class=\"stop-extra\">• {Html(x.Name)} ({x.WeightKg:0.##} kg)</div>"));
+        });
+        return $"<div style=\"margin-top:16px\"><div class=\"panel-title\">Zusätzliches Material</div>{string.Join(Environment.NewLine, lines)}</div>";
     }
 
     private static string Html(string? value)

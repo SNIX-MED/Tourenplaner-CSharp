@@ -37,7 +37,8 @@ public sealed record RouteExportSnapshot(
     IReadOnlyList<RouteExportStopInfo> Stops,
     IReadOnlyList<GeoPoint> GoogleMapsPoints,
     IReadOnlyList<GeoPoint> GeometryPoints,
-    RouteExportCompanyInfo? Company);
+    RouteExportCompanyInfo? Company,
+    IReadOnlyList<TourAdditionalMaterial>? AdditionalMaterials = null);
 
 public sealed record RoutePdfExportResult(bool Succeeded, bool Cancelled, string Message)
 {

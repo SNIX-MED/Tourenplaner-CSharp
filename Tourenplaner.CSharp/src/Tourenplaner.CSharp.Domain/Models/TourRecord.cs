@@ -7,6 +7,7 @@ public sealed class TourRecord
     public string Name { get; set; } = string.Empty;
     public List<TourStopRecord> Stops { get; set; } = new();
     public List<string> EmployeeIds { get; set; } = new();
+    public List<TourAdditionalMaterial> AdditionalMaterials { get; set; } = new();
     public string StartTime { get; set; } = "08:00";
     public string RouteMode { get; set; } = "car";
     public string? VehicleId { get; set; }
@@ -19,6 +20,14 @@ public sealed class TourRecord
     public List<GeoPoint> RouteGeometryPoints { get; set; } = new();
     public string? ConcurrencyToken { get; set; }
     public WebfleetDispatchRecord WebfleetDispatch { get; set; } = new();
+}
+
+public sealed class TourAdditionalMaterial
+{
+    public string GroupId { get; set; } = string.Empty;
+    public string GroupName { get; set; } = string.Empty;
+    public double WeightKg { get; set; }
+    public List<AdditionalMaterialItem> Items { get; set; } = new();
 }
 
 public sealed class TourTravelTimeProfile

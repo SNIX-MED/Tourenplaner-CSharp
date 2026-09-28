@@ -1620,6 +1620,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var tour = SelectedTour.Source;
         var (editHour, editMinute) = ParseStartTimeParts(tour.StartTime);
         var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date);
+        var materialGroups = (await _settingsRepository.LoadAsync()).AdditionalMaterialGroups ?? [];
         var singleEmployeeWarningDeliveryTypes = await BuildSingleEmployeeWarningDeliveryTypesAsync(tour);
 
         var dialog = new CreateTourDialogWindow(
@@ -1636,7 +1637,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             selectedSecondaryVehicleId: tour.SecondaryVehicleId,
             selectedSecondaryTrailerId: tour.SecondaryTrailerId,
             selectedEmployeeIds: tour.EmployeeIds,
-            showOpenOnMapButton: true)
+            showOpenOnMapButton: true,
+            additionalMaterialGroups: materialGroups,
+            selectedAdditionalMaterials: tour.AdditionalMaterials)
         {
             Owner = System.Windows.Application.Current?.MainWindow,
             Title = "Tour bearbeiten"
@@ -1665,6 +1668,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var originalSecondaryVehicleId = tour.SecondaryVehicleId;
         var originalSecondaryTrailerId = tour.SecondaryTrailerId;
         var originalEmployeeIds = tour.EmployeeIds.ToList();
+        var originalAdditionalMaterials = CloneAdditionalMaterials(tour.AdditionalMaterials);
 
         tour.Name = result.RouteName;
         tour.Date = result.RouteDate;
@@ -1678,6 +1682,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        tour.AdditionalMaterials = CloneAdditionalMaterials(result.AdditionalMaterials);
 
         var availabilityError = await BuildAvailabilityErrorAsync(
             tour.Date,
@@ -1697,6 +1702,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             tour.SecondaryVehicleId = originalSecondaryVehicleId;
             tour.SecondaryTrailerId = originalSecondaryTrailerId;
             tour.EmployeeIds = originalEmployeeIds;
+            tour.AdditionalMaterials = originalAdditionalMaterials;
             return;
         }
 
@@ -1710,6 +1716,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             tour.SecondaryVehicleId = originalSecondaryVehicleId;
             tour.SecondaryTrailerId = originalSecondaryTrailerId;
             tour.EmployeeIds = originalEmployeeIds;
+            tour.AdditionalMaterials = originalAdditionalMaterials;
             return;
         }
 
@@ -2760,6 +2767,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             IsArchived = source.IsArchived,
             ConcurrencyToken = source.ConcurrencyToken,
             EmployeeIds = source.EmployeeIds.ToList(),
+            AdditionalMaterials = CloneAdditionalMaterials(source.AdditionalMaterials),
             TravelTimeCache = source.TravelTimeCache.ToDictionary(kv => kv.Key, kv => kv.Value),
             TravelTimeProfileCache = (source.TravelTimeProfileCache ?? new Dictionary<string, TourTravelTimeProfile>()).ToDictionary(
                 kv => kv.Key,
@@ -3235,10 +3243,20 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private static int CalculateTourWeightKg(TourRecord tour)
     {
-        return (tour.Stops ?? [])
+        var orderWeight = (tour.Stops ?? [])
             .Where(IsCustomerStop)
             .Sum(s => ParseWeightKg(s.Gewicht));
+        return orderWeight + (int)Math.Ceiling((tour.AdditionalMaterials ?? []).Sum(x => Math.Max(0, x.WeightKg)));
     }
+
+    private static List<TourAdditionalMaterial> CloneAdditionalMaterials(IEnumerable<TourAdditionalMaterial>? materials) =>
+        (materials ?? []).Select(x => new TourAdditionalMaterial
+        {
+            GroupId = x.GroupId,
+            GroupName = x.GroupName,
+            WeightKg = Math.Max(0, x.WeightKg),
+            Items = (x.Items ?? []).Select(i => new AdditionalMaterialItem { Name = i.Name, WeightKg = Math.Max(0, i.WeightKg) }).ToList()
+        }).ToList();
 
     private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
     {

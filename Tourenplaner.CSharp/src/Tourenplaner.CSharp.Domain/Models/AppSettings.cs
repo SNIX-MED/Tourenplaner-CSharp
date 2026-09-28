@@ -99,6 +99,7 @@ public sealed class AppSettings
     public AppStorageMode StorageMode { get; set; } = AppStorageMode.JsonFiles;
     public PostgreSqlStorageSettings PostgreSqlStorage { get; set; } = new();
     public WebfleetConnectionSettings Webfleet { get; set; } = new();
+    public List<AdditionalMaterialGroup> AdditionalMaterialGroups { get; set; } = new();
 
     public string XmlImportFilePath { get; set; } = string.Empty;
     public DateTime? LastXmlImportDate { get; set; }
@@ -286,6 +287,24 @@ public sealed class AppSettings
                IsLegacyDefaultOrUnspecified(preference.TrafficBufferPercentFrom1530To1830);
     }
 
+}
+
+public sealed class AdditionalMaterialGroup
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = string.Empty;
+    public double? TotalWeightKg { get; set; }
+    public List<AdditionalMaterialItem> Items { get; set; } = new();
+
+    public double ResolveWeightKg() => TotalWeightKg.HasValue
+        ? Math.Max(0, TotalWeightKg.Value)
+        : (Items ?? []).Sum(x => Math.Max(0, x.WeightKg));
+}
+
+public sealed class AdditionalMaterialItem
+{
+    public string Name { get; set; } = string.Empty;
+    public double WeightKg { get; set; }
 }
 
 public sealed class UserAppPreference

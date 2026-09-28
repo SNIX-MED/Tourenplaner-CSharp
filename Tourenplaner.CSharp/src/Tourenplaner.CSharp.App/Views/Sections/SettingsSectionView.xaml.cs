@@ -1,6 +1,7 @@
 ﻿using System.Windows.Controls;
 
 using System.Windows;
+using Tourenplaner.CSharp.App.Views.Dialogs;
 
 namespace Tourenplaner.CSharp.App.Views.Sections;
 
@@ -26,6 +27,23 @@ public partial class SettingsSectionView : UserControl
             WebfleetPasswordBox.Password != viewModel.WebfleetPassword)
         {
             WebfleetPasswordBox.Password = viewModel.WebfleetPassword;
+        }
+    }
+
+    private async void OnEditAdditionalMaterialGroups(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ViewModels.Sections.SettingsSectionViewModel viewModel)
+        {
+            return;
+        }
+
+        var dialog = new AdditionalMaterialGroupsDialogWindow(viewModel.GetAdditionalMaterialGroups())
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            await viewModel.SetAdditionalMaterialGroupsAsync(dialog.Result);
         }
     }
 }

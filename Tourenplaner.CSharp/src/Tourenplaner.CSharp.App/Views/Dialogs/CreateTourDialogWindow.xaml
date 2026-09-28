@@ -23,7 +23,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -165,6 +165,27 @@
                                FontSize="12"
                                Text="Mindestens 1 Mitarbeiter wählen. Bei zwei Fahrzeugen sind mindestens 2 nötig." />
                 </Grid>
+            </Border>
+
+            <Border Grid.Row="9" Margin="0,8,0,0" Style="{StaticResource SoftCardStyle}" Padding="8"
+                    Visibility="{Binding HasAdditionalMaterialOptions, Converter={StaticResource BoolToVisibilityConverter}}">
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold" Text="Zusätzliches Material" />
+                    <ScrollViewer Margin="0,5,0,0" MaxHeight="54" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding AdditionalMaterialOptions}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Margin="0,2,18,2" Content="{Binding Label}" IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
             </Border>
 
             <Grid Grid.Row="10" Margin="0,16,0,0">
