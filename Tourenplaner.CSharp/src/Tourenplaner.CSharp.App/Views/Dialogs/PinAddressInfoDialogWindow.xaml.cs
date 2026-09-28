@@ -30,7 +30,6 @@ public partial class PinAddressInfoDialogWindow : Window
             : $"TomTom meldet „{result.MatchType}“. Der Treffer stimmt nicht vollständig mit der Lieferadresse überein oder ist kein genauer Hausadresspunkt.";
         if (result is not null)
         {
-            Differences.ItemsSource = PinAddressComparison.Compare(order.DeliveryAddress, PinAddressComparison.GetFoundAddress(result));
             PositionText.Text = string.Format(CultureInfo.InvariantCulture,
                 "Kartenposition: {0:F6}, {1:F6}. Bei Übernahme werden Lieferadresse und dieser Kartenpunkt gespeichert.",
                 result.Location.Latitude, result.Location.Longitude);

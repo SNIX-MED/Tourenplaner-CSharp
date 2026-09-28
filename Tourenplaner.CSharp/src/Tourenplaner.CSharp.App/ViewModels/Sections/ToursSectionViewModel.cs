@@ -1835,7 +1835,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-            "Die Tour- oder Auftragsdaten wurden zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Die Ansicht wurde neu geladen.",
+            "Die Tour- oder Auftragsdaten wurden zwischenzeitlich von einem anderen Benutzer geändert oder gelöscht. Die Ansicht wurde neu geladen.",
             "Mehrbenutzerkonflikt",
             MessageBoxButton.OK,
             MessageBoxImage.Warning);

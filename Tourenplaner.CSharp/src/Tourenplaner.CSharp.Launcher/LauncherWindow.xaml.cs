@@ -47,7 +47,7 @@ public partial class LauncherWindow : Window
             await Task.Delay(200, _launchCancellation.Token);
 
             var appPath = await ResolveAppPathAsync();
-            SetStatus("Tourenplaner wird geoeffnet...");
+            SetStatus("Tourenplaner wird geöffnet...");
 
             var started = Process.Start(new ProcessStartInfo
             {
@@ -151,7 +151,7 @@ public partial class LauncherWindow : Window
             var installerPath = await UpdateService.DownloadInstallerAsync(manifest, targetDirectory, progress, cancellationToken);
 
             SetStatus("Update ist bereit...");
-            SetDetails("Windows wird jetzt das Setup mit Berechtigungsabfrage oeffnen.");
+            SetDetails("Windows wird jetzt das Setup mit Berechtigungsabfrage öffnen.");
             SetProgress(null, isIndeterminate: true, message: "Setup wird gestartet");
 
             var launcherPath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "GAWELA.Tourenplaner.exe");

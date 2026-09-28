@@ -49,11 +49,11 @@ public sealed class XmlImportPreviewListItemViewModel
         {
             ImportPreviewAction.Create => ("Neu", "#ECFDF3", "#BBF7D0", "#15803D"),
             ImportPreviewAction.Update => ("Update", "#EDE9FE", "#C4B5FD", "#6D28D9"),
-            _ => ("Unveraendert", "#F1F5F9", "#CBD5E1", "#475569")
+            _ => ("Unverändert", "#F1F5F9", "#CBD5E1", "#475569")
         };
 
         var changeSummary = item.Changes.Count == 0
-            ? "Keine Aenderungen erkannt."
+            ? "Keine Änderungen erkannt."
             : string.Join(" | ", item.Changes);
 
         return new XmlImportPreviewListItemViewModel(

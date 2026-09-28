@@ -94,14 +94,14 @@ public sealed class XmlImportPinIssueListItemViewModel
             : $"{matchType} / {entityType}";
 
         return new XmlImportPinIssueListItemViewModel(
-            "Ungefaehr",
+            "Ungefähr",
             "#FFFBEB",
             "#FDE68A",
             "#B45309",
             orderId,
             customerName,
             addressLine,
-            "Der Pin wurde nur ungefaehr aufgeloest und sollte manuell geprueft werden.",
+            "Der Pin wurde nur ungefähr aufgelöst und sollte manuell geprüft werden.",
             string.IsNullOrWhiteSpace(matchSummary) ? "Unscharfer Treffer" : matchSummary,
             editOrderAsync,
             recheckOrderAsync,

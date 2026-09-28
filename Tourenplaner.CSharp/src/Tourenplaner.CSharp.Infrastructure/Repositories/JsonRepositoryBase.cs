@@ -13,6 +13,7 @@ public abstract class JsonRepositoryBase<T>
         _serializerOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true,
             WriteIndented = true
         };
     }

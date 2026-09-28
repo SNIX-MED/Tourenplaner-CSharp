@@ -6695,6 +6695,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         try
         {
             var settings = await _settingsRepository.LoadAsync();
+            var nextTomTomApiKey = (settings.TomTomApiKey ?? string.Empty).Trim();
+            if (!string.Equals(_tomTomApiKey, nextTomTomApiKey, StringComparison.Ordinal))
+            {
+                _tomTomApiKey = nextTomTomApiKey;
+                OnPropertyChanged(nameof(TomTomApiKey));
+            }
             var userPreference = settings.ResolveUserPreference(ResolveCurrentSettingsUserName(settings));
             var nextCompanyName = string.IsNullOrWhiteSpace(settings.CompanyName) ? "Firma" : settings.CompanyName.Trim();
             var nextCompanyAddress = BuildCompanyAddressText(settings.CompanyStreet, settings.CompanyPostalCode, settings.CompanyCity);

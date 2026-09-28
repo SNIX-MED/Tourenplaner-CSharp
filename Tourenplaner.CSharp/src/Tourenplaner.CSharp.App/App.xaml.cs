@@ -41,7 +41,7 @@ public partial class App : System.Windows.Application
 
         try
         {
-            startupStep = "Update-Pruefung";
+            startupStep = "Update-Prüfung";
             var updateProgress = new Progress<string>(message => splashWindow.SetStatus(message));
             var updateResult = await InstalledAppUpdateService.TryApplyUpdateAsync(updateProgress);
             if (updateResult.UpdateWasStarted)
@@ -103,10 +103,10 @@ public partial class App : System.Windows.Application
             _historyService = historyService;
 
             startupStep = "Tour-Integritaet";
-            await RenderSplashStepAsync(splashWindow, "Tourdaten werden geprueft...");
+            await RenderSplashStepAsync(splashWindow, "Tourdaten werden geprüft...");
             await RunTourIntegrityCheckOnStartup(repositories.TourRecordStore, repositories.AppSettingsStore, repositories.StorageMode == AppStorageMode.JsonFiles ? repositories.ToursJsonPath : null);
-            startupStep = "Oberflaeche";
-            await RenderSplashStepAsync(splashWindow, "Oberflaeche wird gestartet...");
+            startupStep = "Oberfläche";
+            await RenderSplashStepAsync(splashWindow, "Oberfläche wird gestartet...");
 
             MainWindow = mainWindow;
             mainWindow.Show();

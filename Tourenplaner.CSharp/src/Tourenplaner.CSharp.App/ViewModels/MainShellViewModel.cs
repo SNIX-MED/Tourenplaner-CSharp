@@ -597,7 +597,7 @@ public sealed partial class MainShellViewModel : ObservableObject
             catch (ConcurrencyConflictException)
             {
                 Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                    "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Bitte oeffnen Sie den Auftrag erneut.",
+                    "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geändert oder gelöscht. Bitte öffnen Sie den Auftrag erneut.",
                     "Mehrbenutzerkonflikt",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
@@ -643,7 +643,7 @@ public sealed partial class MainShellViewModel : ObservableObject
         catch (ConcurrencyConflictException)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Bitte oeffnen Sie den Auftrag erneut.",
+                "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geändert oder gelöscht. Bitte öffnen Sie den Auftrag erneut.",
                 "Mehrbenutzerkonflikt",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);

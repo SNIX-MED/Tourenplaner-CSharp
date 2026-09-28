@@ -116,7 +116,7 @@ internal sealed class UpdateService
             var actualHash = ComputeSha256(destinationPath);
             if (!string.Equals(actualHash, manifest.Sha256, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidDataException("Die heruntergeladene Update-Datei ist beschaedigt oder unvollstaendig.");
+                throw new InvalidDataException("Die heruntergeladene Update-Datei ist beschädigt oder unvollständig.");
             }
         }
 

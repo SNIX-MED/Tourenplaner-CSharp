@@ -121,7 +121,7 @@
                             Style="{StaticResource SecondaryButtonStyle}"
                             Click="OnEditClicked" />
                     <Button Width="120"
-                            Content="Loeschen"
+                            Content="Löschen"
                             Style="{StaticResource DangerButtonStyle}"
                             Click="OnDeleteClicked" />
                 </StackPanel>

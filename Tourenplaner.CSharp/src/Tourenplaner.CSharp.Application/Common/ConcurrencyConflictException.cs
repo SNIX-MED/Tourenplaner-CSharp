@@ -3,7 +3,7 @@
 public sealed class ConcurrencyConflictException : Exception
 {
     public ConcurrencyConflictException(string entityName, string entityId)
-        : base($"{entityName} {entityId} wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht.")
+        : base($"{entityName} {entityId} wurde zwischenzeitlich von einem anderen Benutzer geändert oder gelöscht.")
     {
         EntityName = entityName;
         EntityId = entityId;

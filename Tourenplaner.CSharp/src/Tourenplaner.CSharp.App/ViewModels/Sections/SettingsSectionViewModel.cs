@@ -121,9 +121,9 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private string _crashLogPath = string.Empty;
     private string _syncStatusText = "Lokaler Dateibetrieb ohne Live-Sync.";
     private string _syncModeText = "Lokaler Dateibetrieb";
-    private string _lastSyncStatusChangeText = "Noch keine Statusaenderung";
-    private string _lastRemoteSyncText = "Noch keine externe Aenderung";
-    private string _lastLocalSyncText = "Noch keine lokale Aenderung";
+    private string _lastSyncStatusChangeText = "Noch keine Statusänderung";
+    private string _lastRemoteSyncText = "Noch keine externe Änderung";
+    private string _lastLocalSyncText = "Noch keine lokale Änderung";
     private string _lastSyncActivityText = "Noch keine Synchronisationsaktivitaet";
     private string _syncErrorText = "-";
     private string _latestBackupFile = "n/a";
@@ -1433,7 +1433,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         if (!validation.IsValid)
         {
             ValidationSummary = string.Join(Environment.NewLine, validation.Errors);
-            StatusText = "PostgreSQL-Aktivierung abgebrochen: Einstellungen sind noch ungueltig.";
+            StatusText = "PostgreSQL-Aktivierung abgebrochen: Einstellungen sind noch ungültig.";
             return;
         }
 
@@ -1596,9 +1596,9 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         {
             SyncModeText = "Lokaler Dateibetrieb";
             SyncStatusText = "Lokaler Dateibetrieb ohne Live-Sync.";
-            LastSyncStatusChangeText = "Noch keine Statusaenderung";
-            LastRemoteSyncText = "Noch keine externe Aenderung";
-            LastLocalSyncText = "Noch keine lokale Aenderung";
+            LastSyncStatusChangeText = "Noch keine Statusänderung";
+            LastRemoteSyncText = "Noch keine externe Änderung";
+            LastLocalSyncText = "Noch keine lokale Änderung";
             LastSyncActivityText = "Noch keine Synchronisationsaktivitaet";
             SyncErrorText = "-";
             return;
@@ -1608,9 +1608,9 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             ? (snapshot.IsRemoteSyncConnected ? "PostgreSQL Mehrbenutzer verbunden" : "PostgreSQL Mehrbenutzer getrennt")
             : "Lokaler Dateibetrieb";
         SyncStatusText = snapshot.StatusText;
-        LastSyncStatusChangeText = FormatOptionalDateTime(snapshot.LastStatusChangeUtc, "Noch keine Statusaenderung");
-        LastRemoteSyncText = FormatOptionalDateTime(snapshot.LastRemoteChangeUtc, "Noch keine externe Aenderung");
-        LastLocalSyncText = FormatOptionalDateTime(snapshot.LastLocalPublishUtc, "Noch keine lokale Aenderung");
+        LastSyncStatusChangeText = FormatOptionalDateTime(snapshot.LastStatusChangeUtc, "Noch keine Statusänderung");
+        LastRemoteSyncText = FormatOptionalDateTime(snapshot.LastRemoteChangeUtc, "Noch keine externe Änderung");
+        LastLocalSyncText = FormatOptionalDateTime(snapshot.LastLocalPublishUtc, "Noch keine lokale Änderung");
         LastSyncActivityText = FormatOptionalDateTime(snapshot.LastAnyChangeUtc, "Noch keine Synchronisationsaktivitaet");
         SyncErrorText = string.IsNullOrWhiteSpace(snapshot.LastErrorMessage) ? "-" : snapshot.LastErrorMessage!;
     }

@@ -186,11 +186,11 @@ public sealed partial class SettingsSectionViewModel
             ApplyXmlImportPinIssues(pinIssues);
             _dataSyncService?.PublishOrders(_instanceId);
 
-            var appSettings = await _settingsRepository.GetAsync();
+            var appSettings = await _repository.LoadAsync();
             appSettings.XmlImportFilePath = XmlImportFilePath;
             appSettings.LastXmlImportDate = DateTime.Now;
             appSettings.XmlImportMapping = BuildXmlImportMapping().WithDefaults();
-            await _settingsRepository.SaveAsync(appSettings);
+            await _repository.SaveAsync(appSettings);
 
             _hasPendingXmlImportPreview = false;
             RaiseXmlImportPreviewStateChanged();
@@ -441,7 +441,8 @@ public sealed partial class SettingsSectionViewModel
         }
 
         // A warning may outlive an edit from another view or another user.
-        if (!string.Equals(originalAddress, BuildXmlImportPinIssueAddress(order), StringComparison.Ordinal))
+        if (!string.Equals(originalAddress, BuildXmlImportPinIssueAddress(order), StringComparison.Ordinal) ||
+            (failureReason == AddressGeocodingFailureReason.MissingApiKey && !string.IsNullOrWhiteSpace(TomTomApiKey)))
         {
             originalAddress = BuildXmlImportPinIssueAddress(order);
             var resolution = await AddressGeocodingService.TryResolveOrderWithDiagnosticsAsync(
@@ -524,19 +525,19 @@ public sealed partial class SettingsSectionViewModel
 
         UpdateXmlImportPinIssue(normalizedOrderId, order, result, resolution.FailureReason);
         ImportStatusMessage = result?.IsPrecise == true
-            ? $"Auftrag {normalizedOrderId} wurde erfolgreich erneut geprueft und zugeordnet."
+            ? $"Auftrag {normalizedOrderId} wurde erfolgreich erneut geprüft und zugeordnet."
             : $"Auftrag {normalizedOrderId}: {GetGeocodingFailureSummary(resolution.FailureReason)}";
     }
 
     private static string GetGeocodingFailureSummary(AddressGeocodingFailureReason reason) => reason switch
     {
         AddressGeocodingFailureReason.MissingApiKey => "TomTom-API-Key fehlt",
-        AddressGeocodingFailureReason.AuthenticationFailed => "TomTom-Zugang wurde abgelehnt (API-Key pruefen)",
+        AddressGeocodingFailureReason.AuthenticationFailed => "TomTom-Zugang wurde abgelehnt (API-Key prüfen)",
         AddressGeocodingFailureReason.RateLimited => "TomTom drosselt die Adresssuche weiterhin. Bitte sp\u00e4ter erneut pr\u00fcfen.",
-        AddressGeocodingFailureReason.Timeout => "TomTom-Anfrage hat zu lange gedauert – bitte erneut pruefen",
-        AddressGeocodingFailureReason.ConnectionFailed => "TomTom ist derzeit nicht erreichbar – Internetverbindung pruefen",
-        AddressGeocodingFailureReason.InvalidServiceResponse => "TomTom hat eine ungueltige Antwort geliefert – bitte erneut pruefen",
-        AddressGeocodingFailureReason.ServiceUnavailable => "TomTom-Dienst ist derzeit nicht verfuegbar – bitte erneut pruefen",
+        AddressGeocodingFailureReason.Timeout => "TomTom-Anfrage hat zu lange gedauert – bitte erneut prüfen",
+        AddressGeocodingFailureReason.ConnectionFailed => "TomTom ist derzeit nicht erreichbar – Internetverbindung prüfen",
+        AddressGeocodingFailureReason.InvalidServiceResponse => "TomTom hat eine ungültige Antwort geliefert – bitte erneut prüfen",
+        AddressGeocodingFailureReason.ServiceUnavailable => "TomTom-Dienst ist derzeit nicht verfügbar – bitte erneut prüfen",
         _ => "Kein passender TomTom-Adresspunkt gefunden"
     };
 
@@ -614,7 +615,7 @@ public sealed partial class SettingsSectionViewModel
         catch (ConcurrencyConflictException)
         {
             AppMessageBox.Show(
-                "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Bitte oeffnen Sie den Auftrag erneut.",
+                "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geändert oder gelöscht. Bitte öffnen Sie den Auftrag erneut.",
                 "Mehrbenutzerkonflikt",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -647,8 +648,8 @@ public sealed partial class SettingsSectionViewModel
     private async Task DeleteXmlImportPinIssueOrderAsync(Order existing, List<Order> orders)
     {
         var confirmation = AppMessageBox.Show(
-            $"Soll der Auftrag {existing.Id} wirklich geloescht werden?",
-            "Auftrag loeschen",
+            $"Soll der Auftrag {existing.Id} wirklich gelöscht werden?",
+            "Auftrag löschen",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
         if (confirmation != MessageBoxResult.Yes)
@@ -671,7 +672,7 @@ public sealed partial class SettingsSectionViewModel
         catch (ConcurrencyConflictException)
         {
             AppMessageBox.Show(
-                "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Bitte oeffnen Sie den Auftrag erneut.",
+                "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geändert oder gelöscht. Bitte öffnen Sie den Auftrag erneut.",
                 "Mehrbenutzerkonflikt",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -680,7 +681,7 @@ public sealed partial class SettingsSectionViewModel
 
         _dataSyncService?.PublishOrders(_instanceId, existing.Id, null);
         RemoveXmlImportPinIssue(existing.Id);
-        ImportStatusMessage = $"Auftrag {existing.Id} wurde geloescht.";
+        ImportStatusMessage = $"Auftrag {existing.Id} wurde gelöscht.";
     }
 
     private void UpdateXmlImportPinIssue(
@@ -782,12 +783,13 @@ public sealed partial class SettingsSectionViewModel
 
     private static string BuildXmlImportPreviewSummary(ImportPreviewResult preview, int invalidCount, int warningCount)
     {
-        return $"{preview.ValidOrders} gültige Aufträge geprüft | " +
-               $"{preview.CreatedOrders} neu | " +
-               $"{preview.UpdatedOrders} mit Änderungen | " +
-               $"{preview.UnchangedOrders} unverändert | " +
-               $"{invalidCount} fehlerhaft | " +
-               $"{warningCount} Warnung(en)";
+        var parts = new List<string> { $"{preview.ValidOrders} Aufträge geprüft" };
+        if (preview.CreatedOrders > 0) parts.Add($"{preview.CreatedOrders} neu");
+        if (preview.UpdatedOrders > 0) parts.Add($"{preview.UpdatedOrders} geändert");
+        if (preview.UnchangedOrders > 0) parts.Add($"{preview.UnchangedOrders} unverändert");
+        if (invalidCount > 0) parts.Add($"{invalidCount} fehlerhaft");
+        if (warningCount > 0) parts.Add($"{warningCount} Warnungen");
+        return string.Join(" · ", parts);
     }
 
     private static string BuildXmlImportPreviewStatusMessage(ImportPreviewResult preview, int invalidCount, int warningCount)
@@ -823,7 +825,7 @@ public sealed partial class SettingsSectionViewModel
 
         if (pinIssueCount > 0)
         {
-            message += $" {pinIssueCount} importierte Karten-Auftraege sollten wegen unklarer Pin-Zuordnung manuell korrigiert werden.";
+            message += $" {pinIssueCount} importierte Karten-Aufträge sollten wegen unklarer Pin-Zuordnung manuell korrigiert werden.";
         }
 
         if (errorCount > 0)

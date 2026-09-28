@@ -20,10 +20,10 @@ public partial class ColorPickerDialogWindow : Window
         InitializeComponent();
 
         _fallbackHex = NormalizeHexColor(fallbackHex, "#64748B");
-        Title = string.IsNullOrWhiteSpace(title) ? "Farbe waehlen" : title.Trim();
+        Title = string.IsNullOrWhiteSpace(title) ? "Farbe wählen" : title.Trim();
         TitleTextBlock.Text = Title;
         DescriptionTextBlock.Text = string.IsNullOrWhiteSpace(description)
-            ? "Passe die Farbe fuer dieses Element an."
+            ? "Passe die Farbe für dieses Element an."
             : description.Trim();
         PreviewHeadingTextBlock.Text = Title;
 

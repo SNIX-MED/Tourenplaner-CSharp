@@ -84,11 +84,11 @@ public sealed class AppDataSyncService
         _lastAnyChangeUtc = timestamp;
         if (!_isRemoteSyncEnabled)
         {
-            UpdateStatus("Lokale Aenderung gespeichert.", false, null, timestamp);
+            UpdateStatus("Lokale Änderung gespeichert.", false, null, timestamp);
         }
         else
         {
-            UpdateStatus("Lokale Aenderung wird synchronisiert.", _isRemoteSyncConnected, null, timestamp);
+            UpdateStatus("Lokale Änderung wird synchronisiert.", _isRemoteSyncConnected, null, timestamp);
         }
         PublishCore(normalized);
         _ = _bridge?.BroadcastAsync(normalized);
@@ -105,7 +105,7 @@ public sealed class AppDataSyncService
         var timestamp = DateTime.UtcNow;
         _lastRemoteChangeUtc = timestamp;
         _lastAnyChangeUtc = timestamp;
-        UpdateStatus("Externe Aenderung empfangen.", _isRemoteSyncConnected, null, timestamp);
+        UpdateStatus("Externe Änderung empfangen.", _isRemoteSyncConnected, null, timestamp);
         PublishCore(normalized);
     }
 

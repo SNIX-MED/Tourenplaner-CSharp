@@ -69,10 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Info-Dialog für unklare Adressen mit Detailvergleich und Links zu Google Maps und TomTom
-          - Geprüfte Lieferadresse und Kartenposition direkt aus dem Dialog übernehmen
-          - XML-Import mit Fortschrittsanzeige und Abschluss erst nach vollständiger Auftragsprüfung
-          - TomTom-Adresssuche mit gedrosselten Anfragen und automatischen Wiederholungen bei kurzfristigen Limits
+          - TomTom-API-Key wird nach dem Speichern zuverlässig übernommen und aus vorhandenen Einstellungen geladen
+          - Kompaktere XML-Auftragsvorschau mit klar getrennten Auftragskarten und nachgelagerter XML-Zuordnung
+          - Vereinfachter Dialog zur Adressprüfung
+          - Korrekte Umlaute in Beschriftungen und Statusmeldungen
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

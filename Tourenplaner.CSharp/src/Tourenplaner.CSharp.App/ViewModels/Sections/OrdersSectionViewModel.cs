@@ -858,7 +858,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     {
         await RefreshFromRepositoryAsync(preferredSelectedId);
         Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-            "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geaendert oder geloescht. Die Liste wurde neu geladen.",
+            "Der Auftrag wurde zwischenzeitlich von einem anderen Benutzer geändert oder gelöscht. Die Liste wurde neu geladen.",
             "Mehrbenutzerkonflikt",
             MessageBoxButton.OK,
             MessageBoxImage.Warning);

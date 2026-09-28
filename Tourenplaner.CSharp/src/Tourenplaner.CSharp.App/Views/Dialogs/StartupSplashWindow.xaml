@@ -67,7 +67,7 @@
                                    TextWrapping="Wrap"
                                    FontSize="15"
                                    Foreground="#FF475569"
-                                   Text="Die Anwendung wird vorbereitet und geprueft, bevor die Arbeitsoberflaeche geoeffnet wird." />
+                                   Text="Die Anwendung wird vorbereitet und geprüft, bevor die Arbeitsoberfläche geöffnet wird." />
                     </StackPanel>
                 </Grid>
             </Border>
