@@ -1,4 +1,4 @@
-﻿using System.Windows.Input;
+using System.Windows.Input;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -16,7 +16,8 @@ public sealed class XmlImportPinIssueListItemViewModel
         string issueSummary,
         string matchSummary,
         Func<string, Task>? editOrderAsync,
-        Func<string, Task>? recheckOrderAsync)
+        Func<string, Task>? recheckOrderAsync,
+        Func<string, Task>? showInfoAsync = null)
     {
         IssueLabel = issueLabel;
         IssueBackground = issueBackground;
@@ -27,6 +28,9 @@ public sealed class XmlImportPinIssueListItemViewModel
         AddressLine = addressLine;
         IssueSummary = issueSummary;
         MatchSummary = matchSummary;
+        InfoCommand = new AsyncCommand(
+            () => showInfoAsync?.Invoke(OrderId) ?? Task.CompletedTask,
+            () => showInfoAsync is not null);
         EditCommand = new AsyncCommand(
             () => editOrderAsync?.Invoke(OrderId) ?? Task.CompletedTask,
             () => editOrderAsync is not null && !string.IsNullOrWhiteSpace(OrderId));
@@ -44,6 +48,7 @@ public sealed class XmlImportPinIssueListItemViewModel
     public string AddressLine { get; }
     public string IssueSummary { get; }
     public string MatchSummary { get; }
+    public ICommand InfoCommand { get; }
     public ICommand EditCommand { get; }
     public ICommand RecheckCommand { get; }
 
@@ -56,7 +61,8 @@ public sealed class XmlImportPinIssueListItemViewModel
         string addressLine,
         string failureSummary,
         Func<string, Task>? editOrderAsync,
-        Func<string, Task>? recheckOrderAsync)
+        Func<string, Task>? recheckOrderAsync,
+        Func<string, Task>? showInfoAsync = null)
     {
         return new XmlImportPinIssueListItemViewModel(
             "Keine Zuordnung",
@@ -69,7 +75,8 @@ public sealed class XmlImportPinIssueListItemViewModel
             "Der Pin konnte keiner konkreten Adresse zugeordnet werden.",
             failureSummary,
             editOrderAsync,
-            recheckOrderAsync);
+            recheckOrderAsync,
+            showInfoAsync);
     }
 
     public static XmlImportPinIssueListItemViewModel CreateApproximate(
@@ -79,7 +86,8 @@ public sealed class XmlImportPinIssueListItemViewModel
         string matchType,
         string? entityType,
         Func<string, Task>? editOrderAsync,
-        Func<string, Task>? recheckOrderAsync)
+        Func<string, Task>? recheckOrderAsync,
+        Func<string, Task>? showInfoAsync = null)
     {
         var matchSummary = string.IsNullOrWhiteSpace(entityType)
             ? matchType
@@ -96,6 +104,7 @@ public sealed class XmlImportPinIssueListItemViewModel
             "Der Pin wurde nur ungefaehr aufgeloest und sollte manuell geprueft werden.",
             string.IsNullOrWhiteSpace(matchSummary) ? "Unscharfer Treffer" : matchSummary,
             editOrderAsync,
-            recheckOrderAsync);
+            recheckOrderAsync,
+            showInfoAsync);
     }
 }

@@ -192,6 +192,8 @@ public class OrderImportServiceTests
         Assert.Equal(0, result.CreatedOrders);
         Assert.Equal(1, result.UpdatedOrders);
         Assert.Equal(1, result.UnchangedOrders);
+        Assert.Equal(new[] { "A-1", "A-2" }, result.ProcessedOrderIds);
+        Assert.Equal(new[] { "A-1" }, result.ChangedOrderIds);
         Assert.Equal(1, repository.SaveAllCalls);
 
         var storedChanged = Assert.Single(repository.StoredOrders, x => x.Id == "A-1");

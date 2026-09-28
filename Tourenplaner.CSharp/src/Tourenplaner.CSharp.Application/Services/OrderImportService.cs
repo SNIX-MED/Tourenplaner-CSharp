@@ -11,6 +11,7 @@ public class ImportResult
     public int UnchangedOrders { get; set; }
     public List<string> Errors { get; set; } = new();
     public List<string> ChangedOrderIds { get; set; } = new();
+    public List<string> ProcessedOrderIds { get; set; } = new();
     public DateTime ImportedAt { get; set; }
 }
 
@@ -101,6 +102,7 @@ public class OrderImportService : IOrderImportService
                     var createdOrder = CreateImportedOrder(sqlOrder, isMapOrder, markAsXmlImported: markAsXmlImported);
                     existingOrders.Add(createdOrder);
                     result.CreatedOrders++;
+                    result.ProcessedOrderIds.Add(createdOrder.Id);
                     if (!string.IsNullOrWhiteSpace(createdOrder.Id))
                     {
                         result.ChangedOrderIds.Add(createdOrder.Id);
@@ -114,11 +116,13 @@ public class OrderImportService : IOrderImportService
                 if (changes.Count == 0)
                 {
                     result.UnchangedOrders++;
+                    result.ProcessedOrderIds.Add(existingOrder.Id);
                     continue;
                 }
 
                 ApplyImportedData(existingOrder, importedOrder);
                 result.UpdatedOrders++;
+                result.ProcessedOrderIds.Add(existingOrder.Id);
                 if (!string.IsNullOrWhiteSpace(existingOrder.Id))
                 {
                     result.ChangedOrderIds.Add(existingOrder.Id);

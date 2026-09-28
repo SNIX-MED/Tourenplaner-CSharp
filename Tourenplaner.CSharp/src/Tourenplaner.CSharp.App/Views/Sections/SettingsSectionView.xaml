@@ -1961,6 +1961,22 @@
                                         <StackPanel>
                                             <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Importvorschau" />
                                             <TextBlock Margin="0,6,0,0" Text="{Binding XmlImportPreviewSummary}" TextWrapping="Wrap" />
+                                            <StackPanel Margin="0,12,0,4">
+                                                <StackPanel.Style>
+                                                    <Style TargetType="StackPanel">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsImportingOrders}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </StackPanel.Style>
+                                                <TextBlock Text="{Binding XmlImportProgressText}" Margin="0,0,0,6" />
+                                                <ProgressBar Height="12" Minimum="0" Maximum="100"
+                                                             Value="{Binding XmlImportProgressPercent, Mode=OneWay}"
+                                                             IsIndeterminate="{Binding IsXmlImportProgressIndeterminate}" />
+                                            </StackPanel>
                                             <TextBlock Margin="0,8,0,0"
                                                        Text="{Binding ImportStatusMessage}"
                                                        TextWrapping="Wrap">
@@ -2065,6 +2081,9 @@
                                                                         <StackPanel Grid.Column="1"
                                                                                     Margin="14,0,0,0"
                                                                                     VerticalAlignment="Top">
+                                                                            <Button Width="104" Height="32" Margin="0,0,0,8"
+                                                                                    Content="Info" Command="{Binding InfoCommand}"
+                                                                                    Style="{StaticResource SecondaryButtonStyle}" />
                                                                             <Button Width="104"
                                                                                 Height="32"
                                                                                 VerticalAlignment="Top"

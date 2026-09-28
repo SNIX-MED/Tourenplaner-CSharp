@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -15,6 +15,7 @@ public static class AddressGeocodingService
     private const double SwitzerlandCenterLon = 8.231974;
     private const int CurrentCacheValidationVersion = 1;
     private static readonly HttpClient Client = CreateClient();
+    private static readonly TomTomRequestQueue RequestQueue = new();
     private static readonly SemaphoreSlim CacheGate = new(1, 1);
     private static readonly ConcurrentDictionary<string, GeoPoint> InMemoryCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, AddressGeocodingResult> InMemoryResolutionCache = new(StringComparer.OrdinalIgnoreCase);
@@ -80,7 +81,7 @@ public static class AddressGeocodingService
 
         try
         {
-            using var response = await Client.GetAsync(url);
+            using var response = await RequestQueue.GetAsync(Client, url);
             if (!response.IsSuccessStatusCode)
             {
                 return null;
@@ -133,13 +134,14 @@ public static class AddressGeocodingService
     public static async Task<AddressGeocodingResolution> TryResolveOrderWithDiagnosticsAsync(
         Order order,
         string? tomTomApiKey = null,
-        string? cacheFilePath = null)
+        string? cacheFilePath = null,
+        Action<string>? reportProgress = null)
     {
         var street = BuildStreetLine(order.DeliveryAddress?.Street, order.DeliveryAddress?.HouseNumber);
         var postalCode = (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim();
         var city = (order.DeliveryAddress?.City ?? string.Empty).Trim();
         var fallback = (order.Address ?? string.Empty).Trim();
-        return await TryResolveAddressWithDiagnosticsAsync(street, postalCode, city, fallback, tomTomApiKey, cacheFilePath);
+        return await TryResolveAddressWithDiagnosticsAsync(street, postalCode, city, fallback, tomTomApiKey, cacheFilePath, reportProgress);
     }
 
     public static async Task<AddressGeocodingResolution> TryResolveAddressWithDiagnosticsAsync(
@@ -148,7 +150,8 @@ public static class AddressGeocodingService
         string? city,
         string? fallbackAddress = null,
         string? tomTomApiKey = null,
-        string? cacheFilePath = null)
+        string? cacheFilePath = null,
+        Action<string>? reportProgress = null)
     {
         var expectation = new AddressExpectation(
             (street ?? string.Empty).Trim(),
@@ -225,9 +228,16 @@ public static class AddressGeocodingService
 
             if (candidate is null)
             {
-                var attempt = await TryGeocodeQueryAsync(query, tomTomApiKey, expectation);
+                var attempt = await TryGeocodeQueryAsync(query, tomTomApiKey, expectation, reportProgress);
                 candidate = attempt.Candidate;
                 failureReason = SelectMoreUsefulFailureReason(failureReason, attempt.FailureReason);
+                if (attempt.FailureReason == AddressGeocodingFailureReason.RateLimited)
+                {
+                    // Changing the address query cannot resolve a key-wide restriction.
+                    if (cachedFallback is not null && IsBetterCandidate(cachedFallback, bestCandidate, expectation))
+                        bestCandidate = cachedFallback;
+                    break;
+                }
                 if (candidate is not null)
                 {
                     InMemoryCache[key] = candidate.Point;
@@ -353,7 +363,8 @@ public static class AddressGeocodingService
     private static async Task<GeocodeQueryAttempt> TryGeocodeQueryAsync(
         string query,
         string? tomTomApiKey,
-        AddressExpectation expectation)
+        AddressExpectation expectation,
+        Action<string>? reportProgress)
     {
         var key = (tomTomApiKey ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(key))
@@ -361,18 +372,19 @@ public static class AddressGeocodingService
             return new GeocodeQueryAttempt(null, AddressGeocodingFailureReason.MissingApiKey);
         }
 
-        return await TryGeocodeWithTomTomAsync(query, key, expectation);
+        return await TryGeocodeWithTomTomAsync(query, key, expectation, reportProgress);
     }
 
     private static async Task<GeocodeQueryAttempt> TryGeocodeWithTomTomAsync(
         string query,
         string apiKey,
-        AddressExpectation expectation)
+        AddressExpectation expectation,
+        Action<string>? reportProgress)
     {
         var uri = $"https://api.tomtom.com/search/2/geocode/{Uri.EscapeDataString(query)}.json?key={Uri.EscapeDataString(apiKey)}&limit=5&countrySet=CH";
         try
         {
-            using var response = await Client.GetAsync(uri);
+            using var response = await RequestQueue.GetAsync(Client, uri, reportProgress);
             if (!response.IsSuccessStatusCode)
             {
                 return new GeocodeQueryAttempt(null, response.StatusCode switch

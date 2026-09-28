@@ -72,8 +72,8 @@ public sealed class TourPdfHtmlBuilderTests
         var html = TourPdfHtmlBuilder.Build(snapshot, null);
 
         Assert.Contains("Zusätzliches Material", html);
-        Assert.Contains("Montage &amp; Spezial (42.5 kg)", html);
-        Assert.Contains("Bohrer &lt;gross&gt; (12.5 kg)", html);
+        Assert.Contains($"Montage &amp; Spezial ({42.5:0.##} kg)", html);
+        Assert.Contains($"Bohrer &lt;gross&gt; ({12.5:0.##} kg)", html);
     }
 
     private static int CountOccurrences(string value, string search)

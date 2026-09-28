@@ -69,10 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Zusätzliches Material und Werkzeuggruppen mit Gewichtsberechnung und PDF-Ausgabe
-          - Manuelle Stopps werden auch in der Tourvorschau vollständig dargestellt
-          - Einstellungsseiten neu strukturiert und optisch vereinheitlicht
-          - WEBFLEET wird bei vollständigen Zugangsdaten automatisch aktiviert
+          - Info-Dialog für unklare Adressen mit Detailvergleich und Links zu Google Maps und TomTom
+          - Geprüfte Lieferadresse und Kartenposition direkt aus dem Dialog übernehmen
+          - XML-Import mit Fortschrittsanzeige und Abschluss erst nach vollständiger Auftragsprüfung
+          - TomTom-Adresssuche mit gedrosselten Anfragen und automatischen Wiederholungen bei kurzfristigen Limits
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

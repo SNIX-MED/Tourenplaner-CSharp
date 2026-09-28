@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Windows;
 using Microsoft.Win32;
 using Tourenplaner.CSharp.App.Services;
@@ -13,6 +13,42 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed partial class SettingsSectionViewModel
 {
+    private int _xmlImportCheckedOrders;
+    private int _xmlImportTotalOrders;
+
+    public int XmlImportCheckedOrders
+    {
+        get => _xmlImportCheckedOrders;
+        private set
+        {
+            SetProperty(ref _xmlImportCheckedOrders, value);
+            RaiseImportProgressChanged();
+        }
+    }
+
+    public int XmlImportTotalOrders
+    {
+        get => _xmlImportTotalOrders;
+        private set
+        {
+            SetProperty(ref _xmlImportTotalOrders, value);
+            RaiseImportProgressChanged();
+        }
+    }
+
+    public double XmlImportProgressPercent => XmlImportTotalOrders == 0 ? 0 : 100.0 * XmlImportCheckedOrders / XmlImportTotalOrders;
+    public bool IsXmlImportProgressIndeterminate => XmlImportTotalOrders == 0;
+    public string XmlImportProgressText => XmlImportTotalOrders == 0
+        ? "Aufträge werden importiert…"
+        : $"{XmlImportCheckedOrders} von {XmlImportTotalOrders} Aufträgen geprüft";
+
+    private void RaiseImportProgressChanged()
+    {
+        OnPropertyChanged(nameof(XmlImportProgressPercent));
+        OnPropertyChanged(nameof(XmlImportProgressText));
+        OnPropertyChanged(nameof(IsXmlImportProgressIndeterminate));
+    }
+
     private Task<IReadOnlyList<TourRecord>> LoadToursForXmlImportAsync() =>
         (_tourRecordStore ?? throw new InvalidOperationException("Touren konnten für die Archivierungsprüfung nicht geladen werden."))
         .LoadAsync();
@@ -106,7 +142,10 @@ public sealed partial class SettingsSectionViewModel
             return;
         }
 
+        XmlImportCheckedOrders = 0;
+        XmlImportTotalOrders = 0;
         IsImportingOrders = true;
+        ClearXmlImportPinIssues();
         ImportStatusMessage = "Importiere geprüfte Aufträge aus XML...";
 
         try
@@ -143,28 +182,9 @@ public sealed partial class SettingsSectionViewModel
                 RaiseXmlImportPreviewStateChanged();
             }
 
-            if (result.CreatedOrders > 0 || result.UpdatedOrders > 0)
-            {
-                var pinIssues = await EvaluateImportedPinAssignmentsAsync(result);
-                ApplyXmlImportPinIssues(pinIssues);
-                _dataSyncService?.PublishOrders(_instanceId);
-                StartBackgroundPinGeocoding();
-
-                if (pinIssues.Count > 0)
-                {
-                    AppMessageBox.Show(
-                        $"XML-Import abgeschlossen.{Environment.NewLine}{Environment.NewLine}" +
-                        $"{pinIssues.Count} importierte Karten-Auftraege konnten nicht exakt zugeordnet werden.{Environment.NewLine}" +
-                        "Die betroffenen Auftraege sind unten im Bereich \"Problematische Pin-Zuordnungen\" aufgelistet.",
-                        "Pins pruefen",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                }
-            }
-            else
-            {
-                ClearXmlImportPinIssues();
-            }
+            var pinIssues = await EvaluateImportedPinAssignmentsAsync(result);
+            ApplyXmlImportPinIssues(pinIssues);
+            _dataSyncService?.PublishOrders(_instanceId);
 
             var appSettings = await _settingsRepository.GetAsync();
             appSettings.XmlImportFilePath = XmlImportFilePath;
@@ -178,6 +198,13 @@ public sealed partial class SettingsSectionViewModel
             var totalErrorCount = parserErrorCount + result.Errors.Count;
             ImportStatusMessage = BuildXmlImportCompletionMessage(result, totalErrorCount, XmlImportPinIssueItems.Count);
             StatusText = $"XML Import abgeschlossen: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert, {result.UnchangedOrders} unverändert.";
+            AppMessageBox.Show(
+                ImportStatusMessage + Environment.NewLine + Environment.NewLine +
+                (pinIssues.Count == 0 && totalErrorCount == 0
+                    ? "Alle importierten Aufträge wurden geprüft."
+                    : "Offene Prüfergebnisse finden Sie unten bei den Importwarnungen."),
+                "XML-Import abgeschlossen", MessageBoxButton.OK,
+                pinIssues.Count == 0 && totalErrorCount == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {
@@ -263,43 +290,74 @@ public sealed partial class SettingsSectionViewModel
             return [];
         }
 
-        var changedOrderIds = result.ChangedOrderIds
+        var processedOrderIds = result.ProcessedOrderIds
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (changedOrderIds.Count == 0)
+        if (processedOrderIds.Count == 0)
         {
             return [];
         }
 
         var allOrders = (await _orderRepository.GetAllAsync()).ToList();
-        var importedMapOrders = allOrders
-            .Where(x => DeliveryMethodExtensions.CanUseLiefertour(x) &&
-                        changedOrderIds.Contains(x.Id ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+        var importedOrders = allOrders
+            .Where(x => processedOrderIds.Contains(x.Id ?? string.Empty, StringComparer.OrdinalIgnoreCase))
             .ToList();
-        if (importedMapOrders.Count == 0)
+        if (importedOrders.Count == 0)
         {
             return [];
         }
 
+        XmlImportTotalOrders = importedOrders.Count;
         var issues = new List<XmlImportPinIssueListItemViewModel>();
         var cacheFilePath = Path.Combine(_dataRoot, "geocode-cache.json");
-        var hasLocationUpdates = false;
 
-        foreach (var order in importedMapOrders)
+        foreach (var order in importedOrders)
         {
-            var geocodingResolution = await AddressGeocodingService.TryResolveOrderWithDiagnosticsAsync(order, TomTomApiKey, cacheFilePath);
+            if (!DeliveryMethodExtensions.CanUseLiefertour(order))
+            {
+                XmlImportCheckedOrders++;
+                continue;
+            }
+            ImportStatusMessage = $"Adressprüfung {XmlImportCheckedOrders + 1}/{XmlImportTotalOrders}: Auftrag {order.Id}…";
+            var geocodingResolution = await AddressGeocodingService.TryResolveOrderWithDiagnosticsAsync(
+                order, TomTomApiKey, cacheFilePath,
+                message => ImportStatusMessage = $"Auftrag {order.Id}: {message}");
             var geocodingResult = geocodingResolution.Result;
             var nextLocation = geocodingResult?.IsPrecise == true
                 ? geocodingResult.Location
                 : null;
             if (nextLocation != order.Location)
             {
-                order.Location = nextLocation;
-                hasLocationUpdates = true;
+                // Preserve edits made while the network checks were in progress.
+                var currentOrders = (await _orderRepository.GetAllAsync()).ToList();
+                var current = currentOrders.FirstOrDefault(x => string.Equals(x.Id, order.Id, StringComparison.OrdinalIgnoreCase));
+                if (current is null ||
+                    !string.Equals(BuildXmlImportPinIssueAddress(current), BuildXmlImportPinIssueAddress(order), StringComparison.Ordinal) ||
+                    current.Location != order.Location)
+                {
+                    AddChangedDuringCheckIssue(order);
+                    XmlImportCheckedOrders++;
+                    continue;
+                }
+                current.Location = nextLocation;
+                try
+                {
+                    if (_orderMutationRepository is not null)
+                        await _orderMutationRepository.UpsertAsync(current);
+                    else
+                        await _orderRepository.SaveAllAsync(currentOrders);
+                }
+                catch (ConcurrencyConflictException)
+                {
+                    AddChangedDuringCheckIssue(order);
+                    XmlImportCheckedOrders++;
+                    continue;
+                }
             }
 
+            XmlImportCheckedOrders++;
             var issue = CreateXmlImportPinIssue(order, geocodingResult, geocodingResolution.FailureReason);
             if (issue is not null)
             {
@@ -307,12 +365,13 @@ public sealed partial class SettingsSectionViewModel
             }
         }
 
-        if (hasLocationUpdates)
-        {
-            await _orderRepository.SaveAllAsync(allOrders);
-        }
-
         return issues;
+
+        void AddChangedDuringCheckIssue(Order order) => issues.Add(XmlImportPinIssueListItemViewModel.CreateMissing(
+            order.Id, order.CustomerName, BuildXmlImportPinIssueAddress(order),
+            "Auftrag während der Prüfung geändert oder gelöscht. Bitte erneut prüfen.",
+            EditXmlImportPinIssueOrderAsync, RecheckXmlImportPinIssueAsync,
+            id => ShowXmlImportPinInfoAsync(id, BuildXmlImportPinIssueAddress(order), null, AddressGeocodingFailureReason.NoResult)));
     }
 
     private void ApplyXmlImportPinIssues(IReadOnlyList<XmlImportPinIssueListItemViewModel> issues)
@@ -348,7 +407,8 @@ public sealed partial class SettingsSectionViewModel
                 addressLine,
                 GetGeocodingFailureSummary(failureReason),
                 EditXmlImportPinIssueOrderAsync,
-                RecheckXmlImportPinIssueAsync);
+                RecheckXmlImportPinIssueAsync,
+                id => ShowXmlImportPinInfoAsync(id, addressLine, geocodingResult, failureReason));
         }
 
         if (!geocodingResult.IsPrecise)
@@ -360,10 +420,78 @@ public sealed partial class SettingsSectionViewModel
                 (geocodingResult.MatchType ?? string.Empty).Trim(),
                 geocodingResult.EntityType,
                 EditXmlImportPinIssueOrderAsync,
-                RecheckXmlImportPinIssueAsync);
+                RecheckXmlImportPinIssueAsync,
+                id => ShowXmlImportPinInfoAsync(id, addressLine, geocodingResult, failureReason));
         }
 
         return null;
+    }
+
+    private async Task ShowXmlImportPinInfoAsync(string orderId, string originalAddress,
+        AddressGeocodingResult? result, AddressGeocodingFailureReason failureReason)
+    {
+        if (_orderRepository is null) return;
+        var orders = (await _orderRepository.GetAllAsync()).ToList();
+        var order = orders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
+        if (order is null)
+        {
+            RemoveXmlImportPinIssue(orderId);
+            ImportStatusMessage = $"Auftrag {orderId} wurde nicht gefunden.";
+            return;
+        }
+
+        // A warning may outlive an edit from another view or another user.
+        if (!string.Equals(originalAddress, BuildXmlImportPinIssueAddress(order), StringComparison.Ordinal))
+        {
+            originalAddress = BuildXmlImportPinIssueAddress(order);
+            var resolution = await AddressGeocodingService.TryResolveOrderWithDiagnosticsAsync(
+                order, TomTomApiKey, Path.Combine(_dataRoot, "geocode-cache.json"));
+            result = resolution.Result;
+            failureReason = resolution.FailureReason;
+        }
+        var dialog = new PinAddressInfoDialogWindow(order, originalAddress, result, GetGeocodingFailureSummary(failureReason))
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        if (dialog.ShowDialog() != true) return;
+        if (!dialog.UseFoundAddress || result is null)
+        {
+            ImportStatusMessage = $"Auftrag {orderId}: ursprüngliche Adresse beibehalten. Die Pin-Zuordnung bleibt zur Prüfung offen.";
+            return;
+        }
+
+        // The modal dialog pumps UI events; reload to preserve changes made while it was open.
+        orders = (await _orderRepository.GetAllAsync()).ToList();
+        order = orders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
+        if (order is null || !string.Equals(originalAddress, BuildXmlImportPinIssueAddress(order), StringComparison.Ordinal))
+        {
+            AppMessageBox.Show("Die Lieferadresse wurde zwischenzeitlich geändert oder der Auftrag gelöscht. Bitte Info erneut öffnen.",
+                "Adresse geändert", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        // Work on a copy: a failed save must not alter a shared repository object.
+        var updated = System.Text.Json.JsonSerializer.Deserialize<Order>(
+            System.Text.Json.JsonSerializer.Serialize(order))!;
+        PinAddressComparison.ApplyFoundAddress(updated, result);
+        try
+        {
+            if (_orderMutationRepository is not null)
+                await _orderMutationRepository.UpsertAsync(updated);
+            else
+            {
+                orders[orders.IndexOf(order)] = updated;
+                await _orderRepository.SaveAllAsync(orders);
+            }
+        }
+        catch (ConcurrencyConflictException)
+        {
+            AppMessageBox.Show("Der Auftrag wurde zwischenzeitlich geändert. Bitte Info erneut öffnen und die aktuelle Adresse prüfen.",
+                "Mehrbenutzerkonflikt", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        _dataSyncService?.PublishOrders(_instanceId, updated.Id, updated.Id);
+        RemoveXmlImportPinIssue(orderId);
+        ImportStatusMessage = $"Auftrag {orderId}: gewählte Lieferadresse und geprüfte Kartenposition gespeichert.";
     }
 
     private async Task RecheckXmlImportPinIssueAsync(string orderId)
@@ -404,7 +532,7 @@ public sealed partial class SettingsSectionViewModel
     {
         AddressGeocodingFailureReason.MissingApiKey => "TomTom-API-Key fehlt",
         AddressGeocodingFailureReason.AuthenticationFailed => "TomTom-Zugang wurde abgelehnt (API-Key pruefen)",
-        AddressGeocodingFailureReason.RateLimited => "TomTom-Anfragelimit erreicht – bitte spaeter erneut pruefen",
+        AddressGeocodingFailureReason.RateLimited => "TomTom drosselt die Adresssuche weiterhin. Bitte sp\u00e4ter erneut pr\u00fcfen.",
         AddressGeocodingFailureReason.Timeout => "TomTom-Anfrage hat zu lange gedauert – bitte erneut pruefen",
         AddressGeocodingFailureReason.ConnectionFailed => "TomTom ist derzeit nicht erreichbar – Internetverbindung pruefen",
         AddressGeocodingFailureReason.InvalidServiceResponse => "TomTom hat eine ungueltige Antwort geliefert – bitte erneut pruefen",
@@ -690,7 +818,7 @@ public sealed partial class SettingsSectionViewModel
         var message = $"Import abgeschlossen: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert, {result.UnchangedOrders} unverändert.";
         if (result.CreatedOrders > 0 || result.UpdatedOrders > 0)
         {
-            message += " Pins ohne Koordinaten werden im Hintergrund weiter geprüft.";
+            message += " Die Adressprüfung ist abgeschlossen.";
         }
 
         if (pinIssueCount > 0)

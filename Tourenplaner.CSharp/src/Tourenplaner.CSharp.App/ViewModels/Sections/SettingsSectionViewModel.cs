@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Windows.Input;
@@ -34,7 +34,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private readonly ISettingsRepository? _settingsRepository;
     private readonly AppDataSyncService? _dataSyncService;
     private readonly string _dataRoot;
-    private bool _isBackgroundGeocodingRunning;
     private SettingsCategoryNavigationItem? _selectedSettingsCategory;
     private List<AdditionalMaterialGroup> _additionalMaterialGroups = new();
 
@@ -2313,70 +2312,6 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         }
 
         return fallback;
-    }
-
-    private async Task<int> GeocodeMapOrdersAfterXmlImportAsync()
-    {
-        if (_orderRepository is null)
-        {
-            return 0;
-        }
-
-        var allOrders = (await _orderRepository.GetAllAsync()).ToList();
-        var geocoded = 0;
-
-        foreach (var order in allOrders.Where(DeliveryMethodExtensions.CanUseLiefertour))
-        {
-            var needsGeocoding = order.Location is null || AddressGeocodingService.IsLikelyCountryCentroid(order.Location);
-            if (!needsGeocoding)
-            {
-                continue;
-            }
-
-            var geocodingResult = await AddressGeocodingService.TryResolveOrderAsync(
-                order,
-                TomTomApiKey,
-                Path.Combine(_dataRoot, "geocode-cache.json"));
-            if (geocodingResult?.IsPrecise != true)
-            {
-                continue;
-            }
-
-            order.Location = geocodingResult.Location;
-            geocoded++;
-            await _orderRepository.SaveAllAsync(allOrders);
-            _dataSyncService?.PublishOrders(_instanceId, order.Id, order.Id);
-        }
-
-        return geocoded;
-    }
-
-    private void StartBackgroundPinGeocoding()
-    {
-        if (_isBackgroundGeocodingRunning)
-        {
-            return;
-        }
-
-        _isBackgroundGeocodingRunning = true;
-        RunBackgroundPinGeocodingAsync().Forget(ex =>
-            Debug.WriteLine($"Background pin geocoding failed: {ex.Message}"));
-    }
-
-    private async Task RunBackgroundPinGeocodingAsync()
-    {
-        try
-        {
-            var geocoded = await GeocodeMapOrdersAfterXmlImportAsync();
-            if (geocoded > 0)
-            {
-                _dataSyncService?.PublishOrders(_instanceId);
-            }
-        }
-        finally
-        {
-            _isBackgroundGeocodingRunning = false;
-        }
     }
 
     public sealed record StorageModeOption(AppStorageMode Value, string DisplayName);
