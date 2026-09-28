@@ -450,12 +450,13 @@ public sealed partial class SettingsSectionViewModel
             result = resolution.Result;
             failureReason = resolution.FailureReason;
         }
-        var dialog = new PinAddressInfoDialogWindow(order, originalAddress, result, GetGeocodingFailureSummary(failureReason))
+        var dialog = new PinAddressInfoDialogWindow(order, originalAddress, result,
+            GetGeocodingFailureSummary(failureReason), TomTomApiKey)
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
         if (dialog.ShowDialog() != true) return;
-        if (!dialog.UseFoundAddress || result is null)
+        if (result is null || dialog.SelectedLocation is null)
         {
             ImportStatusMessage = $"Auftrag {orderId}: ursprüngliche Adresse beibehalten. Die Pin-Zuordnung bleibt zur Prüfung offen.";
             return;
@@ -473,7 +474,11 @@ public sealed partial class SettingsSectionViewModel
         // Work on a copy: a failed save must not alter a shared repository object.
         var updated = System.Text.Json.JsonSerializer.Deserialize<Order>(
             System.Text.Json.JsonSerializer.Serialize(order))!;
-        PinAddressComparison.ApplyFoundAddress(updated, result);
+        var selectedResult = result with { Location = dialog.SelectedLocation };
+        if (dialog.UseFoundAddress)
+            PinAddressComparison.ApplyFoundAddress(updated, selectedResult);
+        else
+            updated.Location = dialog.SelectedLocation;
         try
         {
             if (_orderMutationRepository is not null)
@@ -492,7 +497,9 @@ public sealed partial class SettingsSectionViewModel
         }
         _dataSyncService?.PublishOrders(_instanceId, updated.Id, updated.Id);
         RemoveXmlImportPinIssue(orderId);
-        ImportStatusMessage = $"Auftrag {orderId}: gewählte Lieferadresse und geprüfte Kartenposition gespeichert.";
+        ImportStatusMessage = dialog.UseFoundAddress
+            ? $"Auftrag {orderId}: TomTom-Adresse und geprüfte Kartenposition gespeichert."
+            : $"Auftrag {orderId}: ursprüngliche Lieferadresse und geprüfte Kartenposition gespeichert.";
     }
 
     private async Task RecheckXmlImportPinIssueAsync(string orderId)

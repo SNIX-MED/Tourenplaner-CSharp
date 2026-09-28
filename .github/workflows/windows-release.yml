@@ -69,10 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - TomTom-API-Key wird nach dem Speichern zuverlässig übernommen und aus vorhandenen Einstellungen geladen
-          - Kompaktere XML-Auftragsvorschau mit klar getrennten Auftragskarten und nachgelagerter XML-Zuordnung
-          - Vereinfachter Dialog zur Adressprüfung
-          - Korrekte Umlaute in Beschriftungen und Statusmeldungen
+          - Eingebettete TomTom-Kartenvorschau für unklare Adresszuordnungen
+          - Gefundenen Kartenpunkt per Klick oder Ziehen des Pins manuell korrigieren
+          - Umschalter zwischen Karten- und Satellitenansicht
+          - Sicherheitsabfrage bei mehr als zwei Kilometern Abweichung vom TomTom-Treffer
+          - Ursprüngliche Auftragsadresse weiterhin direkt in Google Maps öffnen
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
