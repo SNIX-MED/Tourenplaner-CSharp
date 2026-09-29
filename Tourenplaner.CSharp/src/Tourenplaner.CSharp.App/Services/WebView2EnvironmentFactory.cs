@@ -37,7 +37,17 @@ internal static class WebView2EnvironmentFactory
         var profileDirectory = Path.Combine(baseDirectory, profileName);
         Directory.CreateDirectory(profileDirectory);
 
-        return CoreWebView2Environment.CreateAsync(userDataFolder: profileDirectory);
+        CoreWebView2EnvironmentOptions? options = null;
+        if (string.Equals(profileName, "Map", StringComparison.OrdinalIgnoreCase))
+        {
+            // Keep map colors consistent on monitors with problematic color profiles.
+            options = new CoreWebView2EnvironmentOptions
+            {
+                AdditionalBrowserArguments = "--force-color-profile=srgb"
+            };
+        }
+
+        return CoreWebView2Environment.CreateAsync(userDataFolder: profileDirectory, options: options);
     }
 
     public static void ConfigurePersistentLoginStorage(CoreWebView2 webView)
