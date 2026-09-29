@@ -38,7 +38,8 @@ internal static class WebView2EnvironmentFactory
         Directory.CreateDirectory(profileDirectory);
 
         CoreWebView2EnvironmentOptions? options = null;
-        if (string.Equals(profileName, "Map", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(profileName, "Map", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(profileName, "PinPreview", StringComparison.OrdinalIgnoreCase))
         {
             // Keep map colors consistent on monitors with problematic color profiles.
             options = new CoreWebView2EnvironmentOptions
