@@ -112,7 +112,7 @@ public sealed class WebfleetTourDispatchServiceTests
         var result = ((DateTimeOffset? PlannedArrival, int? ArrivalToleranceMinutes))method.Invoke(null, [tour, stop])!;
 
         Assert.Equal(new DateTime(2026, 9, 22, 7, 45, 0), result.PlannedArrival!.Value.DateTime);
-        Assert.Equal(15, result.ArrivalToleranceMinutes);
+        Assert.Equal(60, result.ArrivalToleranceMinutes);
     }
 
     [Theory]

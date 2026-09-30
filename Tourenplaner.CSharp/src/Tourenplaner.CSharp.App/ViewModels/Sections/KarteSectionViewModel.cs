@@ -77,6 +77,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly TourConflictService _conflictService;
     private readonly Dictionary<string, string> _employeeLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _employeeLabelsByWebfleetObjectUid = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _employeeIdsByWebfleetObjectUid = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, WebfleetTrackDriverAssignment> _webfleetTrackDriversByObjectUid = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Order> _allOrders = new();
     private readonly List<TourRecord> _savedTours = new();
@@ -388,7 +389,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(WebfleetTrackRevision));
         OnPropertyChanged(nameof(WebfleetTrackVehicleName));
         _webfleetTrackStatusText = points.Count > 1
-            ? string.Empty
+            ? BuildWebfleetArrivalAnalysisText(vehicle.ObjectUid, date, points)
             : $"Kein Positionsverlauf für den {date:dd.MM.yyyy} verfügbar.";
         OnPropertyChanged(nameof(WebfleetTrackStatusText));
 
@@ -414,8 +415,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _webfleetPauseMarkers.AddRange(pauses);
         _webfleetTrackRevision++;
         OnPropertyChanged(nameof(WebfleetTrackRevision));
+        var arrivalAnalysisText = points.Count > 1
+            ? BuildWebfleetArrivalAnalysisText(vehicle.ObjectUid, date, points)
+            : string.Empty;
         _webfleetTrackStatusText = points.Count > 1
-            ? pauseWarning ?? string.Empty
+            ? string.Join(" ", new[] { arrivalAnalysisText, pauseWarning }.Where(text => !string.IsNullOrWhiteSpace(text)))
             : $"Kein Positionsverlauf für den {date:dd.MM.yyyy} verfügbar.";
         OnPropertyChanged(nameof(WebfleetTrackStatusText));
         StatusText = points.Count > 1
@@ -1299,6 +1303,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             _geocodeCachePath);
         _employeeLabelsById.Clear();
         _employeeLabelsByWebfleetObjectUid.Clear();
+        _employeeIdsByWebfleetObjectUid.Clear();
         _webfleetTrackDriversByObjectUid.Clear();
         foreach (var employee in await employeesTask)
         {
@@ -1309,6 +1314,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             if (!string.IsNullOrWhiteSpace(employee.WebfleetObjectUid) && !string.IsNullOrWhiteSpace(employee.DisplayName))
             {
                 _employeeLabelsByWebfleetObjectUid[employee.WebfleetObjectUid.Trim()] = employee.DisplayName;
+                if (!string.IsNullOrWhiteSpace(employee.Id))
+                {
+                    _employeeIdsByWebfleetObjectUid[employee.WebfleetObjectUid.Trim()] = employee.Id.Trim();
+                }
                 if (!string.IsNullOrWhiteSpace(employee.WebfleetDriverUid))
                 {
                     _webfleetTrackDriversByObjectUid[employee.WebfleetObjectUid.Trim()] = new WebfleetTrackDriverAssignment(
@@ -8303,6 +8312,31 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             .Where(marker => marker is not null)
             .Cast<WebfleetPauseMarker>()
             .ToList();
+    }
+
+    private string BuildWebfleetArrivalAnalysisText(
+        string objectUid,
+        DateOnly date,
+        IReadOnlyList<WebfleetTrackPoint> trackPoints)
+    {
+        if (!_employeeIdsByWebfleetObjectUid.TryGetValue(objectUid, out var employeeId))
+        {
+            return "Für die Ankunftsanalyse fehlt die Mitarbeiterzuordnung.";
+        }
+
+        var tour = _savedTours
+            .Where(candidate => ResourceAvailabilityService.ParseDate(candidate.Date) == date)
+            .Where(candidate => (candidate.EmployeeIds ?? []).Any(id =>
+                string.Equals(id, employeeId, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(candidate => candidate.Id == ResolveCurrentTourId() ? 0 : 1)
+            .FirstOrDefault();
+        if (tour is null)
+        {
+            return $"Keine Tour des Mitarbeiters für den {date:dd.MM.yyyy} gefunden; Ankunftsanalyse nicht möglich.";
+        }
+
+        var results = WebfleetArrivalAnalysisService.Analyze(tour, trackPoints, date);
+        return WebfleetArrivalAnalysisService.BuildSummary(results);
     }
 
     private string ResolveRouteStopAddress(string? orderId, string? fallbackAddress)

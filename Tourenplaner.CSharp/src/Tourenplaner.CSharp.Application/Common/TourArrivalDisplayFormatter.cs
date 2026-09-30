@@ -5,8 +5,9 @@ namespace Tourenplaner.CSharp.Application.Common;
 public static class TourArrivalDisplayFormatter
 {
     public const int DisplayRoundingMinutes = 15;
+    public const int MinDisplayedArrivalRangeMinutes = 60;
     public const int MaxDisplayedArrivalRangeMinutes = 120;
-    private static readonly int[] SupportedToleranceMinutes = [0, 15, 30, 60, 120];
+    private static readonly int[] SupportedToleranceMinutes = [60, 120];
 
     public static (DateTime Optimistic, DateTime Pessimistic) BuildDisplayedArrivalRange(DateTime optimistic, DateTime realistic, DateTime pessimistic)
     {
@@ -23,7 +24,7 @@ public static class TourArrivalDisplayFormatter
 
     public static int NormalizeToleranceMinutes(int minutes)
     {
-        var normalized = Math.Clamp(minutes, 0, MaxDisplayedArrivalRangeMinutes);
+        var normalized = Math.Clamp(minutes, MinDisplayedArrivalRangeMinutes, MaxDisplayedArrivalRangeMinutes);
         return SupportedToleranceMinutes.FirstOrDefault(tolerance => tolerance >= normalized, MaxDisplayedArrivalRangeMinutes);
     }
 

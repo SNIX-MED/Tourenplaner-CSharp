@@ -113,7 +113,7 @@ public class TourScheduleServiceTests
 
         Assert.Equal("08:00", updated.Stops[0].PlannedArrivalOptimistic);
         Assert.Equal("08:00", updated.Stops[0].PlannedArrival);
-        Assert.Equal("08:00", updated.Stops[0].PlannedArrivalPessimistic);
+        Assert.Equal("09:00", updated.Stops[0].PlannedArrivalPessimistic);
         Assert.Equal("08:05", updated.Stops[0].PlannedDeparture);
     }
 
@@ -176,7 +176,7 @@ public class TourScheduleServiceTests
 
         var updated = service.ApplySchedule(tour);
         Assert.Equal("08:00", updated.Stops[1].PlannedArrivalOptimistic);
-        Assert.Equal("08:15", updated.Stops[1].PlannedArrivalPessimistic);
+        Assert.Equal("09:00", updated.Stops[1].PlannedArrivalPessimistic);
 
         tour.TravelTimeProfileCache["A|B"] = new TourTravelTimeProfile
         {
@@ -187,7 +187,7 @@ public class TourScheduleServiceTests
 
         updated = service.ApplySchedule(tour);
         Assert.Equal("08:30", updated.Stops[1].PlannedArrivalOptimistic);
-        Assert.Equal("08:45", updated.Stops[1].PlannedArrivalPessimistic);
+        Assert.Equal("09:30", updated.Stops[1].PlannedArrivalPessimistic);
     }
 
     [Fact]

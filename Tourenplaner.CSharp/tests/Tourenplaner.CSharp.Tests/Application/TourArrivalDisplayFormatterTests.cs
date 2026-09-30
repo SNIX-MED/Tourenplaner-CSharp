@@ -5,14 +5,14 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class TourArrivalDisplayFormatterTests
 {
     [Fact]
-    public void BuildDisplayedArrivalRange_ForShortCongestionFreeLeg_UsesOnlyQuarterHourWindow()
+    public void BuildDisplayedArrivalRange_ForShortCongestionFreeLeg_UsesOneHourWindow()
     {
         var arrival = new DateTime(2026, 9, 22, 7, 42, 0);
 
         var result = TourArrivalDisplayFormatter.BuildDisplayedArrivalRange(arrival, arrival, arrival);
 
         Assert.Equal(new DateTime(2026, 9, 22, 7, 30, 0), result.Optimistic);
-        Assert.Equal(new DateTime(2026, 9, 22, 7, 45, 0), result.Pessimistic);
+        Assert.Equal(new DateTime(2026, 9, 22, 8, 30, 0), result.Pessimistic);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public class TourArrivalDisplayFormatterTests
             baseDate.AddMinutes(53));
 
         Assert.Equal("08:30", result.Optimistic.ToString("HH:mm"));
-        Assert.Equal("09:00", result.Pessimistic.ToString("HH:mm"));
+        Assert.Equal("09:30", result.Pessimistic.ToString("HH:mm"));
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class TourArrivalDisplayFormatterTests
             baseDate.AddMinutes(16));
 
         Assert.Equal("08:00", result.Optimistic.ToString("HH:mm"));
-        Assert.Equal("08:30", result.Pessimistic.ToString("HH:mm"));
+        Assert.Equal("09:00", result.Pessimistic.ToString("HH:mm"));
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public class TourArrivalDisplayFormatterTests
     }
 
     [Theory]
-    [InlineData(1, 15)]
-    [InlineData(16, 30)]
+    [InlineData(1, 60)]
+    [InlineData(16, 60)]
     [InlineData(45, 60)]
     [InlineData(75, 120)]
     [InlineData(120, 120)]
