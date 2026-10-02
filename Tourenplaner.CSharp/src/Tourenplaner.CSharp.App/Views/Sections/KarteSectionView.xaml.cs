@@ -487,6 +487,8 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
+        DetailProductsItemsControl.Focus();
+
         if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         {
             vm.ToggleDetailProductSelection(productItem);
@@ -504,6 +506,19 @@ public partial class KarteSectionView : UserControl
 
         e.Handled = true;
         await vm.EditDetailProductAsync(productItem);
+    }
+
+    private void OnDetailProductsPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.A ||
+            (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control ||
+            DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        vm.SelectAllDetailProducts();
+        e.Handled = true;
     }
 
     private void OnStartTimePreviewTextInput(object sender, TextCompositionEventArgs e)

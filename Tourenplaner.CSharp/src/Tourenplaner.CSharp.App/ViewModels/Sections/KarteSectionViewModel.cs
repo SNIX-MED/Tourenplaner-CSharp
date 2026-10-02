@@ -389,7 +389,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(WebfleetTrackRevision));
         OnPropertyChanged(nameof(WebfleetTrackVehicleName));
         _webfleetTrackStatusText = points.Count > 1
-            ? BuildWebfleetArrivalAnalysisText(vehicle.ObjectUid, date, points)
+            ? BuildWebfleetArrivalAnalysisPayload(vehicle.ObjectUid, date, points)
             : $"Kein Positionsverlauf für den {date:dd.MM.yyyy} verfügbar.";
         OnPropertyChanged(nameof(WebfleetTrackStatusText));
 
@@ -416,10 +416,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _webfleetTrackRevision++;
         OnPropertyChanged(nameof(WebfleetTrackRevision));
         var arrivalAnalysisText = points.Count > 1
-            ? BuildWebfleetArrivalAnalysisText(vehicle.ObjectUid, date, points)
+            ? BuildWebfleetArrivalAnalysisPayload(vehicle.ObjectUid, date, points)
             : string.Empty;
         _webfleetTrackStatusText = points.Count > 1
-            ? string.Join(" ", new[] { arrivalAnalysisText, pauseWarning }.Where(text => !string.IsNullOrWhiteSpace(text)))
+            ? string.IsNullOrWhiteSpace(pauseWarning)
+                ? arrivalAnalysisText
+                : arrivalAnalysisText.StartsWith("arrival-analysis:", StringComparison.Ordinal)
+                    ? $"{arrivalAnalysisText}\nwarning:{pauseWarning}"
+                    : $"{arrivalAnalysisText} {pauseWarning}"
             : $"Kein Positionsverlauf für den {date:dd.MM.yyyy} verfügbar.";
         OnPropertyChanged(nameof(WebfleetTrackStatusText));
         StatusText = points.Count > 1
@@ -1900,9 +1904,15 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         selectedStop.EmployeeInfoText = dialog.EmployeeInfoText;
 
         var selectedAvisoStatus = NormalizeAvisoStatus(dialog.SelectedAvisoStatus);
+        var avisoStatusChanged = false;
+        var keepFixedArrivalWindow = false;
         if (order is not null &&
             !string.Equals(NormalizeAvisoStatus(order.AvisoStatus), selectedAvisoStatus, StringComparison.OrdinalIgnoreCase))
         {
+            keepFixedArrivalWindow = ShouldKeepFixedArrivalWindowAfterAvisoReset(
+                NormalizeAvisoStatus(order.AvisoStatus),
+                selectedAvisoStatus);
+            avisoStatusChanged = true;
             order.AvisoStatus = selectedAvisoStatus;
             if (SelectedOrder is not null &&
                 string.Equals(SelectedOrder.OrderId, order.Id, StringComparison.OrdinalIgnoreCase))
@@ -1918,6 +1928,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             PublishOrderChange(order.Id, order.Id);
         }
         RefreshDriveTimesFromCurrentRoute();
+        if (order is not null && avisoStatusChanged)
+        {
+            await UpdateArrivalWindowFixationAsync(order, selectedAvisoStatus, keepFixedArrivalWindow);
+        }
         MarkRouteChanged();
         StatusText = IsPauseStop(selectedStop)
             ? $"Pausendauer gespeichert: {selectedStop.PlannedStayMinutes} min."
@@ -3228,6 +3242,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 _companyLocation,
                 defaultServiceMinutes: _stayMinutesFreiBordsteinkante);
             ApplyCurrentRouteTravelTimeCaches(tour);
+            ApplyCurrentAvisoArrivalWindowFixations(tour);
             tour.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
             tour.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
             tour.SecondaryVehicleId = string.IsNullOrWhiteSpace(secondaryVehicleId) ? null : secondaryVehicleId.Trim();
@@ -3345,6 +3360,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                     _companyLocation,
                     defaultServiceMinutes: _stayMinutesFreiBordsteinkante);
                 ApplyCurrentRouteTravelTimeCaches(updated);
+                PreserveFixedArrivalWindows(updated, existingTour);
+                ApplyCurrentAvisoArrivalWindowFixations(updated);
                 _scheduleService.ApplySchedule(updated);
             }
             else
@@ -3555,6 +3572,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                     ServiceMinutes = stop.ServiceMinutes,
                     PlannedArrival = (stop.PlannedArrival ?? string.Empty).Trim(),
                     PlannedArrivalPessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim(),
+                    IsArrivalWindowFixed = stop.IsArrivalWindowFixed,
                     PlannedDeparture = (stop.PlannedDeparture ?? string.Empty).Trim(),
                     WaitMinutes = stop.WaitMinutes,
                     ScheduleConflict = stop.ScheduleConflict,
@@ -3766,6 +3784,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                         PlannedStayMinutes = isPause
                             ? Math.Max(0, stop.ServiceMinutes)
                             : isManual ? Math.Max(0, stop.ServiceMinutes) : ResolvePlannedStayMinutes(stop.ServiceMinutes, ExtractTourStopOrderId(stop)),
+                        FixedArrivalRangeText = stop.IsArrivalWindowFixed
+                            ? TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(
+                                stop.PlannedArrivalOptimistic,
+                                stop.PlannedArrival,
+                                stop.PlannedArrivalPessimistic)
+                            : string.Empty,
                         EmployeeInfoText = isPause ? string.Empty : stop.EmployeeInfoText ?? string.Empty
                     };
                 })
@@ -3969,6 +3993,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             ServiceMinutes = stop.ServiceMinutes,
             PlannedArrival = (stop.PlannedArrival ?? string.Empty).Trim(),
             PlannedArrivalPessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim(),
+            IsArrivalWindowFixed = stop.IsArrivalWindowFixed,
             PlannedDeparture = (stop.PlannedDeparture ?? string.Empty).Trim(),
             WaitMinutes = stop.WaitMinutes,
             ScheduleConflict = stop.ScheduleConflict,
@@ -6140,6 +6165,26 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         RaiseCommandStates();
     }
 
+    public void SelectAllDetailProducts()
+    {
+        var productIndices = DetailProductItems
+            .Select(item => item.ProductIndex)
+            .ToHashSet();
+
+        if (_selectedDetailProductIndices.SetEquals(productIndices))
+        {
+            return;
+        }
+
+        _selectedDetailProductIndices.Clear();
+        _selectedDetailProductIndices.UnionWith(productIndices);
+        SyncDetailSelectedProductStatusFromSelection();
+        OnPropertyChanged(nameof(DetailProductItems));
+        OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(DetailSelectedProductsSummary));
+        RaiseCommandStates();
+    }
+
     private void ClearDetailProductSelection(bool raiseDetailItemsChanged = true)
     {
         if (_selectedDetailProductIndices.Count == 0)
@@ -6544,12 +6589,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
+        var previousStatus = NormalizeAvisoStatus(order.AvisoStatus);
         var normalizedStatus = NormalizeAvisoStatus(nextStatus);
-        if (string.Equals(NormalizeAvisoStatus(order.AvisoStatus), normalizedStatus, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(previousStatus, normalizedStatus, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
+        var keepFixedArrivalWindow = ShouldKeepFixedArrivalWindowAfterAvisoReset(previousStatus, normalizedStatus);
         order.AvisoStatus = normalizedStatus;
         if (SelectedOrder is not null &&
             string.Equals(SelectedOrder.OrderId, order.Id, StringComparison.OrdinalIgnoreCase))
@@ -6558,6 +6605,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         await _orderRepository.SaveAllAsync(_allOrders);
+        await UpdateArrivalWindowFixationAsync(order, normalizedStatus, keepFixedArrivalWindow);
 
         _suppressDetailAvisoStatusSave = true;
         try
@@ -6575,6 +6623,92 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(DetailAvisoStatus));
         PublishOrderChange(order.Id, order.Id);
         StatusText = $"Avisierungsstatus f\u00FCr Auftrag {order.Id} gespeichert.";
+    }
+
+    private async Task UpdateArrivalWindowFixationAsync(Order order, string avisoStatus, bool keepFixedArrivalWindow = false)
+    {
+        var shouldFix = string.Equals(avisoStatus, "Informiert", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(avisoStatus, "Bestätigt", StringComparison.OrdinalIgnoreCase) ||
+                        keepFixedArrivalWindow;
+        var routeStop = RouteStops.FirstOrDefault(stop =>
+            string.Equals(stop.OrderId, order.Id, StringComparison.OrdinalIgnoreCase));
+        var fixedRange = routeStop is not null && TryParseArrivalRange(routeStop.EtaRangeText, out var start, out var end)
+            ? (Start: start, End: end)
+            : ((string Start, string End)?)null;
+
+        var tours = (await _tourRepository.LoadAsync()).ToList();
+        var changed = false;
+        foreach (var tour in tours)
+        {
+            var stop = (tour.Stops ?? []).FirstOrDefault(candidate =>
+                string.Equals(ExtractTourStopOrderId(candidate), order.Id, StringComparison.OrdinalIgnoreCase));
+            if (stop is null)
+            {
+                continue;
+            }
+
+            stop.IsArrivalWindowFixed = shouldFix;
+            if (shouldFix && fixedRange.HasValue)
+            {
+                stop.PlannedArrivalOptimistic = fixedRange.Value.Start;
+                stop.PlannedArrivalPessimistic = fixedRange.Value.End;
+            }
+            else if (!shouldFix)
+            {
+                _scheduleService.ApplySchedule(tour);
+            }
+
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        await _tourRepository.SaveAsync(tours);
+        _dataSyncService.PublishTours(_instanceId, order.AssignedTourId, order.AssignedTourId);
+
+        if (routeStop is not null)
+        {
+            routeStop.FixedArrivalRangeText = shouldFix ? routeStop.EtaRangeText : string.Empty;
+        }
+
+        await LoadSavedToursAsync(ResolveCurrentTourId());
+    }
+
+    private static bool ShouldKeepFixedArrivalWindowAfterAvisoReset(string previousStatus, string nextStatus)
+    {
+        var wasFixedByAviso = string.Equals(previousStatus, "Informiert", StringComparison.OrdinalIgnoreCase) ||
+                              string.Equals(previousStatus, "Bestätigt", StringComparison.OrdinalIgnoreCase);
+        if (!wasFixedByAviso || !string.Equals(nextStatus, "nicht avisiert", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var result = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+            "Der Auftrag ist nicht mehr avisiert. Soll das bisher fixierte Zeitfenster freigegeben und anhand der aktuellen Route neu berechnet werden?",
+            "Zeitfenster neu berechnen?",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        return result != MessageBoxResult.Yes;
+    }
+
+    private static bool TryParseArrivalRange(string? text, out string start, out string end)
+    {
+        start = string.Empty;
+        end = string.Empty;
+        var parts = (text ?? string.Empty).Split(['-', '–'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2 ||
+            !TimeOnly.TryParseExact(parts[0], "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedStart) ||
+            !TimeOnly.TryParseExact(parts[1], "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedEnd))
+        {
+            return false;
+        }
+
+        start = parsedStart.ToString("HH:mm", CultureInfo.InvariantCulture);
+        end = parsedEnd.ToString("HH:mm", CultureInfo.InvariantCulture);
+        return true;
     }
 
     private async Task ApplyExternalOrderChangeAsync(OrderChangedEventArgs args)
@@ -7867,7 +8001,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 totalTrafficBufferMinutes += trafficBufferMinutes;
             }
             var arrive = realisticCurrent;
-            var legRangeText = BuildTimeRangeText(optimisticCurrent, realisticCurrent, pessimisticCurrent);
+            var calculatedRangeText = BuildTimeRangeText(optimisticCurrent, realisticCurrent, pessimisticCurrent);
+            var legRangeText = string.IsNullOrWhiteSpace(stop.FixedArrivalRangeText)
+                ? calculatedRangeText
+                : stop.FixedArrivalRangeText;
             totalDriveMinutes += leg.DurationMinutes;
             totalDistanceKm += leg.DistanceKm;
 
@@ -8314,7 +8451,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             .ToList();
     }
 
-    private string BuildWebfleetArrivalAnalysisText(
+    private string BuildWebfleetArrivalAnalysisPayload(
         string objectUid,
         DateOnly date,
         IReadOnlyList<WebfleetTrackPoint> trackPoints)
@@ -8335,8 +8472,96 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return $"Keine Tour des Mitarbeiters für den {date:dd.MM.yyyy} gefunden; Ankunftsanalyse nicht möglich.";
         }
 
-        var results = WebfleetArrivalAnalysisService.Analyze(tour, trackPoints, date);
-        return WebfleetArrivalAnalysisService.BuildSummary(results);
+        var analysisTour = BuildCurrentArrivalAnalysisTour(tour);
+        var results = WebfleetArrivalAnalysisService.Analyze(analysisTour, trackPoints, date);
+        if (results.Count == 0)
+        {
+            return WebfleetArrivalAnalysisService.BuildSummary(results);
+        }
+
+        var displayModel = WebfleetArrivalAnalysisService.BuildDisplayModel(results);
+        return "arrival-analysis:" + JsonSerializer.Serialize(displayModel, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+    }
+
+    private TourRecord BuildCurrentArrivalAnalysisTour(TourRecord tour)
+    {
+        if (tour.Id != ResolveCurrentTourId() || !RouteStops.Any(IsOrderStop))
+        {
+            return tour;
+        }
+
+        var analysisTour = CloneTourRecord(tour);
+        foreach (var stop in analysisTour.Stops ?? [])
+        {
+            var orderId = ExtractTourStopOrderId(stop);
+            var routeStop = RouteStops.FirstOrDefault(candidate =>
+                string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+            if (routeStop is null || !TryParseArrivalRange(routeStop.EtaRangeText, out var start, out var end))
+            {
+                continue;
+            }
+
+            stop.PlannedArrivalOptimistic = start;
+            stop.PlannedArrivalPessimistic = end;
+            if (!string.IsNullOrWhiteSpace(routeStop.EtaText))
+            {
+                stop.PlannedArrival = routeStop.EtaText;
+            }
+        }
+
+        return analysisTour;
+    }
+
+    private static void PreserveFixedArrivalWindows(TourRecord updatedTour, TourRecord existingTour)
+    {
+        var existingByOrderId = (existingTour.Stops ?? [])
+            .Where(stop => stop.IsArrivalWindowFixed)
+            .GroupBy(ExtractTourStopOrderId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var stop in updatedTour.Stops ?? [])
+        {
+            var orderId = ExtractTourStopOrderId(stop);
+            if (string.IsNullOrWhiteSpace(orderId) || !existingByOrderId.TryGetValue(orderId, out var existing))
+            {
+                continue;
+            }
+
+            stop.IsArrivalWindowFixed = true;
+            stop.PlannedArrivalOptimistic = existing.PlannedArrivalOptimistic;
+            stop.PlannedArrivalPessimistic = existing.PlannedArrivalPessimistic;
+        }
+    }
+
+    private void ApplyCurrentAvisoArrivalWindowFixations(TourRecord tour)
+    {
+        foreach (var stop in tour.Stops ?? [])
+        {
+            var orderId = ExtractTourStopOrderId(stop);
+            var order = _allOrders.FirstOrDefault(candidate =>
+                string.Equals(candidate.Id, orderId, StringComparison.OrdinalIgnoreCase));
+            var status = NormalizeAvisoStatus(order?.AvisoStatus);
+            var shouldFix = string.Equals(status, "Informiert", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(status, "Bestätigt", StringComparison.OrdinalIgnoreCase);
+            if (!shouldFix)
+            {
+                continue;
+            }
+
+            var routeStop = RouteStops.FirstOrDefault(candidate =>
+                string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+            if (routeStop is null || !TryParseArrivalRange(routeStop.EtaRangeText, out var start, out var end))
+            {
+                continue;
+            }
+
+            stop.IsArrivalWindowFixed = true;
+            stop.PlannedArrivalOptimistic = start;
+            stop.PlannedArrivalPessimistic = end;
+        }
     }
 
     private string ResolveRouteStopAddress(string? orderId, string? fallbackAddress)
@@ -8822,6 +9047,7 @@ public sealed class RouteStopItem : ObservableObject
     private int _plannedStayMinutes = 10;
     private string _etaText = string.Empty;
     private string _etaRangeText = string.Empty;
+    private string _fixedArrivalRangeText = string.Empty;
     private string _nextLegDurationText = string.Empty;
     private string _nextLegDistanceText = string.Empty;
     private string _nextLegDepartureText = string.Empty;
@@ -9039,6 +9265,12 @@ public sealed class RouteStopItem : ObservableObject
                 OnPropertyChanged(nameof(HasEtaRange));
             }
         }
+    }
+
+    public string FixedArrivalRangeText
+    {
+        get => _fixedArrivalRangeText;
+        set => SetProperty(ref _fixedArrivalRangeText, value ?? string.Empty);
     }
 
     public string NextLegDurationText

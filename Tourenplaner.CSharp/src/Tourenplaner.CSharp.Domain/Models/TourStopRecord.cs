@@ -17,6 +17,7 @@ public sealed class TourStopRecord
     public int ServiceMinutes { get; set; }
     public string PlannedArrival { get; set; } = string.Empty;
     public string PlannedArrivalPessimistic { get; set; } = string.Empty;
+    public bool IsArrivalWindowFixed { get; set; }
     public string PlannedDeparture { get; set; } = string.Empty;
     public int WaitMinutes { get; set; }
     public bool ScheduleConflict { get; set; }

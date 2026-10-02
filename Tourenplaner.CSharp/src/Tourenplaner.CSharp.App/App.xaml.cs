@@ -2,6 +2,9 @@
 using System.Linq;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
@@ -21,6 +24,12 @@ public partial class App : System.Windows.Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        EventManager.RegisterClassHandler(
+            typeof(ComboBox),
+            UIElement.PreviewMouseWheelEvent,
+            new MouseWheelEventHandler(OnComboBoxPreviewMouseWheel),
+            true);
+
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         var startupStep = "Vorbereitung";
@@ -161,6 +170,27 @@ public partial class App : System.Windows.Application
                 MessageBoxImage.Error);
             Shutdown(-1);
         }
+    }
+
+    private static void OnComboBoxPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || sender is not ComboBox { IsDropDownOpen: false } comboBox)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        if (VisualTreeHelper.GetParent(comboBox) is not UIElement parent)
+        {
+            return;
+        }
+
+        parent.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+        {
+            RoutedEvent = UIElement.MouseWheelEvent,
+            Source = comboBox
+        });
     }
 
     private static async Task RenderSplashStepAsync(StartupSplashWindow splashWindow, string message)

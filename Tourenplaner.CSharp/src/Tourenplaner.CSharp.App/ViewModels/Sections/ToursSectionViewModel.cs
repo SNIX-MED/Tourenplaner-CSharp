@@ -2794,6 +2794,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 ServiceMinutes = stop.ServiceMinutes,
                 PlannedArrival = stop.PlannedArrival,
                 PlannedArrivalPessimistic = stop.PlannedArrivalPessimistic,
+                IsArrivalWindowFixed = stop.IsArrivalWindowFixed,
                 PlannedDeparture = stop.PlannedDeparture,
                 WaitMinutes = stop.WaitMinutes,
                 ScheduleConflict = stop.ScheduleConflict,

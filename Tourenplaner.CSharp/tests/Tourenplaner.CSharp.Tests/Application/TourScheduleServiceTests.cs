@@ -191,6 +191,38 @@ public class TourScheduleServiceTests
     }
 
     [Fact]
+    public void ApplySchedule_PreservesFixedArrivalWindowUntilItIsUnlocked()
+    {
+        var service = new TourScheduleService(0, 0, 0, 0);
+        var fixedStop = new TourStopRecord
+        {
+            Id = "B",
+            Order = 2,
+            PlannedArrivalOptimistic = "10:30",
+            PlannedArrivalPessimistic = "11:30",
+            IsArrivalWindowFixed = true
+        };
+        var tour = new TourRecord
+        {
+            Date = "21.03.2026",
+            StartTime = "08:00",
+            Stops = [new TourStopRecord { Id = "A", Order = 1 }, fixedStop],
+            TravelTimeCache = new Dictionary<string, int> { ["A|B"] = 30 }
+        };
+
+        service.ApplySchedule(tour);
+
+        Assert.Equal("10:30", fixedStop.PlannedArrivalOptimistic);
+        Assert.Equal("11:30", fixedStop.PlannedArrivalPessimistic);
+
+        fixedStop.IsArrivalWindowFixed = false;
+        service.ApplySchedule(tour);
+
+        Assert.Equal("08:30", fixedStop.PlannedArrivalOptimistic);
+        Assert.Equal("09:30", fixedStop.PlannedArrivalPessimistic);
+    }
+
+    [Fact]
     public void ApplySchedule_ClampsDisplayedArrivalRangeToTwoHours()
     {
         var service = new TourScheduleService(0, 0, 0, 0);

@@ -162,9 +162,14 @@ public sealed class TourScheduleService
                 entry.Arrival,
                 entry.PessimisticArrival ?? entry.Arrival);
 
-            stop.PlannedArrivalOptimistic = displayedRange.Optimistic.ToString("HH:mm");
+            if (!stop.IsArrivalWindowFixed ||
+                string.IsNullOrWhiteSpace(stop.PlannedArrivalOptimistic) ||
+                string.IsNullOrWhiteSpace(stop.PlannedArrivalPessimistic))
+            {
+                stop.PlannedArrivalOptimistic = displayedRange.Optimistic.ToString("HH:mm");
+                stop.PlannedArrivalPessimistic = displayedRange.Pessimistic.ToString("HH:mm");
+            }
             stop.PlannedArrival = entry.Arrival.ToString("HH:mm");
-            stop.PlannedArrivalPessimistic = displayedRange.Pessimistic.ToString("HH:mm");
             stop.PlannedDeparture = entry.Departure.ToString("HH:mm");
             stop.ScheduleConflict = entry.HasConflict;
             stop.ScheduleConflictText = entry.ConflictText;

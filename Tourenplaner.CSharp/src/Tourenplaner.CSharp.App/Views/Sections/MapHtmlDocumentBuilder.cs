@@ -97,11 +97,11 @@ internal static class MapHtmlDocumentBuilder
                    .fleet-tracks-toggle { border: 1px solid #cbd5e1; background: rgba(255,255,255,.96); border-radius: 10px; padding: 0; color: #0f172a; cursor: pointer; font-size: 18px; box-shadow: 0 4px 14px rgba(15,23,42,.18); display: none; align-items: center; justify-content: center; width: 40px; height: 40px; min-width: 40px; min-height: 40px; }
                    .fleet-tracks-toggle.visible { display: inline-flex; }
                    .fleet-tracks-toggle img { display: block; width: 28px; height: 28px; object-fit: contain; }
-                   .fleet-tracks-overlay { position: absolute; right: 58px; top: 8px; width: min(300px, calc(84vw - 66px)); z-index: 1500; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 16px; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: none; overflow: visible; }
+                   .fleet-tracks-overlay { position: absolute; right: 58px; top: 8px; width: min(500px, calc(92vw - 66px)); max-height: calc(100% - 16px); z-index: 1500; background: rgba(255,255,255,.98); border: 1px solid #dbe3ee; border-radius: 16px; box-shadow: -10px 0 28px rgba(15,23,42,.16); display: none; overflow: visible; }
                    .fleet-tracks-overlay.open { display: block; }
                    .fleet-tracks-overlay .map-options-header { padding: 12px 14px 8px; }
                    .fleet-tracks-overlay .map-options-title { font-size: 22px; }
-                   .fleet-tracks-content { padding: 8px 14px 14px; }
+                   .fleet-tracks-content { padding: 8px 14px 14px; max-height: calc(100vh - 90px); overflow-y: auto; }
                    .fleet-tracks-content .map-option-section { margin-top: 10px; }
                    .fleet-tracks-content .map-option-section h4 { margin-bottom: 6px; }
                    .fleet-tracks-content select, .fleet-tracks-content input { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 8px; color: #0f172a; background: #fff; font: 13px Segoe UI,sans-serif; }
@@ -125,7 +125,30 @@ internal static class MapHtmlDocumentBuilder
                    .fleet-tracks-actions button { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; cursor: pointer; font: 600 12px Segoe UI,sans-serif; background: #fff; color: #0f172a; }
                    .fleet-tracks-actions button.primary { background: #0f766e; border-color: #0f766e; color: #fff; }
                    .fleet-track-legend { margin-top: 12px; padding: 9px 10px; border-radius: 8px; background: #f8fafc; font-size: 12px; color: #475569; line-height: 1.45; }
-                   .fleet-track-status { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; font-size: 12px; line-height: 1.4; }
+                   .fleet-track-status { margin-top: 10px; color: #475569; font-size: 12px; line-height: 1.4; }
+                   .arrival-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 11px; border: 1px solid #dbe3ee; border-radius: 10px 10px 0 0; background: #f8fafc; }
+                   .arrival-summary-title { margin-right: auto; color: #0f172a; font-size: 13px; font-weight: 700; }
+                   .arrival-count { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+                   .arrival-count.within { color: #166534; background: #dcfce7; }
+                   .arrival-count.outside { color: #991b1b; background: #fee2e2; }
+                   .arrival-count-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+                   .arrival-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; border: 1px solid #dbe3ee; border-top: 0; border-radius: 0 0 10px 10px; overflow: hidden; background: #fff; }
+                   .arrival-table th { padding: 7px 8px; background: #f8fafc; border-bottom: 1px solid #dbe3ee; color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: .03em; text-align: left; text-transform: uppercase; }
+                   .arrival-table td { padding: 8px; border-bottom: 1px solid #edf2f7; color: #334155; vertical-align: middle; }
+                   .arrival-table tr:last-child td { border-bottom: 0; }
+                   .arrival-table .customer { width: 36%; color: #0f172a; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                   .arrival-table .window { width: 20%; white-space: nowrap; }
+                   .arrival-table .actual { width: 13%; color: #0f172a; font-weight: 700; white-space: nowrap; }
+                   .arrival-table .result { width: 31%; }
+                   .arrival-status { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; white-space: nowrap; }
+                   .arrival-status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex: 0 0 auto; }
+                   .arrival-status.within { color: #15803d; }
+                   .arrival-status.within::before { background: #22c55e; }
+                   .arrival-status.outside { color: #b91c1c; }
+                   .arrival-status.outside::before { background: #ef4444; }
+                   .arrival-status.missing, .arrival-status.unknown { color: #64748b; }
+                   .arrival-warning { margin-top: 8px; padding: 8px 10px; border: 1px solid #fde68a; border-radius: 8px; color: #854d0e; background: #fffbeb; }
+                   .fleet-track-message { padding: 8px 10px; border-radius: 8px; background: #f1f5f9; border: 1px solid #e2e8f0; }
                    .fleet-track-swatch { display: inline-block; width: 18px; height: 4px; border-radius: 99px; background: #65a30d; vertical-align: middle; margin-right: 5px; }
                    .planned-track-swatch { background: #2563eb; }
                    .fleet-track-popup { min-width: 178px; padding: 7px 10px; font: 600 12px Segoe UI,sans-serif; color: #1e293b; line-height: 1.45; }
@@ -2120,8 +2143,95 @@ internal static class MapHtmlDocumentBuilder
                          window.gawelaSetFleetTrackStatus = function(message) {
                            if (!fleetTrackStatusEl) return;
                            const text = String(message || '').trim();
-                           fleetTrackStatusEl.textContent = text;
+                           fleetTrackStatusEl.replaceChildren();
                            fleetTrackStatusEl.hidden = !text;
+                           if (!text) return;
+
+                           const prefix = 'arrival-analysis:';
+                           if (!text.startsWith(prefix)) {
+                             const messageEl = document.createElement('div');
+                             messageEl.className = 'fleet-track-message';
+                             messageEl.textContent = text;
+                             fleetTrackStatusEl.appendChild(messageEl);
+                             return;
+                           }
+
+                           const warningMarker = '\nwarning:';
+                           const warningIndex = text.indexOf(warningMarker);
+                           const json = text.substring(prefix.length, warningIndex >= 0 ? warningIndex : text.length);
+                           const warning = warningIndex >= 0 ? text.substring(warningIndex + warningMarker.length).trim() : '';
+                           let analysis;
+                           try {
+                             analysis = JSON.parse(json);
+                           } catch {
+                             const messageEl = document.createElement('div');
+                             messageEl.className = 'fleet-track-message';
+                             messageEl.textContent = 'Die Ankunftsanalyse konnte nicht dargestellt werden.';
+                             fleetTrackStatusEl.appendChild(messageEl);
+                             return;
+                           }
+
+                           const summary = document.createElement('div');
+                           summary.className = 'arrival-summary';
+                           const title = document.createElement('div');
+                           title.className = 'arrival-summary-title';
+                           title.textContent = 'Ankunftsanalyse';
+                           summary.appendChild(title);
+                           [['within', analysis.withinCount, 'innerhalb'], ['outside', analysis.outsideCount, 'ausserhalb']].forEach(item => {
+                             const badge = document.createElement('span');
+                             badge.className = `arrival-count ${item[0]}`;
+                             const dot = document.createElement('span');
+                             dot.className = 'arrival-count-dot';
+                             badge.appendChild(dot);
+                             badge.appendChild(document.createTextNode(`${Number(item[1]) || 0} ${item[2]}`));
+                             summary.appendChild(badge);
+                           });
+                           fleetTrackStatusEl.appendChild(summary);
+
+                           const table = document.createElement('table');
+                           table.className = 'arrival-table';
+                           const head = document.createElement('thead');
+                           const headRow = document.createElement('tr');
+                           [['Kunde', 'customer'], ['Zeitfenster', 'window'], ['Ankunft', 'actual'], ['Status', 'result']].forEach(column => {
+                             const th = document.createElement('th');
+                             th.className = column[1];
+                             th.textContent = column[0];
+                             headRow.appendChild(th);
+                           });
+                           head.appendChild(headRow);
+                           table.appendChild(head);
+                           const body = document.createElement('tbody');
+                           (Array.isArray(analysis.rows) ? analysis.rows : []).forEach(row => {
+                             const tr = document.createElement('tr');
+                             const customer = document.createElement('td');
+                             customer.className = 'customer';
+                             customer.textContent = String(row.name || 'Unbekannter Stopp');
+                             customer.title = customer.textContent;
+                             const windowCell = document.createElement('td');
+                             windowCell.className = 'window';
+                             windowCell.textContent = String(row.timeWindow || '–');
+                             const actual = document.createElement('td');
+                             actual.className = 'actual';
+                             actual.textContent = String(row.arrival || '–');
+                             const result = document.createElement('td');
+                             result.className = 'result';
+                             const status = document.createElement('span');
+                             const statusClass = ['within', 'outside', 'missing', 'unknown'].includes(row.status) ? row.status : 'unknown';
+                             status.className = `arrival-status ${statusClass}`;
+                             status.textContent = String(row.statusText || 'Unbekannt');
+                             result.appendChild(status);
+                             [customer, windowCell, actual, result].forEach(cell => tr.appendChild(cell));
+                             body.appendChild(tr);
+                           });
+                           table.appendChild(body);
+                           fleetTrackStatusEl.appendChild(table);
+
+                           if (warning) {
+                             const warningEl = document.createElement('div');
+                             warningEl.className = 'arrival-warning';
+                             warningEl.textContent = warning;
+                             fleetTrackStatusEl.appendChild(warningEl);
+                           }
                          };
 
                          window.gawelaSetFleetVehicles = function(vehicles) {

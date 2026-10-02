@@ -58,6 +58,45 @@ public sealed class WebfleetArrivalAnalysisServiceTests
         Assert.Contains("0/1", WebfleetArrivalAnalysisService.BuildSummary([result]));
     }
 
+    [Fact]
+    public void BuildDisplayModel_FormatsRowsAndExplainsLateArrival()
+    {
+        var date = new DateOnly(2026, 10, 2);
+        var start = new DateTimeOffset(date.ToDateTime(new TimeOnly(10, 0), DateTimeKind.Local));
+        var end = start.AddHours(1);
+        var results = new[]
+        {
+            new WebfleetStopArrivalAnalysis("A", "Kunde A", start.AddMinutes(30), start, end),
+            new WebfleetStopArrivalAnalysis("B", "Kunde B", end.AddMinutes(2), start, end)
+        };
+
+        var display = WebfleetArrivalAnalysisService.BuildDisplayModel(results);
+
+        Assert.Equal(1, display.WithinCount);
+        Assert.Equal(1, display.OutsideCount);
+        Assert.Equal("10:00–11:00", display.Rows[1].TimeWindow);
+        Assert.Equal("11:02", display.Rows[1].Arrival);
+        Assert.Equal("outside", display.Rows[1].Status);
+        Assert.Equal("2 Min. zu spät", display.Rows[1].StatusText);
+    }
+
+    [Fact]
+    public void BuildDisplayModel_FormatsUtcArrivalInTourWindowOffset()
+    {
+        var windowStart = new DateTimeOffset(2026, 10, 2, 10, 30, 0, TimeSpan.FromHours(2));
+        var result = new WebfleetStopArrivalAnalysis(
+            "A",
+            "Kunde A",
+            new DateTimeOffset(2026, 10, 2, 8, 31, 0, TimeSpan.Zero),
+            windowStart,
+            windowStart.AddHours(1));
+
+        var display = WebfleetArrivalAnalysisService.BuildDisplayModel([result]);
+
+        Assert.Equal("10:31", display.Rows[0].Arrival);
+        Assert.Equal("within", display.Rows[0].Status);
+    }
+
     private static WebfleetTrackPoint Point(DateOnly date, int hour, int minute, double lat, double lon) =>
         new(new DateTimeOffset(date.ToDateTime(new TimeOnly(hour, minute), DateTimeKind.Local)), lat, lon, 0, 0);
 }

@@ -16,6 +16,19 @@ public sealed record WebfleetStopArrivalAnalysis(
         : null;
 }
 
+public sealed record WebfleetArrivalDisplayRow(
+    string Name,
+    string TimeWindow,
+    string Arrival,
+    string Status,
+    string StatusText);
+
+public sealed record WebfleetArrivalDisplayModel(
+    int WithinCount,
+    int OutsideCount,
+    int EvaluatedCount,
+    IReadOnlyList<WebfleetArrivalDisplayRow> Rows);
+
 public static class WebfleetArrivalAnalysisService
 {
     public const double DefaultArrivalRadiusMeters = 150d;
@@ -69,11 +82,63 @@ public static class WebfleetArrivalAnalysisService
         {
             var name = string.IsNullOrWhiteSpace(result.StopName) ? result.StopId : result.StopName;
             if (!result.ActualArrival.HasValue) return $"{name}: keine Ankunft erkannt";
-            if (!result.ArrivedWithinWindow.HasValue) return $"{name}: {result.ActualArrival:HH:mm}, kein Sollfenster";
-            return $"{name}: {result.ActualArrival:HH:mm} {(result.ArrivedWithinWindow == true ? "innerhalb" : "ausserhalb")}";
+            var displayArrival = ToTourLocalTime(result.ActualArrival.Value, result.WindowStart);
+            if (!result.ArrivedWithinWindow.HasValue) return $"{name}: {displayArrival:HH:mm}, kein Sollfenster";
+            return $"{name}: {displayArrival:HH:mm} {(result.ArrivedWithinWindow == true ? "innerhalb" : "ausserhalb")}";
         });
 
         return $"Ankunftsanalyse: {within}/{evaluated.Count} innerhalb des Zeitfensters. {string.Join(" · ", details)}";
+    }
+
+    public static WebfleetArrivalDisplayModel BuildDisplayModel(IReadOnlyList<WebfleetStopArrivalAnalysis> results)
+    {
+        ArgumentNullException.ThrowIfNull(results);
+
+        var evaluated = results.Where(result => result.ArrivedWithinWindow.HasValue).ToList();
+        var within = evaluated.Count(result => result.ArrivedWithinWindow == true);
+        var outside = evaluated.Count - within;
+        var rows = results.Select(result =>
+        {
+            var name = string.IsNullOrWhiteSpace(result.StopName) ? result.StopId : result.StopName;
+            var timeWindow = result.WindowStart.HasValue && result.WindowEnd.HasValue
+                ? $"{result.WindowStart:HH:mm}–{result.WindowEnd:HH:mm}"
+                : "–";
+            var displayArrival = result.ActualArrival.HasValue
+                ? ToTourLocalTime(result.ActualArrival.Value, result.WindowStart)
+                : (DateTimeOffset?)null;
+            var arrival = displayArrival?.ToString("HH:mm", CultureInfo.InvariantCulture) ?? "–";
+
+            if (!result.ActualArrival.HasValue)
+            {
+                return new WebfleetArrivalDisplayRow(name, timeWindow, arrival, "missing", "Nicht erkannt");
+            }
+
+            if (!result.ArrivedWithinWindow.HasValue)
+            {
+                return new WebfleetArrivalDisplayRow(name, timeWindow, arrival, "unknown", "Kein Zeitfenster");
+            }
+
+            if (result.ArrivedWithinWindow == true)
+            {
+                return new WebfleetArrivalDisplayRow(name, timeWindow, arrival, "within", "Innerhalb");
+            }
+
+            var difference = result.ActualArrival < result.WindowStart
+                ? result.WindowStart.Value - result.ActualArrival.Value
+                : result.ActualArrival.Value - result.WindowEnd!.Value;
+            var minutes = Math.Max(1, (int)Math.Ceiling(difference.TotalMinutes));
+            var timing = result.ActualArrival < result.WindowStart ? "zu früh" : "zu spät";
+            return new WebfleetArrivalDisplayRow(name, timeWindow, arrival, "outside", $"{minutes} Min. {timing}");
+        }).ToList();
+
+        return new WebfleetArrivalDisplayModel(within, outside, evaluated.Count, rows);
+    }
+
+    private static DateTimeOffset ToTourLocalTime(DateTimeOffset arrival, DateTimeOffset? windowStart)
+    {
+        return windowStart.HasValue
+            ? arrival.ToOffset(windowStart.Value.Offset)
+            : arrival.ToLocalTime();
     }
 
     private static bool IsAnalyzableStop(TourStopRecord stop)

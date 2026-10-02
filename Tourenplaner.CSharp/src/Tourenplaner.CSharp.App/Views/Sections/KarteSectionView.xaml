@@ -2311,7 +2311,11 @@
                                               VerticalScrollBarVisibility="Auto"
                                               PreviewMouseWheel="OnDetailsPreviewMouseWheel">
                                     <StackPanel>
-                                        <ItemsControl Margin="0,4,0,0" ItemsSource="{Binding DetailProductItems}">
+                                        <ItemsControl x:Name="DetailProductsItemsControl"
+                                                      Margin="0,4,0,0"
+                                                      Focusable="True"
+                                                      PreviewKeyDown="OnDetailProductsPreviewKeyDown"
+                                                      ItemsSource="{Binding DetailProductItems}">
                                             <ItemsControl.Style>
                                                 <Style TargetType="ItemsControl">
                                                     <Setter Property="Visibility" Value="Visible" />
