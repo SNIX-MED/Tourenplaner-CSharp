@@ -122,6 +122,19 @@ public sealed partial class MainShellViewModel : ObservableObject
             repositories.DataRootPath,
             dataSyncService,
             tourId => NavigateToTourAsync(tours, tourId));
+        map.ShowOrderInListAsync = async order =>
+        {
+            if (order.Type == OrderType.NonMap)
+            {
+                await nonMapOrders.FocusOrderAsync(order.Id, order.IsArchived);
+                SelectNavigationItemForSection(nonMapOrders);
+            }
+            else
+            {
+                await orders.FocusOrderAsync(order.Id, order.IsArchived);
+                SelectNavigationItemForSection(orders);
+            }
+        };
         var employees = new EmployeesSectionViewModel(repositories.EmployeeDataStore, repositories.TourRecordStore, repositories.AppSettingsStore, dataSyncService);
         var vehicles = new VehiclesSectionViewModel(repositories.VehicleDataStore, repositories.TourRecordStore, dataSyncService);
 

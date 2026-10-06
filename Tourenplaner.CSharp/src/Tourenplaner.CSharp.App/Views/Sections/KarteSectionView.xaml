@@ -1786,23 +1786,45 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Border Margin="0,0,5,0" Padding="9" CornerRadius="9" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource Brush.TextPrimary}" VerticalAlignment="Center" Text="&#xE707;" />
-                                            <StackPanel Margin="8,0,0,0">
-                                                <TextBlock FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="Stopps" />
-                                                <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourOverviewItem.StopCount}" />
+                                    <Border MinHeight="64" Margin="0,0,5,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="46" />
+                                                <ColumnDefinition Width="1" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Image Width="34" Height="34"
+                                                   VerticalAlignment="Center"
+                                                   Stretch="Uniform"
+                                                   SnapsToDevicePixels="True"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Stopps.png" />
+                                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Stopps" />
+                                                <TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourOverviewItem.StopCount}" />
                                             </StackPanel>
-                                        </StackPanel>
+                                        </Grid>
                                     </Border>
-                                    <Border Grid.Column="1" Margin="5,0,0,0" Padding="9" CornerRadius="9" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource Brush.TextPrimary}" VerticalAlignment="Center" Text="&#xE77B;" />
-                                            <StackPanel Margin="8,0,0,0">
-                                                <TextBlock FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="Mitarbeiter" />
-                                                <TextBlock MaxWidth="140" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding SelectedTourOverviewItem.EmployeeNames}" />
+                                    <Border Grid.Column="1" MinHeight="64" Margin="5,0,0,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="38" />
+                                                <ColumnDefinition Width="1" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Image Width="34" Height="34"
+                                                   VerticalAlignment="Center"
+                                                   Stretch="Uniform"
+                                                   SnapsToDevicePixels="True"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Mitarbeiter.png" />
+                                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Mitarbeiter" />
+                                                <TextBlock Margin="0,1,0,0" MaxWidth="135" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" Text="{Binding SelectedTourOverviewItem.EmployeeNames}" />
                                             </StackPanel>
-                                        </StackPanel>
+                                        </Grid>
                                     </Border>
                                 </Grid>
                                 <Grid Grid.Row="2" Margin="0,5,0,0">
@@ -1810,23 +1832,45 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Border Margin="0,0,5,0" Padding="9" CornerRadius="9" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource Brush.TextPrimary}" VerticalAlignment="Center" Text="&#xE8B7;" />
-                                            <StackPanel Margin="8,0,0,0">
-                                                <TextBlock FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="Gesamtgewicht" />
-                                                <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourOverviewItem.TotalWeightText}" />
+                                    <Border MinHeight="64" Margin="0,0,5,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="38" />
+                                                <ColumnDefinition Width="1" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Image Width="40" Height="40"
+                                                   VerticalAlignment="Center"
+                                                   Stretch="Uniform"
+                                                   SnapsToDevicePixels="True"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Warengewicht.png" />
+                                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Gesamtgewicht" />
+                                                <TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourOverviewItem.TotalWeightText}" />
                                             </StackPanel>
-                                        </StackPanel>
+                                        </Grid>
                                     </Border>
-                                    <Border Grid.Column="1" Margin="5,0,0,0" Padding="9" CornerRadius="9" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="{DynamicResource Brush.TextPrimary}" VerticalAlignment="Center" Text="&#xE7B8;" />
-                                            <StackPanel Margin="8,0,0,0">
-                                                <TextBlock FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="Ladegewicht" />
-                                                <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourOverviewItem.LoadCapacityText}" />
+                                    <Border Grid.Column="1" MinHeight="64" Margin="5,0,0,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="38" />
+                                                <ColumnDefinition Width="1" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Image Width="34" Height="34"
+                                                   VerticalAlignment="Center"
+                                                   Stretch="Uniform"
+                                                   SnapsToDevicePixels="True"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Ladegewicht.png" />
+                                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Ladegewicht" />
+                                                <TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourOverviewItem.LoadCapacityText}" />
                                             </StackPanel>
-                                        </StackPanel>
+                                        </Grid>
                                     </Border>
                                 </Grid>
                             </Grid>
@@ -2529,11 +2573,30 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Grid.Style>
-                                        <Button Height="36"
-                                                Margin="0"
-                                                Content="Zu Tour hinzufügen"
-                                                Style="{StaticResource SuccessButtonStyle}"
-                                                Command="{Binding AddToRouteCommand}" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="44" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0"
+                                                    Width="36"
+                                                    Height="36"
+                                                    Margin="0,0,8,0"
+                                                    Padding="0"
+                                                    ToolTip="Pin auf der Karte zentrieren"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding CenterSelectedOrderCommand}">
+                                                <TextBlock FontFamily="Segoe MDL2 Assets"
+                                                           FontSize="17"
+                                                           Text="&#xE707;" />
+                                            </Button>
+                                            <Button Grid.Column="1"
+                                                    Height="36"
+                                                    Margin="0"
+                                                    Content="Zu Tour hinzufügen"
+                                                    Style="{StaticResource SuccessButtonStyle}"
+                                                    Command="{Binding AddToRouteCommand}" />
+                                        </Grid>
                                     </Grid>
 
                                     <Grid>
@@ -2551,11 +2614,30 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Grid.Style>
-                                        <Button Height="36"
-                                                Margin="0"
-                                                Content="Zu neuer Tour hinzufügen"
-                                                Style="{StaticResource SuccessButtonStyle}"
-                                                Command="{Binding AddToNewTourCommand}" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="44" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0"
+                                                    Width="36"
+                                                    Height="36"
+                                                    Margin="0,0,8,0"
+                                                    Padding="0"
+                                                    ToolTip="Pin auf der Karte zentrieren"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding CenterSelectedOrderCommand}">
+                                                <TextBlock FontFamily="Segoe MDL2 Assets"
+                                                           FontSize="17"
+                                                           Text="&#xE707;" />
+                                            </Button>
+                                            <Button Grid.Column="1"
+                                                    Height="36"
+                                                    Margin="0"
+                                                    Content="Zu neuer Tour hinzufügen"
+                                                    Style="{StaticResource SuccessButtonStyle}"
+                                                    Command="{Binding AddToNewTourCommand}" />
+                                        </Grid>
                                     </Grid>
 
                                     <Grid>

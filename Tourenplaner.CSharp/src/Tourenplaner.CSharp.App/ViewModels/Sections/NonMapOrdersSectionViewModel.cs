@@ -300,6 +300,15 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         RaiseCommandStates();
     }
 
+    public async Task FocusOrderAsync(string orderId, bool isArchived)
+    {
+        await RefreshAsync();
+        ShowArchivedOrders = isArchived;
+        ResetOrderFilters();
+        SearchText = orderId;
+        RebuildGrid(orderId);
+    }
+
     public async Task RefreshAsync()
     {
         await RefreshFromRepositoryAsync();

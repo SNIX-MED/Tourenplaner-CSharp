@@ -69,11 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Eingebettete TomTom-Kartenvorschau für unklare Adresszuordnungen
-          - Gefundenen Kartenpunkt per Klick oder Ziehen des Pins manuell korrigieren
-          - Umschalter zwischen Karten- und Satellitenansicht
-          - Sicherheitsabfrage bei mehr als zwei Kilometern Abweichung vom TomTom-Treffer
-          - Ursprüngliche Auftragsadresse weiterhin direkt in Google Maps öffnen
+          - Kartensuche informiert bei Aufträgen ohne Karten-Pin über den genauen Grund
+          - Spediteur-Aufträge können direkt auf „Spediteur / Gawela“ umgestellt werden
+          - Gefundene Aufträge lassen sich in der passenden Auftragsliste öffnen
+          - Suchergebnisse und ausgewählte Aufträge können zuverlässig auf der Karte zentriert werden
+          - Überarbeitete Routenübersicht mit neuen Symbolen und klarerer Kennzahlendarstellung
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

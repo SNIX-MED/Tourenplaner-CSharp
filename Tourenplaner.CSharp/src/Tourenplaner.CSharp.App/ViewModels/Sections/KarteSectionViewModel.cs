@@ -247,6 +247,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SearchCommand = new AsyncCommand(SearchAsync);
+        CenterSelectedOrderCommand = new DelegateCommand(CenterSelectedOrder, () => SelectedOrder is not null);
         AddToRouteCommand = new DelegateCommand(AddSelectedOrderToRoute, CanAddSelectedOrderToCurrentRoute);
         AddToNewTourCommand = new DelegateCommand(AddSelectedOrderToNewTour, CanAddSelectedOrderToNewTour);
         AddSelectedOrdersToRouteCommand = new DelegateCommand(AddSelectedOrdersToRoute, CanAddSelectedOrdersToRoute);
@@ -297,6 +298,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public ICommand RefreshCommand { get; }
     public ICommand SearchCommand { get; }
+
+    public ICommand CenterSelectedOrderCommand { get; }
 
     public ICommand AddToRouteCommand { get; }
 
@@ -737,11 +740,22 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         var localExactMatch = FindExactLocalOrderMatch(query);
         if (localExactMatch is not null)
         {
+            if (await HandleSearchMatchWithoutPinAsync(localExactMatch))
+            {
+                return;
+            }
+
             SelectedOrder = localExactMatch;
             _searchFocusRevision++;
             OnPropertyChanged(nameof(SearchFocusRevision));
             ClearTemporarySearchPin();
             StatusText = $"Auftrag {localExactMatch.OrderId} gefunden.";
+            return;
+        }
+
+        var localContainsMatch = FindBestLocalSearchMatch(query);
+        if (localContainsMatch is not null && await HandleSearchMatchWithoutPinAsync(localContainsMatch))
+        {
             return;
         }
 
@@ -760,7 +774,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var localContainsMatch = FindBestLocalSearchMatch(query);
         if (localContainsMatch is not null)
         {
             SetTemporarySearchPin(localContainsMatch.Latitude, localContainsMatch.Longitude, localContainsMatch.Address);
@@ -770,6 +783,84 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         ClearTemporarySearchPin();
         StatusText = $"Kein Treffer für \"{query}\" gefunden.";
+    }
+
+    public Func<Order, Task>? ShowOrderInListAsync { get; set; }
+
+    private async Task<bool> HandleSearchMatchWithoutPinAsync(MapOrderItem match)
+    {
+        var order = _allOrders.FirstOrDefault(x =>
+            string.Equals(x.Id, match.OrderId, StringComparison.OrdinalIgnoreCase));
+        if (order is null || (!order.IsArchived && DeliveryMethodExtensions.CanUseLiefertour(order) && order.Location is not null))
+        {
+            return false;
+        }
+
+        ClearTemporarySearchPin();
+        var reasons = new List<string>();
+        if (order.IsArchived)
+        {
+            reasons.Add("Der Auftrag ist archiviert.");
+        }
+
+        if (!DeliveryMethodExtensions.CanUseLiefertour(order))
+        {
+            reasons.Add($"Die Versandart „{DeliveryMethodExtensions.GetPlanningDeliveryDisplayLabel(order)}“ hat keinen Karten-Pin.");
+        }
+        else if (order.Location is null)
+        {
+            reasons.Add("Für die Adresse sind keine Kartenkoordinaten vorhanden.");
+        }
+
+        var address = string.Join(", ", new[] { ResolveStreet(order), ResolvePostalCodeCity(order) }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            address = string.IsNullOrWhiteSpace(order.Address) ? "Keine Adresse hinterlegt" : order.Address;
+        }
+
+        var message = $"Ein passender Auftrag wurde gefunden, hat jedoch keinen Pin auf der Karte.\n\nAuftragsnummer: {order.Id}\nAdresse: {address}\n\nGrund: {string.Join(" ", reasons)}";
+        StatusText = $"Auftrag {order.Id} gefunden, jedoch ohne Karten-Pin. {string.Join(" ", reasons)}";
+        var canEnableAlternative = !order.IsArchived && !order.IsAlternativeDeliveryEnabled &&
+            string.Equals(DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
+                DeliveryMethodExtensions.Spediteur, StringComparison.OrdinalIgnoreCase);
+        var dialog = new AppMessageDialogWindow(
+            canEnableAlternative ? message + "\n\nSoll der Auftrag auf „Spediteur / Gawela“ gewechselt werden?" : message,
+            "Auftrag ohne Karten-Pin",
+            canEnableAlternative ? MessageBoxButton.YesNo : MessageBoxButton.OK,
+            canEnableAlternative ? MessageBoxImage.Question : MessageBoxImage.Information,
+            additionalButtonText: "Auftrag anzeigen")
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        dialog.ShowDialog();
+        if (dialog.AdditionalActionRequested && ShowOrderInListAsync is not null)
+        {
+            await ShowOrderInListAsync(order);
+            return true;
+        }
+
+        if (!canEnableAlternative || dialog.Result != MessageBoxResult.Yes)
+        {
+            return true;
+        }
+
+        order.IsAlternativeDeliveryEnabled = true;
+        var geocodingResult = await ApplyDeliveryMethodRoutingAsync(order, order.Location);
+        await _orderRepository.SaveAllAsync(_allOrders);
+        await ReconcileToursWithOrdersAsync(_allOrders);
+        await RefreshAsync();
+        SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, order.Id, StringComparison.OrdinalIgnoreCase));
+        if (SelectedOrder is not null)
+        {
+            _searchFocusRevision++;
+            OnPropertyChanged(nameof(SearchFocusRevision));
+        }
+
+        PublishOrderChange(order.Id, order.Id);
+        OrderPinAssignmentWarningService.ShowIfNeeded(order, geocodingResult);
+        StatusText = $"Auftrag {order.Id} wurde auf „Spediteur / Gawela“ gewechselt.";
+        return true;
     }
 
     private MapOrderItem? FindExactLocalOrderMatch(string query)
@@ -877,6 +968,17 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public string TemporarySearchPinLabel => _temporarySearchPinLabel;
     public int TemporarySearchPinRevision => _temporarySearchPinRevision;
     public int SearchFocusRevision => _searchFocusRevision;
+
+    private void CenterSelectedOrder()
+    {
+        if (SelectedOrder is null)
+        {
+            return;
+        }
+
+        _searchFocusRevision++;
+        OnPropertyChanged(nameof(SearchFocusRevision));
+    }
 
     public bool MapPinInfoCardShowName => _mapPinInfoCardShowName;
     public bool MapPinInfoCardShowOrderNumber => _mapPinInfoCardShowOrderNumber;
@@ -5491,6 +5593,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private void RaiseCommandStates()
     {
         RaiseCanExecuteChangedIfSupported(AddToRouteCommand);
+        RaiseCanExecuteChangedIfSupported(CenterSelectedOrderCommand);
         RaiseCanExecuteChangedIfSupported(AddToNewTourCommand);
         RaiseCanExecuteChangedIfSupported(AddSelectedOrdersToRouteCommand);
         RaiseCanExecuteChangedIfSupported(RemoveOrderFromTourCommand);

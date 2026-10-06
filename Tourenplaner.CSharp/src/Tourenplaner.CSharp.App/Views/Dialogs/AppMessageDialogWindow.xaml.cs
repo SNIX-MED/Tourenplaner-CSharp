@@ -11,7 +11,8 @@ public partial class AppMessageDialogWindow : Window
         MessageBoxButton buttons,
         MessageBoxImage image,
         string? primaryButtonText = null,
-        string? secondaryButtonText = null)
+        string? secondaryButtonText = null,
+        string? additionalButtonText = null)
     {
         InitializeComponent();
 
@@ -21,9 +22,24 @@ public partial class AppMessageDialogWindow : Window
 
         ConfigureVisuals(image);
         ConfigureButtons(buttons, primaryButtonText, secondaryButtonText);
+        if (!string.IsNullOrWhiteSpace(additionalButtonText))
+        {
+            AdditionalButton.Content = additionalButtonText;
+            AdditionalButton.Visibility = Visibility.Visible;
+            Height = 480;
+            MaxHeight = SystemParameters.WorkArea.Height;
+        }
     }
 
     public MessageBoxResult Result { get; private set; } = MessageBoxResult.None;
+    public bool AdditionalActionRequested { get; private set; }
+
+    private void OnAdditionalClicked(object sender, RoutedEventArgs e)
+    {
+        AdditionalActionRequested = true;
+        DialogResult = false;
+        Close();
+    }
 
     private void ConfigureButtons(MessageBoxButton buttons, string? primaryButtonText, string? secondaryButtonText)
     {

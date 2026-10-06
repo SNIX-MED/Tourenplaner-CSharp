@@ -33,6 +33,10 @@
     <Resource Include="Assets\Export.svg" />
     <Resource Include="Assets\MapOptions.png" />
     <Resource Include="Assets\MapOptions.svg" />
+    <Resource Include="Assets\RouteOverview\Ladegewicht.png" />
+    <Resource Include="Assets\RouteOverview\Mitarbeiter.png" />
+    <Resource Include="Assets\RouteOverview\Stopps.png" />
+    <Resource Include="Assets\RouteOverview\Warengewicht.png" />
     <Resource Include="Assets\Pause.png" />
     <Resource Include="Assets\icon-infocards-off.jpg" />
     <Resource Include="Assets\icon-infocards-on.jpg" />

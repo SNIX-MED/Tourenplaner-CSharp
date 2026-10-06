@@ -40,7 +40,8 @@
                                Text="i" />
                 </Border>
 
-                <StackPanel Grid.Column="1">
+                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
                     <TextBlock x:Name="CaptionTextBlock"
                                FontSize="22"
                                FontWeight="SemiBold"
@@ -51,6 +52,7 @@
                                Foreground="{DynamicResource Brush.TextMuted}"
                                TextWrapping="Wrap" />
                 </StackPanel>
+                </ScrollViewer>
             </Grid>
 
             <StackPanel x:Name="ButtonsPanel"
@@ -58,6 +60,12 @@
                         Margin="0,18,0,0"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right">
+                <Button x:Name="AdditionalButton"
+                        Width="170"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Visibility="Collapsed"
+                        Click="OnAdditionalClicked" />
                 <Button x:Name="SecondaryButton"
                         Width="120"
                         Margin="0,0,8,0"

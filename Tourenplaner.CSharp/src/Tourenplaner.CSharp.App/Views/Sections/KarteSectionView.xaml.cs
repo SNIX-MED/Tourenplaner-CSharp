@@ -373,6 +373,10 @@ public partial class KarteSectionView : UserControl
         if ((operation & MapRefreshOperation.Markers) != 0)
         {
             await PushMarkersToMapAsync();
+            if ((operation & MapRefreshOperation.MarkerSelection) != 0)
+            {
+                await HighlightSelectedMarkerAsync();
+            }
         }
         else
         {
