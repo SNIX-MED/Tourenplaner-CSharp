@@ -70,20 +70,6 @@ public partial class CreateTourDialogWindow : Window
             return;
         }
 
-        if (ViewModel.TryBuildSingleEmployeeWarning(result.EmployeeIds, out var singleEmployeeWarning))
-        {
-            var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                this,
-                singleEmployeeWarning,
-                "Mitarbeiter prüfen",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-            if (confirmation != MessageBoxResult.Yes)
-            {
-                return;
-            }
-        }
-
         Result = result;
         DialogResult = true;
         Close();
@@ -421,27 +407,10 @@ public sealed class CreateTourDialogViewModel : ObservableObject
 
     public bool TryBuildSingleEmployeeWarning(IReadOnlyList<string> employeeIds, out string warning)
     {
-        warning = string.Empty;
-
-        var normalizedEmployeeCount = (employeeIds ?? [])
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-        if (normalizedEmployeeCount != 1 || SingleEmployeeWarningDeliveryTypes.Count == 0)
-        {
-            return false;
-        }
-
-        var deliveryTypeHint = SingleEmployeeWarningDeliveryTypes.Count == 1
-            ? $"mind. 1 Auftrag mit der Lieferart \"{SingleEmployeeWarningDeliveryTypes[0]}\""
-            : $"mind. 1 Auftrag mit den Lieferarten \"{SingleEmployeeWarningDeliveryTypes[0]}\" und/oder \"{SingleEmployeeWarningDeliveryTypes[1]}\"";
-
-        warning =
-            $"In dieser Tour ist {deliveryTypeHint} vorhanden.{Environment.NewLine}{Environment.NewLine}" +
-            "Aktuell ist nur 1 Mitarbeiter zugeordnet." + Environment.NewLine + Environment.NewLine +
-            "Soll die Tour trotzdem gespeichert werden?";
-        return true;
+        return Tourenplaner.CSharp.App.Services.TourStaffingWarningService.TryBuildSingleEmployeeWarning(
+            employeeIds,
+            SingleEmployeeWarningDeliveryTypes,
+            out warning);
     }
 
     private void RefreshEmployeesSummary()

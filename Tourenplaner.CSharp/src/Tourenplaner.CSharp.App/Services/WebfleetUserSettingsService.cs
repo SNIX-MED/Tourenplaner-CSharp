@@ -10,6 +10,7 @@ namespace Tourenplaner.CSharp.App.Services;
 /// </summary>
 internal static class WebfleetUserSettingsService
 {
+    private const int CurrentSettingsVersion = 1;
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static string _storagePath = string.Empty;
 
@@ -46,6 +47,7 @@ internal static class WebfleetUserSettingsService
         }
 
         profile = Clone(legacy);
+        MigrateLegacyDefaultRefreshInterval(profile);
         await SaveAsync(userName, profile, cancellationToken);
         return profile;
     }
@@ -65,7 +67,11 @@ internal static class WebfleetUserSettingsService
             profiles[AppSettings.NormalizeUserName(userName)] = Clone(settings);
             Directory.CreateDirectory(Path.GetDirectoryName(_storagePath) ?? string.Empty);
             await using var stream = File.Create(_storagePath);
-            await JsonSerializer.SerializeAsync(stream, new WebfleetUserSettingsPayload { Profiles = profiles }, cancellationToken: cancellationToken);
+            await JsonSerializer.SerializeAsync(stream, new WebfleetUserSettingsPayload
+            {
+                SettingsVersion = CurrentSettingsVersion,
+                Profiles = profiles
+            }, cancellationToken: cancellationToken);
         }
         finally
         {
@@ -100,7 +106,30 @@ internal static class WebfleetUserSettingsService
 
         await using var stream = File.OpenRead(_storagePath);
         var payload = await JsonSerializer.DeserializeAsync<WebfleetUserSettingsPayload>(stream, cancellationToken: cancellationToken);
-        return new Dictionary<string, WebfleetConnectionSettings>(payload?.Profiles ?? new Dictionary<string, WebfleetConnectionSettings>(), StringComparer.OrdinalIgnoreCase);
+        var profiles = new Dictionary<string, WebfleetConnectionSettings>(payload?.Profiles ?? new Dictionary<string, WebfleetConnectionSettings>(), StringComparer.OrdinalIgnoreCase);
+        if (payload is not null && payload.SettingsVersion < CurrentSettingsVersion)
+        {
+            foreach (var profile in profiles.Values)
+            {
+                MigrateLegacyDefaultRefreshInterval(profile);
+            }
+
+            payload.SettingsVersion = CurrentSettingsVersion;
+            payload.Profiles = profiles;
+            stream.Close();
+            await using var output = File.Create(_storagePath);
+            await JsonSerializer.SerializeAsync(output, payload, cancellationToken: cancellationToken);
+        }
+
+        return profiles;
+    }
+
+    internal static void MigrateLegacyDefaultRefreshInterval(WebfleetConnectionSettings settings)
+    {
+        if (settings.PositionRefreshSeconds == 60)
+        {
+            settings.PositionRefreshSeconds = WebfleetConnectionSettings.DefaultPositionRefreshSeconds;
+        }
     }
 
     private static bool IsLegacyProfileOwnedByUser(WebfleetConnectionSettings legacy, string? userName) =>
@@ -121,6 +150,8 @@ internal static class WebfleetUserSettingsService
 
     private sealed class WebfleetUserSettingsPayload
     {
+        public int SettingsVersion { get; set; }
+
         public Dictionary<string, WebfleetConnectionSettings> Profiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 }

@@ -7,6 +7,14 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class AppSettingsTests
 {
     [Fact]
+    public void WebfleetConnectionSettings_DefaultsToThirtySecondPositionRefresh()
+    {
+        var settings = new WebfleetConnectionSettings();
+
+        Assert.Equal(30, settings.PositionRefreshSeconds);
+    }
+
+    [Fact]
     public void MapOverlayUserPreference_DefaultsToAvoidingFerries_WhenLegacyJsonOmitsOption()
     {
         var preference = JsonSerializer.Deserialize<MapOverlayUserPreference>("{}");

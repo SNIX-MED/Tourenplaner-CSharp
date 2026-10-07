@@ -1510,12 +1510,6 @@
                                                                                Foreground="{DynamicResource Brush.TextMuted}" />
                                                                     <TextBlock Text="{Binding DisplayStay}"
                                                                                Foreground="{DynamicResource Brush.TextSecondary}" />
-                                                                    <TextBlock Text="  |  ETA: "
-                                                                               Margin="10,0,0,0"
-                                                                               Foreground="{DynamicResource Brush.TextMuted}" />
-                                                                    <TextBlock Text="{Binding DisplayEta}"
-                                                                               Foreground="{DynamicResource Brush.TextSecondary}"
-                                                                               FontWeight="SemiBold" />
                                                                 </StackPanel>
                                                                 <TextBlock Margin="0,4,0,0"
                                                                            Foreground="{DynamicResource Brush.TextMuted}"
@@ -1576,24 +1570,17 @@
                                                                         </Style>
                                                                     </TextBlock.Style>
                                                                 </TextBlock>
-                                                                <TextBlock Text="Ankunft"
+                                                                <TextBlock Text="{Binding DisplayAvisoStatus}"
                                                                            HorizontalAlignment="Right"
                                                                            Foreground="{DynamicResource Brush.TextMuted}">
                                                                     <TextBlock.Style>
                                                                         <Style TargetType="TextBlock">
-                                                                            <Setter Property="Text" Value="Ankunft" />
                                                                             <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsRouteStart}" Value="True">
-                                                                                    <Setter Property="Text" Value="Start" />
-                                                                                </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding IsRouteEnd}" Value="True">
-                                                                                    <Setter Property="Text" Value="Ende" />
+                                                                                <DataTrigger Binding="{Binding DisplayAvisoStatus}" Value="">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
                                                                                 </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding IsCompanyAnchor}" Value="True">
                                                                                     <Setter Property="Visibility" Value="Collapsed" />
-                                                                                </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
-                                                                                    <Setter Property="Text" Value="Beginn" />
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
@@ -2189,12 +2176,17 @@
                                     <ColumnDefinition Width="40" />
                                     <ColumnDefinition Width="40" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Row="0"
-                                           Grid.Column="0"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"
-                                           VerticalAlignment="Center"
-                                           Text="{Binding DetailOrderNumber, Mode=OneWay, StringFormat=Auftrag {0}}" />
+                                <TextBox Grid.Row="0"
+                                         Grid.Column="0"
+                                         Padding="0"
+                                         BorderThickness="0"
+                                         Background="Transparent"
+                                         Cursor="IBeam"
+                                         FontSize="22"
+                                         FontWeight="SemiBold"
+                                         IsReadOnly="True"
+                                         VerticalAlignment="Center"
+                                         Text="{Binding DetailOrderNumber, Mode=OneWay, StringFormat=Auftrag {0}}" />
                                 <StackPanel Grid.Row="1"
                                             Grid.RowSpan="2"
                                             Grid.Column="0"
@@ -2370,8 +2362,21 @@
                                                 BorderBrush="{DynamicResource Brush.BorderSoft}"
                                                 BorderThickness="1">
                                             <StackPanel>
-                                                <TextBlock FontWeight="SemiBold" Text="Lieferadresse:" />
-                                                <TextBlock Margin="0,4,0,0" Text="{Binding DetailCustomer}" TextWrapping="Wrap" />
+                                                <TextBox Padding="0"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         Cursor="IBeam"
+                                                         FontWeight="SemiBold"
+                                                         IsReadOnly="True"
+                                                         Text="Lieferadresse:" />
+                                                <TextBox Margin="0,4,0,0"
+                                                         Padding="0"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         Cursor="IBeam"
+                                                         IsReadOnly="True"
+                                                         Text="{Binding DetailCustomer, Mode=OneWay}"
+                                                         TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Border>
 
@@ -2383,10 +2388,21 @@
                                                 BorderBrush="{DynamicResource Brush.BorderSoft}"
                                                 BorderThickness="1">
                                             <StackPanel>
-                                                <TextBlock FontWeight="SemiBold" Text="Auftragsadresse:" />
-                                                <TextBlock Margin="0,4,0,0"
-                                                           Text="{Binding DetailAddress}"
-                                                           TextWrapping="Wrap" />
+                                                <TextBox Padding="0"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         Cursor="IBeam"
+                                                         FontWeight="SemiBold"
+                                                         IsReadOnly="True"
+                                                         Text="Auftragsadresse:" />
+                                                <TextBox Margin="0,4,0,0"
+                                                         Padding="0"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         Cursor="IBeam"
+                                                         IsReadOnly="True"
+                                                         Text="{Binding DetailAddress, Mode=OneWay}"
+                                                         TextWrapping="Wrap" />
                                             </StackPanel>
                                         </Border>
                                     </Grid>

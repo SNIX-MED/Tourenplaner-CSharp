@@ -2021,6 +2021,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 selectedAvisoStatus);
             avisoStatusChanged = true;
             order.AvisoStatus = selectedAvisoStatus;
+            selectedStop.AvisoStatus = selectedAvisoStatus;
             if (SelectedOrder is not null &&
                 string.Equals(SelectedOrder.OrderId, order.Id, StringComparison.OrdinalIgnoreCase))
             {
@@ -3371,6 +3372,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 return;
             }
 
+            if (!ConfirmSingleEmployeeDeliveryWarning(
+                    employeeIds,
+                    RouteStops.Where(IsOrderStop).Select(stop => stop.OrderId)))
+            {
+                return;
+            }
+
             if (!ConfirmCapacityWarning(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, additionalMaterials))
             {
                 return;
@@ -3485,6 +3493,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             if (!string.IsNullOrWhiteSpace(availabilityError))
             {
                 Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var warningOrderIds = hasDraftRouteStops
+                ? RouteStops.Where(IsOrderStop).Select(stop => stop.OrderId)
+                : ExtractNonCompanyTourOrderIds(existingTour);
+            if (!ConfirmSingleEmployeeDeliveryWarning(employeeIds, warningOrderIds))
+            {
                 return;
             }
 
@@ -5003,6 +5019,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             var stop = RouteStops[i];
             stop.Position = i + 1;
             stop.DisplayIndex = IsCompanyStop(stop) || IsPauseStop(stop) ? 0 : ++displayIndex;
+            stop.AvisoStatus = IsOrderStop(stop)
+                ? NormalizeAvisoStatus(_allOrders.FirstOrDefault(order =>
+                    string.Equals(order.Id, stop.OrderId, StringComparison.OrdinalIgnoreCase))?.AvisoStatus)
+                : string.Empty;
         }
 
         UpdateReturnToCompanyLegToggleState();
@@ -5633,6 +5653,23 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         return presentDeliveryTypes
             .OrderBy(x => string.Equals(x, DeliveryMethodExtensions.MitVerteilung, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
             .ToList();
+    }
+
+    private bool ConfirmSingleEmployeeDeliveryWarning(
+        IReadOnlyList<string> employeeIds,
+        IEnumerable<string?> orderIds)
+    {
+        var deliveryTypes = GetSingleEmployeeWarningDeliveryTypesForRouteStops(orderIds);
+        if (!TourStaffingWarningService.TryBuildSingleEmployeeWarning(employeeIds, deliveryTypes, out var warning))
+        {
+            return true;
+        }
+
+        return Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                   warning,
+                   "Mitarbeiter prüfen",
+                   MessageBoxButton.YesNo,
+                   MessageBoxImage.Warning) == MessageBoxResult.Yes;
     }
 
     private void RaiseCommandStates()
@@ -6747,6 +6784,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         var keepFixedArrivalWindow = ShouldKeepFixedArrivalWindowAfterAvisoReset(previousStatus, normalizedStatus);
         order.AvisoStatus = normalizedStatus;
+        var routeStop = RouteStops.FirstOrDefault(stop =>
+            string.Equals(stop.OrderId, order.Id, StringComparison.OrdinalIgnoreCase));
+        if (routeStop is not null)
+        {
+            routeStop.AvisoStatus = normalizedStatus;
+        }
         if (SelectedOrder is not null &&
             string.Equals(SelectedOrder.OrderId, order.Id, StringComparison.OrdinalIgnoreCase))
         {
@@ -9207,6 +9250,7 @@ public sealed class RouteStopItem : ObservableObject
     private string _etaText = string.Empty;
     private string _etaRangeText = string.Empty;
     private string _fixedArrivalRangeText = string.Empty;
+    private string _avisoStatus = string.Empty;
     private string _nextLegDurationText = string.Empty;
     private string _nextLegDistanceText = string.Empty;
     private string _nextLegDepartureText = string.Empty;
@@ -9257,6 +9301,7 @@ public sealed class RouteStopItem : ObservableObject
                 OnPropertyChanged(nameof(IsRouteEnd));
                 OnPropertyChanged(nameof(RouteBadgeText));
                 OnPropertyChanged(nameof(DisplayNameWithOrder));
+                OnPropertyChanged(nameof(DisplayAvisoStatus));
             }
         }
     }
@@ -9336,6 +9381,7 @@ public sealed class RouteStopItem : ObservableObject
                 OnPropertyChanged(nameof(DisplayNameWithOrder));
                 OnPropertyChanged(nameof(DisplayAddress));
                 OnPropertyChanged(nameof(DisplayEmployeeInfo));
+                OnPropertyChanged(nameof(DisplayAvisoStatus));
             }
         }
     }
@@ -9349,6 +9395,7 @@ public sealed class RouteStopItem : ObservableObject
             {
                 OnPropertyChanged(nameof(DisplayOrder));
                 OnPropertyChanged(nameof(DisplayNameWithOrder));
+                OnPropertyChanged(nameof(DisplayAvisoStatus));
             }
         }
     }
@@ -9430,6 +9477,18 @@ public sealed class RouteStopItem : ObservableObject
     {
         get => _fixedArrivalRangeText;
         set => SetProperty(ref _fixedArrivalRangeText, value ?? string.Empty);
+    }
+
+    public string AvisoStatus
+    {
+        get => _avisoStatus;
+        set
+        {
+            if (SetProperty(ref _avisoStatus, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(DisplayAvisoStatus));
+            }
+        }
     }
 
     public string NextLegDurationText
@@ -9555,6 +9614,14 @@ public sealed class RouteStopItem : ObservableObject
     public string DisplayOrder => IsPauseStop || IsManualStop ? string.Empty : (string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId);
     public string DisplayStay => IsCompanyDisplay ? string.Empty : $"{PlannedStayMinutes} min";
     public string DisplayEta => string.IsNullOrWhiteSpace(EtaText) ? "--:--" : EtaText;
+    public string DisplayAvisoStatus => IsCompanyDisplay || IsPauseStop || IsManualStop
+        ? string.Empty
+        : AvisoStatus.Trim().ToLowerInvariant() switch
+        {
+            "informiert" => "Kunde informiert",
+            "bestätigt" => "Termin bestätigt",
+            _ => "Nicht avisiert"
+        };
     public string DisplayEmployeeInfo => IsCompanyDisplay || IsPauseStop ? string.Empty : EmployeeInfoText;
     public string PauseAfterText => $"{PauseAfterMinutes} min";
     public string TrafficBufferAfterText => $"+ {TrafficBufferAfterMinutes} min";

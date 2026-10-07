@@ -96,7 +96,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private string _webfleetUserName = "Janine Fäsi";
     private string _webfleetApiKey = string.Empty;
     private string _webfleetPassword = string.Empty;
-    private int _webfleetPositionRefreshSeconds = 60;
+    private int _webfleetPositionRefreshSeconds = WebfleetConnectionSettings.DefaultPositionRefreshSeconds;
     private bool _backupsEnabled;
     private string _backupDir = string.Empty;
     private string _backupModeDefault = "full";
@@ -1837,7 +1837,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         WebfleetApiKey = profile is null ? string.Empty : WebfleetCredentialProtector.Unprotect(profile.ApiKey);
         WebfleetPassword = profile is null ? string.Empty : WebfleetCredentialProtector.Unprotect(profile.Password);
         WebfleetPositionRefreshSeconds = profile is null || profile.PositionRefreshSeconds is < 30 or > 3600
-            ? 60
+            ? WebfleetConnectionSettings.DefaultPositionRefreshSeconds
             : profile.PositionRefreshSeconds;
     }
 
