@@ -1,9 +1,20 @@
 ﻿using Tourenplaner.CSharp.Domain.Models;
 
+using System.Text.Json;
+
 namespace Tourenplaner.CSharp.Tests.Application;
 
 public class AppSettingsTests
 {
+    [Fact]
+    public void MapOverlayUserPreference_DefaultsToAvoidingFerries_WhenLegacyJsonOmitsOption()
+    {
+        var preference = JsonSerializer.Deserialize<MapOverlayUserPreference>("{}");
+
+        Assert.NotNull(preference);
+        Assert.True(preference.AvoidFerries);
+    }
+
     [Fact]
     public void ResolveUserPreference_MigratesLegacyUniformTrafficBufferDefaults()
     {

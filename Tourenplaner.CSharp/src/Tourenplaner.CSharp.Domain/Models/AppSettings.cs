@@ -414,4 +414,5 @@ public sealed class MapOverlayUserPreference
     public bool UseVehicleDimensions { get; set; }
     public bool UseVehicleWeightRestrictions { get; set; }
     public bool UseDepartAtTraffic { get; set; } = true;
+    public bool AvoidFerries { get; set; } = true;
 }

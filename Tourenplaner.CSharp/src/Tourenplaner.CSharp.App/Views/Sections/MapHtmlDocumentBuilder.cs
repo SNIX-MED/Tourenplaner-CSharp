@@ -13,6 +13,7 @@ internal static class MapHtmlDocumentBuilder
         bool mapOverlayUseVehicleDimensions,
         bool mapOverlayUseVehicleWeightRestrictions,
         bool mapOverlayUseDepartAtTraffic,
+        bool mapOverlayAvoidFerries,
         double pinInfoCardScale,
         int currentRouteAppliedMaxSpeedKmh)
     {
@@ -285,6 +286,7 @@ internal static class MapHtmlDocumentBuilder
                        <label class="switch-row"><input type="checkbox" id="toggleVehicleDimensions" /> Fahrzeugmasse beruecksichtigen</label>
                        <label class="switch-row"><input type="checkbox" id="toggleVehicleWeightRestrictions" /> Gewichtsrestriktionen beruecksichtigen</label>
                        <label class="switch-row"><input type="checkbox" id="toggleDepartAtTraffic" /> Traffic zur Startzeit verwenden</label>
+                       <label class="switch-row"><input type="checkbox" id="toggleAvoidFerries" /> Fähre vermeiden</label>
                      </div>
                    </div>
                  </aside>
@@ -298,6 +300,7 @@ internal static class MapHtmlDocumentBuilder
                    const useVehicleDimensions = __TT_USE_VEHICLE_DIMENSIONS__;
                    const useVehicleWeightRestrictions = __TT_USE_VEHICLE_WEIGHT_RESTRICTIONS__;
                    const useDepartAtTraffic = __TT_USE_DEPART_AT_TRAFFIC__;
+                   const avoidFerries = __TT_AVOID_FERRIES__;
                    const initialPinInfoCardScale = __PIN_INFO_CARD_SCALE__;
                    const useTileCache = __TT_TILE_CACHE__;
                    window.gawelaMapReady = false;
@@ -463,7 +466,8 @@ internal static class MapHtmlDocumentBuilder
                            showPoi: !!showPoi,
                            useVehicleDimensions: !!useVehicleDimensions,
                            useVehicleWeightRestrictions: !!useVehicleWeightRestrictions,
-                           useDepartAtTraffic: !!useDepartAtTraffic
+                           useDepartAtTraffic: !!useDepartAtTraffic,
+                           avoidFerries: !!avoidFerries
                          };
                          const postMapOptions = () => {
                            if (!(window.chrome && window.chrome.webview)) return;
@@ -474,7 +478,8 @@ internal static class MapHtmlDocumentBuilder
                            const useVehicleDimensionsToken = mapState.useVehicleDimensions ? '1' : '0';
                            const useVehicleWeightRestrictionsToken = mapState.useVehicleWeightRestrictions ? '1' : '0';
                            const useDepartAtTrafficToken = mapState.useDepartAtTraffic ? '1' : '0';
-                           window.chrome.webview.postMessage(`mapopts:${mapState.style}|${trafficFlowToken}|${trafficIncidentsToken}|${showRoadLabelsToken}|${showPoiToken}|${useVehicleDimensionsToken}|${useVehicleWeightRestrictionsToken}|${useDepartAtTrafficToken}`);
+                           const avoidFerriesToken = mapState.avoidFerries ? '1' : '0';
+                           window.chrome.webview.postMessage(`mapopts:${mapState.style}|${trafficFlowToken}|${trafficIncidentsToken}|${showRoadLabelsToken}|${showPoiToken}|${useVehicleDimensionsToken}|${useVehicleWeightRestrictionsToken}|${useDepartAtTrafficToken}|${avoidFerriesToken}`);
                          };
                          const cacheSuffix = useTileCache ? '' : `&nocache=${Date.now()}`;
 
@@ -1777,10 +1782,11 @@ internal static class MapHtmlDocumentBuilder
                            const vehicleDimensionsToggle = document.getElementById('toggleVehicleDimensions');
                            const vehicleWeightRestrictionsToggle = document.getElementById('toggleVehicleWeightRestrictions');
                            const departAtTrafficToggle = document.getElementById('toggleDepartAtTraffic');
+                           const avoidFerriesToggle = document.getElementById('toggleAvoidFerries');
                            const pinInfoCardScaleInput = document.getElementById('pinInfoCardScale');
                            const pinInfoCardScaleValue = document.getElementById('pinInfoCardScaleValue');
 
-                           if (!overlay || !toggleBtn || !closeBtn || !trafficFlowToggle || !trafficIncidentsToggle || !roadLabelsToggle || !poiToggle || !vehicleDimensionsToggle || !vehicleWeightRestrictionsToggle || !departAtTrafficToggle || !pinInfoCardScaleInput || !pinInfoCardScaleValue) {
+                           if (!overlay || !toggleBtn || !closeBtn || !trafficFlowToggle || !trafficIncidentsToggle || !roadLabelsToggle || !poiToggle || !vehicleDimensionsToggle || !vehicleWeightRestrictionsToggle || !departAtTrafficToggle || !avoidFerriesToggle || !pinInfoCardScaleInput || !pinInfoCardScaleValue) {
                              return;
                            }
 
@@ -1829,6 +1835,7 @@ internal static class MapHtmlDocumentBuilder
                            poiToggle.checked = mapState.showPoi;
                            syncRoutingOptionToggles();
                            departAtTrafficToggle.checked = mapState.useDepartAtTraffic;
+                           avoidFerriesToggle.checked = mapState.avoidFerries;
                            syncPinInfoCardScaleControl(initialPinInfoCardScale);
 
                            window.gawelaSetVehicleRoutingOptions = function(useDimensions, useWeightRestrictions) {
@@ -1879,6 +1886,10 @@ internal static class MapHtmlDocumentBuilder
 
                            departAtTrafficToggle.addEventListener('change', () => {
                              mapState.useDepartAtTraffic = !!departAtTrafficToggle.checked;
+                             postMapOptions();
+                           });
+                           avoidFerriesToggle.addEventListener('change', () => {
+                             mapState.avoidFerries = !!avoidFerriesToggle.checked;
                              postMapOptions();
                            });
 
@@ -2690,6 +2701,7 @@ internal static class MapHtmlDocumentBuilder
             .Replace("__TT_USE_VEHICLE_DIMENSIONS__", mapOverlayUseVehicleDimensions ? "true" : "false")
             .Replace("__TT_USE_VEHICLE_WEIGHT_RESTRICTIONS__", mapOverlayUseVehicleWeightRestrictions ? "true" : "false")
             .Replace("__TT_USE_DEPART_AT_TRAFFIC__", mapOverlayUseDepartAtTraffic ? "true" : "false")
+            .Replace("__TT_AVOID_FERRIES__", mapOverlayAvoidFerries ? "true" : "false")
             .Replace("__PIN_INFO_CARD_SCALE__", pinInfoCardScaleToken)
             .Replace("__TT_TILE_CACHE__", tomTomEnableTileCache ? "true" : "false")
             .Replace("__CURRENT_ROUTE_MAX_SPEED__", currentRouteAppliedMaxSpeedKmh > 0 ? currentRouteAppliedMaxSpeedKmh.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty)

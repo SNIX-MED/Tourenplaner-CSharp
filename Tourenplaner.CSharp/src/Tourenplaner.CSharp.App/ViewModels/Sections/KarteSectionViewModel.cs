@@ -135,6 +135,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private bool _tomTomUseVehicleDimensions;
     private bool _tomTomUseVehicleWeightRestrictions;
     private bool _tomTomUseDepartAtTraffic = true;
+    private bool _tomTomAvoidFerries = true;
     private string _tomTomMapOverlayStyle = AppSettings.DefaultMapOverlayStyle;
     private int _tomTomTrafficRefreshSeconds = AppSettings.DefaultTomTomTrafficRefreshSeconds;
     private int _tomTomRouteRecalcDebounceMs = AppSettings.DefaultTomTomRouteRecalcDebounceMs;
@@ -1356,6 +1357,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             _tomTomUseVehicleDimensions = overlayPreference.UseVehicleDimensions;
             _tomTomUseVehicleWeightRestrictions = overlayPreference.UseVehicleWeightRestrictions;
             _tomTomUseDepartAtTraffic = overlayPreference.UseDepartAtTraffic;
+            _tomTomAvoidFerries = overlayPreference.AvoidFerries;
         }
         else
         {
@@ -1367,6 +1369,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             _tomTomUseVehicleDimensions = false;
             _tomTomUseVehicleWeightRestrictions = false;
             _tomTomUseDepartAtTraffic = true;
+            _tomTomAvoidFerries = true;
         }
         OnPropertyChanged(nameof(TomTomApiKey));
         OnPropertyChanged(nameof(TomTomShowTrafficFlow));
@@ -1376,6 +1379,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(TomTomUseVehicleDimensions));
         OnPropertyChanged(nameof(TomTomUseVehicleWeightRestrictions));
         OnPropertyChanged(nameof(TomTomUseDepartAtTraffic));
+        OnPropertyChanged(nameof(TomTomAvoidFerries));
         OnPropertyChanged(nameof(TomTomMapOverlayStyle));
         OnPropertyChanged(nameof(TomTomTrafficRefreshSeconds));
         OnPropertyChanged(nameof(TomTomRouteRecalcDebounceMs));
@@ -1537,6 +1541,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public bool TomTomUseVehicleDimensions => _tomTomUseVehicleDimensions;
     public bool TomTomUseVehicleWeightRestrictions => _tomTomUseVehicleWeightRestrictions;
     public bool TomTomUseDepartAtTraffic => _tomTomUseDepartAtTraffic;
+    public bool TomTomAvoidFerries => _tomTomAvoidFerries;
     public string TomTomMapOverlayStyle => _tomTomMapOverlayStyle;
     public int TomTomTrafficRefreshSeconds => _tomTomTrafficRefreshSeconds;
     public int TomTomRouteRecalcDebounceMs => _tomTomRouteRecalcDebounceMs;
@@ -2041,6 +2046,46 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 ? $"Aufenthaltsdauer für Stopp \"{selectedStop.Customer}\" gespeichert: {selectedStop.PlannedStayMinutes} min."
                 : $"Stoppdaten für Auftrag {selectedStop.OrderId} gespeichert (Aufenthalt {selectedStop.PlannedStayMinutes} min, Aviso {selectedAvisoStatus}).";
 
+    }
+
+    public async Task EditRouteStartTimeAsync()
+    {
+        var dialog = new RouteStartTimeDialogWindow(RouteStartTime)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        if (dialog.ShowDialog() != true || string.Equals(dialog.SelectedTime, RouteStartTime, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var parts = dialog.SelectedTime.Split(':');
+        RouteStartHour = parts[0];
+        RouteStartMinute = parts[1];
+        ApplyRouteStartTime();
+
+        var tourId = ResolveCurrentTourId();
+        if (tourId <= 0)
+        {
+            StatusText = $"Abfahrtszeit auf {RouteStartTime} geändert.";
+            return;
+        }
+
+        var tours = (await _tourRepository.LoadAsync()).ToList();
+        var tour = tours.FirstOrDefault(candidate => candidate.Id == tourId);
+        if (tour is null)
+        {
+            StatusText = "Die Abfahrtszeit wurde geändert, die Tour konnte aber nicht gespeichert werden.";
+            return;
+        }
+
+        tour.StartTime = RouteStartTime;
+        _scheduleService.ApplySchedule(tour);
+        await _tourRepository.SaveAsync(tours);
+        _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
+        await LoadSavedToursAsync(tourId);
+        SetRouteChanged(false);
+        StatusText = $"Abfahrtszeit auf {RouteStartTime} geändert und Tourzeiten neu berechnet.";
     }
 
     public Task AddPauseAfterSelectedRouteStopAsync()
@@ -5928,6 +5973,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private void ApplyRouteStartTimeFromInput()
     {
         RefreshDriveTimesFromCurrentRoute();
+        RequestRouteGeometryRebuild();
         UpdateStatus();
     }
 
@@ -7458,7 +7504,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                         widthMeters,
                         weightKg,
                         maxSpeedKmh,
-                        ResolveTomTomTrafficSeverityMode(_tomTomTrafficSeverityMode));
+                        ResolveTomTomTrafficSeverityMode(_tomTomTrafficSeverityMode),
+                        _tomTomAvoidFerries);
                     return new TomTomRoutingService(_tomTomApiKey, profile);
                 }
             }
@@ -7468,7 +7515,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             _tomTomApiKey,
             TomTomRoutingProfile.Default with
             {
-                TrafficSeverityMode = ResolveTomTomTrafficSeverityMode(_tomTomTrafficSeverityMode)
+                TrafficSeverityMode = ResolveTomTomTrafficSeverityMode(_tomTomTrafficSeverityMode),
+                AvoidFerries = _tomTomAvoidFerries
             });
     }
 
@@ -7486,7 +7534,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             : Math.Clamp(_tomTomVehicleOnlyMaxSpeedKmh, 1, 250);
     }
 
-    public async Task UpdateMapOverlayOptionsAsync(string style, bool showTrafficFlow, bool showTrafficIncidents, bool showRoadLabels, bool showPoi, bool useVehicleDimensions, bool useVehicleWeightRestrictions, bool useDepartAtTraffic)
+    public async Task UpdateMapOverlayOptionsAsync(string style, bool showTrafficFlow, bool showTrafficIncidents, bool showRoadLabels, bool showPoi, bool useVehicleDimensions, bool useVehicleWeightRestrictions, bool useDepartAtTraffic, bool avoidFerries)
     {
         var hasLoadedRoute = RouteStops.Any(IsOrderStop);
         if (hasLoadedRoute &&
@@ -7565,6 +7613,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             routingOptionsChanged = true;
         }
 
+        if (_tomTomAvoidFerries != avoidFerries)
+        {
+            _tomTomAvoidFerries = avoidFerries;
+            OnPropertyChanged(nameof(TomTomAvoidFerries));
+            changed = true;
+            routingOptionsChanged = true;
+        }
+
         if (!changed)
         {
             return;
@@ -7582,7 +7638,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             ShowPoi = showPoi,
             UseVehicleDimensions = useVehicleDimensions,
             UseVehicleWeightRestrictions = useVehicleWeightRestrictions,
-            UseDepartAtTraffic = useDepartAtTraffic
+            UseDepartAtTraffic = useDepartAtTraffic,
+            AvoidFerries = avoidFerries
         };
         await _settingsRepository.SaveAsync(settings);
         if (routingOptionsChanged)
@@ -7850,7 +7907,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             : 0;
 
         var restrictionsSignature = FormattableString.Invariant(
-            $"dims={(_tomTomUseVehicleDimensions ? 1 : 0)}:{vehicleLengthMeters:0.###},{vehicleWidthMeters:0.###},{vehicleHeightMeters:0.###};weight={(_tomTomUseVehicleWeightRestrictions ? 1 : 0)}:{vehicleWeightKg};maxSpeed={maxSpeedKmh}");
+            $"dims={(_tomTomUseVehicleDimensions ? 1 : 0)}:{vehicleLengthMeters:0.###},{vehicleWidthMeters:0.###},{vehicleHeightMeters:0.###};weight={(_tomTomUseVehicleWeightRestrictions ? 1 : 0)}:{vehicleWeightKg};maxSpeed={maxSpeedKmh};avoidFerries={(_tomTomAvoidFerries ? 1 : 0)}");
         var trafficSeveritySignature = AppSettings.NormalizeTomTomTrafficSeverityMode(_tomTomTrafficSeverityMode);
 
         // Die Zeitfenster-Logik ist Teil des berechneten Routenprofils. Eine neue
@@ -8047,7 +8104,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             {
                 stop.EtaText = realisticCurrent.ToString("HH:mm");
                 stop.EtaRangeText = BuildTimeRangeText(optimisticCurrent, realisticCurrent, pessimisticCurrent);
-                previousRoutedStop?.AddPauseAfter(Math.Max(0, stop.PlannedStayMinutes));
                 totalStayMinutes += Math.Max(0, stop.PlannedStayMinutes);
                 optimisticCurrent = optimisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
                 realisticCurrent = realisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
@@ -9477,7 +9533,7 @@ public sealed class RouteStopItem : ObservableObject
     public bool HasEtaRange => !string.IsNullOrWhiteSpace(EtaRangeText);
     public bool HasPauseAfter => PauseAfterMinutes > 0;
     public bool HasTrafficBufferAfter => TrafficBufferAfterMinutes > 0;
-    public string DisplayPosition => ToAlphaLabel(DisplayIndex > 0 ? DisplayIndex : Position);
+    public string DisplayPosition => IsPauseStop ? "P" : ToAlphaLabel(DisplayIndex > 0 ? DisplayIndex : Position);
     public string DisplayName => IsCompanyDisplay ? Address : (IsPauseStop ? "Pause" : (!string.IsNullOrWhiteSpace(Customer) ? Customer : Address));
     public string DisplayNameWithOrder =>
         IsCompanyDisplay || string.IsNullOrWhiteSpace(DisplayOrder) || string.Equals(DisplayOrder, "-", StringComparison.Ordinal)

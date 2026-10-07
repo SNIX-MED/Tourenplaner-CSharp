@@ -1207,16 +1207,6 @@
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
                                                 <StackPanel Margin="0,0,0,0">
-                                                    <StackPanel.Style>
-                                                        <Style TargetType="StackPanel">
-                                                            <Setter Property="Visibility" Value="Visible" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </StackPanel.Style>
                                                     <Border CornerRadius="14"
                                                             BorderThickness="1"
                                                             Margin="0,0,0,8"
@@ -1245,8 +1235,17 @@
                                                                           Style="{StaticResource RouteStopContextMenuItemStyle}"
                                                                           Click="OnRouteStopEditStayMenuItemClick" />
                                                                 <MenuItem Header="Pause danach einfügen"
-                                                                          Style="{StaticResource RouteStopContextMenuItemStyle}"
-                                                                          Click="OnRouteStopAddPauseMenuItemClick" />
+                                                                          Click="OnRouteStopAddPauseMenuItemClick">
+                                                                    <MenuItem.Style>
+                                                                        <Style TargetType="MenuItem" BasedOn="{StaticResource RouteStopContextMenuItemStyle}">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </MenuItem.Style>
+                                                                </MenuItem>
                                                                 <MenuItem Header="Auftrag bearbeiten"
                                                                           Click="OnRouteStopEditOrderMenuItemClick">
                                                                     <MenuItem.Style>
@@ -1274,6 +1273,7 @@
                                                                 <Setter Property="Padding" Value="12" />
                                                                 <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
                                                                 <Setter Property="Effect" Value="{x:Null}" />
+                                                                <Setter Property="Visibility" Value="Visible" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsRouteStart}" Value="True">
                                                                         <Setter Property="BorderBrush" Value="#7BC6A4" />
@@ -1290,6 +1290,9 @@
                                                                         <Setter Property="Opacity" Value="0.48" />
                                                                         <Setter Property="BorderBrush" Value="#CBD5E1" />
                                                                         <Setter Property="Background" Value="#F8FAFC" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
                                                                     </DataTrigger>
                                                                     <DataTrigger Binding="{Binding IsStopSelected}" Value="True">
                                                                         <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
@@ -1352,6 +1355,9 @@
                                                                             <DataTrigger Binding="{Binding IsCompanyAnchor}" Value="True">
                                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                                             </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                                <Setter Property="Background" Value="#D99A21" />
+                                                                            </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
                                                                 </Border.Style>
@@ -1367,6 +1373,9 @@
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding IsCompanyAnchor}" Value="True">
                                                                                     <Setter Property="FontSize" Value="13" />
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                                    <Setter Property="FontSize" Value="14" />
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
@@ -1532,11 +1541,16 @@
                                                                            HorizontalAlignment="Right"
                                                                            FontWeight="SemiBold"
                                                                            FontSize="18"
+                                                                           MouseLeftButtonDown="OnRouteStartTimeDoubleClick"
                                                                            Foreground="{DynamicResource Brush.TextPrimary}">
                                                                     <TextBlock.Style>
                                                                         <Style TargetType="TextBlock">
                                                                             <Setter Property="FontSize" Value="18" />
                                                                             <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsRouteStart}" Value="True">
+                                                                                    <Setter Property="Cursor" Value="Hand" />
+                                                                                    <Setter Property="ToolTip" Value="Abfahrtszeit mit Doppelklick ändern" />
+                                                                                </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding IsCompanyAnchor}" Value="True">
                                                                                     <Setter Property="FontSize" Value="12" />
                                                                                 </DataTrigger>
@@ -1578,10 +1592,110 @@
                                                                                 <DataTrigger Binding="{Binding IsCompanyAnchor}" Value="True">
                                                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                                                 </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                                    <Setter Property="Text" Value="Beginn" />
+                                                                                </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
                                                                     </TextBlock.Style>
                                                                 </TextBlock>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+
+                                                    <Border Margin="16,-2,16,6"
+                                                            Padding="8,4"
+                                                            CornerRadius="10"
+                                                            BorderThickness="1"
+                                                            BorderBrush="#F5C66B"
+                                                            Background="#FFF8EC"
+                                                            Cursor="Hand"
+                                                            MouseLeftButtonDown="OnRouteStopMouseLeftButtonDown"
+                                                            ContextMenuOpening="OnRouteStopContextMenuOpening">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsStopSelected}" Value="True">
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
+                                                                        <Setter Property="Background" Value="#EEF6FF" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Border.ContextMenu>
+                                                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                                                         Placement="MousePoint"
+                                                                         Style="{StaticResource RouteStopContextMenuStyle}">
+                                                                <MenuItem Header="Pause bearbeiten"
+                                                                          Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                                          Click="OnRouteStopEditStayMenuItemClick" />
+                                                                <MenuItem Header="Pause entfernen"
+                                                                          Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                                          Foreground="{DynamicResource Brush.Danger}"
+                                                                          Click="OnRouteStopRemoveMenuItemClick" />
+                                                            </ContextMenu>
+                                                        </Border.ContextMenu>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Height="3"
+                                                                    Margin="4,-7,4,0"
+                                                                    VerticalAlignment="Top"
+                                                                    Grid.ColumnSpan="3"
+                                                                    Background="{DynamicResource Brush.Accent}"
+                                                                    CornerRadius="2">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsDropTargetBefore}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                            </Border>
+                                                            <Border Height="3"
+                                                                    Margin="4,0,4,-7"
+                                                                    VerticalAlignment="Bottom"
+                                                                    Grid.ColumnSpan="3"
+                                                                    Background="{DynamicResource Brush.Accent}"
+                                                                    CornerRadius="2">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsDropTargetAfter}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                            </Border>
+                                                            <Image Grid.Column="0"
+                                                                   Width="14"
+                                                                   Height="14"
+                                                                   Margin="0,0,6,0"
+                                                                   VerticalAlignment="Center"
+                                                                   Source="pack://application:,,,/Assets/Pause.png" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       VerticalAlignment="Center"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="#8A5A00"
+                                                                       Text="{Binding DisplayName}" />
+                                                            <StackPanel Grid.Column="2"
+                                                                        Orientation="Horizontal"
+                                                                        VerticalAlignment="Center">
+                                                                <TextBlock FontSize="11"
+                                                                           Foreground="#8A5A00"
+                                                                           Text="{Binding DisplayStay}" />
                                                             </StackPanel>
                                                         </Grid>
                                                     </Border>

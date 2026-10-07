@@ -215,11 +215,18 @@ public class TourScheduleServiceTests
         Assert.Equal("10:30", fixedStop.PlannedArrivalOptimistic);
         Assert.Equal("11:30", fixedStop.PlannedArrivalPessimistic);
 
+        tour.StartTime = "09:00";
+        service.ApplySchedule(tour);
+
+        Assert.Equal("09:30", fixedStop.PlannedArrival);
+        Assert.Equal("10:30", fixedStop.PlannedArrivalOptimistic);
+        Assert.Equal("11:30", fixedStop.PlannedArrivalPessimistic);
+
         fixedStop.IsArrivalWindowFixed = false;
         service.ApplySchedule(tour);
 
-        Assert.Equal("08:30", fixedStop.PlannedArrivalOptimistic);
-        Assert.Equal("09:30", fixedStop.PlannedArrivalPessimistic);
+        Assert.Equal("09:30", fixedStop.PlannedArrivalOptimistic);
+        Assert.Equal("10:30", fixedStop.PlannedArrivalPessimistic);
     }
 
     [Fact]

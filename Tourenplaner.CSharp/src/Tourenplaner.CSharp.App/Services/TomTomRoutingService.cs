@@ -65,6 +65,7 @@ public sealed class TomTomRoutingService
         var routeQuery = string.Join(":", stops.Select(FormatPoint));
         var url =
             $"https://api.tomtom.com/routing/1/calculateRoute/{routeQuery}/json?key={Uri.EscapeDataString(_apiKey)}&traffic=true&travelMode=car&routeType=fastest&computeTravelTimeFor=all&sectionType=traffic";
+        url = ApplyAvoidOptions(url);
         if (_profile.Mode == TomTomRoutingMode.HeightAware)
         {
             if (_profile.VehicleLengthMeters > 0d)
@@ -416,6 +417,11 @@ public sealed class TomTomRoutingService
         }
     }
 
+    internal string ApplyAvoidOptions(string url)
+    {
+        return _profile.AvoidFerries ? url + "&avoid=ferries" : url;
+    }
+
     private static string FormatPoint(GeoPoint point)
     {
         return $"{point.Latitude.ToString(CultureInfo.InvariantCulture)},{point.Longitude.ToString(CultureInfo.InvariantCulture)}";
@@ -446,7 +452,8 @@ public sealed record TomTomRoutingProfile(
     double VehicleWidthMeters = 0d,
     int VehicleWeightKg = 0,
     int VehicleMaxSpeedKmh = 0,
-    TomTomTrafficSeverityMode TrafficSeverityMode = TomTomTrafficSeverityMode.Standard)
+    TomTomTrafficSeverityMode TrafficSeverityMode = TomTomTrafficSeverityMode.Standard,
+    bool AvoidFerries = true)
 {
     public static TomTomRoutingProfile Default { get; } = new(TomTomRoutingMode.Car, 0d);
 }

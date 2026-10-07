@@ -62,6 +62,24 @@ public class MapRouteServiceTests
     }
 
     [Fact]
+    public void MoveStop_TreatsPauseAsIndependentRoutePosition()
+    {
+        var service = new MapRouteService();
+        var stops = new[]
+        {
+            new MapRouteStop(1, "A", "A", "Addr A", 47.1, 8.1),
+            new MapRouteStop(2, "pause:1", "Pause", string.Empty, double.NaN, double.NaN, 15, StopKind: "pause"),
+            new MapRouteStop(3, "B", "B", "Addr B", 47.2, 8.2)
+        };
+
+        var movedOrder = service.MoveStop(stops, "A", 1);
+        var movedPause = service.MoveStop(stops, "pause:1", 1);
+
+        Assert.Equal(["pause:1", "A", "B"], movedOrder.Select(x => x.OrderId));
+        Assert.Equal(["A", "B", "pause:1"], movedPause.Select(x => x.OrderId));
+    }
+
+    [Fact]
     public void BuildTour_AppliesFallbacks_AndBuildsOrderedStops()
     {
         var service = new MapRouteService();

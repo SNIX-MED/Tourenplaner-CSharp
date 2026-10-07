@@ -304,6 +304,7 @@ public partial class KarteSectionView : UserControl
             vm.TomTomUseVehicleDimensions,
             vm.TomTomUseVehicleWeightRestrictions,
             vm.TomTomUseDepartAtTraffic,
+            vm.TomTomAvoidFerries,
             vm.PinInfoCardScale,
             vm.CurrentRouteAppliedMaxSpeedKmh);
         MapWebView.NavigateToString(html);
@@ -637,6 +638,7 @@ public partial class KarteSectionView : UserControl
                 vm?.TomTomUseVehicleDimensions ?? false,
                 vm?.TomTomUseVehicleWeightRestrictions ?? false,
                 vm?.TomTomUseDepartAtTraffic ?? true,
+                vm?.TomTomAvoidFerries ?? true,
                 vm?.PinInfoCardScale ?? AppSettings.DefaultPinInfoCardScale,
                 vm?.CurrentRouteAppliedMaxSpeedKmh ?? 0);
             MapWebView.NavigateToString(html);
@@ -1103,7 +1105,8 @@ public partial class KarteSectionView : UserControl
                 var useVehicleDimensions = parts.Length >= 6 && string.Equals(parts[5], "1", StringComparison.Ordinal);
                 var useVehicleWeightRestrictions = parts.Length >= 7 && string.Equals(parts[6], "1", StringComparison.Ordinal);
                 var useDepartAtTraffic = parts.Length >= 8 ? string.Equals(parts[7], "1", StringComparison.Ordinal) : true;
-                _ = ApplyMapOptionsFromWebAsync(vm, style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions, useDepartAtTraffic);
+                var avoidFerries = parts.Length >= 9 ? string.Equals(parts[8], "1", StringComparison.Ordinal) : true;
+                _ = ApplyMapOptionsFromWebAsync(vm, style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions, useDepartAtTraffic, avoidFerries);
             }
 
             return;
@@ -1239,9 +1242,10 @@ public partial class KarteSectionView : UserControl
         bool showPoi,
         bool useVehicleDimensions,
         bool useVehicleWeightRestrictions,
-        bool useDepartAtTraffic)
+        bool useDepartAtTraffic,
+        bool avoidFerries)
     {
-        await vm.UpdateMapOverlayOptionsAsync(style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions, useDepartAtTraffic);
+        await vm.UpdateMapOverlayOptionsAsync(style, showTrafficFlow, showTrafficIncidents, showRoadLabels, showPoi, useVehicleDimensions, useVehicleWeightRestrictions, useDepartAtTraffic, avoidFerries);
         if ((useVehicleDimensions && !vm.TomTomUseVehicleDimensions) ||
             (useVehicleWeightRestrictions && !vm.TomTomUseVehicleWeightRestrictions))
         {
@@ -1266,6 +1270,19 @@ public partial class KarteSectionView : UserControl
         }
 
         await vm.EditSelectedRouteStopStayMinutesAsync();
+    }
+
+    private async void OnRouteStartTimeDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2 ||
+            DataContext is not KarteSectionViewModel vm ||
+            sender is not FrameworkElement { DataContext: RouteStopItem { IsRouteStart: true } })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await vm.EditRouteStartTimeAsync();
     }
 
     private async void TourOverviewList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -1661,8 +1678,7 @@ public partial class KarteSectionView : UserControl
             string.IsNullOrWhiteSpace(payload.SourceOrderId) ||
             targetItem is null ||
             targetStop is null ||
-            targetStop.IsCompanyAnchor ||
-            targetStop.IsPauseStop)
+            targetStop.IsCompanyAnchor)
         {
             ClearRouteDropIndicator();
             e.Effects = DragDropEffects.None;
