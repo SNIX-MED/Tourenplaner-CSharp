@@ -693,7 +693,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     }
 
     public int PlannedTourOverlayHighlightTourId => ShowTourOverviewPanel
-        ? (_hoveredTourOverviewId > 0 ? _hoveredTourOverviewId : _selectedTourOverviewId)
+        ? _selectedTourOverviewId
         : 0;
 
     public int RouteVisualRevision
@@ -5169,27 +5169,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 summarySecondaryVehicleId = (selectedOverviewTour.SecondaryVehicleId ?? string.Empty).Trim();
                 summarySecondaryTrailerId = (selectedOverviewTour.SecondaryTrailerId ?? string.Empty).Trim();
 
-                var overviewOrderIds = (selectedOverviewTour.Stops ?? [])
-                    .Where(IsCustomerTourStop)
-                    .Select(ExtractTourStopOrderId)
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Select(x => x.Trim())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                if (overviewOrderIds.Count > 0)
-                {
-                    totalWeightKg = overviewOrderIds.Sum(FindOrderWeightKg);
-                }
-                else
-                {
-                    var overviewTourId = selectedOverviewTour.Id.ToString(CultureInfo.InvariantCulture);
-                    totalWeightKg = _allOrders
-                        .Where(x => !x.IsArchived && string.Equals((x.AssignedTourId ?? string.Empty).Trim(), overviewTourId, StringComparison.OrdinalIgnoreCase))
-                        .Select(x => FindOrderWeightKg(x.Id))
-                        .Sum();
-                }
-                totalWeightKg += ResolveAdditionalMaterialWeightKg(selectedOverviewTour.AdditionalMaterials);
+                totalWeightKg = ResolveSavedTourTotalWeightKg(selectedOverviewTour);
             }
         }
 
@@ -5261,11 +5241,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                     tour.TrailerId,
                     tour.SecondaryVehicleId,
                     tour.SecondaryTrailerId);
-                var totalWeightKg = _allOrders
-                    .Where(x => !x.IsArchived && string.Equals((x.AssignedTourId ?? string.Empty).Trim(), tour.Id.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase))
-                    .Select(x => FindOrderWeightKg(x.Id))
-                    .Sum();
-                totalWeightKg += ResolveAdditionalMaterialWeightKg(tour.AdditionalMaterials);
+                var totalWeightKg = ResolveSavedTourTotalWeightKg(tour);
                 var colorHex = ResolvePlannedTourOverlayColorHex(tour.Id);
                 var warningOutlineColorHex = HasRouteCapacityWarning(totalWeightKg, assignments)
                     ? "#DC2626"
@@ -5346,6 +5322,30 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         var index = Math.Abs(tourId) % PlannedTourOverlayPalette.Length;
         return PlannedTourOverlayPalette[index];
+    }
+
+    private int ResolveSavedTourTotalWeightKg(TourRecord tour)
+    {
+        var orderIds = (tour.Stops ?? [])
+            .Where(IsCustomerTourStop)
+            .Select(ExtractTourStopOrderId)
+            .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
+            .Select(orderId => orderId.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var totalWeightKg = orderIds.Count > 0
+            ? orderIds.Sum(FindOrderWeightKg)
+            : _allOrders
+                .Where(order =>
+                    !order.IsArchived &&
+                    string.Equals(
+                        (order.AssignedTourId ?? string.Empty).Trim(),
+                        tour.Id.ToString(CultureInfo.InvariantCulture),
+                        StringComparison.OrdinalIgnoreCase))
+                .Sum(order => FindOrderWeightKg(order.Id));
+
+        return totalWeightKg + ResolveAdditionalMaterialWeightKg(tour.AdditionalMaterials);
     }
 
     private bool ConfirmAssignmentConflictWarning(IEnumerable<TourRecord> tours, int targetTourId)
@@ -7427,19 +7427,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 ? "--:--"
                 : (tour.StartTime ?? string.Empty).Trim();
             var stopCount = (tour.Stops ?? []).Count(IsCustomerTourStop);
-            var orderIds = (tour.Stops ?? [])
-                .Where(IsCustomerTourStop)
-                .Select(ExtractTourStopOrderId)
-                .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
-                .Select(orderId => orderId.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            var totalWeightKg = orderIds.Count > 0
-                ? orderIds.Sum(FindOrderWeightKg)
-                : _allOrders
-                    .Where(order => !order.IsArchived && string.Equals(order.AssignedTourId, tour.Id.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase))
-                    .Sum(order => FindOrderWeightKg(order.Id));
-            totalWeightKg += ResolveAdditionalMaterialWeightKg(tour.AdditionalMaterials);
+            var totalWeightKg = ResolveSavedTourTotalWeightKg(tour);
             var employeeNames = (tour.EmployeeIds ?? [])
                 .Select(ResolveEmployeeLabel)
                 .Where(name => !string.IsNullOrWhiteSpace(name))

@@ -1616,7 +1616,7 @@ internal static class MapHtmlDocumentBuilder
                                  'line-join': 'round'
                                },
                                paint: {
-                                 'line-color': ['coalesce', ['get', 'color'], '#0f172a'],
+                                 'line-color': '#2563eb',
                                  'line-width': 5,
                                  'line-opacity': 1.0
                                }
