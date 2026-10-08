@@ -30,7 +30,10 @@ public partial class ManualOrderDialogWindow : Window
         DeleteButton.Visibility = _isEditMode ? Visibility.Visible : Visibility.Collapsed;
         if (_isEditMode && existingOrder is not null)
         {
-            var lockAttempt = CollaborationSessionService.TryAcquireResourceAsync("order", existingOrder.Id).GetAwaiter().GetResult();
+            var lockAttempt = Task.Run(
+                    () => CollaborationSessionService.TryAcquireResourceAsync("order", existingOrder.Id))
+                .GetAwaiter()
+                .GetResult();
             _editLease = lockAttempt.Lease;
             _lockConflictUserName = lockAttempt.Result.LockedByUserName;
             if (_editLease is null)

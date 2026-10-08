@@ -227,7 +227,7 @@ public partial class App : System.Windows.Application
         _historyService = null;
         _appDataSyncBridge?.DisposeAsync().AsTask().Forget();
         _appDataSyncBridge = null;
-        CollaborationSessionService.ShutdownAsync().GetAwaiter().GetResult();
+        Task.Run(CollaborationSessionService.ShutdownAsync).GetAwaiter().GetResult();
         base.OnExit(e);
     }
 

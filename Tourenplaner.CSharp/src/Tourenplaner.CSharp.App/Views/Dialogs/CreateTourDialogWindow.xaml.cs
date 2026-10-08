@@ -53,7 +53,12 @@ public partial class CreateTourDialogWindow : Window
         OpenOnMapButton.Visibility = showOpenOnMapButton ? Visibility.Visible : Visibility.Collapsed;
         if (editTourId is > 0)
         {
-            var lockAttempt = CollaborationSessionService.TryAcquireResourceAsync("tour", editTourId.Value.ToString(CultureInfo.InvariantCulture)).GetAwaiter().GetResult();
+            var lockAttempt = Task.Run(
+                    () => CollaborationSessionService.TryAcquireResourceAsync(
+                        "tour",
+                        editTourId.Value.ToString(CultureInfo.InvariantCulture)))
+                .GetAwaiter()
+                .GetResult();
             _editLease = lockAttempt.Lease;
             _lockConflictUserName = lockAttempt.Result.LockedByUserName;
             if (_editLease is null) Loaded += OnEditLockConflictLoaded;
