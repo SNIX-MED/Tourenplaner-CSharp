@@ -227,7 +227,18 @@ public partial class App : System.Windows.Application
         _historyService = null;
         _appDataSyncBridge?.DisposeAsync().AsTask().Forget();
         _appDataSyncBridge = null;
-        Task.Run(CollaborationSessionService.ShutdownAsync).GetAwaiter().GetResult();
+        try
+        {
+            var shutdownTask = Task.Run(CollaborationSessionService.ShutdownAsync);
+            if (!shutdownTask.Wait(TimeSpan.FromSeconds(6)))
+            {
+                TryLogInfo("CollaborationShutdown", "Sperrsitzung konnte beim Beenden nicht innerhalb von 6 Sekunden vollständig geschlossen werden.");
+            }
+        }
+        catch (Exception ex)
+        {
+            TryLogException("CollaborationShutdown", ex);
+        }
         base.OnExit(e);
     }
 

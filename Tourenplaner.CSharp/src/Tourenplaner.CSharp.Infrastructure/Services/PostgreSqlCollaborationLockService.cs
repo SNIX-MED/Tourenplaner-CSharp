@@ -175,10 +175,29 @@ public sealed class PostgreSqlCollaborationLockService : ICollaborationLockServi
 
         _disposeCts.Cancel();
         _heartbeatTimer.Dispose();
-        try { await _heartbeatTask; } catch { }
-        try { await ReleaseAllAsync(); } catch { }
+        var heartbeatStopped = false;
+        try
+        {
+            await _heartbeatTask.WaitAsync(TimeSpan.FromSeconds(2));
+            heartbeatStopped = true;
+        }
+        catch { }
+
+        using (var releaseCts = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+        {
+            try
+            {
+                _heldLocks.Clear();
+                await DeleteLocksAsync(null, releaseCts.Token);
+            }
+            catch { }
+        }
+
         _disposeCts.Dispose();
-        _gate.Dispose();
+        if (heartbeatStopped)
+        {
+            _gate.Dispose();
+        }
     }
 
     private static string Normalize(string? value) => (value ?? string.Empty).Trim().ToLowerInvariant();
