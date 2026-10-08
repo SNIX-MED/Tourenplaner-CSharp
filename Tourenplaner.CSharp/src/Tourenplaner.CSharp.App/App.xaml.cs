@@ -11,6 +11,7 @@ using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.App.Views.Dialogs;
 using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
+using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 using Tourenplaner.CSharp.Infrastructure.Services;
@@ -89,6 +90,12 @@ public partial class App : System.Windows.Application
                 employeesJsonPath,
                 vehiclesJsonPath,
                 calendarManualEntriesPath);
+
+            startupStep = "Tourzuordnungen";
+            await RenderSplashStepAsync(splashWindow, "Tourzuordnungen werden geprüft...");
+            await RepairDanglingOrderTourAssignmentsAsync(
+                repositories.OrderRepository,
+                repositories.TourRecordStore);
 
             LocalUserSessionService.Initialize(dataRoot);
             CollaborationSessionService.Configure(
@@ -279,6 +286,35 @@ public partial class App : System.Windows.Application
                 MessageBoxImage.Warning);
             preferred = selected;
         }
+    }
+
+    private async Task RepairDanglingOrderTourAssignmentsAsync(
+        IOrderRepository orderRepository,
+        ITourRecordStore tourRepository)
+    {
+        var orders = (await orderRepository.GetAllAsync()).ToList();
+        var tours = await tourRepository.LoadAsync();
+        var changedOrders = OrderTourAssignmentIntegrityService.ClearAssignmentsToMissingTours(orders, tours);
+        if (changedOrders.Count == 0)
+        {
+            return;
+        }
+
+        if (orderRepository is IOrderMutationRepository mutationRepository)
+        {
+            foreach (var order in changedOrders)
+            {
+                await mutationRepository.UpsertAsync(order);
+            }
+        }
+        else
+        {
+            await orderRepository.SaveAllAsync(orders);
+        }
+
+        TryLogInfo(
+            "RepairDanglingOrderTourAssignmentsAsync",
+            $"Verwaiste Tourzuordnungen wurden bei {changedOrders.Count} Auftrag/Aufträgen entfernt.");
     }
 
     private async Task PromptPastTourArchivingOnStartupAsync(Window owner, ITourRecordStore toursRepository, IOrderRepository orderRepository)
