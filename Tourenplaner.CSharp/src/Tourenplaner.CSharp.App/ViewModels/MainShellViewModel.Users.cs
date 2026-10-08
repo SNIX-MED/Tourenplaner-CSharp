@@ -68,6 +68,33 @@ public sealed partial class MainShellViewModel
             return;
         }
 
+        if (CollaborationSessionService.HasActiveResourceLocks)
+        {
+            _suppressUserSelectionChange = true;
+            SelectedUserName = CurrentUserName;
+            _suppressUserSelectionChange = false;
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                "Bitte schließen Sie zuerst alle geöffneten Aufträge und verlassen Sie die geladene Liefertour.",
+                "Benutzerwechsel nicht möglich",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            return;
+        }
+
+        var login = await CollaborationSessionService.TryLoginAsync(normalized);
+        if (!login.Acquired)
+        {
+            _suppressUserSelectionChange = true;
+            SelectedUserName = CurrentUserName;
+            _suppressUserSelectionChange = false;
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Der Benutzer {normalized} wird bereits verwendet.",
+                "Benutzer bereits angemeldet",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+            return;
+        }
+
         await LocalUserSessionService.SaveAsync(normalized);
         CurrentUserName = normalized;
         if (!AvailableUserNames.Contains(normalized, StringComparer.OrdinalIgnoreCase))

@@ -59,7 +59,8 @@ public sealed partial class MainShellViewModel : ObservableObject
     public MainShellViewModel(
         AppDataHistoryService historyService,
         AppDataSyncService dataSyncService,
-        StorageRepositoryBundle repositories)
+        StorageRepositoryBundle repositories,
+        string? startupUserName = null)
     {
         _historyService = historyService;
         _dataSyncService = dataSyncService;
@@ -69,6 +70,11 @@ public sealed partial class MainShellViewModel : ObservableObject
         _appSettingsRepository = repositories.AppSettingsStore;
         _employeesRepository = repositories.EmployeeDataStore;
         _geocodeCachePath = Path.Combine(repositories.DataRootPath, "geocode-cache.json");
+        if (!string.IsNullOrWhiteSpace(startupUserName))
+        {
+            _currentUserName = startupUserName.Trim();
+            _selectedUserName = _currentUserName;
+        }
         LocalUserSessionService.Initialize(repositories.DataRootPath);
         WebfleetUserSettingsService.Initialize(repositories.DataRootPath);
         var map = new KarteSectionViewModel(

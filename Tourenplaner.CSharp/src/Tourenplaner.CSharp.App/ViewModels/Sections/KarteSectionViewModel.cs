@@ -89,6 +89,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly List<WebfleetVehicleSnapshot> _webfleetVehicles = new();
     private readonly List<WebfleetTrackPoint> _webfleetTrackPoints = new();
     private readonly List<WebfleetPauseMarker> _webfleetPauseMarkers = new();
+    private CollaborationResourceLease? _loadedTourLease;
+    private int _loadedTourLeaseId;
     private int _webfleetVehicleRevision;
     private int _webfleetTrackRevision;
     private bool _areWebfleetVehiclesVisible;
@@ -3272,7 +3274,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             selectedSecondaryTrailerId: tour.SecondaryTrailerId,
             selectedEmployeeIds: tour.EmployeeIds,
             additionalMaterialGroups: _additionalMaterialGroups,
-            selectedAdditionalMaterials: tour.AdditionalMaterials)
+            selectedAdditionalMaterials: tour.AdditionalMaterials,
+            editTourId: tour.Id)
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
@@ -3813,17 +3816,67 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         if (targetTourId <= 0)
         {
+            _loadedTourLease?.Dispose();
+            _loadedTourLease = null;
+            _loadedTourLeaseId = 0;
             ClearRoute();
             StatusText = "Tour verlassen.";
             RaiseCommandStates();
             return;
         }
 
+        var lockAttempt = await CollaborationSessionService.TryAcquireResourceAsync(
+            "tour",
+            targetTourId.ToString(CultureInfo.InvariantCulture));
+        if (lockAttempt.Lease is null)
+        {
+            _savedTourSelectionSync = true;
+            try
+            {
+                SelectedSavedTour = SavedTours.FirstOrDefault(x => x.TourId == previousTourId) ?? SavedTours.FirstOrDefault();
+            }
+            finally
+            {
+                _savedTourSelectionSync = false;
+            }
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Diese Liefertour wird aktuell von {lockAttempt.Result.LockedByUserName} bearbeitet.",
+                "Liefertour gesperrt",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            RaiseCommandStates();
+            return;
+        }
+
+        _loadedTourLease?.Dispose();
+        _loadedTourLease = lockAttempt.Lease;
+        _loadedTourLeaseId = targetTourId;
+
         await LoadTourIntoRouteAsync(targetTourId);
     }
 
     private async Task LoadTourIntoRouteAsync(int tourId)
     {
+        if (_loadedTourLeaseId != tourId)
+        {
+            var lockAttempt = await CollaborationSessionService.TryAcquireResourceAsync(
+                "tour",
+                tourId.ToString(CultureInfo.InvariantCulture));
+            if (lockAttempt.Lease is null)
+            {
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                    $"Diese Liefertour wird aktuell von {lockAttempt.Result.LockedByUserName} bearbeitet.",
+                    "Liefertour gesperrt",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            _loadedTourLease?.Dispose();
+            _loadedTourLease = lockAttempt.Lease;
+            _loadedTourLeaseId = tourId;
+        }
+
         var tour = _savedTours.FirstOrDefault(x => x.Id == tourId);
         if (tour is null)
         {
@@ -3833,6 +3886,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         if (tour is null)
         {
+            _loadedTourLease?.Dispose();
+            _loadedTourLease = null;
+            _loadedTourLeaseId = 0;
             return;
         }
 
@@ -4896,6 +4952,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         ClearRoute();
+        _loadedTourLease?.Dispose();
+        _loadedTourLease = null;
+        _loadedTourLeaseId = 0;
         StatusText = "Tour verlassen.";
         ToastNotificationService.ShowInfo("Tour wurde verlassen.");
     }

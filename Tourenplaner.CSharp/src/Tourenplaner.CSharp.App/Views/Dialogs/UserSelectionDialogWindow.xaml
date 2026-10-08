@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Benutzer auswählen"
         Width="420"
-        Height="240"
+        Height="310"
+        MinHeight="310"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Background="{DynamicResource Brush.WindowBackground}">
@@ -41,7 +42,7 @@
             <Button Grid.Row="4"
                     Height="40"
                     Margin="0,16,0,0"
-                    Content="Weiter"
+                    Content="Login"
                     Style="{StaticResource SuccessButtonStyle}"
                     IsDefault="True"
                     Click="OnConfirmClicked" />

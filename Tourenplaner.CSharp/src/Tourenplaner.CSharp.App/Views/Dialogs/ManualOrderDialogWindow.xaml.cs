@@ -14,6 +14,8 @@ namespace Tourenplaner.CSharp.App.Views.Dialogs;
 public partial class ManualOrderDialogWindow : Window
 {
     private readonly bool _isEditMode;
+    private CollaborationResourceLease? _editLease;
+    private string _lockConflictUserName = string.Empty;
 
     public ManualOrderDialogWindow(
         Order? existingOrder = null,
@@ -26,6 +28,17 @@ public partial class ManualOrderDialogWindow : Window
         DataContext = ViewModel;
         Title = existingOrder is null ? "Kundenkartei" : $"Auftrag bearbeiten - {existingOrder.Id}";
         DeleteButton.Visibility = _isEditMode ? Visibility.Visible : Visibility.Collapsed;
+        if (_isEditMode && existingOrder is not null)
+        {
+            var lockAttempt = CollaborationSessionService.TryAcquireResourceAsync("order", existingOrder.Id).GetAwaiter().GetResult();
+            _editLease = lockAttempt.Lease;
+            _lockConflictUserName = lockAttempt.Result.LockedByUserName;
+            if (_editLease is null)
+            {
+                Loaded += OnEditLockConflictLoaded;
+            }
+            Closed += (_, _) => _editLease?.Dispose();
+        }
     }
 
     public ManualOrderDialogViewModel ViewModel { get; }
@@ -33,6 +46,17 @@ public partial class ManualOrderDialogWindow : Window
     public Order? CreatedOrder { get; private set; }
 
     public bool DeleteRequested { get; private set; }
+
+    private void OnEditLockConflictLoaded(object sender, RoutedEventArgs e)
+    {
+        AppMessageBox.Show(
+            this,
+            $"Dieser Auftrag wird aktuell von {_lockConflictUserName} bearbeitet.",
+            "Auftrag gesperrt",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+        Close();
+    }
 
     private void OnCancelClicked(object sender, RoutedEventArgs e)
     {

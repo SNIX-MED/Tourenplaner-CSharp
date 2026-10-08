@@ -2,12 +2,16 @@
 using System.Globalization;
 using System.Windows;
 using Tourenplaner.CSharp.App.ViewModels;
+using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Views.Dialogs;
 
 public partial class CreateTourDialogWindow : Window
 {
+    private CollaborationResourceLease? _editLease;
+    private string _lockConflictUserName = string.Empty;
+
     public CreateTourDialogWindow(
         string routeDate,
         string routeName,
@@ -24,7 +28,8 @@ public partial class CreateTourDialogWindow : Window
         IReadOnlyList<string>? selectedEmployeeIds = null,
         bool showOpenOnMapButton = false,
         IReadOnlyList<AdditionalMaterialGroup>? additionalMaterialGroups = null,
-        IReadOnlyList<TourAdditionalMaterial>? selectedAdditionalMaterials = null)
+        IReadOnlyList<TourAdditionalMaterial>? selectedAdditionalMaterials = null,
+        int? editTourId = null)
     {
         InitializeComponent();
         ViewModel = new CreateTourDialogViewModel(
@@ -46,6 +51,14 @@ public partial class CreateTourDialogWindow : Window
         DataContext = ViewModel;
         ShowOpenOnMapButton = showOpenOnMapButton;
         OpenOnMapButton.Visibility = showOpenOnMapButton ? Visibility.Visible : Visibility.Collapsed;
+        if (editTourId is > 0)
+        {
+            var lockAttempt = CollaborationSessionService.TryAcquireResourceAsync("tour", editTourId.Value.ToString(CultureInfo.InvariantCulture)).GetAwaiter().GetResult();
+            _editLease = lockAttempt.Lease;
+            _lockConflictUserName = lockAttempt.Result.LockedByUserName;
+            if (_editLease is null) Loaded += OnEditLockConflictLoaded;
+            Closed += (_, _) => _editLease?.Dispose();
+        }
     }
 
     public CreateTourDialogViewModel ViewModel { get; }
@@ -55,6 +68,17 @@ public partial class CreateTourDialogWindow : Window
     public bool ShowOpenOnMapButton { get; }
 
     public bool OpenOnMapRequested { get; private set; }
+
+    private void OnEditLockConflictLoaded(object sender, RoutedEventArgs e)
+    {
+        Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+            this,
+            $"Diese Liefertour wird aktuell von {_lockConflictUserName} bearbeitet.",
+            "Liefertour gesperrt",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+        Close();
+    }
 
     private void OnCancelClicked(object sender, RoutedEventArgs e)
     {

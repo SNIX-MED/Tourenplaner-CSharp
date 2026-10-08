@@ -13,6 +13,7 @@ using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
+using Tourenplaner.CSharp.Infrastructure.Services;
 
 namespace Tourenplaner.CSharp.App;
 
@@ -89,6 +90,24 @@ public partial class App : System.Windows.Application
                 vehiclesJsonPath,
                 calendarManualEntriesPath);
 
+            LocalUserSessionService.Initialize(dataRoot);
+            CollaborationSessionService.Configure(
+                repositories.StorageMode == AppStorageMode.PostgreSql && repositories.PostgreSqlStorageSettings is not null
+                    ? new PostgreSqlCollaborationLockService(repositories.PostgreSqlStorageSettings)
+                    : null);
+            startupStep = "Benutzeranmeldung";
+            await RenderSplashStepAsync(splashWindow, "Benutzeranmeldung wird vorbereitet...");
+            splashWindow.Hide();
+            var startupUserName = await PromptForRequiredStartupUserAsync(repositories.EmployeeDataStore);
+            if (string.IsNullOrWhiteSpace(startupUserName))
+            {
+                splashWindow.Close();
+                Shutdown();
+                return;
+            }
+            splashWindow.Show();
+            await RenderSplashStepAsync(splashWindow, "Arbeitsoberfläche wird vorbereitet...");
+
             _appDataSyncBridge = repositories.StorageMode == AppStorageMode.PostgreSql &&
                                  repositories.PostgreSqlStorageSettings is not null
                 ? new PostgreSqlAppDataSyncBridge(repositories.PostgreSqlStorageSettings)
@@ -103,7 +122,8 @@ public partial class App : System.Windows.Application
                 DataContext = new MainShellViewModel(
                     historyService,
                     dataSyncService,
-                    repositories)
+                    repositories,
+                    startupUserName)
             };
 
             startupStep = "Verlauf";
@@ -207,7 +227,47 @@ public partial class App : System.Windows.Application
         _historyService = null;
         _appDataSyncBridge?.DisposeAsync().AsTask().Forget();
         _appDataSyncBridge = null;
+        CollaborationSessionService.ShutdownAsync().GetAwaiter().GetResult();
         base.OnExit(e);
+    }
+
+    private static async Task<string> PromptForRequiredStartupUserAsync(IEmployeeDataStore employeeStore)
+    {
+        var names = (await employeeStore.LoadAsync())
+            .Where(x => x is not null && x.HasProgramProfile && !string.IsNullOrWhiteSpace(x.DisplayName))
+            .Select(x => x.DisplayName.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+        if (names.Count == 0)
+        {
+            throw new InvalidOperationException("Es ist kein Mitarbeiter mit Programmprofil vorhanden.");
+        }
+
+        var preferred = (await LocalUserSessionService.LoadAsync()).Trim();
+        while (true)
+        {
+            var dialog = new UserSelectionDialogWindow(names, preferred);
+            if (dialog.ShowDialog() != true)
+            {
+                return string.Empty;
+            }
+
+            var selected = dialog.SelectedUserName.Trim();
+            var login = await CollaborationSessionService.TryLoginAsync(selected);
+            if (login.Acquired)
+            {
+                await LocalUserSessionService.SaveAsync(selected);
+                return selected;
+            }
+
+            AppMessageBox.Show(
+                $"Der Benutzer {selected} wird bereits verwendet. Bitte wählen Sie einen anderen Benutzer.",
+                "Benutzer bereits angemeldet",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            preferred = selected;
+        }
     }
 
     private async Task PromptPastTourArchivingOnStartupAsync(Window owner, ITourRecordStore toursRepository, IOrderRepository orderRepository)

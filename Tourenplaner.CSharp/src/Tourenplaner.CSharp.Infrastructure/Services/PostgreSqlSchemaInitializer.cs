@@ -56,6 +56,20 @@ public sealed class PostgreSqlSchemaInitializer
                 payload jsonb NOT NULL,
                 updated_at timestamptz NOT NULL DEFAULT timezone('utc', now())
             );
+
+            CREATE TABLE IF NOT EXISTS "{schema}"."collaboration_locks" (
+                resource_kind text NOT NULL,
+                resource_id text NOT NULL,
+                user_name text NOT NULL,
+                session_id text NOT NULL,
+                acquired_at timestamptz NOT NULL,
+                heartbeat_at timestamptz NOT NULL,
+                expires_at timestamptz NOT NULL,
+                PRIMARY KEY (resource_kind, resource_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS collaboration_locks_session_idx
+                ON "{schema}"."collaboration_locks" (session_id);
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
     }

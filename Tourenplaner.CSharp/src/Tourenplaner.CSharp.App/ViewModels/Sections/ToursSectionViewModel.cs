@@ -1639,7 +1639,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             selectedEmployeeIds: tour.EmployeeIds,
             showOpenOnMapButton: true,
             additionalMaterialGroups: materialGroups,
-            selectedAdditionalMaterials: tour.AdditionalMaterials)
+            selectedAdditionalMaterials: tour.AdditionalMaterials,
+            editTourId: tour.Id)
         {
             Owner = System.Windows.Application.Current?.MainWindow,
             Title = "Tour bearbeiten"
