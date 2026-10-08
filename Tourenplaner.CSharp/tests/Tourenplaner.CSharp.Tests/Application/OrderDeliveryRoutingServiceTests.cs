@@ -24,6 +24,20 @@ public class OrderDeliveryRoutingServiceTests
         Assert.Equal(expected, DeliveryMethodExtensions.GetPlanningDeliveryDisplayLabel(order));
     }
 
+    [Theory]
+    [InlineData(DeliveryMethodExtensions.MitVerteilung, "Mit Verteilung / Selbstabholung")]
+    [InlineData(DeliveryMethodExtensions.Spediteur, "Spediteur / Selbstabholung")]
+    public void PlanningDeliveryDisplayLabel_AppendsSelfPickupAlternative(string deliveryType, string expected)
+    {
+        var order = new Order
+        {
+            DeliveryType = deliveryType,
+            IsSelfPickupAlternativeEnabled = true
+        };
+
+        Assert.Equal(expected, DeliveryMethodExtensions.GetPlanningDeliveryDisplayLabel(order));
+    }
+
     [Fact]
     public async Task SpediteurWithAlternativeLiefertour_IsGeocodedAndKeepsTourAssignment()
     {

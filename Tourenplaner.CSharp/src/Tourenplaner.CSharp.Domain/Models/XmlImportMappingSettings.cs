@@ -96,7 +96,7 @@ public sealed class XmlImportMappingSettings
     public const string DefaultDeliveryTypeMitVerteilungMontageArticleNumbers = "FRACHT-M-VERT-MONT";
     public const string DefaultDeliveryTypeSpediteurArticleNumbers = "Fracht mit Spediteur";
     public const string DefaultDeliveryTypePostArticleNumbers = "POST";
-    public const string DefaultDeliveryTypeTresorBordsteinArticleNumbers = "FRACHT-TRESOR-BORDSTEIN";
+    public const string DefaultDeliveryTypeTresorBordsteinArticleNumbers = "FRACHT-TRESOR-BORDSTEIN;Fracht-Direktlieferung";
     public const string DefaultDeliveryTypeTresorVerwendungArticleNumbers = "FRACHT-TRESOR-VERWENDUNG";
     public const string DefaultDeliveryTypeSelbstabholungArticleNumbers = "Selbstabholung";
 

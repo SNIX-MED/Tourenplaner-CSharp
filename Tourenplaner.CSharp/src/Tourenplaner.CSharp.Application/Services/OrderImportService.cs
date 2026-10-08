@@ -266,6 +266,11 @@ public class OrderImportService : IOrderImportService
                                                DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
                                                StringComparison.OrdinalIgnoreCase) &&
                                            DeliveryMethodExtensions.SupportsAlternativeDelivery(sqlOrder.Lieferbedingung),
+            IsSelfPickupAlternativeEnabled = existingOrder?.IsSelfPickupAlternativeEnabled == true &&
+                                             !string.Equals(
+                                                 DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
+                                                 DeliveryMethodExtensions.SelbstabholungLabel,
+                                                 StringComparison.OrdinalIgnoreCase),
             OrderStatus = Order.DefaultOrderStatus,
             Notes = sqlOrder.Notiz,
             IstVorauszahlung = sqlOrder.IstVorauszahlung,
@@ -341,6 +346,7 @@ public class OrderImportService : IOrderImportService
         existingOrder.Products = importedOrder.Products;
         existingOrder.DeliveryType = importedOrder.DeliveryType;
         existingOrder.IsAlternativeDeliveryEnabled = importedOrder.IsAlternativeDeliveryEnabled;
+        existingOrder.IsSelfPickupAlternativeEnabled = importedOrder.IsSelfPickupAlternativeEnabled;
         existingOrder.OrderStatus = importedOrder.OrderStatus;
         existingOrder.Notes = importedOrder.Notes;
         existingOrder.IstVorauszahlung = importedOrder.IstVorauszahlung;
@@ -370,6 +376,10 @@ public class OrderImportService : IOrderImportService
         if (existingOrder.IsAlternativeDeliveryEnabled && !importedOrder.IsAlternativeDeliveryEnabled)
         {
             changes.Add($"Alternative Planung: {DeliveryMethodExtensions.GetAlternativeDeliveryLabel(existingOrder.DeliveryType)} -> zurückgesetzt");
+        }
+        if (existingOrder.IsSelfPickupAlternativeEnabled && !importedOrder.IsSelfPickupAlternativeEnabled)
+        {
+            changes.Add("Evtl. Selbstabholung -> zurückgesetzt");
         }
         AddChange(changes, "Auftragsadresse", FormatAddress(existingOrder.OrderAddress), FormatAddress(importedOrder.OrderAddress));
         AddChange(changes, "Lieferadresse", FormatDeliveryAddress(existingOrder.DeliveryAddress), FormatDeliveryAddress(importedOrder.DeliveryAddress));

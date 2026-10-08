@@ -141,6 +141,19 @@ public static class DeliveryMethodExtensions
     public static string GetPlanningDeliveryDisplayLabel(Order order)
     {
         var normalized = NormalizeDeliveryTypeLabel(order.DeliveryType);
+        if (order.IsSelfPickupAlternativeEnabled &&
+            !string.Equals(normalized, SelbstabholungLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            var labels = new List<string> { normalized };
+            if (order.IsAlternativeDeliveryEnabled)
+            {
+                labels.Add(ResolveOrderType(normalized) == OrderType.Map ? Spediteur : "Gawela");
+            }
+
+            labels.Add(SelbstabholungLabel);
+            return string.Join(" / ", labels);
+        }
+
         if (!order.IsAlternativeDeliveryEnabled)
         {
             return normalized;

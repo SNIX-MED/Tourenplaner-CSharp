@@ -45,6 +45,7 @@ public sealed class Order
     /// the delivery type received from the ERP system.
     /// </summary>
     public bool IsAlternativeDeliveryEnabled { get; set; }
+    public bool IsSelfPickupAlternativeEnabled { get; set; }
     public string OrderStatus { get; set; } = DefaultOrderStatus;
     public string AvisoStatus { get; set; } = "nicht avisiert";
     public bool IstVorauszahlung { get; set; }

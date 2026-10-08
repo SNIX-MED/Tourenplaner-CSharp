@@ -6,6 +6,35 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 public class XmlOrderImportServiceTests
 {
     [Fact]
+    public void LoadOrdersFromFile_InterpretsDottedDatesAsDayMonthYear()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"tourenplaner-date-{Guid.NewGuid():N}.xml");
+        File.WriteAllText(path, """
+            <belege>
+              <beleg>
+                <ident>order-id</ident>
+                <typ>SALES</typ>
+                <kopf>DATE-1</kopf>
+                <datum>03.08.2026 00:00:00</datum>
+                <lieferdatum>04.09.2026 00:00:00</lieferdatum>
+              </beleg>
+            </belege>
+            """);
+
+        try
+        {
+            var order = Assert.Single(new XmlOrderImportService().LoadOrdersFromFile(path));
+
+            Assert.Equal(new DateTime(2026, 8, 3), order.AuftragsDatum);
+            Assert.Equal(new DateTime(2026, 9, 4), order.Lieferdatum);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void LoadOrdersFromFileDetailed_UsesDefaultTemplateMapping()
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
@@ -351,7 +380,7 @@ public class XmlOrderImportServiceTests
     }
 
     [Fact]
-    public void LoadOrdersFromFileDetailed_UsesBelegProductArticleNumberBeforeShippingMethod()
+    public void LoadOrdersFromFileDetailed_MapsDirectDeliveryArticleToTresorBordsteinBeforeShippingMethod()
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -367,7 +396,7 @@ public class XmlOrderImportServiceTests
                     <typ>SALES</typ>
                     <kopf>A-302</kopf>
                     <datum>15.07.2026 00:00:00</datum>
-                    <versandart>Post</versandart>
+                    <versandart>LKW</versandart>
                     <archiv>False</archiv>
                     <adresskopf>Auftraggeber AG
                     Auftragsweg 3
@@ -388,9 +417,9 @@ public class XmlOrderImportServiceTests
                       </position>
                       <position>
                         <kopfid>order-1</kopfid>
-                        <artikel>FRACHT-M-VERT</artikel>
+                        <artikel>Fracht-Direktlieferung</artikel>
                         <menge>1</menge>
-                        <bezeichnung>Fracht- / Lieferkosten mit einer GAWELA Liefertour mit Warenverteilung</bezeichnung>
+                        <bezeichnung>Fracht mit Direktlieferung von der Produktion</bezeichnung>
                         <gewicht>0</gewicht>
                       </position>
                     </positionen>
@@ -403,7 +432,7 @@ public class XmlOrderImportServiceTests
 
             Assert.Single(result.Orders);
             Assert.Equal("A-302", result.Orders[0].AuftragNr);
-            Assert.Equal("Mit Verteilung", result.Orders[0].Lieferbedingung);
+            Assert.Equal("Tresor-Bordstein", result.Orders[0].Lieferbedingung);
             Assert.Equal("Auftraggeber AG", result.Orders[0].KundeFirma);
             Assert.Equal("Liefer AG", result.Orders[0].LieferFirma);
             Assert.Single(result.Orders[0].Produkte);

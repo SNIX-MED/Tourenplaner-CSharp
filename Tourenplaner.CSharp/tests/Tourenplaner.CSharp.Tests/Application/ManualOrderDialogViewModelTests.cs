@@ -16,6 +16,22 @@ public class ManualOrderDialogViewModelTests
         Assert.Equal(string.Empty, viewModel.DeliveryDateText);
     }
 
+    [Theory]
+    [InlineData(DeliveryMethodExtensions.MitVerteilung)]
+    [InlineData(DeliveryMethodExtensions.Spediteur)]
+    public void SelfPickupAlternative_IsAvailableForMapAndNonMapOrders(string deliveryType)
+    {
+        var source = CreateOrder();
+        source.DeliveryType = deliveryType;
+        var viewModel = new ManualOrderDialogViewModel(source);
+
+        Assert.True(viewModel.ShowSelfPickupAlternativeOption);
+        viewModel.IsSelfPickupAlternativeEnabled = true;
+
+        Assert.True(viewModel.TryBuildOrder(out var order, out var error), error);
+        Assert.True(order!.IsSelfPickupAlternativeEnabled);
+    }
+
     [Fact]
     public void TryBuildOrder_KeepsEmptyDeliveryDateNull()
     {

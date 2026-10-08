@@ -4,6 +4,8 @@ namespace Tourenplaner.CSharp.Application.Common;
 
 public static class TourStopIdentity
 {
+    public const string PauseStopKind = "pause";
+    public const string PauseStopIdPrefix = "pause:";
     public const string CompanyStartStopId = "company:start";
     public const string CompanyEndStopId = "company:end";
     public const string CompanyStartOrderNumber = "FIRMA-START";
@@ -22,6 +24,14 @@ public static class TourStopIdentity
                string.Equals(id, CompanyEndStopId, StringComparison.OrdinalIgnoreCase) ||
                string.Equals(order, CompanyStartOrderNumber, StringComparison.OrdinalIgnoreCase) ||
                string.Equals(order, CompanyEndOrderNumber, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsPauseStop(TourStopRecord stop)
+    {
+        var id = (stop.Id ?? string.Empty).Trim();
+        var stopKind = (stop.StopKind ?? string.Empty).Trim();
+        return string.Equals(stopKind, PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
+               id.StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     public static string NormalizeCompanyStopDisplayName(string? value)

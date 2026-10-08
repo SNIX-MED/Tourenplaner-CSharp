@@ -240,6 +240,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private bool _istVorauszahlungBezahlt;
     private bool _isArchived;
     private bool _isAlternativeDeliveryEnabled;
+    private bool _isSelfPickupAlternativeEnabled;
     private bool _isXmlImported;
     private bool _isEditingEnabled = true;
 
@@ -446,10 +447,12 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             if (!string.Equals(previous, current, StringComparison.OrdinalIgnoreCase))
             {
                 IsAlternativeDeliveryEnabled = false;
+                IsSelfPickupAlternativeEnabled = false;
             }
 
             OnPropertyChanged(nameof(ShowAlternativeDeliveryOption));
             OnPropertyChanged(nameof(AlternativeDeliveryLabel));
+            OnPropertyChanged(nameof(ShowSelfPickupAlternativeOption));
         }
     }
 
@@ -464,6 +467,18 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     public string AlternativeDeliveryLabel =>
         DeliveryMethodExtensions.GetAlternativeDeliveryLabel(SelectedDeliveryType);
+
+    public bool IsSelfPickupAlternativeEnabled
+    {
+        get => _isSelfPickupAlternativeEnabled;
+        set => SetProperty(ref _isSelfPickupAlternativeEnabled, value);
+    }
+
+    public bool ShowSelfPickupAlternativeOption =>
+        !string.Equals(
+            DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(SelectedDeliveryType),
+            DeliveryMethodExtensions.SelbstabholungLabel,
+            StringComparison.OrdinalIgnoreCase);
 
     public string SelectedStatus
     {
@@ -604,6 +619,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(
                 (SelectedDeliveryType ?? _deliveryTypes[0]).Trim()),
             IsAlternativeDeliveryEnabled = ShowAlternativeDeliveryOption && IsAlternativeDeliveryEnabled,
+            IsSelfPickupAlternativeEnabled = ShowSelfPickupAlternativeOption && IsSelfPickupAlternativeEnabled,
             OrderStatus = Order.ResolveOrderStatusFromProducts(products),
             IstVorauszahlung = IstVorauszahlung,
             IstVorauszahlungBezahlt = IstVorauszahlungBezahlt,
@@ -705,6 +721,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             ? _deliveryTypes.First(x => string.Equals(x, normalizedDeliveryType, StringComparison.OrdinalIgnoreCase))
             : _deliveryTypes[0];
         IsAlternativeDeliveryEnabled = existingOrder.IsAlternativeDeliveryEnabled && ShowAlternativeDeliveryOption;
+        IsSelfPickupAlternativeEnabled = existingOrder.IsSelfPickupAlternativeEnabled && ShowSelfPickupAlternativeOption;
         Notes = existingOrder.Notes ?? string.Empty;
         IstVorauszahlung = existingOrder.IstVorauszahlung;
         IstVorauszahlungBezahlt = existingOrder.IstVorauszahlungBezahlt;

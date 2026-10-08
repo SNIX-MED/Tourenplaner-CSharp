@@ -636,7 +636,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 StartTime = NormalizeStartTime(tour.StartTime),
                 VehicleId = BuildVehicleSummary(tour),
                 Employees = string.Join(", ", tour.EmployeeIds),
-                StopCount = tour.Stops.Count(s => !TourStopIdentity.IsCompanyStop(s)),
+                StopCount = tour.Stops.Count(IsCalendarStop),
                 Summary = BuildTourSummary(tour, includeName: false),
                 Stops = stops
             });
@@ -923,7 +923,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             var title = string.IsNullOrWhiteSpace(tour.Name)
                 ? $"Tour {tour.Id.ToString(CultureInfo.InvariantCulture)}"
                 : tour.Name.Trim();
-            var stopCount = tour.Stops.Count(s => !TourStopIdentity.IsCompanyStop(s));
+            var stopCount = tour.Stops.Count(IsCalendarStop);
             var peopleCount = GetAssignedPeopleCount(tour);
             entries.Add(new CalendarAgendaEntry
             {
@@ -960,7 +960,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
     private static string BuildTourSummary(TourRecord tour, bool includeName)
     {
-        var stopCount = tour.Stops.Count(s => !TourStopIdentity.IsCompanyStop(s));
+        var stopCount = tour.Stops.Count(IsCalendarStop);
         var lead = includeName
             ? $"{NormalizeStartTime(tour.StartTime)} {tour.Name}".Trim()
             : $"{NormalizeStartTime(tour.StartTime)}";
@@ -972,7 +972,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         var cards = new List<CalendarTourStopCardItem>();
         var letterIndex = 1;
         foreach (var stop in tour.Stops
-                     .Where(s => !TourStopIdentity.IsCompanyStop(s))
+                     .Where(IsCalendarStop)
                      .OrderBy(s => s.Order))
         {
             var stopLabel = ToStopLetter(letterIndex);
@@ -991,6 +991,11 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         }
 
         return cards;
+    }
+
+    private static bool IsCalendarStop(TourStopRecord stop)
+    {
+        return !TourStopIdentity.IsCompanyStop(stop) && !TourStopIdentity.IsPauseStop(stop);
     }
 
     private Order? ResolveOrderForStop(TourStopRecord stop, int tourId)

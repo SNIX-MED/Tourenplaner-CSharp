@@ -831,9 +831,22 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         }
 
         var raw = (parent.Element(name)?.Value ?? string.Empty).Trim();
-        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var value) ||
+        var dayMonthYearFormats = new[]
+        {
+            "d.M.yyyy", "dd.MM.yyyy", "d.M.yyyy H:mm:ss", "dd.MM.yyyy HH:mm:ss",
+            "d/M/yyyy", "dd/MM/yyyy", "d/M/yyyy H:mm:ss", "dd/MM/yyyy HH:mm:ss"
+        };
+        var yearMonthDayFormats = new[]
+        {
+            "yyyy-M-d", "yyyy-MM-dd", "yyyy-M-d H:mm:ss", "yyyy-MM-dd HH:mm:ss",
+            "yyyy-M-d'T'H:mm:ss", "yyyy-MM-dd'T'HH:mm:ss"
+        };
+
+        if (DateTime.TryParseExact(raw, dayMonthYearFormats, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var value) ||
+            DateTime.TryParseExact(raw, yearMonthDayFormats, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out value) ||
             DateTime.TryParse(raw, CultureInfo.GetCultureInfo("de-CH"), DateTimeStyles.AssumeLocal, out value) ||
-            DateTime.TryParse(raw, CultureInfo.GetCultureInfo("de-DE"), DateTimeStyles.AssumeLocal, out value))
+            DateTime.TryParse(raw, CultureInfo.GetCultureInfo("de-DE"), DateTimeStyles.AssumeLocal, out value) ||
+            DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out value))
         {
             return value.Date <= DateTime.MinValue.Date ? null : value;
         }

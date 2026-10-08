@@ -317,6 +317,20 @@
                                     </Style>
                                 </CheckBox.Style>
                             </CheckBox>
+                            <CheckBox Margin="0,8,0,0"
+                                      Content="Evtl. Selbstabholung"
+                                      IsChecked="{Binding IsSelfPickupAlternativeEnabled, Mode=TwoWay}">
+                                <CheckBox.Style>
+                                    <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowSelfPickupAlternativeOption}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </CheckBox.Style>
+                            </CheckBox>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="10,0,0,0">
                             <TextBlock FontWeight="SemiBold" Text="Status" />
