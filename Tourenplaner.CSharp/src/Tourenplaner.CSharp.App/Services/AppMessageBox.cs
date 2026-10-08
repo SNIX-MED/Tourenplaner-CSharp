@@ -39,10 +39,14 @@ public static class AppMessageBox
                 () => Show(owner, messageBoxText, caption, button, icon));
         }
 
-        var dialog = new AppMessageDialogWindow(messageBoxText, caption, button, icon)
+        var dialog = new AppMessageDialogWindow(messageBoxText, caption, button, icon);
+        var effectiveOwner = owner ?? System.Windows.Application.Current.MainWindow;
+        if (effectiveOwner is not null &&
+            !ReferenceEquals(effectiveOwner, dialog) &&
+            effectiveOwner.IsVisible)
         {
-            Owner = owner ?? System.Windows.Application.Current.MainWindow
-        };
+            dialog.Owner = effectiveOwner;
+        }
 
         _ = dialog.ShowDialog();
         return dialog.Result;

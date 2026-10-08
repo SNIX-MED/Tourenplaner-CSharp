@@ -82,8 +82,15 @@ jobs:
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
-          gh release upload $tag `
-            artifacts/installer/win-x64/GAWELA-Tourenplaner-Setup.exe `
-            artifacts/installer/win-x64/update-manifest.json `
-            --repo $env:GITHUB_REPOSITORY `
-            --clobber
+          $assetNames = @(gh release view $tag --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name')
+          $hasSetup = $assetNames -contains 'GAWELA-Tourenplaner-Setup.exe'
+          $hasManifest = $assetNames -contains 'update-manifest.json'
+          if ($hasSetup -and $hasManifest) {
+            Write-Host 'Release-Assets sind bereits vorhanden und werden nicht ersetzt.'
+          }
+          else {
+            gh release upload $tag `
+              artifacts/installer/win-x64/GAWELA-Tourenplaner-Setup.exe `
+              artifacts/installer/win-x64/update-manifest.json `
+              --repo $env:GITHUB_REPOSITORY
+          }

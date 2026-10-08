@@ -20,6 +20,25 @@ internal static class InstalledAppUpdateService
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        try
+        {
+            return await TryApplyUpdateCoreAsync(progress, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or JsonException or InvalidDataException)
+        {
+            return InstalledAppUpdateResult.Failed(
+                $"Das automatische Update konnte nicht abgeschlossen werden. {ex.Message}");
+        }
+    }
+
+    private static async Task<InstalledAppUpdateResult> TryApplyUpdateCoreAsync(
+        IProgress<string>? progress,
+        CancellationToken cancellationToken)
+    {
         var configPath = FindUpdateConfigPath(AppContext.BaseDirectory);
         if (configPath is null)
         {
