@@ -63,9 +63,15 @@ internal static class OrderSectionSharedHelpers
             return true;
         }
 
-        return order.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               order.CustomerName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               order.Address.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               (order.AssignedTourId ?? string.Empty).Contains(query, StringComparison.OrdinalIgnoreCase);
+        var normalizedQuery = query.Trim();
+        var orderNumberQueries = normalizedQuery.Split(
+            (char[]?)null,
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        return orderNumberQueries.Any(orderNumber =>
+                   order.Id.Contains(orderNumber, StringComparison.OrdinalIgnoreCase)) ||
+               order.CustomerName.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase) ||
+               order.Address.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase) ||
+               (order.AssignedTourId ?? string.Empty).Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase);
     }
 }

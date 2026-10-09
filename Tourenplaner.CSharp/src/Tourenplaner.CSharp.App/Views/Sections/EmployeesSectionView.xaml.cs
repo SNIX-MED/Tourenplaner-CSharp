@@ -52,12 +52,14 @@ public partial class EmployeesSectionView : UserControl
         }
 
         var seed = vm.CreateSeedForCreate();
+        var isWebfleetEnabled = await vm.IsWebfleetEnabledAsync();
         var dialog = new EmployeeEditorDialogWindow(
             seed,
-            await GetWebfleetVehiclesSafeAsync(vm, seed.Id),
-            await GetWebfleetDriversSafeAsync(vm, seed.Id),
+            isWebfleetEnabled ? await GetWebfleetVehiclesSafeAsync(vm, seed.Id) : [],
+            isWebfleetEnabled ? await GetWebfleetDriversSafeAsync(vm, seed.Id) : [],
             vm.GetWebfleetAssignmentHint(seed.Id),
-            vm.HasDuplicateWebfleetAssignment(seed.Id))
+            vm.HasDuplicateWebfleetAssignment(seed.Id),
+            isWebfleetEnabled)
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
@@ -90,12 +92,14 @@ public partial class EmployeesSectionView : UserControl
         }
 
         var seed = vm.CreateSeedForEdit(entry);
+        var isWebfleetEnabled = await vm.IsWebfleetEnabledAsync();
         var dialog = new EmployeeEditorDialogWindow(
             seed,
-            await GetWebfleetVehiclesSafeAsync(vm, seed.Id),
-            await GetWebfleetDriversSafeAsync(vm, seed.Id),
+            isWebfleetEnabled ? await GetWebfleetVehiclesSafeAsync(vm, seed.Id) : [],
+            isWebfleetEnabled ? await GetWebfleetDriversSafeAsync(vm, seed.Id) : [],
             vm.GetWebfleetAssignmentHint(seed.Id),
-            vm.HasDuplicateWebfleetAssignment(seed.Id))
+            vm.HasDuplicateWebfleetAssignment(seed.Id),
+            isWebfleetEnabled)
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };

@@ -3,6 +3,8 @@ using System.Windows;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
+using Tourenplaner.CSharp.Domain.Models;
+using System.Collections.ObjectModel;
 
 namespace Tourenplaner.CSharp.App.Views.Dialogs;
 
@@ -42,6 +44,13 @@ public partial class VehicleEditorDialogWindow : Window
         DeleteRequested = true;
         DialogResult = false;
         Close();
+    }
+
+    private void OnManageAbsencesClicked(object sender, RoutedEventArgs e)
+    {
+        if (!UnavailabilityEditorDialogViewModel.TryBuildPeriods(ViewModel.UnavailabilityItems, out var current, out _)) current = [];
+        var dialog = new UnavailabilityEditorDialogWindow(current) { Owner = this };
+        if (dialog.ShowDialog() == true) ViewModel.SetUnavailabilityPeriods(dialog.Result);
     }
 
     private void OnSaveClicked(object sender, RoutedEventArgs e)
@@ -103,6 +112,8 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
         _registerOutage = seed.RegisterOutage;
         _outageStartDate = seed.OutageStartDate ?? string.Empty;
         _outageEndDate = seed.OutageEndDate ?? string.Empty;
+        foreach (var period in seed.UnavailabilityPeriods ?? [])
+            UnavailabilityItems.Add(UnavailabilityPeriodEditItem.FromModel(period));
         _webfleetObjectUid = seed.WebfleetObjectUid ?? string.Empty;
         _webfleetObjectNumber = seed.WebfleetObjectNumber ?? string.Empty;
     }
@@ -209,6 +220,25 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
     {
         get => _registerOutage;
         set => SetProperty(ref _registerOutage, value);
+    }
+
+    public ObservableCollection<UnavailabilityPeriodEditItem> UnavailabilityItems { get; } = [];
+    public UnavailabilityPeriodEditItem? SelectedUnavailability { get; set; }
+    public void AddUnavailability()
+    {
+        var today = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        var item = new UnavailabilityPeriodEditItem { StartDate = today, EndDate = today };
+        UnavailabilityItems.Add(item);
+        SelectedUnavailability = item;
+    }
+    public void RemoveSelectedUnavailability()
+    {
+        if (SelectedUnavailability is not null) UnavailabilityItems.Remove(SelectedUnavailability);
+    }
+    public void SetUnavailabilityPeriods(IEnumerable<ResourceUnavailabilityPeriod> periods)
+    {
+        UnavailabilityItems.Clear();
+        foreach (var period in periods) UnavailabilityItems.Add(UnavailabilityPeriodEditItem.FromModel(period));
     }
 
     public string OutageStartDate
@@ -334,6 +364,11 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
             }
         }
 
+        if (!UnavailabilityEditorDialogViewModel.TryBuildPeriods(UnavailabilityItems, out var unavailabilityPeriods, out error))
+        {
+            return false;
+        }
+
         result = new VehicleEditorResult(
             Id: _id,
             IsTrailer: IsTrailer,
@@ -354,10 +389,12 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
             RegisterOutage: RegisterOutage,
             OutageStartDate: (OutageStartDate ?? string.Empty).Trim(),
             OutageEndDate: (OutageEndDate ?? string.Empty).Trim(),
+            UnavailabilityPeriods: unavailabilityPeriods,
             WebfleetObjectUid: (WebfleetObjectUid ?? string.Empty).Trim(),
             WebfleetObjectNumber: (WebfleetObjectNumber ?? string.Empty).Trim());
         return true;
     }
+
 
     private static bool TryParseNonNegative(string raw, out int value, out string error)
     {

@@ -63,6 +63,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             RegisterAbsence: false,
             AbsenceStartDate: string.Empty,
             AbsenceEndDate: string.Empty,
+            UnavailabilityPeriods: [],
             WebfleetDriverUid: string.Empty,
             WebfleetDriverNumber: string.Empty,
             WebfleetDriverName: string.Empty);
@@ -82,11 +83,21 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             RegisterAbsence: editablePeriod is not null,
             AbsenceStartDate: editablePeriod?.StartDate.ToString("dd.MM.yyyy") ?? string.Empty,
             AbsenceEndDate: editablePeriod?.EndDate.ToString("dd.MM.yyyy") ?? string.Empty,
+            UnavailabilityPeriods: source?.UnavailabilityPeriods ?? [],
             WebfleetObjectUid: source?.WebfleetObjectUid ?? string.Empty,
             WebfleetObjectNumber: source?.WebfleetObjectNumber ?? string.Empty,
             WebfleetDriverUid: source?.WebfleetDriverUid ?? string.Empty,
             WebfleetDriverNumber: source?.WebfleetDriverNumber ?? string.Empty,
             WebfleetDriverName: source?.WebfleetDriverName ?? string.Empty);
+    }
+
+    public async Task<bool> IsWebfleetEnabledAsync()
+    {
+        var settings = await _settingsRepository.LoadAsync();
+        var webfleet = await WebfleetUserSettingsService.LoadOrMigrateLegacyAsync(
+            settings,
+            LocalUserSessionService.CurrentUserName);
+        return webfleet?.IsEnabled == true;
     }
 
     public async Task<IReadOnlyList<WebfleetVehicleSnapshot>> GetWebfleetVehiclesAsync(string? employeeId = null)
@@ -179,10 +190,12 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         {
             throw new InvalidOperationException($"Der WEBFLEET-Fahrer {result.WebfleetDriverName} ist bereits dem Mitarbeiter \"{conflictingDriver.DisplayName}\" zugeordnet.");
         }
-        var periods = new List<ResourceUnavailabilityPeriod>();
+        var periods = (result.UnavailabilityPeriods ?? [])
+            .Select(ClonePeriod)
+            .ToList();
 
         string? warning = null;
-        if (result.RegisterAbsence)
+        if (result.RegisterAbsence && periods.Count == 0)
         {
             var absenceStart = ResourceAvailabilityService.ParseDate(result.AbsenceStartDate);
             var absenceEnd = ResourceAvailabilityService.ParseDate(result.AbsenceEndDate);
@@ -195,9 +208,19 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
                     StartDate = from.ToString("yyyy-MM-dd"),
                     EndDate = to.ToString("yyyy-MM-dd")
                 });
-                warning = await BuildAbsenceAssignmentWarningAsync(id, result.Name, from, to);
             }
         }
+
+        var warnings = new List<string>();
+        foreach (var period in periods)
+        {
+            var from = ResourceAvailabilityService.ParseDate(period.StartDate);
+            var to = ResourceAvailabilityService.ParseDate(period.EndDate);
+            if (!from.HasValue || !to.HasValue) continue;
+            var periodWarning = await BuildAbsenceAssignmentWarningAsync(id, result.Name, from.Value, to.Value);
+            if (!string.IsNullOrWhiteSpace(periodWarning)) warnings.Add(periodWarning);
+        }
+        warning = warnings.Count == 0 ? null : string.Join(Environment.NewLine + Environment.NewLine, warnings.Distinct());
 
         _employees.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
         var savedEmployee = new Employee
@@ -222,6 +245,15 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         await SaveCurrentStateAsync(savedEmployee: savedEmployee);
         return warning;
     }
+
+    private static ResourceUnavailabilityPeriod ClonePeriod(ResourceUnavailabilityPeriod period) => new()
+    {
+        StartDate = period.StartDate,
+        EndDate = period.EndDate,
+        StartTime = period.StartTime,
+        EndTime = period.EndTime,
+        Note = period.Note
+    };
 
     public async Task DeleteEntryAsync(EmployeeCardItem entry)
     {
@@ -422,6 +454,7 @@ public sealed record EmployeeEditorSeed(
     bool RegisterAbsence,
     string AbsenceStartDate,
     string AbsenceEndDate,
+    IReadOnlyList<ResourceUnavailabilityPeriod>? UnavailabilityPeriods = null,
     string WebfleetObjectUid = "",
     string WebfleetObjectNumber = "",
     string WebfleetDriverUid = "",
@@ -438,6 +471,7 @@ public sealed record EmployeeEditorResult(
     bool RegisterAbsence,
     string AbsenceStartDate,
     string AbsenceEndDate,
+    IReadOnlyList<ResourceUnavailabilityPeriod>? UnavailabilityPeriods = null,
     string WebfleetObjectUid = "",
     string WebfleetObjectNumber = "",
     string WebfleetDriverUid = "",

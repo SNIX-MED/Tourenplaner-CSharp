@@ -52,6 +52,17 @@ public partial class App : System.Windows.Application
 
         try
         {
+            startupStep = "Update-Speichermodus";
+            var restoredStorageMode = await UpdateStorageModeGuard.RestoreAsync(
+                dataRoot,
+                InstalledAppUpdateService.GetUpdateStateRoot());
+            if (restoredStorageMode is not null)
+            {
+                TryLogInfo(
+                    "UpdateStorageModeGuard",
+                    $"Speichermodus nach dem Update wiederhergestellt: {restoredStorageMode}.");
+            }
+
             startupStep = "Update-Prüfung";
             var updateProgress = new Progress<string>(message => splashWindow.SetStatus(message));
             var updateResult = await InstalledAppUpdateService.TryApplyUpdateAsync(updateProgress);

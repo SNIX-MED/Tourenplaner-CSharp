@@ -1301,12 +1301,12 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
         try
         {
-            var backupPath = await _backupManager.CreateBackupAsync(
-                "GAWELA_Tourenplaner",
+            var backupPath = await PreUpdateBackupService.CreateAsync(
                 _dataRoot,
-                _dataRoot,
-                model.BackupDir,
-                model.BackupModeDefault);
+                ApplicationVersion,
+                "manual",
+                destinationDirectory: model.BackupDir,
+                fileNamePurpose: "manual");
 
             model.LastBackupIso = DateTimeOffset.Now.ToString("O");
             LastBackupIso = model.LastBackupIso;
@@ -1347,69 +1347,87 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         var backupPath = dialog.FileName;
         if (string.Equals(Path.GetExtension(backupPath), ".zip", StringComparison.OrdinalIgnoreCase))
         {
-            if (!IsPostgreSqlStorageMode)
-            {
-                StatusText = "Die PostgreSQL-Sicherung kann nur im PostgreSQL-Modus wiederhergestellt werden.";
-                return;
-            }
-
             try
             {
-                PostgreSqlBackupRestoreService.ValidateBackupFile(backupPath);
-            }
-            catch (Exception ex) when (ex is InvalidDataException or IOException)
-            {
-                StatusText = "Sicherung konnte nicht geprüft werden.";
-                ValidationSummary = ex.Message;
-                return;
-            }
+                var sourceMode = UnifiedBackupRestoreService.ReadSourceMode(backupPath);
+                var sourceName = sourceMode == AppStorageMode.PostgreSql ? "PostgreSQL" : "lokale Dateien";
+                var targetName = IsPostgreSqlStorageMode ? "PostgreSQL" : "lokale Dateien";
+                var impactWarning = IsPostgreSqlStorageMode
+                    ? "Die Wiederherstellung ersetzt die zentralen Daten für alle verbundenen PCs. Bitte stellen Sie sicher, dass die anderen Benutzer den Tourenplaner geschlossen haben.\n\n"
+                    : "Die Wiederherstellung ersetzt die lokalen Daten auf diesem PC.\n\n";
+                var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                    $"Quelle: {sourceName}\nZiel: {targetName}\n\n" + impactWarning +
+                    "Vorher wird automatisch eine zusätzliche Sicherung des aktuellen Zustands erstellt.\n\n" +
+                    $"Sicherung: {Path.GetFileName(backupPath)}\n\nJetzt wiederherstellen?",
+                    "Tourenplaner-Sicherung wiederherstellen",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (confirm != MessageBoxResult.Yes)
+                {
+                    return;
+                }
 
-            var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                "Diese Wiederherstellung ersetzt die zentralen PostgreSQL-Daten für alle verbundenen PCs. " +
-                "Vorher wird automatisch eine zusätzliche Sicherung des aktuellen Zustands erstellt.\n\n" +
-                "Bitte stellen Sie sicher, dass die anderen Benutzer den Tourenplaner geschlossen haben.\n\n" +
-                $"Sicherung: {Path.GetFileName(backupPath)}\n\nJetzt wiederherstellen?",
-                "PostgreSQL-Sicherung wiederherstellen",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-            if (confirm != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            try
-            {
-                StatusText = "Aktueller SQL-Zustand wird zusätzlich gesichert...";
+                StatusText = "Aktueller Zustand wird zusätzlich gesichert...";
                 await PreUpdateBackupService.CreateAsync(
                     _dataRoot,
                     $"restore-safety-{ApplicationVersion}",
                     "before-restore");
-                StatusText = "PostgreSQL-Daten werden wiederhergestellt...";
-                await new PostgreSqlBackupRestoreService().RestoreAsync(
+                StatusText = "Sicherung wird wiederhergestellt...";
+                await new UnifiedBackupRestoreService().RestoreAsync(
                     backupPath,
-                    BuildPostgreSqlStorageSettings());
+                    _dataRoot,
+                    IsPostgreSqlStorageMode ? AppStorageMode.PostgreSql : AppStorageMode.JsonFiles,
+                    IsPostgreSqlStorageMode ? BuildPostgreSqlStorageSettings() : null);
                 _dataSyncService?.Publish(new AppDataChangedEventArgs(
                     _instanceId,
                     AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees | AppDataKind.Settings));
-                StatusText = "PostgreSQL-Sicherung wurde wiederhergestellt. Bitte das Programm auf allen PCs neu starten.";
+                StatusText = "Sicherung wurde wiederhergestellt. Der Speichermodus dieses PCs wurde beibehalten. Bitte das Programm neu starten.";
                 ValidationSummary = string.Empty;
             }
             catch (Exception ex)
             {
-                StatusText = "PostgreSQL-Wiederherstellung fehlgeschlagen; die Transaktion wurde zurückgerollt.";
+                StatusText = "Wiederherstellung fehlgeschlagen.";
                 ValidationSummary = ex.Message;
             }
             return;
         }
 
-        await _backupManager.RestoreBackupAsync(
-            backupPath,
-            _dataRoot,
-            _dataRoot,
-            selectedGroups: ["all"]);
+        var legacyConfirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+            "Diese ältere .bak-Sicherung wird in das neue einheitliche Format konvertiert. " +
+            (IsPostgreSqlStorageMode
+                ? "Danach werden die zentralen PostgreSQL-Daten für alle verbundenen PCs ersetzt.\n\n"
+                : "Danach werden die lokalen Daten dieses PCs ersetzt.\n\n") +
+            "Vorher wird automatisch eine zusätzliche Sicherung des aktuellen Zustands erstellt.\n\n" +
+            $"Sicherung: {Path.GetFileName(backupPath)}\n\nJetzt wiederherstellen?",
+            "Ältere Sicherung wiederherstellen",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (legacyConfirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
 
-        StatusText = $"Backup wiederhergestellt: {Path.GetFileName(backupPath)}.";
-        await RefreshAsync();
+        try
+        {
+            StatusText = "Aktueller Zustand wird zusätzlich gesichert...";
+            await PreUpdateBackupService.CreateAsync(
+                _dataRoot,
+                $"restore-safety-{ApplicationVersion}",
+                "before-restore");
+            StatusText = "Ältere Sicherung wird konvertiert und wiederhergestellt...";
+            await new UnifiedBackupRestoreService().RestoreLegacyBakAsync(
+                backupPath,
+                _dataRoot,
+                IsPostgreSqlStorageMode ? AppStorageMode.PostgreSql : AppStorageMode.JsonFiles,
+                IsPostgreSqlStorageMode ? BuildPostgreSqlStorageSettings() : null);
+            StatusText = "Sicherung wurde wiederhergestellt. Der Speichermodus dieses PCs wurde beibehalten. Bitte das Programm neu starten.";
+            ValidationSummary = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Wiederherstellung fehlgeschlagen.";
+            ValidationSummary = ex.Message;
+        }
     }
 
     public void CleanupBackups()
@@ -2237,6 +2255,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         if (!string.IsNullOrWhiteSpace(backupDir) && Directory.Exists(backupDir))
         {
             var files = Directory.GetFiles(backupDir, "*.bak", SearchOption.TopDirectoryOnly)
+                .Concat(Directory.GetFiles(backupDir, "*.zip", SearchOption.TopDirectoryOnly))
                 .OrderByDescending(File.GetLastWriteTimeUtc)
                 .ToList();
 

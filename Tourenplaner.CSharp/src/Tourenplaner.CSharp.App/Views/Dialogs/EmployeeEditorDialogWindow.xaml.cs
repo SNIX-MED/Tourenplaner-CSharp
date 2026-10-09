@@ -4,15 +4,17 @@ using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using System.Globalization;
+using System.Collections.ObjectModel;
+using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Views.Dialogs;
 
 public partial class EmployeeEditorDialogWindow : Window
 {
-    public EmployeeEditorDialogWindow(EmployeeEditorSeed seed, IReadOnlyList<WebfleetVehicleSnapshot>? webfleetVehicles = null, IReadOnlyList<WebfleetDriverSnapshot>? webfleetDrivers = null, string? noWebfleetVehiclesMessage = null, bool hasDuplicateWebfleetAssignment = false)
+    public EmployeeEditorDialogWindow(EmployeeEditorSeed seed, IReadOnlyList<WebfleetVehicleSnapshot>? webfleetVehicles = null, IReadOnlyList<WebfleetDriverSnapshot>? webfleetDrivers = null, string? noWebfleetVehiclesMessage = null, bool hasDuplicateWebfleetAssignment = false, bool isWebfleetEnabled = true)
     {
         InitializeComponent();
-        ViewModel = new EmployeeEditorDialogViewModel(seed, webfleetVehicles, webfleetDrivers, noWebfleetVehiclesMessage, hasDuplicateWebfleetAssignment);
+        ViewModel = new EmployeeEditorDialogViewModel(seed, webfleetVehicles, webfleetDrivers, noWebfleetVehiclesMessage, hasDuplicateWebfleetAssignment, isWebfleetEnabled);
         DataContext = ViewModel;
     }
 
@@ -38,6 +40,13 @@ public partial class EmployeeEditorDialogWindow : Window
     private void OnFavoriteClicked(object sender, RoutedEventArgs e)
     {
         ViewModel.IsFavorite = !ViewModel.IsFavorite;
+    }
+
+    private void OnManageAbsencesClicked(object sender, RoutedEventArgs e)
+    {
+        if (!UnavailabilityEditorDialogViewModel.TryBuildPeriods(ViewModel.UnavailabilityItems, out var current, out _)) current = [];
+        var dialog = new UnavailabilityEditorDialogWindow(current) { Owner = this };
+        if (dialog.ShowDialog() == true) ViewModel.SetUnavailabilityPeriods(dialog.Result);
     }
 
     private void OnSaveClicked(object sender, RoutedEventArgs e)
@@ -98,7 +107,7 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
     private WebfleetVehicleOption? _selectedWebfleetVehicle;
     private WebfleetEmployeeDriverOption? _selectedWebfleetDriver;
 
-    public EmployeeEditorDialogViewModel(EmployeeEditorSeed seed, IReadOnlyList<WebfleetVehicleSnapshot>? webfleetVehicles = null, IReadOnlyList<WebfleetDriverSnapshot>? webfleetDrivers = null, string? noWebfleetVehiclesMessage = null, bool hasDuplicateWebfleetAssignment = false)
+    public EmployeeEditorDialogViewModel(EmployeeEditorSeed seed, IReadOnlyList<WebfleetVehicleSnapshot>? webfleetVehicles = null, IReadOnlyList<WebfleetDriverSnapshot>? webfleetDrivers = null, string? noWebfleetVehiclesMessage = null, bool hasDuplicateWebfleetAssignment = false, bool isWebfleetEnabled = true)
     {
         _id = seed.Id;
         _name = seed.Name ?? string.Empty;
@@ -109,11 +118,14 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
         _registerAbsence = seed.RegisterAbsence;
         _absenceStartDate = seed.AbsenceStartDate ?? string.Empty;
         _absenceEndDate = seed.AbsenceEndDate ?? string.Empty;
+        foreach (var period in seed.UnavailabilityPeriods ?? [])
+            UnavailabilityItems.Add(UnavailabilityPeriodEditItem.FromModel(period));
         _webfleetObjectUid = seed.WebfleetObjectUid ?? string.Empty;
         _webfleetObjectNumber = seed.WebfleetObjectNumber ?? string.Empty;
         _webfleetDriverUid = seed.WebfleetDriverUid ?? string.Empty;
         _webfleetDriverNumber = seed.WebfleetDriverNumber ?? string.Empty;
         _webfleetDriverName = seed.WebfleetDriverName ?? string.Empty;
+        IsWebfleetEnabled = isWebfleetEnabled;
         var availableWebfleetVehicles = (webfleetVehicles ?? [])
             .Select(WebfleetVehicleOption.Create)
             .OrderBy(x => x.Label, StringComparer.CurrentCultureIgnoreCase)
@@ -122,7 +134,7 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
         WebfleetVehicles = [WebfleetVehicleOption.None, .. availableWebfleetVehicles];
         _selectedWebfleetVehicle = WebfleetVehicles.FirstOrDefault(x =>
             !x.IsNone && string.Equals(x.ObjectUid, _webfleetObjectUid, StringComparison.OrdinalIgnoreCase));
-        HasDuplicateWebfleetAssignment = hasDuplicateWebfleetAssignment;
+        HasDuplicateWebfleetAssignment = IsWebfleetEnabled && hasDuplicateWebfleetAssignment;
         if (HasDuplicateWebfleetAssignment)
         {
             _webfleetObjectNumber = string.Empty;
@@ -134,7 +146,9 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
             _webfleetObjectNumber = string.Empty;
             _webfleetObjectUid = string.Empty;
         }
-        NoWebfleetVehiclesMessage = string.IsNullOrWhiteSpace(noWebfleetVehiclesMessage)
+        NoWebfleetVehiclesMessage = !IsWebfleetEnabled
+            ? "WEBFLEET ist deaktiviert."
+            : string.IsNullOrWhiteSpace(noWebfleetVehiclesMessage)
             ? "Keine WEBFLEET-Objekte geladen. Bitte Verbindung und Berechtigungen prüfen."
             : noWebfleetVehiclesMessage;
         var availableWebfleetDrivers = (webfleetDrivers ?? [])
@@ -191,6 +205,25 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
         set => SetProperty(ref _isFavorite, value);
     }
 
+    public ObservableCollection<UnavailabilityPeriodEditItem> UnavailabilityItems { get; } = [];
+    public UnavailabilityPeriodEditItem? SelectedUnavailability { get; set; }
+    public void AddUnavailability()
+    {
+        var today = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        var item = new UnavailabilityPeriodEditItem { StartDate = today, EndDate = today };
+        UnavailabilityItems.Add(item);
+        SelectedUnavailability = item;
+    }
+    public void RemoveSelectedUnavailability()
+    {
+        if (SelectedUnavailability is not null) UnavailabilityItems.Remove(SelectedUnavailability);
+    }
+    public void SetUnavailabilityPeriods(IEnumerable<ResourceUnavailabilityPeriod> periods)
+    {
+        UnavailabilityItems.Clear();
+        foreach (var period in periods) UnavailabilityItems.Add(UnavailabilityPeriodEditItem.FromModel(period));
+    }
+
     public string AbsenceStartDate
     {
         get => _absenceStartDate;
@@ -213,8 +246,11 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
     public bool HasAvailableWebfleetVehicles { get; }
     public bool HasAvailableWebfleetDrivers { get; }
     public bool HasDuplicateWebfleetAssignment { get; }
+    public bool IsWebfleetEnabled { get; }
     public string NoWebfleetVehiclesMessage { get; }
-    public string NoWebfleetDriversMessage => "Keine WEBFLEET-Fahrer geladen. Bitte Verbindung und Berechtigungen prüfen.";
+    public string NoWebfleetDriversMessage => IsWebfleetEnabled
+        ? "Keine WEBFLEET-Fahrer geladen. Bitte Verbindung und Berechtigungen prüfen."
+        : "WEBFLEET ist deaktiviert.";
 
     public WebfleetVehicleOption? SelectedWebfleetVehicle
     {
@@ -294,6 +330,11 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
             }
         }
 
+        if (!UnavailabilityEditorDialogViewModel.TryBuildPeriods(UnavailabilityItems, out var unavailabilityPeriods, out error))
+        {
+            return false;
+        }
+
         result = new EmployeeEditorResult(
             Id: _id,
             Name: Name.Trim(),
@@ -304,6 +345,7 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
             RegisterAbsence: RegisterAbsence,
             AbsenceStartDate: (AbsenceStartDate ?? string.Empty).Trim(),
             AbsenceEndDate: (AbsenceEndDate ?? string.Empty).Trim(),
+            UnavailabilityPeriods: unavailabilityPeriods,
             WebfleetObjectUid: (WebfleetObjectUid ?? string.Empty).Trim(),
             WebfleetObjectNumber: (WebfleetObjectNumber ?? string.Empty).Trim(),
             WebfleetDriverUid: (WebfleetDriverUid ?? string.Empty).Trim(),
@@ -311,6 +353,7 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
             WebfleetDriverName: (WebfleetDriverName ?? string.Empty).Trim());
         return true;
     }
+
 
     private static DateTime? ParseDateTime(string? raw)
     {

@@ -200,6 +200,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0"
@@ -854,5 +855,13 @@
                 </controls:RoundedClipBorder>
             </Border>
         </Border>
+
+        <TextBlock Grid.Row="2"
+                   Margin="0,8,12,0"
+                   HorizontalAlignment="Right"
+                   FontSize="12"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource Brush.TextMuted}"
+                   Text="{Binding NonMapOrders.Count, StringFormat=Anzahl Aufträge: {0}}" />
     </Grid>
 </UserControl>

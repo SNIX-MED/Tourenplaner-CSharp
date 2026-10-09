@@ -147,7 +147,8 @@ public partial class KalenderSectionView : UserControl
         {
             var entries = vm.GetManualEntriesForDate(date);
             var tours = vm.GetToursForDate(date);
-            var manager = new CalendarManualEntriesDayDialogWindow(date, entries, tours)
+            var absences = vm.GetResourceAbsencesForDate(date);
+            var manager = new CalendarManualEntriesDayDialogWindow(date, entries, tours, absences)
             {
                 Owner = Window.GetWindow(this)
             };

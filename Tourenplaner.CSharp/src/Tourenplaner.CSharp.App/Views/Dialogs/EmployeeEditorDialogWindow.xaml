@@ -92,6 +92,7 @@
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="WEBFLEET-Gerät" />
                 <ComboBox Margin="0,6,0,0"
                           Height="38"
+                          IsEnabled="{Binding IsWebfleetEnabled}"
                           ItemsSource="{Binding WebfleetVehicles}"
                           SelectedItem="{Binding SelectedWebfleetVehicle, Mode=TwoWay}"
                           ToolTip="WEBFLEET-Objekt auswählen">
@@ -133,6 +134,7 @@
                 <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="WEBFLEET-Fahrer" />
                 <ComboBox Margin="0,6,0,0"
                           Height="38"
+                          IsEnabled="{Binding IsWebfleetEnabled}"
                           ItemsSource="{Binding WebfleetDrivers}"
                           SelectedItem="{Binding SelectedWebfleetDriver, Mode=TwoWay}"
                           ToolTip="WEBFLEET-Fahrer auswählen">
@@ -159,24 +161,34 @@
             </StackPanel>
 
             <StackPanel Grid.Row="5" Margin="0,10,0,0">
-                <CheckBox Content="Abwesenheit eintragen"
-                          IsChecked="{Binding RegisterAbsence}" />
-                <Grid Margin="0,8,0,0"
-                      Visibility="{Binding RegisterAbsence, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                        <TextBlock FontWeight="SemiBold" Text="Von (DD.MM.YYYY)" />
-                        <controls:ModernDatePickerField Margin="0,6,0,0"
-                                                        SelectedDateText="{Binding AbsenceStartDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                        <TextBlock FontWeight="SemiBold" Text="Bis (DD.MM.YYYY)" />
-                        <controls:ModernDatePickerField Margin="0,6,0,0"
-                                                        SelectedDateText="{Binding AbsenceEndDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Abwesenheiten" />
+                    <Button Grid.Column="1" Height="32" Padding="12,0" Content="Verwalten..." Click="OnManageAbsencesClicked" />
+                </Grid>
+                <Grid Margin="0,7,0,0">
+                    <Grid>
+                    <TextBlock HorizontalAlignment="Center" Margin="8" Foreground="{DynamicResource Brush.TextMuted}" Text="Keine Abwesenheiten eingetragen">
+                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding UnavailabilityItems.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                    </TextBlock>
+                    <ScrollViewer MaxHeight="145" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding UnavailabilityItems}">
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <Border Margin="0,0,0,5" Padding="10,8" CornerRadius="8"
+                                        Background="White" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Border Width="4" Margin="0,1,10,1" CornerRadius="2" Background="{DynamicResource Brush.Accent}" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding DateRangeText}" />
+                                            <TextBlock Margin="0,2,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding TimeRangeText}" />
+                                            <TextBlock Margin="0,2,0,0" TextWrapping="Wrap" Text="{Binding NoteText}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    </Grid>
                 </Grid>
             </StackPanel>
 

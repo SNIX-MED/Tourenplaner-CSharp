@@ -127,6 +127,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             RegisterOutage: editablePeriod is not null,
             OutageStartDate: editablePeriod?.StartDate.ToString("dd.MM.yyyy") ?? string.Empty,
             OutageEndDate: editablePeriod?.EndDate.ToString("dd.MM.yyyy") ?? string.Empty,
+            UnavailabilityPeriods: (entry.IsTrailer ? sourceTrailer?.UnavailabilityPeriods : sourceVehicle?.UnavailabilityPeriods) ?? [],
             WebfleetObjectUid: sourceVehicle?.WebfleetObjectUid ?? string.Empty,
             WebfleetObjectNumber: sourceVehicle?.WebfleetObjectNumber ?? string.Empty);
     }
@@ -190,8 +191,8 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         var externalDimensions = BuildDimensions(result.ExternalLengthCm, result.ExternalWidthCm, result.ExternalHeightCm);
         if (result.IsTrailer)
         {
-            var periods = new List<ResourceUnavailabilityPeriod>();
-            if (result.RegisterOutage)
+            var periods = (result.UnavailabilityPeriods ?? []).Select(ClonePeriod).ToList();
+            if (result.RegisterOutage && periods.Count == 0)
             {
                 AppendOutagePeriod(periods, result.OutageStartDate, result.OutageEndDate);
                 warning = await BuildOutageAssignmentWarningAsync(
@@ -200,6 +201,10 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                     result.OutageStartDate,
                     result.OutageEndDate,
                     isTrailer: true);
+            }
+            if (periods.Count > 0)
+            {
+                warning = await BuildOutageWarningsAsync(id, result.Name, periods, isTrailer: true);
             }
 
             _trailers.Add(new TrailerRecord
@@ -220,8 +225,8 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         }
         else
         {
-            var periods = new List<ResourceUnavailabilityPeriod>();
-            if (result.RegisterOutage)
+            var periods = (result.UnavailabilityPeriods ?? []).Select(ClonePeriod).ToList();
+            if (result.RegisterOutage && periods.Count == 0)
             {
                 AppendOutagePeriod(periods, result.OutageStartDate, result.OutageEndDate);
                 warning = await BuildOutageAssignmentWarningAsync(
@@ -230,6 +235,10 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                     result.OutageStartDate,
                     result.OutageEndDate,
                     isTrailer: false);
+            }
+            if (periods.Count > 0)
+            {
+                warning = await BuildOutageWarningsAsync(id, result.Name, periods, isTrailer: false);
             }
 
             _vehicles.Add(new Vehicle
@@ -612,6 +621,30 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         {
             showCombinations.RaiseCanExecuteChanged();
         }
+    }
+
+    private static ResourceUnavailabilityPeriod ClonePeriod(ResourceUnavailabilityPeriod period) => new()
+    {
+        StartDate = period.StartDate,
+        EndDate = period.EndDate,
+        StartTime = period.StartTime,
+        EndTime = period.EndTime,
+        Note = period.Note
+    };
+
+    private async Task<string?> BuildOutageWarningsAsync(
+        string id,
+        string name,
+        IEnumerable<ResourceUnavailabilityPeriod> periods,
+        bool isTrailer)
+    {
+        var warnings = new List<string>();
+        foreach (var period in periods)
+        {
+            var warning = await BuildOutageAssignmentWarningAsync(id, name, period.StartDate, period.EndDate, isTrailer);
+            if (!string.IsNullOrWhiteSpace(warning)) warnings.Add(warning);
+        }
+        return warnings.Count == 0 ? null : string.Join(Environment.NewLine + Environment.NewLine, warnings.Distinct());
     }
 
     private static void AppendOutagePeriod(List<ResourceUnavailabilityPeriod> periods, string? startRaw, string? endRaw)

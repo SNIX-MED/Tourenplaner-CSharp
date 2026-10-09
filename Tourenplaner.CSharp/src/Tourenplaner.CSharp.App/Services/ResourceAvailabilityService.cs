@@ -53,4 +53,36 @@ public static class ResourceAvailabilityService
 
         return false;
     }
+
+    public static bool IsUnavailableAt(IEnumerable<ResourceUnavailabilityPeriod>? periods, DateOnly date, string? time)
+    {
+        if (!TimeOnly.TryParseExact((time ?? string.Empty).Trim(), "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var selectedTime))
+        {
+            return IsUnavailableOnDate(periods, date);
+        }
+
+        foreach (var period in periods ?? [])
+        {
+            var start = ParseDate(period.StartDate);
+            var end = ParseDate(period.EndDate);
+            if (!start.HasValue || !end.HasValue) continue;
+            var from = start.Value <= end.Value ? start.Value : end.Value;
+            var to = start.Value <= end.Value ? end.Value : start.Value;
+            if (date < from || date > to) continue;
+
+            var hasStartTime = TimeOnly.TryParseExact((period.StartTime ?? string.Empty).Trim(), "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var startTime);
+            var hasEndTime = TimeOnly.TryParseExact((period.EndTime ?? string.Empty).Trim(), "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var endTime);
+            if (from == to)
+            {
+                if ((!hasStartTime || selectedTime >= startTime) && (!hasEndTime || selectedTime <= endTime)) return true;
+                continue;
+            }
+
+            if (date > from && date < to) return true;
+            if (date == from && (!hasStartTime || selectedTime >= startTime)) return true;
+            if (date == to && (!hasEndTime || selectedTime <= endTime)) return true;
+        }
+
+        return false;
+    }
 }

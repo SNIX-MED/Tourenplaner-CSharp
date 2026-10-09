@@ -20,6 +20,7 @@ public sealed record VehicleEditorSeed(
     bool RegisterOutage,
     string OutageStartDate,
     string OutageEndDate,
+    IReadOnlyList<Tourenplaner.CSharp.Domain.Models.ResourceUnavailabilityPeriod>? UnavailabilityPeriods = null,
     string WebfleetObjectUid = "",
     string WebfleetObjectNumber = "");
 
@@ -43,6 +44,7 @@ public sealed record VehicleEditorResult(
     bool RegisterOutage,
     string OutageStartDate,
     string OutageEndDate,
+    IReadOnlyList<Tourenplaner.CSharp.Domain.Models.ResourceUnavailabilityPeriod>? UnavailabilityPeriods = null,
     string WebfleetObjectUid = "",
     string WebfleetObjectNumber = "");
 

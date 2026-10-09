@@ -22,6 +22,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private readonly ITourRecordMutationStore? _tourMutationStore;
     private readonly IOrderRepository _orderRepository;
     private readonly ICalendarManualEntryStore _manualEntryRepository;
+    private readonly IEmployeeDataStore _employeeRepository;
+    private readonly IVehicleDataStore _vehicleRepository;
     private readonly ICalendarManualEntryMutationStore? _manualEntryMutationStore;
     private readonly IAppSettingsStore _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
@@ -33,6 +35,9 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private readonly List<TourRecord> _allTours = [];
     private readonly List<Order> _allOrders = [];
     private readonly List<CalendarManualEntry> _manualEntries = [];
+    private readonly List<Employee> _employees = [];
+    private readonly List<Vehicle> _vehicles = [];
+    private readonly List<TrailerRecord> _trailers = [];
     private readonly List<CalendarDayItem> _interactiveDays = [];
     private readonly Guid _instanceId = Guid.NewGuid();
 
@@ -56,6 +61,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         IOrderRepository orderRepository,
         ICalendarManualEntryStore manualEntryRepository,
         IAppSettingsStore settingsRepository,
+        IEmployeeDataStore employeeRepository,
+        IVehicleDataStore vehicleRepository,
         Func<int, Task>? openTourAsync = null,
         Func<int, Task>? editTourAsync = null,
         Func<int, Task>? openTourOnMapAsync = null,
@@ -68,6 +75,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         _tourMutationStore = tourRepository as ITourRecordMutationStore;
         _orderRepository = orderRepository;
         _manualEntryRepository = manualEntryRepository;
+        _employeeRepository = employeeRepository;
+        _vehicleRepository = vehicleRepository;
         _manualEntryMutationStore = manualEntryRepository as ICalendarManualEntryMutationStore;
         _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService ?? new AppDataSyncService();
@@ -196,7 +205,9 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         var toursTask = _repository.LoadAsync();
         var ordersTask = _orderRepository.GetAllAsync();
         var manualEntriesTask = _manualEntryRepository.LoadAsync();
-        await Task.WhenAll(settingsTask, toursTask, ordersTask, manualEntriesTask);
+        var employeesTask = _employeeRepository.LoadAsync();
+        var vehiclesTask = _vehicleRepository.LoadAsync();
+        await Task.WhenAll(settingsTask, toursTask, ordersTask, manualEntriesTask, employeesTask, vehiclesTask);
 
         var settings = await settingsTask;
         var userPreference = settings.ResolveUserPreference(LocalUserSessionService.CurrentUserName);
@@ -213,6 +224,13 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         _allOrders.AddRange(await ordersTask);
         _manualEntries.Clear();
         _manualEntries.AddRange(await manualEntriesTask);
+        _employees.Clear();
+        _employees.AddRange(await employeesTask);
+        var fleet = await vehiclesTask;
+        _vehicles.Clear();
+        _vehicles.AddRange(fleet.Vehicles);
+        _trailers.Clear();
+        _trailers.AddRange(fleet.Trailers);
         _upcomingWeeksMinStartDate = GetStartOfWeek(DateTime.Today.AddMonths(-PreviewNavigationMonths));
         _upcomingWeeksMaxStartDate = GetStartOfWeek(DateTime.Today.AddMonths(PreviewNavigationMonths));
         _upcomingWeeksStartDate = ClampUpcomingWeekStart(_upcomingWeeksStartDate);
@@ -379,6 +397,64 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 };
             })
             .ToList();
+    }
+
+    public IReadOnlyList<CalendarResourceAbsenceDayListItem> GetResourceAbsencesForDate(DateTime date)
+    {
+        var items = new List<CalendarResourceAbsenceDayListItem>();
+        foreach (var employee in _employees)
+        {
+            AddResourceAbsences(items, employee.UnavailabilityPeriods, date, employee.DisplayName, "Mitarbeiter abwesend", "#DC2626");
+        }
+        foreach (var vehicle in _vehicles)
+        {
+            AddResourceAbsences(items, vehicle.UnavailabilityPeriods, date, vehicle.Name, "Fahrzeug nicht verfügbar", "#F97316");
+        }
+        foreach (var trailer in _trailers)
+        {
+            AddResourceAbsences(items, trailer.UnavailabilityPeriods, date, trailer.Name, "Anhänger nicht verfügbar", "#F97316");
+        }
+
+        return items
+            .OrderBy(x => string.IsNullOrWhiteSpace(x.StartTime) ? 0 : ParseStartTimeMinutes(x.StartTime))
+            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static void AddResourceAbsences(
+        ICollection<CalendarResourceAbsenceDayListItem> items,
+        IEnumerable<ResourceUnavailabilityPeriod>? periods,
+        DateTime date,
+        string name,
+        string kindLabel,
+        string colorHex)
+    {
+        var day = DateOnly.FromDateTime(date);
+        foreach (var period in periods ?? [])
+        {
+            var start = ResourceAvailabilityService.ParseDate(period.StartDate);
+            var end = ResourceAvailabilityService.ParseDate(period.EndDate);
+            if (!start.HasValue || !end.HasValue || day < start.Value || day > end.Value) continue;
+
+            var startTime = day == start.Value ? (period.StartTime ?? string.Empty).Trim() : string.Empty;
+            var endTime = day == end.Value ? (period.EndTime ?? string.Empty).Trim() : string.Empty;
+            var timeText = startTime.Length > 0 && endTime.Length > 0
+                ? $"{startTime} – {endTime}"
+                : startTime.Length > 0
+                    ? $"ab {startTime}"
+                    : endTime.Length > 0
+                        ? $"bis {endTime}"
+                        : "ganztägig";
+            items.Add(new CalendarResourceAbsenceDayListItem
+            {
+                Name = name,
+                StartTime = startTime,
+                TimeText = timeText,
+                Note = (period.Note ?? string.Empty).Trim(),
+                KindLabel = kindLabel,
+                ColorHex = colorHex
+            });
+        }
     }
 
     private void ShowPreviousRange()
@@ -959,11 +1035,52 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             });
         }
 
+        foreach (var employee in _employees)
+        {
+            AddUnavailabilityEntries(entries, employee.UnavailabilityPeriods, date, $"Abwesend: {employee.DisplayName}", "#DC2626");
+        }
+        foreach (var vehicle in _vehicles)
+        {
+            AddUnavailabilityEntries(entries, vehicle.UnavailabilityPeriods, date, $"Ausfall: {vehicle.Name}", "#F97316");
+        }
+        foreach (var trailer in _trailers)
+        {
+            AddUnavailabilityEntries(entries, trailer.UnavailabilityPeriods, date, $"Ausfall: {trailer.Name}", "#F97316");
+        }
+
         return entries
             .OrderBy(x => x.SortTimeMinutes)
             .ThenBy(x => x.IsManual)
             .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static void AddUnavailabilityEntries(
+        ICollection<CalendarAgendaEntry> entries,
+        IEnumerable<ResourceUnavailabilityPeriod>? periods,
+        DateTime date,
+        string title,
+        string color)
+    {
+        var day = DateOnly.FromDateTime(date);
+        foreach (var period in periods ?? [])
+        {
+            var start = ResourceAvailabilityService.ParseDate(period.StartDate);
+            var end = ResourceAvailabilityService.ParseDate(period.EndDate);
+            if (!start.HasValue || !end.HasValue || day < start.Value || day > end.Value) continue;
+            var time = day == start.Value && !string.IsNullOrWhiteSpace(period.StartTime)
+                ? period.StartTime.Trim()
+                : string.Empty;
+            entries.Add(new CalendarAgendaEntry
+            {
+                IsManual = false,
+                TimeText = string.IsNullOrWhiteSpace(time) ? "ganztägig" : time,
+                Title = title,
+                Description = (period.Note ?? string.Empty).Trim(),
+                ColorHex = color,
+                SortTimeMinutes = string.IsNullOrWhiteSpace(time) ? 0 : ParseStartTimeMinutes(time)
+            });
+        }
     }
 
     private static string BuildTourSummary(TourRecord tour, bool includeName)
@@ -1258,7 +1375,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
     private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
     {
-        if (args.SourceId == _instanceId || !args.Kinds.HasFlag(AppDataKind.Tours))
+        if (args.SourceId == _instanceId ||
+            (args.Kinds & (AppDataKind.Tours | AppDataKind.Employees | AppDataKind.Vehicles)) == AppDataKind.None)
         {
             return;
         }
@@ -1512,6 +1630,16 @@ public sealed class CalendarTourDayListItem
     public string Name { get; set; } = string.Empty;
 
     public string Summary { get; set; } = string.Empty;
+}
+
+public sealed class CalendarResourceAbsenceDayListItem
+{
+    public string Name { get; set; } = string.Empty;
+    public string StartTime { get; set; } = string.Empty;
+    public string TimeText { get; set; } = string.Empty;
+    public string Note { get; set; } = string.Empty;
+    public string KindLabel { get; set; } = string.Empty;
+    public string ColorHex { get; set; } = "#DC2626";
 }
 
 public sealed class CalendarTourStopCardItem

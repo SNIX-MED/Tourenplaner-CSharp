@@ -733,6 +733,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var availabilityError = await BuildAvailabilityErrorAsync(
             target.Date,
+            target.StartTime,
             target.VehicleId,
             target.TrailerId,
             target.SecondaryVehicleId,
@@ -1619,7 +1620,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var tour = SelectedTour.Source;
         var (editHour, editMinute) = ParseStartTimeParts(tour.StartTime);
-        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date);
+        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date, tour.StartTime);
         var materialGroups = (await _settingsRepository.LoadAsync()).AdditionalMaterialGroups ?? [];
         var singleEmployeeWarningDeliveryTypes = await BuildSingleEmployeeWarningDeliveryTypesAsync(tour);
 
@@ -1687,6 +1688,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var availabilityError = await BuildAvailabilityErrorAsync(
             tour.Date,
+            tour.StartTime,
             tour.VehicleId,
             tour.TrailerId,
             tour.SecondaryVehicleId,
@@ -1843,7 +1845,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         StatusText = "Tourdaten wurden nach einem Mehrbenutzerkonflikt neu geladen.";
     }
 
-    private async Task<(List<TourEmployeeOption> Employees, List<TourLookupOption> Vehicles, List<TourLookupOption> Trailers)> LoadTourDialogOptionsAsync(string? routeDate)
+    private async Task<(List<TourEmployeeOption> Employees, List<TourLookupOption> Vehicles, List<TourLookupOption> Trailers)> LoadTourDialogOptionsAsync(string? routeDate, string? routeTime)
     {
         var employeesTask = _employeeRepository.LoadAsync();
         var vehiclesTask = _vehicleRepository.LoadAsync();
@@ -1852,7 +1854,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var employees = (await employeesTask)
             .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
             .OrderByDescending(x => x.IsFavorite)
             .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourEmployeeOption(x.Id, x.DisplayName, x.IsFavorite))
@@ -1861,13 +1863,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var vehicleData = await vehiclesTask;
         var vehicles = vehicleData.Vehicles
             .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
             .ToList();
         var trailers = vehicleData.Trailers
             .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
             .ToList();
@@ -3186,6 +3188,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private async Task<string?> BuildAvailabilityErrorAsync(
         string routeDate,
+        string? routeTime,
         string? vehicleId,
         string? trailerId,
         string? secondaryVehicleId,
@@ -3214,7 +3217,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         foreach (var employee in employees.Where(x => normalizedEmployeeIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase)))
         {
-            if (ResourceAvailabilityService.IsUnavailableOnDate(employee.UnavailabilityPeriods, date.Value))
+            if (ResourceAvailabilityService.IsUnavailableAt(employee.UnavailabilityPeriods, date.Value, routeTime))
             {
                 blocked.Add($"Mitarbeiter: {employee.DisplayName}");
             }
@@ -3223,13 +3226,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         foreach (var assignment in BuildVehicleAssignments(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId))
         {
             var vehicle = vehicleData.Vehicles.FirstOrDefault(x => string.Equals(x.Id, assignment.VehicleId, StringComparison.OrdinalIgnoreCase));
-            if (vehicle is not null && ResourceAvailabilityService.IsUnavailableOnDate(vehicle.UnavailabilityPeriods, date.Value))
+            if (vehicle is not null && ResourceAvailabilityService.IsUnavailableAt(vehicle.UnavailabilityPeriods, date.Value, routeTime))
             {
                 blocked.Add($"Fahrzeug: {vehicle.Name}");
             }
 
             var trailer = vehicleData.Trailers.FirstOrDefault(x => string.Equals(x.Id, assignment.TrailerId, StringComparison.OrdinalIgnoreCase));
-            if (trailer is not null && ResourceAvailabilityService.IsUnavailableOnDate(trailer.UnavailabilityPeriods, date.Value))
+            if (trailer is not null && ResourceAvailabilityService.IsUnavailableAt(trailer.UnavailabilityPeriods, date.Value, routeTime))
             {
                 blocked.Add($"Anhänger: {trailer.Name}");
             }

@@ -1108,7 +1108,7 @@
                                     <Grid Grid.Column="1">
                                         <TextBox BorderThickness="0"
                                                  Background="Transparent"
-                                                 ToolTip="Suche nach Nummer, Auftraggeber, Lieferadresse oder Tour"
+                                                 ToolTip="Suche nach Nummer, Auftraggeber, Lieferadresse oder Tour. Mehrere Auftragsnummern mit Leerzeichen trennen."
                                                  Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock IsHitTestVisible="False"
                                                    Margin="2,0,0,0"
@@ -1229,7 +1229,7 @@
                                     <Grid Grid.Column="1">
                                         <TextBox BorderThickness="0"
                                                  Background="Transparent"
-                                                 ToolTip="Suche nach Nummer, Auftraggeber, Lieferadresse oder Tour"
+                                                 ToolTip="Suche nach Nummer, Auftraggeber, Lieferadresse oder Tour. Mehrere Auftragsnummern mit Leerzeichen trennen."
                                                  Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock IsHitTestVisible="False"
                                                    Margin="2,0,0,0"

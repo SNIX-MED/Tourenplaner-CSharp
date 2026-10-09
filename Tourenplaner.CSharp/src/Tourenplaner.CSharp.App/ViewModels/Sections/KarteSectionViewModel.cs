@@ -3205,7 +3205,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private async Task OpenCreateTourDialogAsync()
     {
         var hasRouteStops = RouteStops.Any(x => !IsCompanyStop(x));
-        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(RouteDate);
+        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(RouteDate, $"{RouteStartHour}:{RouteStartMinute}");
 
         var dialog = new CreateTourDialogWindow(
             RouteDate,
@@ -3281,7 +3281,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         var (editHour, editMinute) = ParseStartTimePartsOrDefault(tour.StartTime);
-        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date);
+        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date, tour.StartTime);
 
         var dialog = new CreateTourDialogWindow(
             routeDate: string.IsNullOrWhiteSpace(tour.Date) ? RouteDate : tour.Date.Trim(),
@@ -3326,7 +3326,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             result.AdditionalMaterials);
     }
 
-    private async Task<(List<TourEmployeeOption> Employees, List<TourLookupOption> Vehicles, List<TourLookupOption> Trailers)> LoadTourDialogOptionsAsync(string? routeDate)
+    private async Task<(List<TourEmployeeOption> Employees, List<TourLookupOption> Vehicles, List<TourLookupOption> Trailers)> LoadTourDialogOptionsAsync(string? routeDate, string? routeTime)
     {
         var employeeTask = _employeeRepository.LoadAsync();
         var vehicleTask = _vehicleRepository.LoadAsync();
@@ -3335,7 +3335,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         var employees = (await employeeTask)
             .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
             .OrderByDescending(x => x.IsFavorite)
             .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourEmployeeOption(x.Id, x.DisplayName, x.IsFavorite))
@@ -3352,13 +3352,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         var vehicleData = await vehicleTask;
         var vehicles = vehicleData.Vehicles
             .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
             .ToList();
         var trailers = vehicleData.Trailers
             .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, selectedDate.Value)))
+                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
             .ToList();
@@ -3395,7 +3395,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 return;
             }
 
-            var availabilityError = await BuildAvailabilityErrorAsync(routeDate, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
+            var availabilityError = await BuildAvailabilityErrorAsync(routeDate, startTime, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
             if (!string.IsNullOrWhiteSpace(availabilityError))
             {
                 Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -3519,7 +3519,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 return;
             }
 
-            var availabilityError = await BuildAvailabilityErrorAsync(routeDate, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
+            var availabilityError = await BuildAvailabilityErrorAsync(routeDate, startTime, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
             if (!string.IsNullOrWhiteSpace(availabilityError))
             {
                 Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -5608,6 +5608,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private async Task<string?> BuildAvailabilityErrorAsync(
         string routeDate,
+        string? routeTime,
         string? vehicleId,
         string? trailerId,
         string? secondaryVehicleId,
@@ -5636,7 +5637,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         foreach (var employee in employees.Where(x => normalizedEmployeeIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase)))
         {
-            if (ResourceAvailabilityService.IsUnavailableOnDate(employee.UnavailabilityPeriods, date.Value))
+            if (ResourceAvailabilityService.IsUnavailableAt(employee.UnavailabilityPeriods, date.Value, routeTime))
             {
                 blocked.Add($"Mitarbeiter: {employee.DisplayName}");
             }
@@ -5645,13 +5646,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         foreach (var assignment in BuildVehicleAssignments(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId))
         {
             var vehicle = vehicleData.Vehicles.FirstOrDefault(x => string.Equals(x.Id, assignment.VehicleId, StringComparison.OrdinalIgnoreCase));
-            if (vehicle is not null && ResourceAvailabilityService.IsUnavailableOnDate(vehicle.UnavailabilityPeriods, date.Value))
+            if (vehicle is not null && ResourceAvailabilityService.IsUnavailableAt(vehicle.UnavailabilityPeriods, date.Value, routeTime))
             {
                 blocked.Add($"Fahrzeug: {vehicle.Name}");
             }
 
             var trailer = vehicleData.Trailers.FirstOrDefault(x => string.Equals(x.Id, assignment.TrailerId, StringComparison.OrdinalIgnoreCase));
-            if (trailer is not null && ResourceAvailabilityService.IsUnavailableOnDate(trailer.UnavailabilityPeriods, date.Value))
+            if (trailer is not null && ResourceAvailabilityService.IsUnavailableAt(trailer.UnavailabilityPeriods, date.Value, routeTime))
             {
                 blocked.Add($"Anhänger: {trailer.Name}");
             }

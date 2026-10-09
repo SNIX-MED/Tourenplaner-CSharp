@@ -68,7 +68,9 @@ public sealed class BackupManager
         }
 
         var threshold = DateTimeOffset.UtcNow.AddDays(-retentionDays);
-        foreach (var file in Directory.GetFiles(backupDirectory, "*.bak", SearchOption.TopDirectoryOnly))
+        var backupFiles = Directory.GetFiles(backupDirectory, "*.bak", SearchOption.TopDirectoryOnly)
+            .Concat(Directory.GetFiles(backupDirectory, "*.zip", SearchOption.TopDirectoryOnly));
+        foreach (var file in backupFiles)
         {
             try
             {

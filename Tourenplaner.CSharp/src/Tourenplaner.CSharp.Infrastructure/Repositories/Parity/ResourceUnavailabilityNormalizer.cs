@@ -8,7 +8,6 @@ internal static class ResourceUnavailabilityNormalizer
     public static List<ResourceUnavailabilityPeriod> NormalizePeriods(IEnumerable<ResourceUnavailabilityPeriod>? source)
     {
         var normalized = new List<ResourceUnavailabilityPeriod>();
-        var today = DateOnly.FromDateTime(DateTime.Today);
         foreach (var item in source ?? [])
         {
             if (item is null)
@@ -31,17 +30,27 @@ internal static class ResourceUnavailabilityNormalizer
             normalized.Add(new ResourceUnavailabilityPeriod
             {
                 StartDate = normalizedStart.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                EndDate = normalizedEnd.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                EndDate = normalizedEnd.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                StartTime = NormalizeTime(item.StartTime),
+                EndTime = NormalizeTime(item.EndTime),
+                Note = (item.Note ?? string.Empty).Trim()
             });
         }
 
         return normalized
-            .Where(x => DateOnly.TryParseExact(x.EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end) && end >= today)
-            .GroupBy(x => $"{x.StartDate}|{x.EndDate}", StringComparer.OrdinalIgnoreCase)
+            .GroupBy(x => $"{x.StartDate}|{x.StartTime}|{x.EndDate}|{x.EndTime}|{x.Note}", StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .OrderBy(x => x.StartDate, StringComparer.OrdinalIgnoreCase)
             .ThenBy(x => x.EndDate, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static string NormalizeTime(string? raw)
+    {
+        var text = (raw ?? string.Empty).Trim();
+        return TimeOnly.TryParseExact(text, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            ? parsed.ToString("HH:mm", CultureInfo.InvariantCulture)
+            : string.Empty;
     }
 
     private static DateOnly? NormalizeDate(string? raw)

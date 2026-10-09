@@ -107,6 +107,8 @@ public sealed partial class MainShellViewModel : ObservableObject
             repositories.OrderRepository,
             repositories.CalendarManualEntryStore,
             repositories.AppSettingsStore,
+            repositories.EmployeeDataStore,
+            repositories.VehicleDataStore,
             tourId => NavigateToTourAsync(tours, tourId),
             tourId => NavigateToTourAndEditAsync(tours, tourId),
             tourId => NavigateToMapTourAsync(map, tourId),

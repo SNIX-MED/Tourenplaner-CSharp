@@ -11,7 +11,8 @@ public partial class CalendarManualEntriesDayDialogWindow : Window
     public CalendarManualEntriesDayDialogWindow(
         DateTime date,
         IReadOnlyList<CalendarManualEntryEditItem> manualEntries,
-        IReadOnlyList<CalendarTourDayListItem> tours)
+        IReadOnlyList<CalendarTourDayListItem> tours,
+        IReadOnlyList<CalendarResourceAbsenceDayListItem>? absences = null)
     {
         InitializeComponent();
         HeadlineText.Text = $"Einträge am {date:dd.MM.yyyy}";
@@ -51,6 +52,25 @@ public partial class CalendarManualEntriesDayDialogWindow : Window
                 Description = tour.Summary,
                 KindLabel = "Liefertour",
                 ColorHex = "#475569"
+            });
+        }
+
+        foreach (var absence in absences ?? [])
+        {
+            items.Add(new CalendarDayCombinedListItem
+            {
+                IsManual = false,
+                SortMinutes = ParseMinutes(absence.StartTime),
+                TimeDisplay = absence.TimeText,
+                Title = absence.Name,
+                Headline = absence.KindLabel.StartsWith("Mitarbeiter", StringComparison.OrdinalIgnoreCase)
+                    ? $"Abwesend: {absence.Name}"
+                    : $"Ausfall: {absence.Name}",
+                Description = absence.Note,
+                KindLabel = absence.TimeText.Length > 0
+                    ? char.ToUpperInvariant(absence.TimeText[0]) + absence.TimeText[1..]
+                    : string.Empty,
+                ColorHex = absence.ColorHex
             });
         }
 

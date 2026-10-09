@@ -84,6 +84,13 @@ internal static class InstalledAppUpdateService
             manifest.Version,
             cancellationToken);
 
+        progress?.Report("Speichermodus für das Update wird geschützt...");
+        await UpdateStorageModeGuard.CaptureAsync(
+            dataRoot,
+            GetUpdateStateRoot(),
+            manifest.Version,
+            cancellationToken);
+
         progress?.Report("Update ist bereit. Das Setup wird gestartet...");
         var launcherPath = ResolveLauncherPath(AppContext.BaseDirectory);
         var scriptPath = CreateInstallerScript(installerPath, launcherPath, Environment.ProcessId);
@@ -229,6 +236,14 @@ internal static class InstalledAppUpdateService
         return candidates
             .Select(Path.GetFullPath)
             .FirstOrDefault(File.Exists);
+    }
+
+    internal static string GetUpdateStateRoot()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Tourenplaner.CSharp",
+            "update-state");
     }
 
     private static string GetCurrentVersion()

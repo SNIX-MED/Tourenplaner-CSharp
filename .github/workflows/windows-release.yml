@@ -69,11 +69,12 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Kartensuche informiert bei Aufträgen ohne Karten-Pin über den genauen Grund
-          - Spediteur-Aufträge können direkt auf „Spediteur / Gawela“ umgestellt werden
-          - Gefundene Aufträge lassen sich in der passenden Auftragsliste öffnen
-          - Suchergebnisse und ausgewählte Aufträge können zuverlässig auf der Karte zentriert werden
-          - Überarbeitete Routenübersicht mit neuen Symbolen und klarerer Kennzahlendarstellung
+          - Speichermodus bleibt bei Updates zuverlässig erhalten
+          - Einheitliche Backups und Wiederherstellungen für lokale und PostgreSQL-Daten
+          - Suche nach mehreren Auftragsnummern und Anzeige der gefilterten Auftragsanzahl
+          - WEBFLEET-Felder bleiben bei deaktivierter Verbindung ohne störende Fehlermeldung gesperrt
+          - Mehrere Abwesenheiten und Fahrzeugausfälle mit Datum, Uhrzeit und Notiz
+          - Abwesenheiten erscheinen im Kalender und werden bei der Tourenplanung zeitgenau berücksichtigt
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

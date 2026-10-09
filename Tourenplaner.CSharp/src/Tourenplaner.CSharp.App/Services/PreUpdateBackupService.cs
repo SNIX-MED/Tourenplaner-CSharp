@@ -31,7 +31,9 @@ internal static class PreUpdateBackupService
         string dataRoot,
         string currentVersion,
         string targetVersion,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? destinationDirectory = null,
+        string fileNamePurpose = "pre-update")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
 
@@ -42,7 +44,9 @@ internal static class PreUpdateBackupService
             var settingsPath = Path.Combine(dataRoot, "settings.json");
             var bootstrapSettings = await new JsonAppSettingsRepository(settingsPath).LoadAsync(cancellationToken);
             var settings = await LoadEffectiveSettingsAsync(bootstrapSettings, cancellationToken);
-            var backupDirectory = ResolveBackupDirectory(settings.BackupDir);
+            var backupDirectory = string.IsNullOrWhiteSpace(destinationDirectory)
+                ? ResolveBackupDirectory(settings.BackupDir)
+                : Path.GetFullPath(destinationDirectory.Trim());
             Directory.CreateDirectory(backupDirectory);
 
             var safeCurrentVersion = SanitizeFileNamePart(currentVersion);
@@ -51,7 +55,7 @@ internal static class PreUpdateBackupService
             var machineName = SanitizeFileNamePart(Environment.MachineName);
             var backupPath = Path.Combine(
                 backupDirectory,
-                $"GAWELA-Tourenplaner_pre-update_{safeCurrentVersion}_to_{safeTargetVersion}_{machineName}_{timestamp}.zip");
+                $"GAWELA-Tourenplaner_{SanitizeFileNamePart(fileNamePurpose)}_{safeCurrentVersion}_to_{safeTargetVersion}_{machineName}_{timestamp}.zip");
             tempPath = backupPath + ".tmp";
 
             await using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
