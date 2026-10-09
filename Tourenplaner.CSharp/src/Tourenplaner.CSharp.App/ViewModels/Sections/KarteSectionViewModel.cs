@@ -3565,6 +3565,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 updated.StartTime = string.IsNullOrWhiteSpace(startTime) ? "08:00" : startTime.Trim();
             }
 
+            // BuildTour creates a new TourRecord and therefore has no database version.
+            // Keep the token of the freshly loaded record so PostgreSQL performs an
+            // optimistic-concurrency update instead of treating the tour as a new row.
+            updated.ConcurrencyToken = existingTour.ConcurrencyToken;
+
             updated.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
             updated.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
             updated.SecondaryVehicleId = string.IsNullOrWhiteSpace(secondaryVehicleId) ? null : secondaryVehicleId.Trim();
