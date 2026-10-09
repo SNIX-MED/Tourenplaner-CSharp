@@ -35,25 +35,24 @@ internal static class PreUpdateBackupService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
 
-        var backupDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Tourenplaner.CSharp",
-            "backups",
-            "pre-update");
-        Directory.CreateDirectory(backupDirectory);
-
-        var safeCurrentVersion = SanitizeFileNamePart(currentVersion);
-        var safeTargetVersion = SanitizeFileNamePart(targetVersion);
-        var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmssfff");
-        var backupPath = Path.Combine(
-            backupDirectory,
-            $"GAWELA-Tourenplaner_pre-update_{safeCurrentVersion}_to_{safeTargetVersion}_{timestamp}.zip");
-        var tempPath = backupPath + ".tmp";
+        string? tempPath = null;
 
         try
         {
             var settingsPath = Path.Combine(dataRoot, "settings.json");
-            var settings = await new JsonAppSettingsRepository(settingsPath).LoadAsync(cancellationToken);
+            var bootstrapSettings = await new JsonAppSettingsRepository(settingsPath).LoadAsync(cancellationToken);
+            var settings = await LoadEffectiveSettingsAsync(bootstrapSettings, cancellationToken);
+            var backupDirectory = ResolveBackupDirectory(settings.BackupDir);
+            Directory.CreateDirectory(backupDirectory);
+
+            var safeCurrentVersion = SanitizeFileNamePart(currentVersion);
+            var safeTargetVersion = SanitizeFileNamePart(targetVersion);
+            var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmssfff");
+            var machineName = SanitizeFileNamePart(Environment.MachineName);
+            var backupPath = Path.Combine(
+                backupDirectory,
+                $"GAWELA-Tourenplaner_pre-update_{safeCurrentVersion}_to_{safeTargetVersion}_{machineName}_{timestamp}.zip");
+            tempPath = backupPath + ".tmp";
 
             await using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: false))
@@ -77,11 +76,43 @@ internal static class PreUpdateBackupService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            TryDelete(tempPath);
+            if (!string.IsNullOrWhiteSpace(tempPath))
+            {
+                TryDelete(tempPath);
+            }
             throw new InvalidDataException(
                 $"Vor dem Update konnte keine Sicherheitskopie erstellt werden: {ex.Message}",
                 ex);
         }
+    }
+
+    private static async Task<AppSettings> LoadEffectiveSettingsAsync(
+        AppSettings bootstrapSettings,
+        CancellationToken cancellationToken)
+    {
+        if (bootstrapSettings.StorageMode != AppStorageMode.PostgreSql ||
+            bootstrapSettings.PostgreSqlStorage is null ||
+            !bootstrapSettings.PostgreSqlStorage.IsConfigured())
+        {
+            return bootstrapSettings;
+        }
+
+        var sharedSettings = await new PostgreSqlAppSettingsRepository(bootstrapSettings.PostgreSqlStorage)
+            .LoadAsync(cancellationToken);
+        sharedSettings.PostgreSqlStorage = bootstrapSettings.PostgreSqlStorage;
+        sharedSettings.StorageMode = AppStorageMode.PostgreSql;
+        return sharedSettings;
+    }
+
+    private static string ResolveBackupDirectory(string? configuredDirectory)
+    {
+        var root = string.IsNullOrWhiteSpace(configuredDirectory)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Tourenplaner.CSharp",
+                "backups")
+            : configuredDirectory.Trim();
+        return Path.Combine(root, "pre-update");
     }
 
     private static async Task WriteMetadataAsync(

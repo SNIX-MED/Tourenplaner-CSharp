@@ -547,6 +547,7 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -610,6 +611,25 @@
                                             <DataGridTextColumn Header="Lieferstatus" Width="130" Binding="{Binding DeliveryStatus}" />
                                         </DataGrid.Columns>
                                     </DataGrid>
+                                    <StackPanel Grid.Row="2" Margin="0,4,0,0">
+                                        <TextBlock FontWeight="SemiBold" Text="Manuelles Gesamtgewicht des Auftrags (kg)" />
+                                        <Grid Margin="0,4,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="240" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0"
+                                                     ToolTip="Leer lassen, um das Gesamtgewicht automatisch aus den Produktpositionen zu berechnen."
+                                                     Text="{Binding ManualTotalWeightKgText, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBox Grid.Column="1"
+                                                     Margin="8,0,0,0"
+                                                     ToolTip="Optionale Information zum manuellen Gesamtgewicht."
+                                                     Text="{Binding ManualTotalWeightInfoText, UpdateSourceTrigger=PropertyChanged}" />
+                                        </Grid>
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Foreground="#FF64748B"
+                                                   Text="Dieser Wert hat Vorrang vor der Summe der Produktgewichte." />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                         </StackPanel>
@@ -629,7 +649,6 @@
                                            Text="Notizen" />
                                 <TextBox MinHeight="420"
                                          AcceptsReturn="True"
-                                         IsReadOnly="False"
                                          VerticalScrollBarVisibility="Auto"
                                          TextWrapping="Wrap"
                                          Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" />

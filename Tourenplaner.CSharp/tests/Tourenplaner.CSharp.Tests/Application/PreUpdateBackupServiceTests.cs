@@ -1,5 +1,7 @@
 using System.IO.Compression;
+using System.Text.Json;
 using Tourenplaner.CSharp.App.Services;
+using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Tests.Application;
 
@@ -10,16 +12,26 @@ public sealed class PreUpdateBackupServiceTests
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-pre-update-tests", Guid.NewGuid().ToString("N"));
         var dataRoot = Path.Combine(root, "data");
+        var configuredBackupRoot = Path.Combine(root, "shared-backups");
         Directory.CreateDirectory(dataRoot);
 
         try
         {
-            await File.WriteAllTextAsync(Path.Combine(dataRoot, "settings.json"), "{\"StorageMode\":0}");
+            await File.WriteAllTextAsync(
+                Path.Combine(dataRoot, "settings.json"),
+                JsonSerializer.Serialize(new AppSettings
+                {
+                    StorageMode = AppStorageMode.JsonFiles,
+                    BackupDir = configuredBackupRoot
+                }));
             await File.WriteAllTextAsync(Path.Combine(dataRoot, "tours.json"), "[{\"Id\":42}]");
 
             var backupPath = await PreUpdateBackupService.CreateAsync(dataRoot, "1.0.88", "1.0.89");
 
             Assert.True(File.Exists(backupPath));
+            Assert.Equal(
+                Path.GetFullPath(Path.Combine(configuredBackupRoot, "pre-update")),
+                Path.GetDirectoryName(Path.GetFullPath(backupPath)));
             using (var archive = ZipFile.OpenRead(backupPath))
             {
                 Assert.NotNull(archive.GetEntry("metadata.json"));

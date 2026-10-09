@@ -61,6 +61,7 @@ public partial class KarteSectionView : UserControl
     private CancellationTokenSource? _pinInfoCardScaleThrottleCts;
     private double _pendingPinInfoCardScale = 1.0d;
     private double _lastAppliedPinInfoCardScale = double.NaN;
+    private int _lastFocusedTemporarySearchPinRevision = -1;
     private string? _lastCompanyMarkerPayloadJson;
     private readonly WebViewRouteExportService _routeExportService = new();
 
@@ -564,6 +565,65 @@ public partial class KarteSectionView : UserControl
         {
             vm.RouteStartHour = normalized;
         }
+    }
+
+    private void OnDetailManualTotalWeightPreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (sender is not TextBox textBox)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var candidate = textBox.Text.Remove(textBox.SelectionStart, textBox.SelectionLength)
+            .Insert(textBox.SelectionStart, e.Text);
+        e.Handled = !IsValidWeightInput(candidate);
+    }
+
+    private void OnDetailManualTotalWeightPasting(object sender, DataObjectPastingEventArgs e)
+    {
+        if (sender is not TextBox textBox ||
+            !e.DataObject.GetDataPresent(DataFormats.Text) ||
+            e.DataObject.GetData(DataFormats.Text) is not string text ||
+            !IsValidWeightInput(textBox.Text.Remove(textBox.SelectionStart, textBox.SelectionLength)
+                .Insert(textBox.SelectionStart, text)))
+        {
+            e.CancelCommand();
+        }
+    }
+
+    private async void OnDetailManualWeightFieldLostFocus(object sender, RoutedEventArgs e)
+    {
+        await SaveDetailManualWeightFieldsAsync();
+    }
+
+    private async void OnDetailManualWeightFieldKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        await SaveDetailManualWeightFieldsAsync();
+        Keyboard.ClearFocus();
+        e.Handled = true;
+    }
+
+    private async Task SaveDetailManualWeightFieldsAsync()
+    {
+        if (DataContext is KarteSectionViewModel vm)
+        {
+            await vm.SaveDetailManualTotalWeightAsync(
+                DetailManualTotalWeightTextBox.Text,
+                DetailManualTotalWeightInfoTextBox.Text);
+        }
+    }
+
+    private static bool IsValidWeightInput(string? value)
+    {
+        var text = value ?? string.Empty;
+        var separatorCount = text.Count(character => character is ',' or '.');
+        return separatorCount <= 1 && text.All(character => char.IsDigit(character) || character is ',' or '.');
     }
 
     private static string NormalizeTwoDigitTimePart(string? value, int max)
@@ -1594,10 +1654,12 @@ public partial class KarteSectionView : UserControl
         {
             lat = vm.TemporarySearchPinLatitude,
             lon = vm.TemporarySearchPinLongitude,
-            label = vm.TemporarySearchPinLabel
+            label = vm.TemporarySearchPinLabel,
+            focus = vm.TemporarySearchPinRevision != _lastFocusedTemporarySearchPinRevision
         });
         await MapWebView.CoreWebView2.ExecuteScriptAsync(
             $"if (typeof window.gawelaSetTempSearchMarker === 'function') window.gawelaSetTempSearchMarker({payload});");
+        _lastFocusedTemporarySearchPinRevision = vm.TemporarySearchPinRevision;
     }
 
     private void RouteStopsList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

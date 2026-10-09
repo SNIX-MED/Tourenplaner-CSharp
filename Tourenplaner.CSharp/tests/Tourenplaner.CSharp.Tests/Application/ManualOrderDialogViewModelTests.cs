@@ -112,6 +112,32 @@ public class ManualOrderDialogViewModelTests
         Assert.Equal("Manuell ergänzte Notiz", order.Notes);
     }
 
+    [Fact]
+    public void ManualTotalWeight_IsLoadedAndSaved()
+    {
+        var source = CreateOrder();
+        source.ManualTotalWeightKg = 125.5d;
+        var viewModel = new ManualOrderDialogViewModel(source);
+
+        Assert.False(string.IsNullOrWhiteSpace(viewModel.ManualTotalWeightKgText));
+        Assert.True(viewModel.TryBuildOrder(out var order, out var error), error);
+        Assert.Equal(125.5d, order!.ManualTotalWeightKg);
+        Assert.Equal(125.5d, order.ResolveTotalWeightKg());
+    }
+
+    [Fact]
+    public void EmptyManualTotalWeight_UsesProductWeights()
+    {
+        var viewModel = new ManualOrderDialogViewModel(CreateOrder())
+        {
+            ManualTotalWeightKgText = string.Empty
+        };
+
+        Assert.True(viewModel.TryBuildOrder(out var order, out var error), error);
+        Assert.Null(order!.ManualTotalWeightKg);
+        Assert.Equal(1d, order.ResolveTotalWeightKg());
+    }
+
     private static Order CreateOrder()
     {
         return new Order

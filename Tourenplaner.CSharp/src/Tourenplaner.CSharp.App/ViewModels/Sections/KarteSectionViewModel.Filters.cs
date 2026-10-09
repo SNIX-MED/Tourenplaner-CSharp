@@ -6,7 +6,7 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed partial class KarteSectionViewModel
 {
-    private void RebuildOrderGrid(string? preferredSelectedId = null)
+    private void RebuildOrderGrid(string? preferredSelectedId = null, bool preserveSelectedOrderInstance = false)
     {
         var previousSelectedId = string.IsNullOrWhiteSpace(preferredSelectedId)
             ? SelectedOrder?.OrderId
@@ -93,7 +93,14 @@ public sealed partial class KarteSectionViewModel
             NotifyBatchOrderSelectionChanged(raiseCommandStates: false);
         }
 
-        if (string.IsNullOrWhiteSpace(previousSelectedId))
+        if (preserveSelectedOrderInstance &&
+            SelectedOrder is not null &&
+            string.Equals(SelectedOrder.OrderId, previousSelectedId, StringComparison.OrdinalIgnoreCase))
+        {
+            // Editing the map search must not reassign SelectedOrder. Reassignment raises
+            // PropertyChanged and would focus the previously clicked order pin again.
+        }
+        else if (string.IsNullOrWhiteSpace(previousSelectedId))
         {
             SelectedOrder = null;
         }

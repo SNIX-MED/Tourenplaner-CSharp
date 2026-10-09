@@ -263,6 +263,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _selectedDeliveryType = string.Empty;
     private string _selectedStatus = Statuses[0];
     private string _notes = string.Empty;
+    private string _manualTotalWeightKgText = string.Empty;
+    private string _manualTotalWeightInfoText = string.Empty;
     private bool _istVorauszahlung;
     private bool _istVorauszahlungBezahlt;
     private bool _isArchived;
@@ -533,6 +535,18 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         set => SetProperty(ref _notes, value);
     }
 
+    public string ManualTotalWeightKgText
+    {
+        get => _manualTotalWeightKgText;
+        set => SetProperty(ref _manualTotalWeightKgText, value);
+    }
+
+    public string ManualTotalWeightInfoText
+    {
+        get => _manualTotalWeightInfoText;
+        set => SetProperty(ref _manualTotalWeightInfoText, value);
+    }
+
     public bool IstVorauszahlung
     {
         get => _istVorauszahlung;
@@ -613,6 +627,21 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             .Select(x => x.ToOrderProductInfo())
             .ToList();
 
+        double? manualTotalWeightKg = null;
+        var normalizedManualTotalWeight = (ManualTotalWeightKgText ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedManualTotalWeight))
+        {
+            var normalizedNumber = normalizedManualTotalWeight.Replace(',', '.');
+            if (!double.TryParse(normalizedNumber, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsedManualWeight) ||
+                parsedManualWeight < 0)
+            {
+                error = "Bitte ein gültiges manuelles Gesamtgewicht eingeben.";
+                return false;
+            }
+
+            manualTotalWeightKg = parsedManualWeight;
+        }
+
         order = new Order
         {
             Id = id,
@@ -643,6 +672,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Email = (Email ?? string.Empty).Trim(),
             Phone = (Phone ?? string.Empty).Trim(),
             Products = products,
+            ManualTotalWeightKg = manualTotalWeightKg,
+            ManualTotalWeightInfo = (ManualTotalWeightInfoText ?? string.Empty).Trim(),
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(
                 (SelectedDeliveryType ?? _deliveryTypes[0]).Trim()),
             IsAlternativeDeliveryEnabled = ShowAlternativeDeliveryOption && IsAlternativeDeliveryEnabled,
@@ -750,6 +781,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         IsAlternativeDeliveryEnabled = existingOrder.IsAlternativeDeliveryEnabled && ShowAlternativeDeliveryOption;
         IsSelfPickupAlternativeEnabled = existingOrder.IsSelfPickupAlternativeEnabled && ShowSelfPickupAlternativeOption;
         Notes = existingOrder.Notes ?? string.Empty;
+        ManualTotalWeightKgText = existingOrder.ManualTotalWeightKg?.ToString("0.##", CultureInfo.CurrentCulture) ?? string.Empty;
+        ManualTotalWeightInfoText = existingOrder.ManualTotalWeightInfo ?? string.Empty;
         IstVorauszahlung = existingOrder.IstVorauszahlung;
         IstVorauszahlungBezahlt = existingOrder.IstVorauszahlungBezahlt;
         IsArchived = existingOrder.IsArchived;

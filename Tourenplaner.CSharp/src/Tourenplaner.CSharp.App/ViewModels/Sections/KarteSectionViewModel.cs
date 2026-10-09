@@ -66,7 +66,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         "Best\u00E4tigt"
     ];
     private readonly IOrderRepository _orderRepository;
+    private readonly IOrderMutationRepository? _orderMutationRepository;
     private readonly ITourRecordStore _tourRepository;
+    private readonly ITourRecordMutationStore? _tourMutationStore;
     private readonly IEmployeeDataStore _employeeRepository;
     private readonly IVehicleDataStore _vehicleRepository;
     private readonly IAppSettingsStore _settingsRepository;
@@ -232,7 +234,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         : base("Karte", "Map order review, marker filters, route panel and save-to-tour workflow.")
     {
         _orderRepository = orderRepository;
+        _orderMutationRepository = orderRepository as IOrderMutationRepository;
         _tourRepository = tourRepository;
+        _tourMutationStore = tourRepository as ITourRecordMutationStore;
         _employeeRepository = employeeRepository;
         _vehicleRepository = vehicleRepository;
         _settingsRepository = settingsRepository;
@@ -594,7 +598,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         {
             if (SetProperty(ref _searchText, value))
             {
-                RebuildOrderGrid();
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    ClearTemporarySearchPin();
+                }
+
+                RebuildOrderGrid(preserveSelectedOrderInstance: true);
             }
         }
     }
@@ -733,7 +742,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private async Task SearchAsync()
     {
         var query = (_searchText ?? string.Empty).Trim();
-        RebuildOrderGrid();
+        RebuildOrderGrid(preserveSelectedOrderInstance: true);
         if (string.IsNullOrWhiteSpace(query))
         {
             ClearTemporarySearchPin();
@@ -762,7 +771,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var geocoded = await AddressGeocodingService.TryGeocodeAddressAsync(
+        var geocoded = await AddressGeocodingService.TryResolveAddressAsync(
             street: string.Empty,
             postalCode: string.Empty,
             city: string.Empty,
@@ -770,9 +779,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             tomTomApiKey: _tomTomApiKey,
             cacheFilePath: _geocodeCachePath);
 
-        if (geocoded is not null)
+        if (MapSearchResultValidator.IsRelevant(query, geocoded))
         {
-            SetTemporarySearchPin(geocoded.Latitude, geocoded.Longitude, query);
+            SetTemporarySearchPin(geocoded!.Location.Latitude, geocoded.Location.Longitude, query);
             StatusText = $"Adresse gefunden: {query}";
             return;
         }
@@ -1221,6 +1230,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(DetailTourStatus));
                 OnPropertyChanged(nameof(DetailProducts));
                 OnPropertyChanged(nameof(DetailProductItems));
+                OnPropertyChanged(nameof(DetailManualTotalWeightKgText));
+                OnPropertyChanged(nameof(DetailManualTotalWeightInfoText));
+                OnPropertyChanged(nameof(DetailEffectiveTotalWeightText));
                 OnPropertyChanged(nameof(DetailEmail));
                 OnPropertyChanged(nameof(DetailPhone));
                 OnPropertyChanged(nameof(DetailDeliveryType));
@@ -1524,6 +1536,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public bool DetailDeliveryCanOccurEarlier => FindSelectedOrderModel()?.DeliveryCanOccurEarlier == true;
     public string DetailNotes => NormalizeUiText(FindSelectedOrderModel()?.Notes);
     public bool HasDetailNotes => !string.IsNullOrWhiteSpace(FindSelectedOrderModel()?.Notes);
+    public string DetailManualTotalWeightKgText => FindSelectedOrderModel()?.ManualTotalWeightKg?.ToString("0.##", CultureInfo.CurrentCulture) ?? string.Empty;
+    public string DetailManualTotalWeightInfoText => FindSelectedOrderModel()?.ManualTotalWeightInfo ?? string.Empty;
+    public string DetailEffectiveTotalWeightText => FindSelectedOrderModel() is { } order
+        ? $"Verwendetes Gesamtgewicht: {order.ResolveTotalWeightKg().ToString("0.##", CultureInfo.CurrentCulture)} kg"
+        : string.Empty;
     public bool IsSelectedRouteStopManual => SelectedRouteStop is not null && IsManualStop(SelectedRouteStop);
     public string ManualStopDetailName => IsSelectedRouteStopManual ? SelectedRouteStop!.Customer : string.Empty;
     public string ManualStopDetailAddress => IsSelectedRouteStopManual ? SelectedRouteStop!.Address : string.Empty;
@@ -2084,7 +2101,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         tour.StartTime = RouteStartTime;
         _scheduleService.ApplySchedule(tour);
-        await _tourRepository.SaveAsync(tours);
+        await SaveTourRecordAsync(tour, tours);
         _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
         await LoadSavedToursAsync(tourId);
         SetRouteChanged(false);
@@ -3155,7 +3172,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             }
 
             tour.StartTime = updatedStartTime;
-            await _tourRepository.SaveAsync(tours);
+            await SaveTourRecordAsync(tour, tours);
             _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
             await LoadSavedToursAsync(tourId);
             SetRouteChanged(false);
@@ -3173,6 +3190,16 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 MessageBoxImage.Warning);
             StatusText = "Speichern fehlgeschlagen: Datendatei gesperrt.";
         }
+    }
+
+    private Task SaveTourRecordAsync(
+        TourRecord tour,
+        IReadOnlyList<TourRecord> fallbackSnapshot,
+        CancellationToken cancellationToken = default)
+    {
+        return _tourMutationStore is not null
+            ? _tourMutationStore.UpsertAsync(tour, cancellationToken)
+            : _tourRepository.SaveAsync(fallbackSnapshot, cancellationToken);
     }
 
     private async Task OpenCreateTourDialogAsync()
@@ -5668,7 +5695,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         return (int)Math.Max(
             0,
             Math.Round(
-                (order.Products ?? []).Sum(OrderProductFormatter.ResolveTotalWeightKg),
+                order.ResolveTotalWeightKg(),
                 MidpointRounding.AwayFromZero));
     }
 
@@ -6362,6 +6389,64 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         RefreshRouteVisualsAfterOrderMutation();
         PublishOrderChange(order.Id, order.Id);
         StatusText = $"Produkt in Auftrag {order.Id} wurde aktualisiert.";
+    }
+
+    public async Task SaveDetailManualTotalWeightAsync(string? value, string? info)
+    {
+        var order = FindSelectedOrderModel();
+        if (order is null)
+        {
+            return;
+        }
+
+        double? manualWeight = null;
+        var normalized = (value ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(normalized))
+        {
+            normalized = normalized.Replace(',', '.');
+            if (!double.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed) || parsed < 0)
+            {
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                    "Bitte ein gültiges Gesamtgewicht in kg eingeben oder das Feld leeren.",
+                    "Ungültiges Gewicht",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                OnPropertyChanged(nameof(DetailManualTotalWeightKgText));
+                return;
+            }
+
+            manualWeight = parsed;
+        }
+
+        var normalizedInfo = (info ?? string.Empty).Trim();
+        if (order.ManualTotalWeightKg == manualWeight &&
+            string.Equals(order.ManualTotalWeightInfo ?? string.Empty, normalizedInfo, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        order.ManualTotalWeightKg = manualWeight;
+        order.ManualTotalWeightInfo = normalizedInfo;
+        if (_orderMutationRepository is not null)
+        {
+            await _orderMutationRepository.UpsertAsync(order);
+        }
+        else
+        {
+            await _orderRepository.SaveAllAsync(_allOrders);
+        }
+
+        RebuildOrderGrid(order.Id);
+        RebuildTourOverviewItems();
+        OnPropertyChanged(nameof(DetailManualTotalWeightKgText));
+        OnPropertyChanged(nameof(DetailManualTotalWeightInfoText));
+        OnPropertyChanged(nameof(DetailEffectiveTotalWeightText));
+        OnPropertyChanged(nameof(RouteStops));
+        RefreshRouteVisualsAfterOrderMutation();
+        PublishOrderChange(order.Id, order.Id);
+        StatusText = manualWeight.HasValue
+            ? $"Manuelles Gesamtgewicht für Auftrag {order.Id} gespeichert."
+            : $"Auftrag {order.Id} verwendet wieder die Summe der Produktgewichte.";
     }
 
     public void ToggleDetailProductSelection(DetailProductItem? detailItem)
@@ -8503,7 +8588,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private MapOrderItem BuildMapOrderItem(Order order, bool isDimmed = false)
     {
-        var totalWeightKg = Math.Max(0d, (order.Products ?? []).Sum(OrderProductFormatter.ResolveTotalWeightKg));
+        var totalWeightKg = order.ResolveTotalWeightKg();
         var isAssigned = IsOrderAssignedOrInDraftRoute(order);
         return new MapOrderItem
         {

@@ -39,6 +39,8 @@ public sealed class Order
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public List<OrderProductInfo> Products { get; set; } = new();
+    public double? ManualTotalWeightKg { get; set; }
+    public string ManualTotalWeightInfo { get; set; } = string.Empty;
     public string DeliveryType { get; set; } = "Frei Bordsteinkante";
     /// <summary>
     /// Allows this order to be considered for the opposite dispatch channel while preserving
@@ -55,6 +57,20 @@ public sealed class Order
     /// <summary>Indicates that this order was last created or synchronized through the XML ERP import.</summary>
     public bool IsXmlImported { get; set; }
     public string? ConcurrencyToken { get; set; }
+
+    public double ResolveTotalWeightKg()
+    {
+        if (ManualTotalWeightKg.HasValue)
+        {
+            return Math.Max(0d, ManualTotalWeightKg.Value);
+        }
+
+        return (Products ?? [])
+            .Where(product => product is not null)
+            .Sum(product => product.WeightKg > 0
+                ? product.WeightKg
+                : Math.Max(0d, product.UnitWeightKg) * Math.Max(1, product.Quantity));
+    }
 
     public static string NormalizeOrderStatus(string? value)
     {

@@ -1296,6 +1296,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 Dimensions = p.Dimensions,
                 DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(p.DeliveryStatus)
             }).ToList(),
+            ManualTotalWeightKg = source.ManualTotalWeightKg,
+            ManualTotalWeightInfo = source.ManualTotalWeightInfo,
             DeliveryType = source.DeliveryType,
             IsAlternativeDeliveryEnabled = source.IsAlternativeDeliveryEnabled,
             IsSelfPickupAlternativeEnabled = source.IsSelfPickupAlternativeEnabled,

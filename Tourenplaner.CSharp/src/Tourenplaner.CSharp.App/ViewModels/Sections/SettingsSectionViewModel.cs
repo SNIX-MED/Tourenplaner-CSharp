@@ -1326,29 +1326,89 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     public async Task RestoreLatestBackupAsync()
     {
         var model = BuildModel(await _repository.LoadAsync());
-        if (string.IsNullOrWhiteSpace(model.BackupDir) || !Directory.Exists(model.BackupDir))
+        var initialDirectory = string.IsNullOrWhiteSpace(model.BackupDir)
+            ? GetDefaultBackupDirectory()
+            : model.BackupDir;
+        var dialog = new OpenFileDialog
         {
-            StatusText = "Restore failed: backup directory not found.";
+            Title = "Tourenplaner-Sicherung auswählen",
+            Filter = "Tourenplaner-Sicherungen (*.zip;*.bak)|*.zip;*.bak|Alle Dateien (*.*)|*.*",
+            InitialDirectory = Directory.Exists(Path.Combine(initialDirectory, "pre-update"))
+                ? Path.Combine(initialDirectory, "pre-update")
+                : initialDirectory,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog() != true)
+        {
             return;
         }
 
-        var latestBackup = Directory.GetFiles(model.BackupDir, "*.bak", SearchOption.TopDirectoryOnly)
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .FirstOrDefault();
-
-        if (latestBackup is null)
+        var backupPath = dialog.FileName;
+        if (string.Equals(Path.GetExtension(backupPath), ".zip", StringComparison.OrdinalIgnoreCase))
         {
-            StatusText = "Restore skipped: no backup file found.";
+            if (!IsPostgreSqlStorageMode)
+            {
+                StatusText = "Die PostgreSQL-Sicherung kann nur im PostgreSQL-Modus wiederhergestellt werden.";
+                return;
+            }
+
+            try
+            {
+                PostgreSqlBackupRestoreService.ValidateBackupFile(backupPath);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException)
+            {
+                StatusText = "Sicherung konnte nicht geprüft werden.";
+                ValidationSummary = ex.Message;
+                return;
+            }
+
+            var confirm = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                "Diese Wiederherstellung ersetzt die zentralen PostgreSQL-Daten für alle verbundenen PCs. " +
+                "Vorher wird automatisch eine zusätzliche Sicherung des aktuellen Zustands erstellt.\n\n" +
+                "Bitte stellen Sie sicher, dass die anderen Benutzer den Tourenplaner geschlossen haben.\n\n" +
+                $"Sicherung: {Path.GetFileName(backupPath)}\n\nJetzt wiederherstellen?",
+                "PostgreSQL-Sicherung wiederherstellen",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                StatusText = "Aktueller SQL-Zustand wird zusätzlich gesichert...";
+                await PreUpdateBackupService.CreateAsync(
+                    _dataRoot,
+                    $"restore-safety-{ApplicationVersion}",
+                    "before-restore");
+                StatusText = "PostgreSQL-Daten werden wiederhergestellt...";
+                await new PostgreSqlBackupRestoreService().RestoreAsync(
+                    backupPath,
+                    BuildPostgreSqlStorageSettings());
+                _dataSyncService?.Publish(new AppDataChangedEventArgs(
+                    _instanceId,
+                    AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees | AppDataKind.Settings));
+                StatusText = "PostgreSQL-Sicherung wurde wiederhergestellt. Bitte das Programm auf allen PCs neu starten.";
+                ValidationSummary = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                StatusText = "PostgreSQL-Wiederherstellung fehlgeschlagen; die Transaktion wurde zurückgerollt.";
+                ValidationSummary = ex.Message;
+            }
             return;
         }
 
         await _backupManager.RestoreBackupAsync(
-            latestBackup,
+            backupPath,
             _dataRoot,
             _dataRoot,
             selectedGroups: ["all"]);
 
-        StatusText = $"Restore completed from {Path.GetFileName(latestBackup)}.";
+        StatusText = $"Backup wiederhergestellt: {Path.GetFileName(backupPath)}.";
         await RefreshAsync();
     }
 

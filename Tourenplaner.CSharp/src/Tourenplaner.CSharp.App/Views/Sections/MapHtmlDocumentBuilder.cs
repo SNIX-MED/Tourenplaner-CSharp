@@ -178,8 +178,10 @@ internal static class MapHtmlDocumentBuilder
                    .tt-popup-content, .mapboxgl-popup-content { transform: scale(var(--gawela-pin-scale, 1)); transform-origin: center bottom; display: inline-block; padding: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
                    .tt-popup-tip, .mapboxgl-popup-tip { display: none !important; }
                    .tt-popup, .tt-popup *, .mapboxgl-popup, .mapboxgl-popup * { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; -webkit-user-drag: none !important; }
+                   .tt-popup.gawela-order-popup .gawela-info-card, .tt-popup.gawela-order-popup .gawela-info-card *, .mapboxgl-popup.gawela-order-popup .gawela-info-card, .mapboxgl-popup.gawela-order-popup .gawela-info-card * { pointer-events: auto !important; }
                    .tt-marker { pointer-events: auto !important; }
                    .tt-popup, .mapboxgl-popup { z-index: 1400 !important; }
+                   .tt-popup.gawela-order-popup.gawela-popup-front, .mapboxgl-popup.gawela-order-popup.gawela-popup-front { z-index: 1500 !important; }
                    .tt-marker, .mapboxgl-marker { z-index: 1200 !important; }
                    .gawela-company-marker-layer,
                    .tt-marker.gawela-company-marker-layer,
@@ -192,8 +194,10 @@ internal static class MapHtmlDocumentBuilder
                    .mapboxgl-marker.gawela-route-marker-layer { z-index: 1220 !important; }
                    .tour-hover-tooltip.visible { opacity: 1; }
                    .gawela-info-card { width: 420px; max-width: min(86vw, 420px); background: #ffffff; border: 1px solid #e6e8ee; border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15); color: #111827; overflow: hidden; }
-                   .gawela-info-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; }
+                   .gawela-info-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; }
+                   .gawela-info-card-heading { min-width: 0; }
                    .gawela-info-card-name { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.12; letter-spacing: -0.01em; color: #111827; }
+                   .gawela-info-card-notes { margin: 6px 0 0; font-size: 15px; line-height: 1.28; font-weight: 700; color: #dc2626; white-space: pre-line; }
                    .gawela-info-card-badge { display: inline-block; font-size: 14px; line-height: 1; padding: 7px 10px; border-radius: 10px; background: #f3f4f6; color: #3f3f46; white-space: nowrap; }
                    .gawela-info-card-section { display: flex; align-items: flex-start; gap: 12px; padding: 12px 18px; border-top: 1px solid #eceef3; }
                    .gawela-info-card-section-weight { align-items: center; }
@@ -201,6 +205,8 @@ internal static class MapHtmlDocumentBuilder
                    .gawela-info-card-icon-wrap img { width: 28px; height: 28px; display: block; }
                    .gawela-info-card-line { margin: 0; font-size: 15px; line-height: 1.28; color: #1f2937; }
                    .gawela-info-card-label { margin: 0 0 4px; font-size: 15px; line-height: 1.24; font-weight: 700; color: #111827; }
+                   .gawela-info-card-products-toggle { margin: 8px 0 0; padding: 0; border: 0; background: transparent; color: #7e22ce; cursor: pointer; font: 700 14px/1.25 Segoe UI, sans-serif; text-decoration: underline; }
+                   .gawela-info-card-products-toggle:hover { color: #581c87; }
                    .gawela-info-card-weight { margin: 0; font-size: 19px; line-height: 1.2; color: #1f2937; }
                    .gawela-info-card-weight strong { font-weight: 800; color: #111827; }
                    .gawela-info-card-tail-wrap { height: 10px; display: flex; justify-content: center; margin-top: -1px; }
@@ -552,14 +558,16 @@ internal static class MapHtmlDocumentBuilder
                          }
                          const mapZoomInEl = document.getElementById('mapZoomIn');
                          const mapZoomOutEl = document.getElementById('mapZoomOut');
-                         const changeMapZoom = (delta) => {
+                         const changeMapZoom = (delta, around = null) => {
                            const currentZoom = Number(map.getZoom());
                            if (!Number.isFinite(currentZoom)) return;
                            const minZoom = typeof map.getMinZoom === 'function' ? Number(map.getMinZoom()) : 6.5;
                            const maxZoom = typeof map.getMaxZoom === 'function' ? Number(map.getMaxZoom()) : 22;
                            const nextZoom = Math.max(Number.isFinite(minZoom) ? minZoom : 6.5, Math.min(Number.isFinite(maxZoom) ? maxZoom : 22, currentZoom + delta));
                            if (typeof map.easeTo === 'function') {
-                             map.easeTo({ zoom: nextZoom, duration: 220 });
+                             const options = { zoom: nextZoom, duration: 220 };
+                             if (around) options.around = around;
+                             map.easeTo(options);
                            } else if (typeof map.setZoom === 'function') {
                              map.setZoom(nextZoom);
                            }
@@ -583,6 +591,7 @@ internal static class MapHtmlDocumentBuilder
                          let hasAppliedInitialMarkerFit = false;
                          let routePopupVisible = false;
                          let stickyPopupOrderId = '';
+                         let activeOrderPopupElement = null;
                          let routeStopHitTargets = [];
                          let routeStopCanvasClickBound = false;
                          let lastAutoCenteredRouteKey = '';
@@ -627,6 +636,87 @@ internal static class MapHtmlDocumentBuilder
                              zoomScaleRafScheduled = false;
                              recomputePopupScale();
                            });
+                         };
+
+                         const bringOrderPopupToFront = (popup) => {
+                           const popupEl = popup && typeof popup.getElement === 'function' ? popup.getElement() : null;
+                           if (!popupEl) return;
+                           if (activeOrderPopupElement && activeOrderPopupElement !== popupEl) {
+                             activeOrderPopupElement.classList.remove('gawela-popup-front');
+                           }
+                           popupEl.classList.add('gawela-order-popup', 'gawela-popup-front');
+                           activeOrderPopupElement = popupEl;
+                         };
+
+                         const enableOrderPopupInteraction = (popup) => {
+                           const popupEl = popup && typeof popup.getElement === 'function' ? popup.getElement() : null;
+                           if (!popupEl) return;
+                           popupEl.classList.add('gawela-order-popup');
+                           if (popupEl.dataset.gawelaWheelZoomBound !== 'true') {
+                             popupEl.dataset.gawelaWheelZoomBound = 'true';
+                             popupEl.addEventListener('wheel', (evt) => {
+                               const target = evt && evt.target;
+                               if (!target || typeof target.closest !== 'function' || !target.closest('.gawela-info-card')) return;
+                               if (!Number.isFinite(evt.deltaY) || evt.deltaY === 0) return;
+                               evt.preventDefault();
+                               evt.stopPropagation();
+                               const canvasRect = mapCanvas.getBoundingClientRect();
+                               const point = [evt.clientX - canvasRect.left, evt.clientY - canvasRect.top];
+                               const around = typeof map.unproject === 'function' ? map.unproject(point) : null;
+                               changeMapZoom(evt.deltaY < 0 ? 0.75 : -0.75, around);
+                             }, { passive: false });
+                           }
+                           if (popupEl.dataset.gawelaProductsToggleBound !== 'true') {
+                             popupEl.dataset.gawelaProductsToggleBound = 'true';
+                             const findProductsToggle = (evt) => {
+                               const target = evt && evt.target;
+                               return target && typeof target.closest === 'function'
+                                 ? target.closest('.gawela-info-card-products-toggle')
+                                 : null;
+                             };
+                             const toggleProducts = (evt, toggle) => {
+                               evt.preventDefault();
+                               evt.stopPropagation();
+                               bringOrderPopupToFront(popup);
+                               const expanded = toggle.getAttribute('aria-expanded') === 'true';
+                               popupEl.querySelectorAll('.gawela-info-card-product-extra').forEach(line => {
+                                 line.hidden = expanded;
+                               });
+                               toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+                               toggle.textContent = expanded ? 'Mehr anzeigen' : 'Weniger anzeigen';
+                               window.requestAnimationFrame(() => {
+                                 if (typeof popup.getLngLat === 'function' && typeof popup.setLngLat === 'function') {
+                                   popup.setLngLat(popup.getLngLat());
+                                 }
+                                 scalePopupElement(popup);
+                               });
+                             };
+                             popupEl.addEventListener('pointerup', (evt) => {
+                               const toggle = findProductsToggle(evt);
+                               if (!toggle) return;
+                               toggle.dataset.gawelaPointerToggleAt = String(Date.now());
+                               toggleProducts(evt, toggle);
+                             });
+                             popupEl.addEventListener('click', (evt) => {
+                               const toggle = findProductsToggle(evt);
+                               if (!toggle) return;
+                               const pointerToggleAt = Number(toggle.dataset.gawelaPointerToggleAt || 0);
+                               if (Date.now() - pointerToggleAt < 500) {
+                                 evt.preventDefault();
+                                 evt.stopPropagation();
+                                 return;
+                               }
+                               toggleProducts(evt, toggle);
+                             });
+                           }
+                           if (popupEl.dataset.gawelaBringToFrontBound === 'true') return;
+                           popupEl.dataset.gawelaBringToFrontBound = 'true';
+                           const activate = (evt) => {
+                             evt.stopPropagation();
+                             bringOrderPopupToFront(popup);
+                           };
+                           popupEl.addEventListener('pointerdown', activate);
+                           popupEl.addEventListener('click', activate);
                          };
 
                          applyStyleThumbPreviews();
@@ -1010,6 +1100,9 @@ internal static class MapHtmlDocumentBuilder
                            const headerBadge = showOrderNumber && orderId.length > 0
                              ? `<span class='gawela-info-card-badge'>${escapeHtml(orderId)}</span>`
                              : '';
+                           const headerNotes = showNotes && notes.length > 0
+                             ? `<p class='gawela-info-card-notes'>${escapeHtml(notes)}</p>`
+                             : '';
 
                            const sections = [];
 
@@ -1023,14 +1116,17 @@ internal static class MapHtmlDocumentBuilder
                            }
 
                            if (showProducts && products.length > 0) {
+                             const visibleProductLines = products.slice(0, 2)
+                               .map(line => `<p class='gawela-info-card-line'>${escapeHtml(line)}</p>`)
+                               .join('');
+                             const additionalProductLines = products.slice(2)
+                               .map(line => `<p class='gawela-info-card-line gawela-info-card-product-extra' hidden>${escapeHtml(line)}</p>`)
+                               .join('');
+                             const productsToggle = products.length > 2
+                               ? `<button type='button' class='gawela-info-card-products-toggle' aria-expanded='false'>Mehr anzeigen</button>`
+                               : '';
                              sections.push(
-                               `<section class='gawela-info-card-section'><div class='gawela-info-card-icon-wrap'><img src='__INFO_ICON_PRODUCTS__' alt='' /></div><div><p class='gawela-info-card-label'>Produkte</p>${products.map(line => `<p class='gawela-info-card-line'>${escapeHtml(line)}</p>`).join('')}</div></section>`
-                             );
-                           }
-
-                           if (showNotes && notes.length > 0) {
-                             sections.push(
-                               `<section class='gawela-info-card-section'><div class='gawela-info-card-icon-wrap'><img src='__INFO_ICON_PRODUCTS__' alt='' /></div><div><p class='gawela-info-card-label'>Notizen</p><p class='gawela-info-card-line'>${escapeHtml(notes)}</p></div></section>`
+                               `<section class='gawela-info-card-section'><div class='gawela-info-card-icon-wrap'><img src='__INFO_ICON_PRODUCTS__' alt='' /></div><div><p class='gawela-info-card-label'>Produkte</p>${visibleProductLines}${additionalProductLines}${productsToggle}</div></section>`
                              );
                            }
 
@@ -1048,7 +1144,7 @@ internal static class MapHtmlDocumentBuilder
                              sections.push(`<section class='gawela-info-card-section'><div><p class='gawela-info-card-label'>Lieferdatum</p><p class='gawela-info-card-line'>${escapeHtml(deliveryDate)}${deliveryCanOccurEarlier ? ' · früher möglich' : ''}</p></div></section>`);
                            }
 
-                           return `<div class='gawela-info-card'><header class='gawela-info-card-header'><h4 class='gawela-info-card-name'>${escapeHtml(cardName)}</h4>${headerBadge}</header>${sections.join('')}</div><div class='gawela-info-card-tail-wrap'><div class='gawela-info-card-tail'></div></div>`;
+                           return `<div class='gawela-info-card'><header class='gawela-info-card-header'><div class='gawela-info-card-heading'><h4 class='gawela-info-card-name'>${escapeHtml(cardName)}</h4>${headerNotes}</div>${headerBadge}</header>${sections.join('')}</div><div class='gawela-info-card-tail-wrap'><div class='gawela-info-card-tail'></div></div>`;
                          };
 
                          const applyBaseStyle = () => {
@@ -2014,6 +2110,8 @@ internal static class MapHtmlDocumentBuilder
                                  stickyPopupOrderId = String(m.id);
                                  popup.addTo(map);
                                  scalePopupElement(popup);
+                                 enableOrderPopupInteraction(popup);
+                                 bringOrderPopupToFront(popup);
                                  window.chrome.webview.postMessage(String(m.id));
                                }
                              });
@@ -2021,6 +2119,10 @@ internal static class MapHtmlDocumentBuilder
                              if (routePopupVisible || (m.id && stickyPopupOrderId && String(m.id) === stickyPopupOrderId)) {
                                popup.addTo(map);
                                scalePopupElement(popup);
+                               enableOrderPopupInteraction(popup);
+                               if (m.id && stickyPopupOrderId && String(m.id) === stickyPopupOrderId) {
+                                 bringOrderPopupToFront(popup);
+                               }
                              }
 
                              markerMap.set(m.id, marker);
@@ -2449,6 +2551,8 @@ internal static class MapHtmlDocumentBuilder
                                 stickyPopupOrderId = String(stop.id);
                                 popup.addTo(map);
                                 scalePopupElement(popup);
+                                enableOrderPopupInteraction(popup);
+                                bringOrderPopupToFront(popup);
                                 // Use the same message path as normal map pins for reliable details selection.
                                 window.chrome.webview.postMessage(String(stop.id));
                                 // Keep route selection behavior in sync.
@@ -2470,6 +2574,10 @@ internal static class MapHtmlDocumentBuilder
                              if (routePopupVisible || (stop.id && stickyPopupOrderId && String(stop.id) === stickyPopupOrderId)) {
                                popup.addTo(map);
                                scalePopupElement(popup);
+                               enableOrderPopupInteraction(popup);
+                               if (stop.id && stickyPopupOrderId && String(stop.id) === stickyPopupOrderId) {
+                                 bringOrderPopupToFront(popup);
+                               }
                              }
 
                             routeMarkerMap.set(stop.id, marker);
@@ -2487,6 +2595,8 @@ internal static class MapHtmlDocumentBuilder
                            if (popup) {
                              popup.addTo(map);
                              scalePopupElement(popup);
+                             enableOrderPopupInteraction(popup);
+                             bringOrderPopupToFront(popup);
                            }
                          };
 
@@ -2500,6 +2610,8 @@ internal static class MapHtmlDocumentBuilder
                            if (popup) {
                              popup.addTo(map);
                              scalePopupElement(popup);
+                             enableOrderPopupInteraction(popup);
+                             bringOrderPopupToFront(popup);
                            }
                          };
 
@@ -2562,7 +2674,9 @@ internal static class MapHtmlDocumentBuilder
                            tempSearchMarker = new ttSdk.Marker({ element: pinEl, anchor: 'center' })
                              .setLngLat([lon, lat])
                              .addTo(map);
-                           map.easeTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 13), duration: 420 });
+                           if (item.focus === true) {
+                             map.easeTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 13), duration: 420 });
+                           }
                          };
 
                          window.gawelaAddToRoute = function(orderId) {
@@ -2632,12 +2746,15 @@ internal static class MapHtmlDocumentBuilder
                              if (routePopupVisible) {
                                p.addTo(map);
                                scalePopupElement(p);
+                               enableOrderPopupInteraction(p);
                              }
                              else {
                                const markerId = (m && m.__gawelaOrderId) ? String(m.__gawelaOrderId) : '';
                                if (stickyPopupOrderId && markerId === stickyPopupOrderId) {
                                  p.addTo(map);
                                  scalePopupElement(p);
+                                 enableOrderPopupInteraction(p);
+                                 bringOrderPopupToFront(p);
                                } else {
                                  p.remove();
                                }
@@ -2649,12 +2766,15 @@ internal static class MapHtmlDocumentBuilder
                              if (routePopupVisible) {
                                p.addTo(map);
                                scalePopupElement(p);
+                               enableOrderPopupInteraction(p);
                              }
                              else {
                                const markerId = (m && m.__gawelaOrderId) ? String(m.__gawelaOrderId) : '';
                                if (stickyPopupOrderId && markerId === stickyPopupOrderId) {
                                  p.addTo(map);
                                  scalePopupElement(p);
+                                 enableOrderPopupInteraction(p);
+                                 bringOrderPopupToFront(p);
                                } else {
                                  p.remove();
                                }

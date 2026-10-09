@@ -1126,7 +1126,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     {
         if (order?.Products is not null && order.Products.Count > 0)
         {
-            var total = order.Products.Sum(p => Math.Max(0d, p.WeightKg));
+            var total = order.ResolveTotalWeightKg();
             return $"Total: {total:0.##} kg";
         }
 

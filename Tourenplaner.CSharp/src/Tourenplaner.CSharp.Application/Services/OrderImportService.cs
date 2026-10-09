@@ -259,6 +259,8 @@ public class OrderImportService : IOrderImportService
             Email = resolvedEmail,
             Phone = resolvedPhone,
             Products = BuildProducts(sqlOrder.Produkte, existingOrder?.Products, sqlOrder.Lieferzeit),
+            ManualTotalWeightKg = existingOrder?.ManualTotalWeightKg,
+            ManualTotalWeightInfo = existingOrder?.ManualTotalWeightInfo ?? string.Empty,
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
             IsAlternativeDeliveryEnabled = existingOrder?.IsAlternativeDeliveryEnabled == true &&
                                            string.Equals(
@@ -272,7 +274,7 @@ public class OrderImportService : IOrderImportService
                                                  DeliveryMethodExtensions.SelbstabholungLabel,
                                                  StringComparison.OrdinalIgnoreCase),
             OrderStatus = Order.DefaultOrderStatus,
-            Notes = sqlOrder.Notiz,
+            Notes = (sqlOrder.Notiz ?? string.Empty).Trim(),
             IstVorauszahlung = sqlOrder.IstVorauszahlung,
             IstVorauszahlungBezahlt = sqlOrder.IstVorauszahlungBezahlt,
             IsArchived = sqlOrder.Archiviert,
@@ -295,6 +297,8 @@ public class OrderImportService : IOrderImportService
         {
             var sqlProduct = sqlProducts![i];
             var previousProduct = i < existing.Count ? existing[i] : null;
+            var quantity = (int)sqlProduct.Menge;
+            var unitWeightKg = (double)sqlProduct.Gewicht;
 
             products.Add(new OrderProductInfo
             {
@@ -303,9 +307,9 @@ public class OrderImportService : IOrderImportService
                     ? sqlProduct.Lieferant.Trim()
                     : previousProduct?.Supplier ?? string.Empty,
                 ExpectedDelivery = previousProduct?.ExpectedDelivery ?? string.Empty,
-                Quantity = (int)sqlProduct.Menge,
-                UnitWeightKg = (double)sqlProduct.Gewicht,
-                WeightKg = (double)(sqlProduct.Gewicht * sqlProduct.Menge),
+                Quantity = quantity,
+                UnitWeightKg = unitWeightKg,
+                WeightKg = unitWeightKg * quantity,
                 Dimensions = previousProduct?.Dimensions ?? string.Empty,
                 DeliveryStatus = previousProduct is null
                     ? ResolveImportedProductDeliveryStatus(sqlProduct.Lieferzeit, deliveryTime, sqlProduct.Lieferant)
@@ -344,6 +348,8 @@ public class OrderImportService : IOrderImportService
         existingOrder.Email = importedOrder.Email;
         existingOrder.Phone = importedOrder.Phone;
         existingOrder.Products = importedOrder.Products;
+        existingOrder.ManualTotalWeightKg = importedOrder.ManualTotalWeightKg;
+        existingOrder.ManualTotalWeightInfo = importedOrder.ManualTotalWeightInfo;
         existingOrder.DeliveryType = importedOrder.DeliveryType;
         existingOrder.IsAlternativeDeliveryEnabled = importedOrder.IsAlternativeDeliveryEnabled;
         existingOrder.IsSelfPickupAlternativeEnabled = importedOrder.IsSelfPickupAlternativeEnabled;

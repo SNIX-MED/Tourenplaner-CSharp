@@ -227,6 +227,50 @@ public class OrderImportServiceTests
     }
 
     [Fact]
+    public async Task XmlReimport_UpdatesProductWeight_ButPreservesManualOrderTotalWeight()
+    {
+        var existingOrder = CreateOrder("A-16", "Kunde Sechzehn", "Frei Bordsteinkante", "Notiz");
+        existingOrder.Products[0].UnitWeightKg = 17.5d;
+        existingOrder.Products[0].WeightKg = 35d;
+        existingOrder.ManualTotalWeightKg = 240d;
+        var importedOrder = CreateSqlOrder("A-16", "Kunde Sechzehn", "Frei Bordsteinkante", "Notiz");
+        importedOrder.Produkte[0].Menge = 3;
+        importedOrder.Produkte[0].Gewicht = 99m;
+        var repository = new FakeOrderRepository([existingOrder]);
+
+        await new OrderImportService().ImportOrdersAsync([importedOrder], repository, markAsXmlImported: true);
+
+        var storedOrder = Assert.Single(repository.StoredOrders);
+        var storedProduct = Assert.Single(storedOrder.Products);
+        Assert.Equal(3, storedProduct.Quantity);
+        Assert.Equal(99d, storedProduct.UnitWeightKg);
+        Assert.Equal(297d, storedProduct.WeightKg);
+        Assert.Equal(240d, storedOrder.ManualTotalWeightKg);
+        Assert.Equal(240d, storedOrder.ResolveTotalWeightKg());
+    }
+
+    [Fact]
+    public async Task XmlImport_UsesXmlWeightForNewProductPosition()
+    {
+        var existingOrder = CreateOrder("A-18", "Kunde Achtzehn", "Frei Bordsteinkante", "Notiz");
+        var importedOrder = CreateSqlOrder("A-18", "Kunde Achtzehn", "Frei Bordsteinkante", "Notiz");
+        importedOrder.Produkte.Add(new XmlOrderProductData
+        {
+            PosNummer = 2,
+            Bezeichnung = "Neues Produkt",
+            Menge = 4,
+            Gewicht = 6.25m
+        });
+        var repository = new FakeOrderRepository([existingOrder]);
+
+        await new OrderImportService().ImportOrdersAsync([importedOrder], repository, markAsXmlImported: true);
+
+        var storedProduct = Assert.Single(Assert.Single(repository.StoredOrders).Products, product => product.Name == "Neues Produkt");
+        Assert.Equal(6.25d, storedProduct.UnitWeightKg);
+        Assert.Equal(25d, storedProduct.WeightKg);
+    }
+
+    [Fact]
     public async Task ImportOrdersAsync_UsesProductDeliveryTimeAndSupplierForInitialProductStatus()
     {
         var xmlOrder = CreateSqlOrder("A-17", "Kunde Siebzehn", "Mit Verteilung", "Neu");
@@ -276,6 +320,29 @@ public class OrderImportServiceTests
         markAsXmlImported: true);
 
         Assert.All(repository.StoredOrders, order => Assert.True(order.IsXmlImported));
+    }
+
+    [Theory]
+    [InlineData("Aktuelle Notiz aus XML", "Aktuelle Notiz aus XML")]
+    [InlineData("", "")]
+    public async Task XmlReimport_AlwaysReplacesExistingNotesWithXmlValue(
+        string importedNotes,
+        string expectedNotes)
+    {
+        var existingOrder = CreateOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Manuell geänderte Notiz");
+        existingOrder.IsXmlImported = true;
+        var repository = new FakeOrderRepository([existingOrder]);
+
+        await new OrderImportService().ImportOrdersAsync(
+        [
+            CreateSqlOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", importedNotes)
+        ],
+        repository,
+        markAsXmlImported: true);
+
+        var storedOrder = Assert.Single(repository.StoredOrders);
+        Assert.Equal(expectedNotes, storedOrder.Notes);
+        Assert.True(storedOrder.IsXmlImported);
     }
 
     [Fact]
@@ -539,6 +606,8 @@ public class OrderImportServiceTests
                 Dimensions = x.Dimensions,
                 DeliveryStatus = x.DeliveryStatus
             }).ToList(),
+            ManualTotalWeightKg = order.ManualTotalWeightKg,
+            ManualTotalWeightInfo = order.ManualTotalWeightInfo,
             DeliveryType = order.DeliveryType,
             IsAlternativeDeliveryEnabled = order.IsAlternativeDeliveryEnabled,
             OrderStatus = order.OrderStatus,

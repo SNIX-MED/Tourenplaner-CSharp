@@ -2222,7 +2222,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     {
         if (order?.Products is not null && order.Products.Count > 0)
         {
-            var total = order.Products.Sum(p => Math.Max(0d, p.WeightKg));
+            var total = order.ResolveTotalWeightKg();
             return total > 0 ? $"Total: {total:0.##} kg" : string.Empty;
         }
 

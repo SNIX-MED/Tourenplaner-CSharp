@@ -2345,6 +2345,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <StackPanel Grid.Row="0" Margin="0,0,0,10">
@@ -2643,7 +2644,60 @@
                                     </StackPanel>
                                 </ScrollViewer>
 
-                                <StackPanel Grid.Row="2" Margin="0,0,0,8">
+                                <Border Grid.Row="2"
+                                        Margin="0,0,0,8"
+                                        Padding="10"
+                                        CornerRadius="10"
+                                        Background="{DynamicResource Brush.SurfaceSoft}"
+                                        BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                        BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" Text="Manuelles Gesamtgewicht (kg)" />
+                                        <Grid Margin="0,5,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="1*" />
+                                                <ColumnDefinition Width="3*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0"
+                                                    CornerRadius="6"
+                                                    Background="White"
+                                                    BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                    BorderThickness="1">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="DetailManualTotalWeightTextBox"
+                                                             Grid.Column="0"
+                                                             Padding="8,5,2,5"
+                                                             BorderThickness="0"
+                                                             Background="Transparent"
+                                                             ToolTip="Leer lassen, um automatisch die Summe der Produktgewichte zu verwenden."
+                                                             Text="{Binding DetailManualTotalWeightKgText, Mode=OneWay}"
+                                                             PreviewTextInput="OnDetailManualTotalWeightPreviewTextInput"
+                                                             DataObject.Pasting="OnDetailManualTotalWeightPasting"
+                                                             LostFocus="OnDetailManualWeightFieldLostFocus"
+                                                             KeyDown="OnDetailManualWeightFieldKeyDown" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Margin="3,0,8,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                               Text="kg" />
+                                                </Grid>
+                                            </Border>
+                                            <TextBox x:Name="DetailManualTotalWeightInfoTextBox"
+                                                     Grid.Column="1"
+                                                     Margin="8,0,0,0"
+                                                     ToolTip="Optionale Information zum manuellen Gesamtgewicht."
+                                                     Text="{Binding DetailManualTotalWeightInfoText, Mode=OneWay}"
+                                                     LostFocus="OnDetailManualWeightFieldLostFocus"
+                                                     KeyDown="OnDetailManualWeightFieldKeyDown" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <StackPanel Grid.Row="3" Margin="0,0,0,8">
                                     <Border Margin="0,0,0,8"
                                             Padding="8,6"
                                             CornerRadius="10"
