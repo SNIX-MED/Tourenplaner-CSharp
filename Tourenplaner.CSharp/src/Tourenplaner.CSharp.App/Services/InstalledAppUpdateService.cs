@@ -62,7 +62,8 @@ internal static class InstalledAppUpdateService
             return InstalledAppUpdateResult.Failed("Das Online-Update-Manifest konnte nicht gelesen werden.");
         }
 
-        var currentVersion = ParseVersion(GetCurrentVersion());
+        var currentVersionText = GetCurrentVersion();
+        var currentVersion = ParseVersion(currentVersionText);
         var availableVersion = ParseVersion(manifest.Version);
         if (currentVersion is null || availableVersion is null || availableVersion <= currentVersion)
         {
@@ -71,6 +72,17 @@ internal static class InstalledAppUpdateService
 
         progress?.Report($"Update {manifest.Version} wird heruntergeladen...");
         var installerPath = await DownloadInstallerAsync(manifest, progress, cancellationToken);
+
+        progress?.Report("Sicherheitskopie vor dem Update wird erstellt...");
+        var dataRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Tourenplaner.CSharp",
+            "data");
+        await PreUpdateBackupService.CreateAsync(
+            dataRoot,
+            currentVersionText,
+            manifest.Version,
+            cancellationToken);
 
         progress?.Report("Update ist bereit. Das Setup wird gestartet...");
         var launcherPath = ResolveLauncherPath(AppContext.BaseDirectory);

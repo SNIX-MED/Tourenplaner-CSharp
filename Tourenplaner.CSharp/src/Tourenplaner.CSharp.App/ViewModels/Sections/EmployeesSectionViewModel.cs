@@ -10,6 +10,7 @@ namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 public sealed class EmployeesSectionViewModel : SectionViewModelBase
 {
     private readonly IEmployeeDataStore _repository;
+    private readonly IEmployeeMutationStore? _mutationStore;
     private readonly ITourRecordStore _tourRepository;
     private readonly IAppSettingsStore _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
@@ -22,6 +23,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         : base("Mitarbeiterverwaltung", "Mitarbeiter anlegen, bearbeiten und Abwesenheiten planen.")
     {
         _repository = repository;
+        _mutationStore = repository as IEmployeeMutationStore;
         _tourRepository = tourRepository;
         _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService;
@@ -198,7 +200,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         }
 
         _employees.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
-        _employees.Add(new Employee
+        var savedEmployee = new Employee
         {
             Id = id,
             DisplayName = result.Name.Trim(),
@@ -214,16 +216,17 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             Role = result.ShortCode.Trim(),
             Active = existing?.Active ?? true,
             UnavailabilityPeriods = periods
-        });
+        };
+        _employees.Add(savedEmployee);
 
-        await SaveCurrentStateAsync();
+        await SaveCurrentStateAsync(savedEmployee: savedEmployee);
         return warning;
     }
 
     public async Task DeleteEntryAsync(EmployeeCardItem entry)
     {
         _employees.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
-        await SaveCurrentStateAsync();
+        await SaveCurrentStateAsync(deletedEmployeeId: entry.Id);
     }
 
     public async Task RefreshAsync()
@@ -233,9 +236,20 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         RebuildEntries();
     }
 
-    private async Task SaveCurrentStateAsync()
+    private async Task SaveCurrentStateAsync(Employee? savedEmployee = null, string? deletedEmployeeId = null)
     {
-        await _repository.SaveAsync(_employees);
+        if (_mutationStore is not null && savedEmployee is not null)
+        {
+            await _mutationStore.UpsertAsync(savedEmployee);
+        }
+        else if (_mutationStore is not null && !string.IsNullOrWhiteSpace(deletedEmployeeId))
+        {
+            await _mutationStore.DeleteAsync(deletedEmployeeId);
+        }
+        else
+        {
+            await _repository.SaveAsync(_employees);
+        }
         _dataSyncService.PublishEmployees(_instanceId);
         await RefreshAsync();
     }

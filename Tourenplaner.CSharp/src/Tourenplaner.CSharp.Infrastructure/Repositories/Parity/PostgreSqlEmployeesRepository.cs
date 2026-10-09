@@ -4,7 +4,7 @@ using Tourenplaner.CSharp.Infrastructure.Services;
 
 namespace Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
-public sealed class PostgreSqlEmployeesRepository : IEmployeeDataStore
+public sealed class PostgreSqlEmployeesRepository : IEmployeeDataStore, IEmployeeMutationStore
 {
     private readonly PostgreSqlStorageSettings _settings;
     private readonly PostgreSqlConnectionFactory _connectionFactory;
@@ -68,28 +68,39 @@ public sealed class PostgreSqlEmployeesRepository : IEmployeeDataStore
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-        await using (var deleteCommand = connection.CreateCommand())
-        {
-            deleteCommand.Transaction = transaction;
-            deleteCommand.CommandText = $"""DELETE FROM "{schema}"."employees";""";
-            await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
-        }
-
         foreach (var item in items)
         {
             await using var command = connection.CreateCommand();
-            command.Transaction = transaction;
             command.CommandText = $"""
                 INSERT INTO "{schema}"."employees" (id, payload, updated_at)
-                VALUES (@id, CAST(@payload AS jsonb), timezone('utc', now()));
+                VALUES (@id, CAST(@payload AS jsonb), timezone('utc', now()))
+                ON CONFLICT (id) DO UPDATE
+                SET payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at;
                 """;
             command.Parameters.AddWithValue("id", item.Id.Trim());
             command.Parameters.AddWithValue("payload", PostgreSqlRepositorySerializer.Serialize(item));
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task UpsertAsync(Employee employee, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(employee);
+        await SaveAsync([employee], cancellationToken);
+    }
+
+    public async Task DeleteAsync(string employeeId, CancellationToken cancellationToken = default)
+    {
+        var normalizedId = (employeeId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedId)) return;
+        await using var connection = _connectionFactory.CreateConnection(_settings);
+        await connection.OpenAsync(cancellationToken);
+        await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
+        var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""DELETE FROM "{schema}"."employees" WHERE id = @id;""";
+        command.Parameters.AddWithValue("id", normalizedId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }

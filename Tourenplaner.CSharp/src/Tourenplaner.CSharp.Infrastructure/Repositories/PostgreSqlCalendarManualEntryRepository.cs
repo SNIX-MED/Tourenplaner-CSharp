@@ -4,7 +4,7 @@ using Tourenplaner.CSharp.Infrastructure.Services;
 
 namespace Tourenplaner.CSharp.Infrastructure.Repositories;
 
-public sealed class PostgreSqlCalendarManualEntryRepository : ICalendarManualEntryStore
+public sealed class PostgreSqlCalendarManualEntryRepository : ICalendarManualEntryStore, ICalendarManualEntryMutationStore
 {
     private readonly PostgreSqlStorageSettings _settings;
     private readonly PostgreSqlConnectionFactory _connectionFactory;
@@ -51,28 +51,39 @@ public sealed class PostgreSqlCalendarManualEntryRepository : ICalendarManualEnt
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-        await using (var deleteCommand = connection.CreateCommand())
-        {
-            deleteCommand.Transaction = transaction;
-            deleteCommand.CommandText = $"""DELETE FROM "{schema}"."calendar_manual_entries";""";
-            await deleteCommand.ExecuteNonQueryAsync(cancellationToken);
-        }
-
         foreach (var item in items)
         {
             await using var command = connection.CreateCommand();
-            command.Transaction = transaction;
             command.CommandText = $"""
                 INSERT INTO "{schema}"."calendar_manual_entries" (id, payload, updated_at)
-                VALUES (@id, CAST(@payload AS jsonb), timezone('utc', now()));
+                VALUES (@id, CAST(@payload AS jsonb), timezone('utc', now()))
+                ON CONFLICT (id) DO UPDATE
+                SET payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at;
                 """;
             command.Parameters.AddWithValue("id", item.Id.Trim());
             command.Parameters.AddWithValue("payload", PostgreSqlRepositorySerializer.Serialize(item));
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task UpsertAsync(CalendarManualEntry entry, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        await SaveAsync([entry], cancellationToken);
+    }
+
+    public async Task DeleteAsync(string entryId, CancellationToken cancellationToken = default)
+    {
+        var normalizedId = (entryId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedId)) return;
+        await using var connection = _connectionFactory.CreateConnection(_settings);
+        await connection.OpenAsync(cancellationToken);
+        await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
+        var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""DELETE FROM "{schema}"."calendar_manual_entries" WHERE id = @id;""";
+        command.Parameters.AddWithValue("id", normalizedId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }

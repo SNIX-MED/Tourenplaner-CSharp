@@ -19,8 +19,10 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private const int PreviewNavigationMonths = 6;
 
     private readonly ITourRecordStore _repository;
+    private readonly ITourRecordMutationStore? _tourMutationStore;
     private readonly IOrderRepository _orderRepository;
     private readonly ICalendarManualEntryStore _manualEntryRepository;
+    private readonly ICalendarManualEntryMutationStore? _manualEntryMutationStore;
     private readonly IAppSettingsStore _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly Func<int, Task>? _openTourAsync;
@@ -63,8 +65,10 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         : base("Kalender", "Übersicht aller geplanten Touren. Ein Doppelklick öffnet den Tag in den Liefertouren.")
     {
         _repository = tourRepository;
+        _tourMutationStore = tourRepository as ITourRecordMutationStore;
         _orderRepository = orderRepository;
         _manualEntryRepository = manualEntryRepository;
+        _manualEntryMutationStore = manualEntryRepository as ICalendarManualEntryMutationStore;
         _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService ?? new AppDataSyncService();
         _openTourAsync = openTourAsync;
@@ -248,7 +252,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         };
 
         _manualEntries.Add(entry);
-        await _manualEntryRepository.SaveAsync(_manualEntries);
+        if (_manualEntryMutationStore is not null) await _manualEntryMutationStore.UpsertAsync(entry);
+        else await _manualEntryRepository.SaveAsync(_manualEntries);
         _dataSyncService.PublishTours(_instanceId);
 
         BuildCalendarRange(date);
@@ -289,7 +294,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         existing.Description = (description ?? string.Empty).Trim();
         existing.ColorHex = NormalizeHexColor(colorHex, DefaultManualEntryColor);
 
-        await _manualEntryRepository.SaveAsync(_manualEntries);
+        if (_manualEntryMutationStore is not null) await _manualEntryMutationStore.UpsertAsync(existing);
+        else await _manualEntryRepository.SaveAsync(_manualEntries);
         _dataSyncService.PublishTours(_instanceId);
 
         BuildCalendarRange(date);
@@ -312,7 +318,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             return ManualEntrySaveResult.Fail("Manueller Eintrag konnte nicht gefunden werden.");
         }
 
-        await _manualEntryRepository.SaveAsync(_manualEntries);
+        if (_manualEntryMutationStore is not null) await _manualEntryMutationStore.DeleteAsync(normalizedId);
+        else await _manualEntryRepository.SaveAsync(_manualEntries);
         _dataSyncService.PublishTours(_instanceId);
 
         var focusDate = SelectedDay?.Date ?? DateTime.Today;
@@ -803,7 +810,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         }
 
         _allTours.Remove(toRemove);
-        await _repository.SaveAsync(_allTours);
+        if (_tourMutationStore is not null) await _tourMutationStore.DeleteAsync(toRemove.Id, toRemove.ConcurrencyToken);
+        else await _repository.SaveAsync(_allTours);
         await ClearAssignedTourReferencesAsync(toRemove.Id);
         _dataSyncService.PublishTours(_instanceId, toRemove.Id.ToString(CultureInfo.InvariantCulture), null);
         _dataSyncService.PublishOrders(_instanceId);
