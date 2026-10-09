@@ -3013,7 +3013,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 var optimisticArrival = scheduleEntry.OptimisticArrival ?? scheduleEntry.Arrival;
                 var pessimisticArrival = scheduleEntry.PessimisticArrival ?? scheduleEntry.Arrival;
                 var etaSpreadMinutes = Math.Max(0, (int)Math.Round((pessimisticArrival - optimisticArrival).TotalMinutes));
-                if (etaSpreadMinutes >= EtaRangeWarningThresholdMinutes)
+                if (stop.IsArrivalWindowFixed && etaSpreadMinutes >= EtaRangeWarningThresholdMinutes)
                 {
                     var etaStopLabel = string.IsNullOrWhiteSpace(stop.Auftragsnummer)
                         ? stop.Name
