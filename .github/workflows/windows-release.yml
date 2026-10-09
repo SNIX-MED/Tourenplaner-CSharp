@@ -69,12 +69,9 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Speichermodus bleibt bei Updates zuverlässig erhalten
-          - Einheitliche Backups und Wiederherstellungen für lokale und PostgreSQL-Daten
-          - Suche nach mehreren Auftragsnummern und Anzeige der gefilterten Auftragsanzahl
-          - WEBFLEET-Felder bleiben bei deaktivierter Verbindung ohne störende Fehlermeldung gesperrt
-          - Mehrere Abwesenheiten und Fahrzeugausfälle mit Datum, Uhrzeit und Notiz
-          - Abwesenheiten erscheinen im Kalender und werden bei der Tourenplanung zeitgenau berücksichtigt
+          - Test-Release zur Überprüfung des automatischen Update-Ablaufs
+          - Der bestehende Speichermodus und vorhandene Programmdaten bleiben beim Update erhalten
+          - Funktionsumfang entspricht Version 1.0.92
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
