@@ -97,6 +97,7 @@ public sealed partial class MainShellViewModel
 
         await LocalUserSessionService.SaveAsync(normalized);
         CurrentUserName = normalized;
+        await _historyService.ResetSessionAsync(normalized);
         if (!AvailableUserNames.Contains(normalized, StringComparer.OrdinalIgnoreCase))
         {
             if (AvailableUserNames.Count == 0)

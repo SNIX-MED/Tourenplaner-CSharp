@@ -33,6 +33,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private readonly IOrderMutationRepository? _orderMutationRepository;
     private readonly ISettingsRepository? _settingsRepository;
     private readonly AppDataSyncService? _dataSyncService;
+    private readonly IAppDataHistoryService? _historyService;
     private readonly string _dataRoot;
     private SettingsCategoryNavigationItem? _selectedSettingsCategory;
     private List<AdditionalMaterialGroup> _additionalMaterialGroups = new();
@@ -150,6 +151,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private string _postgreSqlPassword = string.Empty;
     private bool _postgreSqlUseSsl;
     private int _postgreSqlTimeoutSeconds = 10;
+    private int _postgreSqlChangeHistoryRetentionDays = PostgreSqlStorageSettings.DefaultChangeHistoryRetentionDays;
+    private string _changeHistoryStatusText = string.Empty;
     private AppStorageMode _activeStorageMode = AppStorageMode.JsonFiles;
 
     public SettingsSectionViewModel(
@@ -159,7 +162,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         ISettingsRepository? settingsRepository = null,
         AppDataSyncService? dataSyncService = null,
         AppStorageMode activeStorageMode = AppStorageMode.JsonFiles,
-        ITourRecordStore? tourRecordStore = null)
+        ITourRecordStore? tourRecordStore = null,
+        IAppDataHistoryService? historyService = null)
         : base("Settings", "Appearance, backup policy and restore operations.")
     {
         _repository = settingsStore;
@@ -170,6 +174,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         _orderMutationRepository = orderRepository as IOrderMutationRepository;
         _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService;
+        _historyService = historyService;
         _dataRoot = dataRoot;
         _backupDir = GetDefaultBackupDirectory();
         _activeStorageMode = activeStorageMode;
@@ -271,6 +276,9 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         ActivatePostgreSqlAndRestartCommand = new AsyncCommand(
             ActivatePostgreSqlAndRestartAsync,
             () => IsPostgreSqlStorageMode);
+        RefreshChangeHistoryCommand = new AsyncCommand(
+            RefreshChangeHistoryAsync,
+            () => IsPostgreSqlHistoryAvailable);
         TestWebfleetConnectionCommand = new AsyncCommand(TestWebfleetConnectionAsync, () => HasWebfleetCredentials);
 
         // XML Import Commands
@@ -293,6 +301,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         XmlImportProductFields = CreateXmlImportProductFields();
         XmlImportProductExclusionFields = CreateXmlImportProductExclusionFields();
         XmlImportDeliveryTypeFields = CreateXmlImportDeliveryTypeFields();
+        ChangeHistoryItems = [];
 
         AttachXmlImportFieldHandlers(XmlImportStructureFields);
         AttachXmlImportFieldHandlers(XmlImportAddressFields);
@@ -303,6 +312,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         if (_dataSyncService is not null)
         {
             _dataSyncService.StatusChanged += OnSyncStatusChanged;
+            _dataSyncService.DataChanged += OnHistoryDataChanged;
         }
         ApplySyncDiagnostics(_dataSyncService?.GetDiagnosticsSnapshot());
 
@@ -356,6 +366,10 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
     public AsyncCommand ActivatePostgreSqlAndRestartCommand { get; }
 
+    public AsyncCommand RefreshChangeHistoryCommand { get; }
+
+    public ObservableCollection<AppDataHistoryDisplayItem> ChangeHistoryItems { get; }
+
     public ICommand BrowseXmlImportFileCommand { get; }
 
     public ICommand DownloadXmlTemplateCommand { get; }
@@ -401,6 +415,10 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(SelectedSettingsCategoryKey));
                 OnPropertyChanged(nameof(SelectedSettingsCategoryTitle));
                 OnPropertyChanged(nameof(SelectedSettingsCategoryDescription));
+                if (string.Equals(target?.Key, "data-sync", StringComparison.Ordinal))
+                {
+                    RefreshChangeHistoryAsync().Forget();
+                }
             }
         }
     }
@@ -491,6 +509,17 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
     public bool IsPostgreSqlStorageMode => StorageMode == AppStorageMode.PostgreSql;
 
+    public bool IsPostgreSqlHistoryAvailable => _activeStorageMode == AppStorageMode.PostgreSql &&
+                                                _historyService?.HasPersistentHistory == true;
+
+    public bool HasChangeHistoryItems => ChangeHistoryItems.Count > 0;
+
+    public string ChangeHistoryStatusText
+    {
+        get => _changeHistoryStatusText;
+        private set => SetProperty(ref _changeHistoryStatusText, value);
+    }
+
     public string ActiveStorageModeDisplayName => _activeStorageMode == AppStorageMode.PostgreSql
         ? "PostgreSQL Mehrbenutzer"
         : "Lokale JSON-Dateien";
@@ -549,6 +578,12 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _postgreSqlTimeoutSeconds;
         set => SetProperty(ref _postgreSqlTimeoutSeconds, value);
+    }
+
+    public int PostgreSqlChangeHistoryRetentionDays
+    {
+        get => _postgreSqlChangeHistoryRetentionDays;
+        set => SetProperty(ref _postgreSqlChangeHistoryRetentionDays, value);
     }
 
     public string StatusColorNotSpecified
@@ -1115,11 +1150,13 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             ApplySyncDiagnostics(_dataSyncService?.GetDiagnosticsSnapshot());
 
             var settings = await _repository.LoadAsync();
-            _activeStorageMode = settings.StorageMode;
             ApplyModel(settings);
             await ApplyWebfleetUserProfileAsync(settings);
             OnPropertyChanged(nameof(ActiveStorageModeDisplayName));
             OnPropertyChanged(nameof(ActiveStorageModeDetailText));
+            OnPropertyChanged(nameof(IsPostgreSqlHistoryAvailable));
+            RefreshChangeHistoryCommand.RaiseCanExecuteChanged();
+            await RefreshChangeHistoryAsync();
             UpdateBackupStatus(BackupDir);
             ValidationSummary = string.Empty;
             StatusText = string.Empty;
@@ -1155,6 +1192,11 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         ValidationSummary = string.Empty;
         UpdateBackupStatus(model.BackupDir);
         _dataSyncService?.PublishSettings(_instanceId);
+        if (IsPostgreSqlHistoryAvailable && _historyService is not null)
+        {
+            await _historyService.CleanupExpiredEntriesAsync(model.PostgreSqlStorage.ChangeHistoryRetentionDays);
+            await RefreshChangeHistoryAsync();
+        }
         StatusText = showToast ? "Settings saved." : string.Empty;
         if (showToast)
         {
@@ -1232,6 +1274,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             nameof(PostgreSqlPassword) or
             nameof(PostgreSqlUseSsl) or
             nameof(PostgreSqlTimeoutSeconds) or
+            nameof(PostgreSqlChangeHistoryRetentionDays) or
             nameof(StatusColorNotSpecified) or
             nameof(StatusColorOrdered) or
             nameof(StatusColorOnTheWay) or
@@ -1652,6 +1695,17 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         ApplySyncDiagnostics(snapshot);
     }
 
+    private void OnHistoryDataChanged(object? sender, AppDataChangedEventArgs args)
+    {
+        if (!IsPostgreSqlHistoryAvailable ||
+            !string.Equals(SelectedSettingsCategoryKey, "data-sync", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        RefreshChangeHistoryAsync().Forget();
+    }
+
     private void ApplyStartupDiagnostics(AppStartupDiagnosticsSnapshot snapshot)
     {
         StartupStatusText = snapshot.Summary;
@@ -1804,6 +1858,9 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         PostgreSqlPassword = settings.PostgreSqlStorage?.Password ?? string.Empty;
         PostgreSqlUseSsl = settings.PostgreSqlStorage?.UseSsl ?? false;
         PostgreSqlTimeoutSeconds = settings.PostgreSqlStorage?.TimeoutSeconds > 0 ? settings.PostgreSqlStorage.TimeoutSeconds : 10;
+        PostgreSqlChangeHistoryRetentionDays = settings.PostgreSqlStorage?.ChangeHistoryRetentionDays > 0
+            ? settings.PostgreSqlStorage.ChangeHistoryRetentionDays
+            : PostgreSqlStorageSettings.DefaultChangeHistoryRetentionDays;
         StatusColorNotSpecified = NormalizeHexColor(userPreference.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
         StatusColorOrdered = NormalizeHexColor(userPreference.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
         StatusColorOnTheWay = NormalizeHexColor(userPreference.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
@@ -1930,8 +1987,34 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             Username = (PostgreSqlUsername ?? string.Empty).Trim(),
             Password = PostgreSqlPassword ?? string.Empty,
             UseSsl = PostgreSqlUseSsl,
-            TimeoutSeconds = Math.Max(1, PostgreSqlTimeoutSeconds)
+            TimeoutSeconds = Math.Max(1, PostgreSqlTimeoutSeconds),
+            ChangeHistoryRetentionDays = Math.Clamp(PostgreSqlChangeHistoryRetentionDays, 1, 3650)
         };
+    }
+
+    private async Task RefreshChangeHistoryAsync()
+    {
+        ChangeHistoryItems.Clear();
+        OnPropertyChanged(nameof(HasChangeHistoryItems));
+        if (!IsPostgreSqlHistoryAvailable || _historyService is null)
+        {
+            ChangeHistoryStatusText = "Der Änderungsverlauf ist nur im aktiven PostgreSQL-Modus verfügbar.";
+            return;
+        }
+
+        try
+        {
+            var entries = await _historyService.LoadRecentEntriesAsync(100);
+            foreach (var entry in entries) ChangeHistoryItems.Add(entry);
+            OnPropertyChanged(nameof(HasChangeHistoryItems));
+            ChangeHistoryStatusText = entries.Count == 0
+                ? "Noch keine Änderungen protokolliert."
+                : $"Die letzten {entries.Count} Änderungen werden angezeigt.";
+        }
+        catch (Exception ex)
+        {
+            ChangeHistoryStatusText = $"Änderungsverlauf konnte nicht geladen werden: {ex.Message}";
+        }
     }
 
     private async Task<string?> VerifyPostgreSqlConnectionAsync()

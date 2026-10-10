@@ -199,6 +199,15 @@ Tests:
 dotnet test Tourenplaner.CSharp.sln
 ```
 
+PostgreSQL-Integrationstest fuer Undo/Redo und den Aenderungsverlauf:
+
+```powershell
+$env:TOURENPLANER_POSTGRES_TEST_CONNECTION = "Host=localhost;Port=5432;Database=tourenplaner_test;Username=postgres;Password=..."
+dotnet test tests/Tourenplaner.CSharp.Tests/Tourenplaner.CSharp.Tests.csproj --filter PostgreSqlUndoRedoIntegrationTests
+```
+
+Der Test verwendet ein zufaellig benanntes, isoliertes Schema und entfernt dieses nach dem Test wieder. Ohne die Umgebungsvariable wird kein externer Datenbankzugriff ausgefuehrt.
+
 Release-EXE bauen:
 
 ```powershell

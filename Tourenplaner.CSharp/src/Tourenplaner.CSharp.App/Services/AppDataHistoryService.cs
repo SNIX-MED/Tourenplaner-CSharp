@@ -2,7 +2,7 @@
 
 namespace Tourenplaner.CSharp.App.Services;
 
-public sealed class AppDataHistoryService : IDisposable
+public sealed class AppDataHistoryService : IAppDataHistoryService
 {
     private sealed class AppDataSnapshot
     {
@@ -82,13 +82,15 @@ public sealed class AppDataHistoryService : IDisposable
         }
     }
 
-    public void Initialize()
+    public bool HasPersistentHistory => false;
+
+    public Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
             if (_current is not null)
             {
-                return;
+                return Task.CompletedTask;
             }
 
             _current = ReadSnapshot("Initialzustand");
@@ -97,6 +99,7 @@ public sealed class AppDataHistoryService : IDisposable
         SetupWatchers();
         _dataSyncService.DataChanged += OnDataChanged;
         RaiseStateChanged();
+        return Task.CompletedTask;
     }
 
     public async Task UndoAsync()
@@ -133,6 +136,24 @@ public sealed class AppDataHistoryService : IDisposable
         PublishFullReload();
         RaiseStateChanged();
     }
+
+    public Task ResetSessionAsync(string? userName, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            _undoStack.Clear();
+            _redoStack.Clear();
+            _current = ReadSnapshot("Initialzustand");
+        }
+        RaiseStateChanged();
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<AppDataHistoryDisplayItem>> LoadRecentEntriesAsync(int maximumCount = 100, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<AppDataHistoryDisplayItem>>([]);
+
+    public Task<int> CleanupExpiredEntriesAsync(int retentionDays, CancellationToken cancellationToken = default)
+        => Task.FromResult(0);
 
     public async Task RedoAsync()
     {

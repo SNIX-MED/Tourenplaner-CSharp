@@ -9,6 +9,25 @@
              d:DesignWidth="1450">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+        <Style x:Key="RouteOverviewHeaderButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="RouteOverviewHeaderGlyphStyle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="TextOptions.TextHintingMode" Value="Animated" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
         <Style x:Key="MultiLineGridTextStyle" TargetType="TextBlock">
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
@@ -48,7 +67,7 @@
         <Style x:Key="ToursGridRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="MinHeight" Value="56" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="BorderBrush" Value="{DynamicResource Brush.TableGrid}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
@@ -271,7 +290,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="{StaticResource Spacing.PageMargin}">
+    <Grid Margin="0,2,0,0">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -290,78 +309,103 @@
                 </Style>
             </Grid.Style>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.35*" MinWidth="560" />
-                <ColumnDefinition Width="10" />
-                <ColumnDefinition Width="2.05*" MinWidth="720" />
+                <ColumnDefinition Width="460" MinWidth="320" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="*" MinWidth="720" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Style="{StaticResource FlatCardStyle}" Padding="12">
+            <Border Grid.Column="0"
+                    Margin="0,0,6,0"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    BorderThickness="0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0" Margin="0,0,0,10">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button
-                                    Padding="14,6"
-                                    Content="{Binding LayoutToggleButtonText}"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Command="{Binding ToggleLayoutCommand}" />
-                        </StackPanel>
-
-                        <Border Grid.Row="1"
-                                Grid.ColumnSpan="2"
-                                Margin="0,8,0,0"
-                                HorizontalAlignment="Left"
-                                Padding="8,3"
-                                CornerRadius="10"
-                                Background="{DynamicResource Brush.SurfaceAlt}">
-                            <TextBlock FontSize="12"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       Text="{Binding FilterInfoText}" />
-                        </Border>
-                    </Grid>
+                    <Border Grid.Row="0" Margin="0,0,0,10" Padding="10" Style="{StaticResource FlatCardStyle}">
+                        <Border.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                         Style="{StaticResource QuickActionsContextMenuStyle}">
+                                <MenuItem Header="Kalenderansicht" Style="{StaticResource QuickActionsMenuItemStyle}" Command="{Binding ToggleLayoutCommand}" />
+                                <Separator />
+                                <MenuItem Header="Heute" Style="{StaticResource QuickActionsMenuItemStyle}" Command="{Binding FilterTodayCommand}" />
+                                <MenuItem Header="Morgen" Style="{StaticResource QuickActionsMenuItemStyle}" Command="{Binding FilterTomorrowCommand}" />
+                                <MenuItem Header="Diese Woche" Style="{StaticResource QuickActionsMenuItemStyle}" Command="{Binding FilterThisWeekCommand}" />
+                                <MenuItem Header="Nur Warnungen" Style="{StaticResource QuickActionsMenuItemStyle}" Command="{Binding ToggleWarningsFilterCommand}" />
+                            </ContextMenu>
+                        </Border.ContextMenu>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Margin="2,0,0,0" VerticalAlignment="Center" FontSize="19" FontWeight="SemiBold" Text="Routenübersicht" />
+                            <Button Grid.Column="1" Margin="8,0,0,0"
+                                    ToolTip="Tour löschen" Style="{StaticResource RouteOverviewHeaderButtonStyle}" Command="{Binding DeleteTourCommand}">
+                                <TextBlock Style="{StaticResource RouteOverviewHeaderGlyphStyle}" Text="&#xE74D;" />
+                            </Button>
+                            <Button Grid.Column="2" Margin="8,0,0,0"
+                                    ToolTip="Tour auf Karte anzeigen" Style="{StaticResource RouteOverviewHeaderButtonStyle}" Command="{Binding OpenTourOnMapCommand}">
+                                <TextBlock Style="{StaticResource RouteOverviewHeaderGlyphStyle}" FontWeight="Normal" Text="&#xE7B3;" />
+                            </Button>
+                            <Button Grid.Column="3" Margin="8,0,0,0"
+                                    ToolTip="Tour bearbeiten" Style="{StaticResource RouteOverviewHeaderButtonStyle}" Command="{Binding EditTourOnMapCommand}">
+                                <TextBlock Style="{StaticResource RouteOverviewHeaderGlyphStyle}" Text="&#xE70F;" />
+                            </Button>
+                        </Grid>
+                    </Border>
 
                     <Border Grid.Row="1"
                             BorderBrush="{DynamicResource Brush.BorderSoft}"
                             BorderThickness="1"
                             CornerRadius="14"
-                            Background="{DynamicResource Brush.CardMuted}">
-                        <controls:RoundedClipBorder Margin="1"
-                                                    CornerRadius="13"
-                                                    Background="{DynamicResource Brush.TableBackground}"
-                                                    ClipToBounds="True">
-                            <DataGrid x:Name="ToursGrid"
-                                  AutoGenerateColumns="False"
-                                  AllowDrop="True"
-                                  IsReadOnly="True"
-                                  SnapsToDevicePixels="True"
-                                  ItemsSource="{Binding Tours}"
-                                  Style="{StaticResource ToursGridStyle}"
-                                  RowStyle="{StaticResource ToursGridRowStyle}"
-                                  CellStyle="{StaticResource ToursGridCellStyle}"
-                                  ColumnHeaderStyle="{StaticResource ToursGridHeaderStyle}"
-                                  SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
-                                  SelectionMode="Extended"
-                                  SelectionChanged="ToursGrid_SelectionChanged"
-                                  PreviewMouseRightButtonDown="ToursGrid_PreviewMouseRightButtonDown"
-                                  DragOver="ToursGrid_DragOver"
-                                  DragLeave="ToursGrid_DragLeave"
-                                  Drop="ToursGrid_Drop"
-                                  MouseDoubleClick="OnToursGridMouseDoubleClick">
-                            <DataGrid.ContextMenu>
+                            Background="{DynamicResource Brush.TableBackground}"
+                            Padding="12">
+                            <ListBox x:Name="ToursGrid"
+                                     Margin="0"
+                                     AllowDrop="True"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Padding="0"
+                                     ItemsSource="{Binding Tours}"
+                                     SelectedItem="{Binding SelectedTour, Mode=TwoWay}"
+                                     SelectionMode="Extended"
+                                     SelectionChanged="ToursGrid_SelectionChanged"
+                                     PreviewMouseRightButtonDown="ToursGrid_PreviewMouseRightButtonDown"
+                                     DragOver="ToursGrid_DragOver"
+                                     DragLeave="ToursGrid_DragLeave"
+                                     Drop="ToursGrid_Drop"
+                                     MouseDoubleClick="OnToursGridMouseDoubleClick"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="Margin" Value="0" />
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListBoxItem">
+                                                    <Border Background="{TemplateBinding Background}" BorderThickness="0">
+                                                        <ContentPresenter />
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            <ListBox.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
                                              Style="{StaticResource QuickActionsContextMenuStyle}">
                                     <ContextMenu.Resources>
@@ -385,16 +429,125 @@
                                               Command="{Binding DeleteTourCommand}"
                                               Foreground="{DynamicResource Brush.Danger}" />
                                 </ContextMenu>
-                            </DataGrid.ContextMenu>
-                                <DataGrid.Columns>
-                                <DataGridTextColumn Header="Datum" Width="112" Binding="{Binding Date}" ElementStyle="{StaticResource ToursGridTextStyle}" />
-                                <DataGridTextColumn Header="Tour" Width="3.45*" Binding="{Binding Name}" ElementStyle="{StaticResource ToursGridTextStyle}" />
-                                <DataGridTextColumn Header="Mitarbeiter" Width="92" Binding="{Binding Employees}" ElementStyle="{StaticResource ToursGridTextStyle}" />
-                                <DataGridTextColumn Header="Stopps" Width="64" Binding="{Binding StopCount}" ElementStyle="{StaticResource ToursGridTextStyle}" />
-                                <DataGridTextColumn Header="Gewicht (kg)" Width="92" Binding="{Binding TotalWeightKg}" ElementStyle="{StaticResource ToursGridTextStyle}" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </controls:RoundedClipBorder>
+                            </ListBox.ContextMenu>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,8" Padding="12" CornerRadius="14" BorderThickness="1">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Brush.BorderSoft}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Brush.CardSoft}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsMouseOver}" Value="True"><Setter Property="Background" Value="{DynamicResource Brush.CardMuted}" /></DataTrigger>
+                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" /><Setter Property="Background" Value="#EEF6FF" /></DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsArchived}" Value="True"><Setter Property="Opacity" Value="0.65" /></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock FontSize="16"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource Brush.TextPrimary}"
+                                                               Text="{Binding Name}" />
+                                                    <TextBlock Margin="0,4,0,0"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                               Text="{Binding StopCount, StringFormat={}{0} Stopps}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalAlignment="Right">
+                                                    <TextBlock HorizontalAlignment="Right"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                               FontWeight="SemiBold"
+                                                               Text="{Binding Date}" />
+                                                    <TextBlock Margin="0,3,0,0"
+                                                               HorizontalAlignment="Right"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                               FontWeight="SemiBold"
+                                                               Text="{Binding Start}" />
+                                                    <Border Margin="0,7,0,0"
+                                                            Padding="7,3"
+                                                            HorizontalAlignment="Right"
+                                                            CornerRadius="10"
+                                                            Background="{Binding StatusBackground}">
+                                                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                                            <TextBlock VerticalAlignment="Center"
+                                                                       FontFamily="Segoe MDL2 Assets"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{Binding StatusForeground}"
+                                                                       Text="{Binding StatusGlyph}" />
+                                                            <TextBlock Margin="4,0,0,0"
+                                                                       VerticalAlignment="Center"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{Binding StatusForeground}"
+                                                                       Text="{Binding StatusLabel}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" FontFamily="Segoe MDL2 Assets" FontSize="13" Foreground="{DynamicResource Brush.TextMuted}" Text="&#xE76C;" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                    </Border>
+
+                    <Border Grid.Row="2" Margin="0,10,0,0" Padding="10">
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedTour}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{Binding SelectedTour.Name}" />
+                            <Grid Grid.Row="1" Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Border MinHeight="64" Margin="0,0,5,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="46" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Image Width="34" Height="34" VerticalAlignment="Center" Stretch="Uniform" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="HighQuality" Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Stopps.png" />
+                                        <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                                        <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Stopps" /><TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTour.StopCount, TargetNullValue=0}" /></StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Grid.Column="1" MinHeight="64" Margin="5,0,0,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="38" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Image Width="34" Height="34" VerticalAlignment="Center" Stretch="Uniform" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="HighQuality" Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Mitarbeiter.png" />
+                                        <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                                        <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Mitarbeiter" /><TextBlock Margin="0,1,0,0" MaxWidth="135" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" Text="{Binding SelectedTour.Employees}" /></StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                            <Grid Grid.Row="2" Margin="0,5,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Border MinHeight="64" Margin="0,0,5,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="38" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Image Width="40" Height="40" VerticalAlignment="Center" Stretch="Uniform" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="HighQuality" Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Warengewicht.png" />
+                                        <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                                        <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Gesamtgewicht" /><TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourTotalWeightValueText}" /></StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Border Grid.Column="1" MinHeight="64" Margin="5,0,0,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="38" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Image Width="34" Height="34" VerticalAlignment="Center" Stretch="Uniform" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="HighQuality" Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Ladegewicht.png" />
+                                        <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                                        <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Ladegewicht" /><TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourCapacityValueText}" /></StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Grid>
                     </Border>
                 </Grid>
             </Border>
@@ -402,7 +555,7 @@
             <GridSplitter Grid.Column="1"
                           HorizontalAlignment="Center"
                           VerticalAlignment="Stretch"
-                          Width="8"
+                          Width="6"
                           ResizeBehavior="PreviousAndNext"
                           ResizeDirection="Columns"
                           Background="{DynamicResource Brush.BorderSoft}" />
@@ -415,38 +568,59 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0" Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0" Orientation="Vertical">
-                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="Stopps in ausgewählter Tour" />
-                            <TextBlock Margin="0,2,0,0"
-                                       Foreground="{DynamicResource Brush.TextMuted}"
-                                       Text="{Binding SelectedTour.Name, TargetNullValue=Keine Tour ausgewählt}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1"
-                                    Orientation="Vertical"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center">
-                            <Border Padding="10,4"
-                                    CornerRadius="11"
-                                    HorizontalAlignment="Right"
-                                    Background="{DynamicResource Brush.SurfaceAlt}">
-                                <TextBlock FontSize="12"
+                    <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding SelectedTour.Name, TargetNullValue=Keine Tour ausgewählt}" />
+                                    <Border Margin="10,0,0,0" Padding="9,3" CornerRadius="10" Background="{DynamicResource Brush.AccentSoft}">
+                                        <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Accent}" Text="{Binding SelectedTourStatusText}" />
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding SelectedTourTimeText}" />
+                                <TextBlock Margin="0,5,0,0"
+                                           FontSize="12"
                                            FontWeight="SemiBold"
-                                           Foreground="{DynamicResource Brush.TextMuted}"
-                                           Text="{Binding SelectedTourStops.Count, StringFormat=Stopps: {0}}" />
-                            </Border>
+                                           Foreground="#B45309"
+                                           Text="{Binding SelectedTourMapLockText}"
+                                           Visibility="{Binding IsSelectedTourLockedByMap, Converter={StaticResource BoolToVisibilityConverter}}" />
+                            </StackPanel>
+                        </Grid>
 
-                            <Border Margin="0,6,0,0"
-                                    Padding="10,8"
-                                    CornerRadius="11"
-                                    HorizontalAlignment="Right"
-                                    Background="{DynamicResource Brush.AccentSoft}">
+                        <UniformGrid Columns="6" Margin="0,10,-6,-6">
+                            <Border MinHeight="62" Margin="0,0,6,6" Padding="12,9" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"><StackPanel VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Stopps" /><TextBlock Margin="0,2,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTour.StopCount, TargetNullValue=0}" /></StackPanel></Border>
+                            <Border MinHeight="62" Margin="0,0,6,6" Padding="12,9" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"><StackPanel VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Strecke" /><TextBlock Margin="0,2,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourDistanceText}" /></StackPanel></Border>
+                            <Border MinHeight="62" Margin="0,0,6,6" Padding="12,9" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"><StackPanel VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Gesamtdauer" /><TextBlock Margin="0,2,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourDurationText}" /></StackPanel></Border>
+                            <Border MinHeight="62" Margin="0,0,6,6" Padding="12,9" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"><StackPanel VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Aufenthaltszeit" /><TextBlock Margin="0,2,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourServiceTimeText}" /></StackPanel></Border>
+                            <Border MinHeight="62" Margin="0,0,6,6" Padding="12,9" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"><StackPanel VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Wartezeit" /><TextBlock Margin="0,2,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourWaitTimeText}" /></StackPanel></Border>
+                            <Border MinHeight="62" Margin="0,0,6,6" Padding="12,9" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"><StackPanel VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Gesamtgewicht" /><TextBlock Margin="0,2,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourTotalWeightValueText}" /></StackPanel></Border>
+                            <Border MinHeight="62" Margin="0,0,6,6" Padding="12,9" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"><StackPanel VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Ladegewicht" /><TextBlock Margin="0,2,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourCapacityValueText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedTourLoadSummaryText}" /></StackPanel></Border>
+                            <Border MinHeight="62" Margin="0,0,6,6" Padding="12,9" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"><StackPanel VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="WEBFLEET" /><TextBlock Margin="0,2,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourWebfleetText}" TextTrimming="CharacterEllipsis" /></StackPanel></Border>
+                            <Border MinHeight="62" Margin="0,0,6,6" Padding="12,9" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"><StackPanel VerticalAlignment="Center"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Fahrzeug &amp; Anhänger" /><TextBlock Margin="0,2,0,0" FontSize="15" FontWeight="Bold" Text="{Binding SelectedTourVehicleAssignmentText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectedTourVehicleAssignmentText}" /></StackPanel></Border>
+                        </UniformGrid>
+
+                        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding SelectedTourWarnings}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,5" Padding="9,7" CornerRadius="9" BorderThickness="1" BorderBrush="#F59E0B" Background="#FFFFF7E6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                            <TextBlock Margin="0,0,8,0" FontFamily="Segoe Fluent Icons" Foreground="#B45309" Text="&#xE7BA;" />
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock FontWeight="SemiBold" Foreground="#8A4B08" Text="{Binding Title}" />
+                                                <TextBlock Foreground="#8A4B08" TextWrapping="Wrap" Text="{Binding Message}" />
+                                                <TextBlock Margin="0,2,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" Text="{Binding Suggestion}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Border Margin="0,6,0,0" Padding="10,8" CornerRadius="11" HorizontalAlignment="Right" Background="{DynamicResource Brush.AccentSoft}">
                                 <Border.Style>
                                     <Style TargetType="Border">
                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -473,9 +647,8 @@
                                                Foreground="{DynamicResource Brush.TextSecondary}"
                                                Text="{Binding DragPreviewDistanceText}" />
                                 </StackPanel>
-                            </Border>
-                        </StackPanel>
-                    </Grid>
+                        </Border>
+                    </StackPanel>
 
                     <Border Grid.Row="1"
                             BorderBrush="{DynamicResource Brush.BorderSoft}"
@@ -497,6 +670,7 @@
                                      ContextMenuOpening="OnSelectedTourStopContextMenuOpening"
                                      PreviewMouseLeftButtonDown="SelectedTourStopsGrid_PreviewMouseLeftButtonDown"
                                      PreviewMouseRightButtonDown="SelectedTourStopsGrid_PreviewMouseRightButtonDown"
+                                     MouseDoubleClick="SelectedTourStopsGrid_MouseDoubleClick"
                                      MouseMove="SelectedTourStopsGrid_MouseMove"
                                      DragOver="SelectedTourStopsGrid_DragOver"
                                      DragLeave="SelectedTourStopsGrid_DragLeave"
@@ -561,12 +735,12 @@
                                                         <DataTrigger Binding="{Binding IsRouteStart}" Value="True">
                                                             <Setter Property="BorderBrush" Value="#7BC6A4" />
                                                             <Setter Property="Background" Value="#F2FBF6" />
-                                                            <Setter Property="Padding" Value="6,4" />
+                                                            <Setter Property="Padding" Value="4,2" />
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsRouteEnd}" Value="True">
                                                             <Setter Property="BorderBrush" Value="#8EC6E8" />
                                                             <Setter Property="Background" Value="#F2F9FF" />
-                                                            <Setter Property="Padding" Value="6,4" />
+                                                            <Setter Property="Padding" Value="4,2" />
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding IsArchivedOrder}" Value="True">
                                                             <Setter Property="Opacity" Value="0.48" />
@@ -592,7 +766,7 @@
                                                     </Style>
                                                 </Grid.Style>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="46" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
@@ -647,12 +821,12 @@
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
                                                                     <Setter Property="Margin" Value="2,0,4,0" />
+                                                                    <Setter Property="VerticalAlignment" Value="Center" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </StackPanel.Style>
                                                     <TextBlock Text="{Binding DisplayName}"
-                                                               FontSize="17"
                                                                FontWeight="SemiBold"
                                                                Foreground="{DynamicResource Brush.TextPrimary}">
                                                         <TextBlock.Style>
@@ -660,7 +834,7 @@
                                                                 <Setter Property="FontSize" Value="17" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
-                                                                        <Setter Property="FontSize" Value="12" />
+                                                                        <Setter Property="FontSize" Value="17" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -700,6 +874,53 @@
                                                         <TextBlock Text="{Binding Departure, StringFormat=Abfahrt: {0}}"
                                                                    Foreground="{DynamicResource Brush.TextSecondary}" />
                                                     </StackPanel>
+                                                    <WrapPanel Margin="0,6,0,0">
+                                                        <WrapPanel.Style>
+                                                            <Style TargetType="WrapPanel">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </WrapPanel.Style>
+                                                        <Border Margin="0,0,6,4" Padding="7,3" CornerRadius="8" Background="{DynamicResource Brush.CardMuted}">
+                                                            <TextBlock FontSize="11" Text="{Binding DeliveryType}" />
+                                                        </Border>
+                                                        <Border Margin="0,0,6,4" Padding="7,3" CornerRadius="8" Background="{DynamicResource Brush.CardMuted}">
+                                                            <TextBlock FontSize="11" Text="{Binding ServiceTimeText}" />
+                                                        </Border>
+                                                        <Border Margin="0,0,6,4" Padding="7,3" CornerRadius="8" Background="{DynamicResource Brush.CardMuted}">
+                                                            <TextBlock FontSize="11" Text="{Binding Weight}" />
+                                                        </Border>
+                                                        <Border Margin="0,0,6,4" Padding="7,3" CornerRadius="8" Background="{DynamicResource Brush.AccentSoft}">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                    <Style.Triggers><DataTrigger Binding="{Binding PinStatusText}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <TextBlock FontSize="11" Foreground="{DynamicResource Brush.Accent}" Text="{Binding PinStatusText}" />
+                                                        </Border>
+                                                    </WrapPanel>
+                                                    <Border Margin="0,2,0,0" Padding="8,5" CornerRadius="8" Background="#FFF5ECFA">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers><DataTrigger Binding="{Binding HasNotes}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextSecondary}" TextWrapping="Wrap" Text="{Binding NotesPreview, StringFormat=Notiz: {0}}" />
+                                                    </Border>
+                                                    <TextBlock Margin="0,3,0,0" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Danger}" TextWrapping="Wrap" Text="{Binding Conflict}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding HasConflict}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Column="2"
@@ -708,14 +929,13 @@
                                                     <TextBlock Text="{Binding DisplayTime}"
                                                                HorizontalAlignment="Right"
                                                                FontWeight="SemiBold"
-                                                               FontSize="18"
                                                                Foreground="{DynamicResource Brush.TextPrimary}">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
                                                                 <Setter Property="FontSize" Value="18" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsCompanyStop}" Value="True">
-                                                                        <Setter Property="FontSize" Value="12" />
+                                                                        <Setter Property="FontSize" Value="18" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -801,7 +1021,7 @@
                                                            FontSize="12"
                                                            Foreground="{DynamicResource Brush.TextMuted}" />
                                             </Grid>
-                                            </StackPanel>
+                                        </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -815,55 +1035,28 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <Border Grid.Column="0"
-                                Margin="0,0,12,0"
-                                Style="{StaticResource SoftCardStyle}"
-                                Padding="10"
-                                Effect="{x:Null}"
-                                UseLayoutRounding="True"
-                                SnapsToDevicePixels="True"
-                                TextOptions.TextFormattingMode="Display"
-                                TextOptions.TextRenderingMode="ClearType"
-                                RenderOptions.ClearTypeHint="Enabled">
-                            <StackPanel>
-                                <TextBlock FontWeight="SemiBold" Text="{Binding SelectedTourWeightText}" />
-                                <TextBlock Margin="0,4,0,0"
-                                           FontWeight="SemiBold"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding SelectedTourLoadSummaryText}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedTourLoadSummaryText}" Value="">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <TextBlock Margin="0,4,0,0"
-                                           Foreground="{DynamicResource Brush.TextMuted}"
-                                           TextWrapping="Wrap"
-                                           Text="{Binding SelectedTourVehicleText}" />
-                            </StackPanel>
-                        </Border>
-
                         <StackPanel Grid.Column="1" Width="220" Orientation="Vertical">
                             <Button Height="36"
                                     Margin="0,0,0,8"
-                                    Content="Tour auf Karte anzeigen"
+                                    Content="Route neu berechnen"
+                                    ToolTip="Öffnet die ausgewählte Tour im Karten-Tab und berechnet sie dort mit den aktuellen Routing-Einstellungen neu."
                                     Style="{StaticResource PrimaryButtonStyle}"
-                                    Command="{Binding OpenTourOnMapCommand}" />
+                                    Command="{Binding RecalculateCommand}" />
                             <Button Height="36"
                                     Margin="0,0,0,8"
-                                    Content="Tour bearbeiten"
+                                    Content="Weitere Aktionen  ···"
                                     Style="{StaticResource SecondaryButtonStyle}"
-                                    Command="{Binding EditTourOnMapCommand}" />
-                            <Button Height="36"
-                                    Content="Tour löschen"
-                                    Style="{StaticResource DangerOutlineButtonStyle}"
-                                    Command="{Binding DeleteTourCommand}" />
+                                    Click="OnTourMoreActionsClicked">
+                                <Button.ContextMenu>
+                                    <ContextMenu Style="{StaticResource QuickActionsContextMenuStyle}">
+                                        <MenuItem Header="Tour auf Karte anzeigen" Style="{StaticResource QuickActionsMenuItemStyle}" Command="{Binding PlacementTarget.DataContext.OpenTourOnMapCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        <MenuItem Header="Tour bearbeiten" Style="{StaticResource QuickActionsMenuItemStyle}" Command="{Binding PlacementTarget.DataContext.EditTourOnMapCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        <MenuItem Header="{Binding PlacementTarget.DataContext.ToggleArchiveTourButtonText, RelativeSource={RelativeSource AncestorType=ContextMenu}}" Style="{StaticResource QuickActionsMenuItemStyle}" Command="{Binding PlacementTarget.DataContext.ToggleArchiveTourCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        <Separator />
+                                        <MenuItem Header="Tour löschen" Foreground="{DynamicResource Brush.Danger}" Style="{StaticResource QuickActionsMenuItemStyle}" Command="{Binding PlacementTarget.DataContext.DeleteTourCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </Grid>

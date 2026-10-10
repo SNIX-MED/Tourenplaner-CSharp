@@ -258,7 +258,26 @@ public sealed class OrderItem : ObservableObject
     public string Notes
     {
         get => _notes;
-        set => SetProperty(ref _notes, value);
+        set
+        {
+            if (SetProperty(ref _notes, value))
+            {
+                OnPropertyChanged(nameof(HasNotes));
+                OnPropertyChanged(nameof(NotesPreview));
+            }
+        }
+    }
+
+    public bool HasNotes => !string.IsNullOrWhiteSpace(Notes);
+
+    public string NotesPreview
+    {
+        get
+        {
+            var normalized = string.Join(" ", (Notes ?? string.Empty)
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            return normalized.Length <= 55 ? normalized : $"{normalized[..52]}...";
+        }
     }
 
     public bool IstVorauszahlung

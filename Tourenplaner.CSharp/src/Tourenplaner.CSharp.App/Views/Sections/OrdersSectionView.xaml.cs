@@ -92,7 +92,8 @@ public partial class OrdersSectionView : UserControl
     {
         if (e.PropertyName is nameof(OrdersSectionViewModel.IsCustomerColumnVisible) or
             nameof(OrdersSectionViewModel.IsDeliveryAddressColumnVisible) or
-            nameof(OrdersSectionViewModel.IsDeliveryPersonColumnVisible))
+            nameof(OrdersSectionViewModel.IsDeliveryPersonColumnVisible) or
+            nameof(OrdersSectionViewModel.IsNotesColumnVisible))
         {
             UpdateColumnVisibility();
         }
@@ -107,9 +108,11 @@ public partial class OrdersSectionView : UserControl
                 customerVisible: true,
                 deliveryAddressVisible: true,
                 deliveryPersonVisible: true,
+                notesVisible: true,
                 CustomerColumn,
                 DeliveryAddressColumn,
-                DeliveryPersonColumn);
+                DeliveryPersonColumn,
+                NotesColumn);
             return;
         }
 
@@ -117,8 +120,10 @@ public partial class OrdersSectionView : UserControl
             vm.IsCustomerColumnVisible,
             vm.IsDeliveryAddressColumnVisible,
             vm.IsDeliveryPersonColumnVisible,
+            vm.IsNotesColumnVisible,
             CustomerColumn,
             DeliveryAddressColumn,
-            DeliveryPersonColumn);
+            DeliveryPersonColumn,
+            NotesColumn);
     }
 }

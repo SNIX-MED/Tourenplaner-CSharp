@@ -2,6 +2,8 @@
 
 public sealed class PostgreSqlStorageSettings
 {
+    public const int DefaultChangeHistoryRetentionDays = 60;
+
     public string Host { get; set; } = "localhost";
     public int Port { get; set; } = 5432;
     public string Database { get; set; } = "tourenplaner";
@@ -10,6 +12,7 @@ public sealed class PostgreSqlStorageSettings
     public string Username { get; set; } = "postgres";
     public string Password { get; set; } = string.Empty;
     public int TimeoutSeconds { get; set; } = 10;
+    public int ChangeHistoryRetentionDays { get; set; } = DefaultChangeHistoryRetentionDays;
 
     public bool IsConfigured()
     {

@@ -7,6 +7,20 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class AppSettingsTests
 {
     [Fact]
+    public void PostgreSqlHistoryRetention_DefaultsToSixtyDays()
+    {
+        Assert.Equal(60, new PostgreSqlStorageSettings().ChangeHistoryRetentionDays);
+    }
+
+    [Fact]
+    public void PostgreSqlHistoryRetention_LegacyJsonDefaultsToSixtyDays()
+    {
+        var settings = JsonSerializer.Deserialize<AppSettings>("{\"PostgreSqlStorage\":{}}");
+
+        Assert.Equal(60, settings!.PostgreSqlStorage.ChangeHistoryRetentionDays);
+    }
+
+    [Fact]
     public void WebfleetConnectionSettings_DefaultsToThirtySecondPositionRefresh()
     {
         var settings = new WebfleetConnectionSettings();
@@ -102,6 +116,35 @@ public class AppSettingsTests
         var resolved = settings.ResolveMapOrderStayMinutes(deliveryType);
 
         Assert.Equal(expectedMinutes, resolved);
+    }
+
+    [Fact]
+    public void ResolveMapOrderStayMinutes_UsesFifteenMinutesAsDefaultForFreiBordsteinkante()
+    {
+        var settings = new AppSettings();
+
+        var resolved = settings.ResolveMapOrderStayMinutes(DeliveryMethodExtensions.FreiBordsteinkante);
+
+        Assert.Equal(15, resolved);
+        Assert.Equal(15, AppSettings.DefaultStayMinutesFreiBordsteinkante);
+    }
+
+    [Fact]
+    public void ApplyStayMinutesDefaultsMigration_ReplacesLegacyDefaultOnce()
+    {
+        var settings = new AppSettings
+        {
+            StayMinutesFreiBordsteinkante = 10,
+            StayMinutesDefaultsVersion = 0
+        };
+
+        Assert.True(settings.ApplyStayMinutesDefaultsMigration());
+        Assert.Equal(15, settings.StayMinutesFreiBordsteinkante);
+        Assert.Equal(AppSettings.CurrentStayMinutesDefaultsVersion, settings.StayMinutesDefaultsVersion);
+
+        settings.StayMinutesFreiBordsteinkante = 10;
+        Assert.False(settings.ApplyStayMinutesDefaultsMigration());
+        Assert.Equal(10, settings.StayMinutesFreiBordsteinkante);
     }
 
     [Fact]

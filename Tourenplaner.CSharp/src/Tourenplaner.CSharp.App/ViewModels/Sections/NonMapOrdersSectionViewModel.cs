@@ -57,6 +57,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private bool _isCustomerColumnVisible = true;
     private bool _isDeliveryAddressColumnVisible = true;
     private bool _isDeliveryPersonColumnVisible = true;
+    private bool _isNotesColumnVisible = true;
     private bool _isNonMapOrdersFilterPanelVisible;
     private bool _showArchivedOrders;
 
@@ -210,6 +211,12 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     {
         get => _isDeliveryPersonColumnVisible;
         set => SetProperty(ref _isDeliveryPersonColumnVisible, value);
+    }
+
+    public bool IsNotesColumnVisible
+    {
+        get => _isNotesColumnVisible;
+        set => SetProperty(ref _isNotesColumnVisible, value);
     }
 
     public bool IsNonMapOrdersFilterPanelVisible

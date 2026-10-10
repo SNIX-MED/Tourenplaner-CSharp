@@ -11,6 +11,7 @@
              TextOptions.TextRenderingMode="ClearType">
     <UserControl.Resources>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <Style x:Key="SharpSoftCardStyle" TargetType="Border" BasedOn="{StaticResource SoftCardStyle}">
             <Setter Property="Effect" Value="{x:Null}" />
         </Style>
@@ -1061,6 +1062,27 @@
                                                     </Border>
                                                 </Grid>
 
+                                                <Border Margin="0,4,0,10" Style="{StaticResource SettingsFieldCardStyle}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="220" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                                                            <TextBlock FontWeight="SemiBold" Text="Aufbewahrung des Änderungsverlaufs" />
+                                                            <TextBlock Margin="0,4,0,0"
+                                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                                       TextWrapping="Wrap"
+                                                                       Text="Alte Journaleinträge werden automatisch entfernt. Aufträge, Touren und andere Nutzdaten sind davon nicht betroffen." />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1">
+                                                            <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Aufbewahrung (Tage)" />
+                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}"
+                                                                     Text="{Binding PostgreSqlChangeHistoryRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+
                                                 <Border Margin="0,4,0,0" Style="{StaticResource SettingsFieldCardStyle}">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
@@ -1140,6 +1162,77 @@
                                                 <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,18,12,0" Style="{StaticResource SettingsFieldLabelStyle}" Text="Letzte Aktivität" />
                                                 <TextBlock Grid.Row="5" Grid.Column="1" Margin="0,18,0,0" Text="{Binding LastSyncActivityText}" />
                                             </Grid>
+                                        </Border>
+                                    </Expander>
+
+                                    <Expander Header="Änderungsverlauf"
+                                              Tag="Die letzten Änderungen der zentralen PostgreSQL-Datenbank anzeigen."
+                                              Style="{StaticResource SettingsAdvancedExpanderStyle}">
+                                        <Expander.Visibility>
+                                            <Binding Path="IsPostgreSqlHistoryAvailable" Converter="{StaticResource BooleanToVisibilityConverter}" />
+                                        </Expander.Visibility>
+                                        <Border Style="{StaticResource SettingsExpanderContentPanelStyle}">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                                               Text="{Binding ChangeHistoryStatusText}" />
+                                                    <Button Grid.Column="1"
+                                                            Width="130"
+                                                            Content="Aktualisieren"
+                                                            Command="{Binding RefreshChangeHistoryCommand}" />
+                                                </Grid>
+
+                                                <Border BorderBrush="{DynamicResource Brush.Border}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="12"
+                                                        Background="White">
+                                                    <StackPanel>
+                                                        <Grid Margin="14,10">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="165" />
+                                                                <ColumnDefinition Width="150" />
+                                                                <ColumnDefinition Width="120" />
+                                                                <ColumnDefinition Width="140" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" FontWeight="SemiBold" Text="Zeitpunkt" />
+                                                            <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="Benutzer" />
+                                                            <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="Aktion" />
+                                                            <TextBlock Grid.Column="3" FontWeight="SemiBold" Text="Datentyp" />
+                                                            <TextBlock Grid.Column="4" FontWeight="SemiBold" Text="Datensatz" />
+                                                        </Grid>
+                                                        <Separator />
+                                                        <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto">
+                                                            <ItemsControl ItemsSource="{Binding ChangeHistoryItems}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Grid Margin="14,9">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="165" />
+                                                                                <ColumnDefinition Width="150" />
+                                                                                <ColumnDefinition Width="120" />
+                                                                                <ColumnDefinition Width="140" />
+                                                                                <ColumnDefinition Width="*" />
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Grid.Column="0" Text="{Binding ChangedAt, StringFormat={}{0:dd.MM.yyyy HH:mm:ss}}" />
+                                                                            <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis" Text="{Binding UserName}" />
+                                                                            <TextBlock Grid.Column="2" Text="{Binding Action}" />
+                                                                            <TextBlock Grid.Column="3" Text="{Binding EntityType}" />
+                                                                            <TextBlock Grid.Column="4" TextTrimming="CharacterEllipsis" Text="{Binding EntityId}" />
+                                                                        </Grid>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </ScrollViewer>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
                                         </Border>
                                     </Expander>
                                 </StackPanel>

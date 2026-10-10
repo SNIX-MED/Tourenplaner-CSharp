@@ -9,8 +9,16 @@ public sealed class JsonSettingsRepository : JsonRepositoryBase<AppSettings>, IS
     {
     }
 
-    public Task<AppSettings> GetAsync(CancellationToken cancellationToken = default)
-        => ReadSingleAsync(new AppSettings(), cancellationToken);
+    public async Task<AppSettings> GetAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await ReadSingleAsync(new AppSettings(), cancellationToken);
+        if (settings.ApplyStayMinutesDefaultsMigration())
+        {
+            await WriteSingleAsync(settings, cancellationToken);
+        }
+
+        return settings;
+    }
 
     public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default)
         => WriteSingleAsync(settings, cancellationToken);

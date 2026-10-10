@@ -65,6 +65,8 @@ public sealed class AppDataSyncService
     public event EventHandler<OrderChangedEventArgs>? OrdersChanged;
     public event EventHandler<AppDataSyncDiagnosticsSnapshot>? StatusChanged;
 
+    public Guid ClientInstanceId => _clientInstanceId;
+
     public AppDataSyncDiagnosticsSnapshot GetDiagnosticsSnapshot()
         => new(
             _isRemoteSyncEnabled,

@@ -26,7 +26,8 @@ public sealed partial class MainShellViewModel : ObservableObject
     ];
 
     private readonly KarteSectionViewModel _mapSection;
-    private readonly AppDataHistoryService _historyService;
+    private readonly ToursSectionViewModel _toursSection;
+    private readonly IAppDataHistoryService _historyService;
     private readonly AppDataSyncService _dataSyncService;
     private readonly IOrderRepository _orderRepository;
     private readonly ITourRecordStore _tourRepository;
@@ -55,9 +56,13 @@ public sealed partial class MainShellViewModel : ObservableObject
     private NavigationItemViewModel? _lastNonSettingsNavigationItem;
     private readonly HashSet<object> _activatedSections = new(ReferenceEqualityComparer.Instance);
     private bool _isSidebarCollapsed;
+    private int? _pendingTourSelectionId;
+    private bool _hasPendingTourSelectionSync;
+    private bool _isTourSelectionSyncRunning;
+    private bool _suppressTourSelectionSyncEvents;
 
     public MainShellViewModel(
-        AppDataHistoryService historyService,
+        IAppDataHistoryService historyService,
         AppDataSyncService dataSyncService,
         StorageRepositoryBundle repositories,
         string? startupUserName = null)
@@ -101,7 +106,11 @@ public sealed partial class MainShellViewModel : ObservableObject
             repositories.VehicleDataStore,
             repositories.AppSettingsStore,
             tourId => NavigateToMapTourAsync(map, tourId),
-            dataSyncService);
+            dataSyncService,
+            () => NavigateToMapAsync(map));
+        _toursSection = tours;
+        tours.ConfigureMapLoadedTourProvider(() => map.LoadedTourId);
+        tours.ConfigureMapTimingPreviewProvider(map.GetLoadedTourTimingPreview);
         var calendar = new KalenderSectionViewModel(
             repositories.TourRecordStore,
             repositories.OrderRepository,
@@ -153,7 +162,8 @@ public sealed partial class MainShellViewModel : ObservableObject
             repositories.SettingsRepository,
             dataSyncService,
             repositories.StorageMode,
-            repositories.TourRecordStore);
+            repositories.TourRecordStore,
+            historyService);
         _settingsSection = settings;
         var gps = new GpsSectionViewModel();
         _gpsSection = gps;
@@ -162,17 +172,17 @@ public sealed partial class MainShellViewModel : ObservableObject
 
         NavigationItems =
         [
-            new NavigationItemViewModel("Start", start, "Planung"),
-            new NavigationItemViewModel("Kalender", calendar, "Planung"),
-            new NavigationItemViewModel("Karte", map, "Planung"),
-            new NavigationItemViewModel("Liefertouren", tours, "Planung"),
-            new NavigationItemViewModel("Auftragsliste", orders, "Stammdaten"),
-            new NavigationItemViewModel("Post/Spedition/Abholung", nonMapOrders, "Stammdaten"),
-            new NavigationItemViewModel("Mitarbeiter", employees, "Stammdaten"),
-            new NavigationItemViewModel("Fahrzeuge", vehicles, "Stammdaten"),
-            new NavigationItemViewModel("GPS", gps, "Tools"),
-            new NavigationItemViewModel("Spediteur", spediteur, "Tools"),
-            new NavigationItemViewModel("Einstellungen", settings, "Tools")
+            new NavigationItemViewModel("Start", start, "Planung", "\uE80F"),
+            new NavigationItemViewModel("Kalender", calendar, "Planung", "\uE787"),
+            new NavigationItemViewModel("Karte", map, "Planung", "\uE707"),
+            new NavigationItemViewModel("Liefertouren", tours, "Planung", "\uE7C1"),
+            new NavigationItemViewModel("Auftragsliste", orders, "Stammdaten", "\uE8A5"),
+            new NavigationItemViewModel("Post/Spedition/Abholung", nonMapOrders, "Stammdaten", "\uE715"),
+            new NavigationItemViewModel("Mitarbeiter", employees, "Stammdaten", "\uE716"),
+            new NavigationItemViewModel("Fahrzeuge", vehicles, "Stammdaten", "\uE806"),
+            new NavigationItemViewModel("GPS", gps, "Tools", "\uE81E"),
+            new NavigationItemViewModel("Spediteur", spediteur, "Tools", "\uE7C1"),
+            new NavigationItemViewModel("Einstellungen", settings, "Tools", "\uE713")
         ];
 
         _settingsNavigationItem = NavigationItems.First(item => item.DisplayName == "Einstellungen");
@@ -191,6 +201,7 @@ public sealed partial class MainShellViewModel : ObservableObject
         RedoCommand = new AsyncCommand(RedoAsync, () => _historyService.CanRedo);
         _historyService.StateChanged += OnHistoryStateChanged;
         _mapSection.PropertyChanged += OnMapSectionPropertyChanged;
+        _toursSection.PropertyChanged += OnToursSectionPropertyChanged;
         _dataSyncService.DataChanged += OnDataChanged;
         ToastNotificationService.NotificationRequested += OnToastNotificationRequested;
         SelectedNavigationItem = NavigationItems[0];
@@ -297,13 +308,21 @@ public sealed partial class MainShellViewModel : ObservableObject
         }
     }
 
+    public KarteSectionViewModel MapSection => _mapSection;
+
+    public object? NonMapCurrentSection => IsMapSectionActive ? null : CurrentSection;
+
     public bool IsSidebarCollapsed => _isSidebarCollapsed;
 
     public bool IsSettingsSectionActive => CurrentSection is SettingsSectionViewModel;
 
     public bool IsSidebarVisible => !IsSettingsSectionActive && !IsSidebarCollapsed;
 
-    public GridLength SidebarColumnWidth => IsSidebarVisible ? new GridLength(280) : new GridLength(0);
+    public bool IsCompactSidebarVisible => !IsSettingsSectionActive && IsSidebarCollapsed;
+
+    public GridLength SidebarColumnWidth => IsSettingsSectionActive
+        ? new GridLength(0)
+        : new GridLength(IsSidebarCollapsed ? 72 : 280);
 
     public bool IsSidebarToggleVisible => !IsSettingsSectionActive;
 
@@ -405,6 +424,7 @@ public sealed partial class MainShellViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(IsSidebarCollapsed));
             OnPropertyChanged(nameof(IsSidebarVisible));
+            OnPropertyChanged(nameof(IsCompactSidebarVisible));
             OnPropertyChanged(nameof(SidebarColumnWidth));
             OnPropertyChanged(nameof(IsSidebarToggleVisible));
             OnPropertyChanged(nameof(SidebarToggleGlyph));
@@ -457,14 +477,21 @@ public sealed partial class MainShellViewModel : ObservableObject
 
     private void OnCurrentSectionChanged()
     {
+        if (CurrentSection is ToursSectionViewModel)
+        {
+            _toursSection.NotifyMapLoadedTourChanged();
+        }
+
         OnPropertyChanged(nameof(IsSidebarCollapsed));
         OnPropertyChanged(nameof(IsSettingsSectionActive));
         OnPropertyChanged(nameof(IsSidebarVisible));
+        OnPropertyChanged(nameof(IsCompactSidebarVisible));
         OnPropertyChanged(nameof(SidebarColumnWidth));
         OnPropertyChanged(nameof(IsSidebarToggleVisible));
         OnPropertyChanged(nameof(SidebarToggleGlyph));
         OnPropertyChanged(nameof(SidebarToggleToolTip));
         OnPropertyChanged(nameof(IsMapSectionActive));
+        OnPropertyChanged(nameof(NonMapCurrentSection));
         OnPropertyChanged(nameof(IsToursSectionActive));
         OnPropertyChanged(nameof(IsEmployeesSectionActive));
         OnPropertyChanged(nameof(IsVehiclesSectionActive));
@@ -734,12 +761,52 @@ public sealed partial class MainShellViewModel : ObservableObject
             return;
         }
 
-        await _historyService.UndoAsync();
+        try
+        {
+            await _historyService.UndoAsync();
+        }
+        catch (PostgreSqlHistoryConflictException ex)
+        {
+            AppMessageBox.Show(
+                ex.Message + Environment.NewLine + Environment.NewLine +
+                "Die aktuellen Daten wurden nicht verändert. Bitte laden Sie den Datensatz erneut.",
+                "Rückgängig nicht möglich",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            AppMessageBox.Show(
+                $"Die Änderung konnte nicht rückgängig gemacht werden.{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                "Rückgängig fehlgeschlagen",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private async Task RedoAsync()
     {
-        await _historyService.RedoAsync();
+        try
+        {
+            await _historyService.RedoAsync();
+        }
+        catch (PostgreSqlHistoryConflictException ex)
+        {
+            AppMessageBox.Show(
+                ex.Message + Environment.NewLine + Environment.NewLine +
+                "Die aktuellen Daten wurden nicht verändert. Bitte laden Sie den Datensatz erneut.",
+                "Wiederholen nicht möglich",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            AppMessageBox.Show(
+                $"Die Änderung konnte nicht wiederholt werden.{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                "Wiederholen fehlgeschlagen",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private void OnHistoryStateChanged(object? sender, EventArgs e)
@@ -755,12 +822,102 @@ public sealed partial class MainShellViewModel : ObservableObject
 
     private void OnMapSectionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (string.Equals(e.PropertyName, nameof(KarteSectionViewModel.SelectedTourOverviewItem), StringComparison.Ordinal))
+        {
+            // A loaded route is an editing context, not a selection in the route overview.
+            // Loading it clears the hidden overview selection; that must not change the
+            // independent selection in the Liefertouren tab.
+            if (!_mapSection.ShowTourOverviewPanel)
+            {
+                return;
+            }
+
+            QueueTourSelectionSync(_mapSection.SelectedTourOverviewItem?.TourId);
+            return;
+        }
+
+        if (string.Equals(e.PropertyName, nameof(KarteSectionViewModel.LoadedTourId), StringComparison.Ordinal))
+        {
+            _toursSection.NotifyMapLoadedTourChanged();
+            return;
+        }
+
         if (!string.Equals(e.PropertyName, nameof(KarteSectionViewModel.CanUndoDraftRouteStopRemoval), StringComparison.Ordinal))
         {
             return;
         }
 
         RefreshUndoRedoState();
+    }
+
+    private void OnToursSectionPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.Equals(e.PropertyName, nameof(ToursSectionViewModel.SelectedTour), StringComparison.Ordinal))
+        {
+            QueueTourSelectionSync(_toursSection.SelectedTour?.TourId);
+        }
+    }
+
+    private void QueueTourSelectionSync(int? tourId)
+    {
+        if (_suppressTourSelectionSyncEvents)
+        {
+            return;
+        }
+
+        _pendingTourSelectionId = tourId is > 0 ? tourId : null;
+        _hasPendingTourSelectionSync = true;
+        if (!_isTourSelectionSyncRunning)
+        {
+            SynchronizePendingTourSelectionAsync().Forget();
+        }
+    }
+
+    private async Task SynchronizePendingTourSelectionAsync()
+    {
+        _isTourSelectionSyncRunning = true;
+        try
+        {
+            while (_hasPendingTourSelectionSync)
+            {
+                var tourId = _pendingTourSelectionId;
+                _pendingTourSelectionId = null;
+                _hasPendingTourSelectionSync = false;
+
+                _suppressTourSelectionSyncEvents = true;
+                try
+                {
+                    if (!tourId.HasValue)
+                    {
+                        _toursSection.ClearTourSelection();
+                        _mapSection.ClearTourOverviewSelection();
+                        continue;
+                    }
+
+                    if (_toursSection.SelectedTour?.TourId != tourId.Value)
+                    {
+                        await _toursSection.FocusTourAsync(tourId.Value, revealIfFiltered: true);
+                    }
+
+                    if ((_mapSection.SelectedTourOverviewItem?.TourId ?? 0) != tourId.Value)
+                    {
+                        await _mapSection.FocusTourOverviewAsync(tourId.Value);
+                    }
+                }
+                finally
+                {
+                    _suppressTourSelectionSyncEvents = false;
+                }
+            }
+        }
+        finally
+        {
+            _isTourSelectionSyncRunning = false;
+            if (_hasPendingTourSelectionSync)
+            {
+                SynchronizePendingTourSelectionAsync().Forget();
+            }
+        }
     }
 
     private void RefreshUndoRedoState()

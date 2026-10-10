@@ -542,6 +542,25 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public string LegendAvisoBadgeColorBestaetigt => AvisoBadgeColorBestaetigt;
     public bool ShowRouteStopsPanel => _activeTourId > 0 || RouteStops.Any(x => !IsCompanyStop(x));
     public bool ShowTourOverviewPanel => !ShowRouteStopsPanel;
+    public int LoadedTourId => _activeTourId > 0 ? _activeTourId : 0;
+
+    public IReadOnlyDictionary<string, TourTimingPreview> GetLoadedTourTimingPreview(int tourId)
+    {
+        if (tourId <= 0 || tourId != _activeTourId)
+        {
+            return new Dictionary<string, TourTimingPreview>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return RouteStops
+            .Where(stop => !string.IsNullOrWhiteSpace(stop.OrderId))
+            .GroupBy(stop => stop.OrderId.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => new TourTimingPreview(
+                    group.First().EtaText ?? string.Empty,
+                    group.First().EtaRangeText ?? string.Empty),
+                StringComparer.OrdinalIgnoreCase);
+    }
     public bool IsRouteCalculating
     {
         get => _isRouteCalculating;
@@ -2032,6 +2051,31 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     {
         await LoadSavedToursAsync(tourId);
         await LoadTourIntoRouteAsync(tourId);
+    }
+
+    public async Task FocusTourOverviewAsync(int tourId)
+    {
+        if (tourId <= 0)
+        {
+            return;
+        }
+
+        var target = TourOverviewItems.FirstOrDefault(item => item.TourId == tourId);
+        if (target is null)
+        {
+            await LoadSavedToursAsync(tourId);
+            target = TourOverviewItems.FirstOrDefault(item => item.TourId == tourId);
+        }
+
+        if (target is not null)
+        {
+            SelectedTourOverviewItem = target;
+        }
+    }
+
+    public void ClearTourOverviewSelection()
+    {
+        SelectedTourOverviewItem = null;
     }
 
     public void ToggleBatchOrderSelectionById(string? orderId)
@@ -4177,6 +4221,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         _activeTourId = tour.Id;
+        OnPropertyChanged(nameof(LoadedTourId));
         _currentRouteVehicleId = (tour.VehicleId ?? string.Empty).Trim();
         _currentRouteTrailerId = (tour.TrailerId ?? string.Empty).Trim();
         _currentRouteSecondaryVehicleId = (tour.SecondaryVehicleId ?? string.Empty).Trim();
@@ -5126,6 +5171,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     {
         ClearDraftRouteStopRemovalUndoHistory();
         _activeTourId = 0;
+        OnPropertyChanged(nameof(LoadedTourId));
         _currentRouteVehicleId = string.Empty;
         _currentRouteTrailerId = string.Empty;
         _currentRouteSecondaryVehicleId = string.Empty;
@@ -5800,6 +5846,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         return _employeeLabelsById.TryGetValue(id, out var label) ? label : id;
+    }
+
+    private static string ExtractEmployeeFirstName(string label)
+    {
+        var parts = (label ?? string.Empty)
+            .Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length == 0 ? string.Empty : parts[0];
     }
 
     private bool ConfirmCapacityWarning(string? vehicleId, string? trailerId, string? secondaryVehicleId, string? secondaryTrailerId, IReadOnlyList<TourAdditionalMaterial>? additionalMaterials = null)
@@ -7786,6 +7839,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             var totalWeightKg = ResolveSavedTourTotalWeightKg(tour);
             var employeeNames = (tour.EmployeeIds ?? [])
                 .Select(ResolveEmployeeLabel)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(ExtractEmployeeFirstName)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -10146,6 +10201,8 @@ public sealed record WebfleetTrackEmployeeOption(string ObjectUid, string Employ
 public sealed record WebfleetPauseMarker(DateTimeOffset StartTime, DateTimeOffset? EndTime, double Latitude, double Longitude, bool IsActive);
 
 internal sealed record WebfleetTrackDriverAssignment(string DriverUid, string DriverName);
+
+public sealed record TourTimingPreview(string Arrival, string ArrivalRange);
 
 public sealed class SavedTourLookupItem
 {

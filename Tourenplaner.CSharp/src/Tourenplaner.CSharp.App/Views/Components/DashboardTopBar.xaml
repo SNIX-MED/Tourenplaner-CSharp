@@ -169,54 +169,26 @@
         </Border.Style>
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="270" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Grid Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Button Grid.Column="0"
-                        Width="22"
-                        Height="40"
-                        Margin="0,0,10,0"
-                        Padding="0"
-                        VerticalAlignment="Center"
-                        ToolTip="{Binding SidebarToggleToolTip}"
-                        Command="{Binding ToggleSidebarCommand}">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                            <Setter Property="Background" Value="Transparent" />
-                            <Setter Property="BorderBrush" Value="Transparent" />
-                            <Setter Property="BorderThickness" Value="0" />
-                            <Setter Property="Visibility" Value="{Binding IsSidebarToggleVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="Transparent" />
-                                    <Setter Property="BorderBrush" Value="Transparent" />
-                                </Trigger>
-                                <DataTrigger Binding="{Binding IsSidebarVisible}" Value="True">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                    <TextBlock FontFamily="Segoe MDL2 Assets"
-                               FontSize="12"
-                               Text="{Binding SidebarToggleGlyph}" />
-                </Button>
-                <StackPanel Grid.Column="1">
+            <Grid Grid.Column="0" Width="192" VerticalAlignment="Center" Margin="0,0,16,0">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSidebarVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <StackPanel>
                     <TextBlock FontSize="24"
                                FontWeight="SemiBold"
                                TextTrimming="CharacterEllipsis"
                                Text="{Binding SelectedNavigationItem.DisplayName}" />
-                    <TextBlock Margin="0,2,0,0"
-                               Foreground="{DynamicResource Brush.TextMuted}"
-                               FontSize="12">
-                        <Run Text="GAWELA Tourenplaner" /><Run Text="{Binding CurrentSection.ApplicationVersion, StringFormat=', Version {0}', Mode=OneWay}" />
-                    </TextBlock>
                 </StackPanel>
             </Grid>
 
@@ -243,8 +215,12 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <Grid Grid.Column="0"
-                                  HorizontalAlignment="Center">
+                            <Grid Grid.Column="0">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="HorizontalAlignment" Value="Left" />
+                                    </Style>
+                                </Grid.Style>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
@@ -841,10 +817,6 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0"
-                                       Style="{StaticResource TopbarStatusTextStyle}"
-                                       Text="Manuelle Einträge und Touren zentral verwalten." />
-
                             <Button Grid.Column="1"
                                     Content="&#xE710;"
                                     ToolTip="Manuell hinzufügen"
@@ -853,14 +825,64 @@
                         </Grid>
                     </DataTemplate>
                     <DataTemplate DataType="{x:Type sections:ToursSectionViewModel}">
-                        <Grid HorizontalAlignment="Right"
-                              Margin="0,0,8,0">
+                        <Grid Margin="0,0,8,0">
                             <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <Border Grid.Column="0"
+                                    Width="300"
+                                    Height="40"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,0,12,0"
+                                    CornerRadius="12"
+                                    BorderBrush="{DynamicResource Brush.InputBorder}"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource Brush.InputBackground}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontFamily="Segoe Fluent Icons"
+                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                               Text="&#xE721;" />
+                                    <Grid Grid.Column="1">
+                                        <TextBox x:Name="ToursSearchTextBox"
+                                                 BorderThickness="0"
+                                                 Background="Transparent"
+                                                 ToolTip="Suche nach Tour, Auftrag, Kunde, Adresse, Mitarbeiter oder Fahrzeug. Mehrere Begriffe mit Leerzeichen trennen."
+                                                 Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Margin="2,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource Brush.TextSubtle}"
+                                                   IsHitTestVisible="False"
+                                                   Text="Suche...">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding SearchText}" Value="" />
+                                                                <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=ToursSearchTextBox}" Value="False" />
+                                                            </MultiDataTrigger.Conditions>
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </MultiDataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
+                            <Border Grid.Column="1"
                                     Margin="0,0,8,0"
                                     Style="{StaticResource TopbarFilterSegmentHostStyle}">
                                 <Grid>
@@ -901,7 +923,7 @@
                                 </Grid>
                             </Border>
 
-                            <Border Grid.Column="1"
+                            <Border Grid.Column="2"
                                     Margin="0,0,8,0"
                                     Padding="10,0"
                                     Height="40"
@@ -1177,11 +1199,15 @@
                                     Width="300"
                                     Height="40"
                                     Margin="0,0,8,0"
-                                    HorizontalAlignment="Center"
                                     CornerRadius="12"
                                     BorderBrush="{DynamicResource Brush.InputBorder}"
                                     BorderThickness="1"
                                     Background="{DynamicResource Brush.InputBackground}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="HorizontalAlignment" Value="Left" />
+                                    </Style>
+                                </Border.Style>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="32" />
@@ -1194,7 +1220,8 @@
                                                Foreground="{DynamicResource Brush.TextMuted}"
                                                Text="&#xE721;" />
                                     <Grid Grid.Column="1">
-                                        <TextBox BorderThickness="0"
+                                        <TextBox x:Name="OrdersSearchTextBox"
+                                                 BorderThickness="0"
                                                  Background="Transparent"
                                                  ToolTip="Suche nach Nummer, Auftraggeber, Lieferadresse oder Tour. Mehrere Auftragsnummern mit Leerzeichen trennen."
                                                  Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -1207,9 +1234,13 @@
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SearchText}" Value="">
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding SearchText}" Value="" />
+                                                                <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=OrdersSearchTextBox}" Value="False" />
+                                                            </MultiDataTrigger.Conditions>
                                                             <Setter Property="Visibility" Value="Visible" />
-                                                        </DataTrigger>
+                                                        </MultiDataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>
@@ -1259,8 +1290,11 @@
                                             <CheckBox Margin="0,0,0,8"
                                                       Content="Lieferadresse"
                                                       IsChecked="{Binding IsDeliveryAddressColumnVisible, Mode=TwoWay}" />
-                                            <CheckBox Content="Lieferperson"
+                                            <CheckBox Margin="0,0,0,8"
+                                                      Content="Lieferperson"
                                                       IsChecked="{Binding IsDeliveryPersonColumnVisible, Mode=TwoWay}" />
+                                            <CheckBox Content="Notiz"
+                                                      IsChecked="{Binding IsNotesColumnVisible, Mode=TwoWay}" />
                                         </StackPanel>
                                     </Border>
                                 </Popup>
@@ -1298,11 +1332,15 @@
                                     Width="300"
                                     Height="40"
                                     Margin="0,0,8,0"
-                                    HorizontalAlignment="Center"
                                     CornerRadius="12"
                                     BorderBrush="{DynamicResource Brush.InputBorder}"
                                     BorderThickness="1"
                                     Background="{DynamicResource Brush.InputBackground}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="HorizontalAlignment" Value="Left" />
+                                    </Style>
+                                </Border.Style>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="32" />
@@ -1315,7 +1353,8 @@
                                                Foreground="{DynamicResource Brush.TextMuted}"
                                                Text="&#xE721;" />
                                     <Grid Grid.Column="1">
-                                        <TextBox BorderThickness="0"
+                                        <TextBox x:Name="NonMapOrdersSearchTextBox"
+                                                 BorderThickness="0"
                                                  Background="Transparent"
                                                  ToolTip="Suche nach Nummer, Auftraggeber, Lieferadresse oder Tour. Mehrere Auftragsnummern mit Leerzeichen trennen."
                                                  Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -1328,9 +1367,13 @@
                                                 <Style TargetType="TextBlock">
                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SearchText}" Value="">
+                                                        <MultiDataTrigger>
+                                                            <MultiDataTrigger.Conditions>
+                                                                <Condition Binding="{Binding SearchText}" Value="" />
+                                                                <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=NonMapOrdersSearchTextBox}" Value="False" />
+                                                            </MultiDataTrigger.Conditions>
                                                             <Setter Property="Visibility" Value="Visible" />
-                                                        </DataTrigger>
+                                                        </MultiDataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>
@@ -1380,8 +1423,11 @@
                                             <CheckBox Margin="0,0,0,8"
                                                       Content="Lieferadresse"
                                                       IsChecked="{Binding IsDeliveryAddressColumnVisible, Mode=TwoWay}" />
-                                            <CheckBox Content="Lieferperson"
+                                            <CheckBox Margin="0,0,0,8"
+                                                      Content="Lieferperson"
                                                       IsChecked="{Binding IsDeliveryPersonColumnVisible, Mode=TwoWay}" />
+                                            <CheckBox Content="Notiz"
+                                                      IsChecked="{Binding IsNotesColumnVisible, Mode=TwoWay}" />
                                         </StackPanel>
                                     </Border>
                                 </Popup>

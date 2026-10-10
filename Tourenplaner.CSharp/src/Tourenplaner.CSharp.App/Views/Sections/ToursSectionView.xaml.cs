@@ -12,12 +12,22 @@ public partial class ToursSectionView : UserControl
     private Point? _stopsGridDragStart;
     private TourStopOverviewItem? _stopsGridDragItem;
     private ListBoxItem? _activeStopsDropRow;
-    private DataGridRow? _activeToursDropRow;
+    private ListBoxItem? _activeToursDropRow;
     private Brush? _dropHighlightBrush;
 
     public ToursSectionView()
     {
         InitializeComponent();
+    }
+
+    private void OnTourMoreActionsClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: not null } button)
+        {
+            button.ContextMenu.PlacementTarget = button;
+            button.ContextMenu.Placement = PlacementMode.Bottom;
+            button.ContextMenu.IsOpen = true;
+        }
     }
 
     private void OnToursGridMouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -63,8 +73,8 @@ public partial class ToursSectionView : UserControl
 
     private void ToursGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
-        var row = VisualTreeUtilities.FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
-        if (row?.Item is not TourOverviewItem item)
+        var row = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (row?.DataContext is not TourOverviewItem item)
         {
             return;
         }
@@ -75,7 +85,6 @@ public partial class ToursSectionView : UserControl
             ToursGrid.SelectedItems.Add(item);
         }
 
-        ToursGrid.CurrentItem = item;
         if (DataContext is ToursSectionViewModel vm)
         {
             vm.SelectedTour = item;
@@ -108,6 +117,28 @@ public partial class ToursSectionView : UserControl
     private void SelectedTourStopsGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         SelectTourStopFromEvent(e.OriginalSource as DependencyObject);
+    }
+
+    private async void SelectedTourStopsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left)
+        {
+            return;
+        }
+
+        var row = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (row?.DataContext is not TourStopOverviewItem item ||
+            item.IsCompanyStop ||
+            item.IsPauseStop ||
+            DataContext is not ToursSectionViewModel vm)
+        {
+            return;
+        }
+
+        SelectedTourStopsGrid.SelectedItem = item;
+        vm.SelectedTourStop = item;
+        e.Handled = true;
+        await vm.EditSelectedTourStopOrderAsync();
     }
 
     private void OnSelectedTourStopContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -281,8 +312,8 @@ public partial class ToursSectionView : UserControl
         }
 
         var source = e.Data.GetData(typeof(TourStopOverviewItem)) as TourStopOverviewItem;
-        var targetRow = VisualTreeUtilities.FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
-        var targetTour = targetRow?.Item as TourOverviewItem;
+        var targetRow = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
+        var targetTour = targetRow?.DataContext as TourOverviewItem;
         if (source is null || source.IsCompanyStop || targetTour is null || source.SourceTourId == targetTour.TourId)
         {
             ClearDropMarker(ref _activeToursDropRow);
@@ -311,8 +342,8 @@ public partial class ToursSectionView : UserControl
         }
 
         var source = e.Data.GetData(typeof(TourStopOverviewItem)) as TourStopOverviewItem;
-        var targetRow = VisualTreeUtilities.FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
-        var targetTour = targetRow?.Item as TourOverviewItem;
+        var targetRow = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
+        var targetTour = targetRow?.DataContext as TourOverviewItem;
         if (source is null || targetTour is null)
         {
             return;
@@ -324,23 +355,6 @@ public partial class ToursSectionView : UserControl
             ToursGrid.SelectedItem = vm.SelectedTour;
             ToursGrid.ScrollIntoView(vm.SelectedTour);
         }
-    }
-
-    private void SetDropMarker(ref DataGridRow? currentRow, DataGridRow? nextRow)
-    {
-        if (ReferenceEquals(currentRow, nextRow))
-        {
-            return;
-        }
-
-        ClearDropMarker(ref currentRow);
-        if (nextRow is null)
-        {
-            return;
-        }
-
-        currentRow = nextRow;
-        currentRow.Background = ResolveDropHighlightBrush();
     }
 
     private void SetDropMarker(ref ListBoxItem? currentRow, ListBoxItem? nextRow)
@@ -358,17 +372,6 @@ public partial class ToursSectionView : UserControl
 
         currentRow = nextRow;
         currentRow.Background = ResolveDropHighlightBrush();
-    }
-
-    private void ClearDropMarker(ref DataGridRow? row)
-    {
-        if (row is null)
-        {
-            return;
-        }
-
-        row.ClearValue(DataGridRow.BackgroundProperty);
-        row = null;
     }
 
     private void ClearDropMarker(ref ListBoxItem? row)

@@ -3,6 +3,7 @@
 public sealed class AppSettings
 {
     private const string LegacyDefaultStatusColorNotSpecified = "#A3A3A3";
+    private const int LegacyDefaultStayMinutesFreiBordsteinkante = 10;
 
     public const string TomTomApiKeyEnvironmentVariableName = "TOURENPLANER_TOMTOM_API_KEY";
     public const string DefaultAvisoEmailSubjectTemplate = "Lieferung von Auftrag X";
@@ -29,9 +30,10 @@ public sealed class AppSettings
     public const int DefaultTrafficBufferPercentFrom0730To0900 = 20;
     public const int DefaultTrafficBufferPercentFrom0900To1530 = 0;
     public const int DefaultTrafficBufferPercentFrom1530To1830 = 20;
-    public const int DefaultStayMinutesFreiBordsteinkante = 10;
+    public const int DefaultStayMinutesFreiBordsteinkante = 15;
     public const int DefaultStayMinutesMitVerteilung = 20;
     public const int DefaultStayMinutesMitVerteilungMontage = 30;
+    public const int CurrentStayMinutesDefaultsVersion = 1;
     public const string DefaultTomTomTrafficSeverityMode = "slightly_stricter";
     public const string DefaultMapOverlayStyle = "standard";
 
@@ -91,6 +93,7 @@ public sealed class AppSettings
     public int StayMinutesFreiBordsteinkante { get; set; } = DefaultStayMinutesFreiBordsteinkante;
     public int StayMinutesMitVerteilung { get; set; } = DefaultStayMinutesMitVerteilung;
     public int StayMinutesMitVerteilungMontage { get; set; } = DefaultStayMinutesMitVerteilungMontage;
+    public int StayMinutesDefaultsVersion { get; set; }
     public string TomTomTrafficSeverityMode { get; set; } = DefaultTomTomTrafficSeverityMode;
     public bool TomTomEnableTileCache { get; set; } = true;
     public string CurrentUserName { get; set; } = string.Empty;
@@ -218,6 +221,22 @@ public sealed class AppSettings
             DeliveryMethodExtensions.MitVerteilungMontage => NormalizeStayMinutes(StayMinutesMitVerteilungMontage, DefaultStayMinutesMitVerteilungMontage),
             _ => NormalizeStayMinutes(StayMinutesFreiBordsteinkante, DefaultStayMinutesFreiBordsteinkante)
         };
+    }
+
+    public bool ApplyStayMinutesDefaultsMigration()
+    {
+        if (StayMinutesDefaultsVersion >= CurrentStayMinutesDefaultsVersion)
+        {
+            return false;
+        }
+
+        if (StayMinutesFreiBordsteinkante == LegacyDefaultStayMinutesFreiBordsteinkante)
+        {
+            StayMinutesFreiBordsteinkante = DefaultStayMinutesFreiBordsteinkante;
+        }
+
+        StayMinutesDefaultsVersion = CurrentStayMinutesDefaultsVersion;
+        return true;
     }
 
     public static int NormalizeStayMinutes(int value, int fallbackValue)

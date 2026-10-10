@@ -68,10 +68,48 @@ internal static class OrderSectionSharedHelpers
             (char[]?)null,
             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+        var orderAddress = order.OrderAddress ?? new OrderAddressInfo();
+        var deliveryAddress = order.DeliveryAddress ?? new DeliveryAddressInfo();
+        var orderAddressLine = BuildAddressLine(
+            orderAddress.Street, orderAddress.HouseNumber, orderAddress.PostalCode, orderAddress.City);
+        var deliveryAddressLine = BuildAddressLine(
+            deliveryAddress.Street, deliveryAddress.HouseNumber, deliveryAddress.PostalCode, deliveryAddress.City);
+
+        var searchableColumnValues = new[]
+        {
+            order.Id,
+            order.ScheduledDate.ToString("dd.MM.yyyy"),
+            order.ScheduledDate.ToString("yyyy-MM-dd"),
+            order.CustomerName,
+            orderAddress.Name,
+            orderAddressLine,
+            order.Address,
+            deliveryAddressLine,
+            deliveryAddress.Name,
+            deliveryAddress.ContactPerson,
+            order.Phone,
+            order.Notes,
+            DeliveryMethodExtensions.GetPlanningDeliveryDisplayLabel(order),
+            Order.NormalizeOrderStatus(order.OrderStatus),
+            order.AssignedTourId ?? string.Empty
+        };
+
         return orderNumberQueries.Any(orderNumber =>
                    order.Id.Contains(orderNumber, StringComparison.OrdinalIgnoreCase)) ||
-               order.CustomerName.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase) ||
-               order.Address.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase) ||
-               (order.AssignedTourId ?? string.Empty).Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase);
+               searchableColumnValues.Any(value =>
+                   (value ?? string.Empty).Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string BuildAddressLine(string? street, string? houseNumber, string? postalCode, string? city)
+    {
+        var streetLine = string.Join(" ", new[] { street, houseNumber }
+            .Select(value => (value ?? string.Empty).Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        var postalCityLine = string.Join(" ", new[] { postalCode, city }
+            .Select(value => (value ?? string.Empty).Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+        return string.Join(", ", new[] { streetLine, postalCityLine }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
     }
 }

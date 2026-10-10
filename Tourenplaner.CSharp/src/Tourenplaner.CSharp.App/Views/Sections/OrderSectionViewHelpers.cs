@@ -117,12 +117,15 @@ internal static class OrderSectionViewHelpers
         bool customerVisible,
         bool deliveryAddressVisible,
         bool deliveryPersonVisible,
+        bool notesVisible,
         DataGridColumn customerColumn,
         DataGridColumn deliveryAddressColumn,
-        DataGridColumn deliveryPersonColumn)
+        DataGridColumn deliveryPersonColumn,
+        DataGridColumn notesColumn)
     {
         customerColumn.Visibility = customerVisible ? Visibility.Visible : Visibility.Collapsed;
         deliveryAddressColumn.Visibility = deliveryAddressVisible ? Visibility.Visible : Visibility.Collapsed;
         deliveryPersonColumn.Visibility = deliveryPersonVisible ? Visibility.Visible : Visibility.Collapsed;
+        notesColumn.Visibility = notesVisible ? Visibility.Visible : Visibility.Collapsed;
     }
 }

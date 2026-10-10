@@ -21,7 +21,7 @@ namespace Tourenplaner.CSharp.App;
 public partial class App : System.Windows.Application
 {
     private string _logPath = string.Empty;
-    private AppDataHistoryService? _historyService;
+    private IAppDataHistoryService? _historyService;
     private PostgreSqlAppDataSyncBridge? _appDataSyncBridge;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -93,14 +93,59 @@ public partial class App : System.Windows.Application
             var employeesJsonPath = Path.Combine(dataRoot, "employees.json");
             var vehiclesJsonPath = Path.Combine(dataRoot, "vehicles.json");
             var calendarManualEntriesPath = Path.Combine(dataRoot, "kalender-manuelle-eintraege.json");
-            var repositories = await new StorageRepositoryFactory().CreateAsync(
-                dataRoot,
-                settingsPath,
-                ordersJsonPath,
-                toursJsonPath,
-                employeesJsonPath,
-                vehiclesJsonPath,
-                calendarManualEntriesPath);
+            var repositoryFactory = new StorageRepositoryFactory();
+            StorageRepositoryBundle repositories;
+            try
+            {
+                repositories = await repositoryFactory.CreateAsync(
+                    dataRoot,
+                    settingsPath,
+                    ordersJsonPath,
+                    toursJsonPath,
+                    employeesJsonPath,
+                    vehiclesJsonPath,
+                    calendarManualEntriesPath);
+            }
+            catch (Exception ex)
+            {
+                if (!await IsPostgreSqlConfiguredAsync(settingsPath))
+                {
+                    throw;
+                }
+
+                TryLogException("PostgreSqlStartupConnectionFailed", ex);
+                var result = AppMessageBox.ShowConfirmation(
+                    splashWindow,
+                    "Die konfigurierte PostgreSQL-Datenbank ist derzeit nicht erreichbar.\n\n" +
+                    $"Fehler: {ex.Message}\n\n" +
+                    "Sie können die Anwendung für diese Sitzung mit den lokalen Dateien starten. " +
+                    "Die PostgreSQL-Einstellungen bleiben dabei unverändert. Lokale Änderungen werden nicht " +
+                    "automatisch mit PostgreSQL synchronisiert.\n\n" +
+                    "Wählen Sie «Lokal starten» nur, wenn Sie bewusst mit dem getrennten lokalen Datenbestand arbeiten möchten.",
+                    "PostgreSQL nicht erreichbar",
+                    "Beenden",
+                    "Lokal starten",
+                    MessageBoxImage.Warning);
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    splashWindow.Close();
+                    Shutdown();
+                    return;
+                }
+
+                await RenderSplashStepAsync(splashWindow, "Lokaler Ersatzbetrieb wird vorbereitet...");
+                repositories = await repositoryFactory.CreateAsync(
+                    dataRoot,
+                    settingsPath,
+                    ordersJsonPath,
+                    toursJsonPath,
+                    employeesJsonPath,
+                    vehiclesJsonPath,
+                    calendarManualEntriesPath,
+                    forceLocalStorageForSession: true);
+                startupWarning = "PostgreSQL war beim Start nicht erreichbar. Die Anwendung läuft für diese Sitzung mit lokalen Dateien; die SQL-Konfiguration wurde nicht verändert.";
+            }
 
             startupStep = "Tourzuordnungen";
             await RenderSplashStepAsync(splashWindow, "Tourzuordnungen werden geprüft...");
@@ -131,9 +176,24 @@ public partial class App : System.Windows.Application
                 ? new PostgreSqlAppDataSyncBridge(repositories.PostgreSqlStorageSettings)
                 : null;
             var dataSyncService = new AppDataSyncService(_appDataSyncBridge);
-            var historyService = new AppDataHistoryService(
-                dataSyncService,
-                repositories.GetHistoryTrackedPaths().ToArray());
+            if (repositories.StorageMode == AppStorageMode.PostgreSql)
+            {
+                PostgreSqlClientContext.Configure(dataSyncService.ClientInstanceId, startupUserName);
+            }
+            IAppDataHistoryService historyService = repositories.StorageMode == AppStorageMode.PostgreSql &&
+                                                    repositories.PostgreSqlStorageSettings is not null
+                ? new PostgreSqlAppDataHistoryService(
+                    dataSyncService,
+                    repositories.PostgreSqlStorageSettings,
+                    startupUserName)
+                : new AppDataHistoryService(
+                    dataSyncService,
+                    repositories.GetHistoryTrackedPaths().ToArray());
+            startupStep = "Verlauf";
+            await RenderSplashStepAsync(splashWindow, "Verlauf wird initialisiert...");
+            await historyService.InitializeAsync();
+            _historyService = historyService;
+
             startupStep = "Hauptfenster";
             var mainWindow = new MainWindow
             {
@@ -143,11 +203,6 @@ public partial class App : System.Windows.Application
                     repositories,
                     startupUserName)
             };
-
-            startupStep = "Verlauf";
-            await RenderSplashStepAsync(splashWindow, "Verlauf wird initialisiert...");
-            historyService.Initialize();
-            _historyService = historyService;
 
             startupStep = "Tour-Integritaet";
             await RenderSplashStepAsync(splashWindow, "Tourdaten werden geprüft...");
@@ -207,6 +262,20 @@ public partial class App : System.Windows.Application
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             Shutdown(-1);
+        }
+    }
+
+    private static async Task<bool> IsPostgreSqlConfiguredAsync(string settingsPath)
+    {
+        try
+        {
+            var settings = await new JsonAppSettingsRepository(settingsPath).LoadAsync();
+            return settings.StorageMode == AppStorageMode.PostgreSql &&
+                   settings.PostgreSqlStorage?.IsConfigured() == true;
+        }
+        catch
+        {
+            return false;
         }
     }
 

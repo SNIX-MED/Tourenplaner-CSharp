@@ -104,6 +104,11 @@ public sealed class SettingsValidator
             {
                 errors.Add("PostgreSqlStorage.TimeoutSeconds must be greater than zero.");
             }
+
+            if (pg.ChangeHistoryRetentionDays is < 1 or > 3650)
+            {
+                errors.Add("PostgreSqlStorage.ChangeHistoryRetentionDays must be between 1 and 3650.");
+            }
         }
 
         if (settings.QuickAccessItems is null)

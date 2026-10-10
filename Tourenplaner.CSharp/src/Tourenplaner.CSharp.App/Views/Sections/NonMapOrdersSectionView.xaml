@@ -832,6 +832,38 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
 
+                        <DataGridTemplateColumn x:Name="NotesColumn" Header="Notiz" Width="1.25*" MinWidth="150" IsReadOnly="True">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid VerticalAlignment="Center" ToolTip="{Binding Notes}">
+                                        <TextBlock Text="–" Foreground="{DynamicResource Brush.TextSubtle}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasNotes}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <StackPanel Orientation="Horizontal"
+                                                    Visibility="{Binding HasNotes, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <TextBlock Margin="0,0,6,0"
+                                                       VerticalAlignment="Center"
+                                                       FontFamily="Segoe Fluent Icons"
+                                                       Foreground="{DynamicResource Brush.Accent}"
+                                                       Text="&#xE70B;" />
+                                            <TextBlock VerticalAlignment="Center"
+                                                       Text="{Binding NotesPreview}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
                         <DataGridTemplateColumn Header="Lieferart / Status" Width="1.25*" MinWidth="170" IsReadOnly="True">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>

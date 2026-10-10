@@ -33,4 +33,57 @@ public sealed class OrderSectionSharedHelpersTests
         Assert.True(OrderSectionSharedHelpers.MatchesSearchQuery(order, "Muster Firma"));
         Assert.True(OrderSectionSharedHelpers.MatchesSearchQuery(order, "10 Zürich"));
     }
+
+    [Fact]
+    public void MatchesSearchQuery_SearchesEveryDisplayedOrderColumn()
+    {
+        var order = new Order
+        {
+            Id = "221472",
+            ScheduledDate = new DateOnly(2026, 4, 24),
+            CustomerName = "J. Grimm AG",
+            Address = "Fallback Adresse",
+            OrderAddress = new OrderAddressInfo
+            {
+                Name = "J. Grimm AG",
+                Street = "Auftragstrasse",
+                HouseNumber = "7",
+                PostalCode = "8000",
+                City = "Zürich"
+            },
+            DeliveryAddress = new DeliveryAddressInfo
+            {
+                Name = "J. Grimm Lieferung",
+                ContactPerson = "Michaela Ewald",
+                Street = "Holzhusen",
+                HouseNumber = "16",
+                PostalCode = "8618",
+                City = "Oetwil am See"
+            },
+            Phone = "0764416114",
+            Notes = "Zufahrt über den Hintereingang",
+            DeliveryType = DeliveryMethodExtensions.MitVerteilungMontage,
+            OrderStatus = Order.PartiallyInTransitStatus,
+            AssignedTourId = "Tour-42"
+        };
+
+        var queries = new[]
+        {
+            "221472",
+            "24.04.2026",
+            "2026-04-24",
+            "J. Grimm AG",
+            "Auftragstrasse 7, 8000 Zürich",
+            "Holzhusen 16, 8618 Oetwil am See",
+            "Michaela Ewald",
+            "0764416114",
+            "Hintereingang",
+            "Mit Verteilung & Montage",
+            "Teilweise Unterwegs",
+            "Tour-42"
+        };
+
+        Assert.All(queries, query =>
+            Assert.True(OrderSectionSharedHelpers.MatchesSearchQuery(order, query), query));
+    }
 }

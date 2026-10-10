@@ -15,36 +15,28 @@ public sealed class StorageRepositoryFactory
         string employeesJsonPath,
         string vehiclesJsonPath,
         string calendarManualEntriesJsonPath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool forceLocalStorageForSession = false)
     {
         var bootstrapSettingsStore = new JsonAppSettingsRepository(settingsBootstrapPath);
         var bootstrapSettings = await bootstrapSettingsStore.LoadAsync(cancellationToken);
 
-        var usePostgreSql = bootstrapSettings.StorageMode == AppStorageMode.PostgreSql &&
+        var usePostgreSql = !forceLocalStorageForSession &&
+                            bootstrapSettings.StorageMode == AppStorageMode.PostgreSql &&
                             bootstrapSettings.PostgreSqlStorage is not null &&
                             bootstrapSettings.PostgreSqlStorage.IsConfigured();
 
         if (!usePostgreSql)
         {
-            return new StorageRepositoryBundle
-            {
-                StorageMode = AppStorageMode.JsonFiles,
-                OrderRepository = new JsonOrderRepository(ordersJsonPath),
-                SettingsRepository = new JsonSettingsRepository(settingsBootstrapPath),
-                AppSettingsStore = bootstrapSettingsStore,
-                TourRecordStore = new JsonToursRepository(toursJsonPath),
-                EmployeeDataStore = new JsonEmployeesRepository(employeesJsonPath),
-                VehicleDataStore = new JsonVehicleDataRepository(vehiclesJsonPath),
-                CalendarManualEntryStore = new JsonCalendarManualEntryRepository(calendarManualEntriesJsonPath),
-                PostgreSqlStorageSettings = null,
-                DataRootPath = dataRootPath,
-                SettingsBootstrapPath = settingsBootstrapPath,
-                OrdersJsonPath = ordersJsonPath,
-                ToursJsonPath = toursJsonPath,
-                EmployeesJsonPath = employeesJsonPath,
-                VehiclesJsonPath = vehiclesJsonPath,
-                CalendarManualEntriesJsonPath = calendarManualEntriesJsonPath
-            };
+            return CreateLocalBundle(
+                dataRootPath,
+                settingsBootstrapPath,
+                ordersJsonPath,
+                toursJsonPath,
+                employeesJsonPath,
+                vehiclesJsonPath,
+                calendarManualEntriesJsonPath,
+                bootstrapSettingsStore);
         }
 
         var pg = bootstrapSettings.PostgreSqlStorage!;
@@ -68,6 +60,37 @@ public sealed class StorageRepositoryFactory
             VehicleDataStore = new PostgreSqlVehicleDataRepository(pg),
             CalendarManualEntryStore = new PostgreSqlCalendarManualEntryRepository(pg),
             PostgreSqlStorageSettings = pg,
+            DataRootPath = dataRootPath,
+            SettingsBootstrapPath = settingsBootstrapPath,
+            OrdersJsonPath = ordersJsonPath,
+            ToursJsonPath = toursJsonPath,
+            EmployeesJsonPath = employeesJsonPath,
+            VehiclesJsonPath = vehiclesJsonPath,
+            CalendarManualEntriesJsonPath = calendarManualEntriesJsonPath
+        };
+    }
+
+    private static StorageRepositoryBundle CreateLocalBundle(
+        string dataRootPath,
+        string settingsBootstrapPath,
+        string ordersJsonPath,
+        string toursJsonPath,
+        string employeesJsonPath,
+        string vehiclesJsonPath,
+        string calendarManualEntriesJsonPath,
+        IAppSettingsStore bootstrapSettingsStore)
+    {
+        return new StorageRepositoryBundle
+        {
+            StorageMode = AppStorageMode.JsonFiles,
+            OrderRepository = new JsonOrderRepository(ordersJsonPath),
+            SettingsRepository = new JsonSettingsRepository(settingsBootstrapPath),
+            AppSettingsStore = bootstrapSettingsStore,
+            TourRecordStore = new JsonToursRepository(toursJsonPath),
+            EmployeeDataStore = new JsonEmployeesRepository(employeesJsonPath),
+            VehicleDataStore = new JsonVehicleDataRepository(vehiclesJsonPath),
+            CalendarManualEntryStore = new JsonCalendarManualEntryRepository(calendarManualEntriesJsonPath),
+            PostgreSqlStorageSettings = null,
             DataRootPath = dataRootPath,
             SettingsBootstrapPath = settingsBootstrapPath,
             OrdersJsonPath = ordersJsonPath,

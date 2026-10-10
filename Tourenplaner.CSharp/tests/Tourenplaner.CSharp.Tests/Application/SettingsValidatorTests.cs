@@ -6,6 +6,23 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class SettingsValidatorTests
 {
     [Fact]
+    public void Validate_RejectsInvalidPostgreSqlHistoryRetention()
+    {
+        var settings = new AppSettings
+        {
+            StorageMode = AppStorageMode.PostgreSql,
+            PostgreSqlStorage = new PostgreSqlStorageSettings
+            {
+                ChangeHistoryRetentionDays = 0
+            }
+        };
+
+        var result = new SettingsValidator().Validate(settings);
+
+        Assert.Contains(result.Errors, error => error.Contains("ChangeHistoryRetentionDays", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Validate_ReturnsErrors_ForInvalidSettings()
     {
         var validator = new SettingsValidator();

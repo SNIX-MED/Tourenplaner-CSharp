@@ -39,6 +39,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private readonly Dictionary<string, string> _trailerLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _employeeLabelsById = new(StringComparer.OrdinalIgnoreCase);
     private readonly Func<int, Task>? _openTourOnMapAsync;
+    private readonly Func<Task>? _openMapAsync;
     private readonly Guid _instanceId = Guid.NewGuid();
     private bool _editorSyncInProgress;
     private bool _dateFilterSyncInProgress;
@@ -60,9 +61,20 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private DateTime? _fromDate;
     private DateTime? _toDate;
     private string _filterInfoText = "Alle Touren | Treffer: 0";
+    private string _searchText = string.Empty;
     private string _selectedTourWeightText = "Totalgewicht: 0 kg";
     private string _selectedTourLoadSummaryText = string.Empty;
     private string _selectedTourVehicleText = "Fahrzeug & Anhänger: -";
+    private string _selectedTourStatusText = "Keine Tour ausgewählt";
+    private string _selectedTourTimeText = "-";
+    private string _selectedTourDistanceText = "-";
+    private string _selectedTourDurationText = "-";
+    private string _selectedTourServiceTimeText = "-";
+    private string _selectedTourWaitTimeText = "-";
+    private string _selectedTourWebfleetText = "Nicht gesendet";
+    private string _selectedTourTotalWeightValueText = "0 kg";
+    private string _selectedTourCapacityValueText = "-";
+    private string _selectedTourVehicleAssignmentText = "-";
     private string _dragPreviewEtaText = string.Empty;
     private string _dragPreviewDurationText = string.Empty;
     private string _dragPreviewDistanceText = string.Empty;
@@ -78,6 +90,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private bool _showArchivedTours;
     private bool _showCalendarLayout;
     private bool _isToursFilterPanelVisible;
+    private bool _showOnlyToursWithWarnings;
+    private Func<int> _getMapLoadedTourId = static () => 0;
+    private Func<int, IReadOnlyDictionary<string, TourTimingPreview>> _getMapTimingPreview =
+        static _ => new Dictionary<string, TourTimingPreview>(StringComparer.OrdinalIgnoreCase);
 
     public ToursSectionViewModel(
         ITourRecordStore tourRepository,
@@ -86,7 +102,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         IVehicleDataStore vehicleRepository,
         IAppSettingsStore settingsRepository,
         Func<int, Task>? openTourOnMapAsync = null,
-        AppDataSyncService? dataSyncService = null)
+        AppDataSyncService? dataSyncService = null,
+        Func<Task>? openMapAsync = null)
         : base("Tours", "Tour creation, stop sequencing, ETA/ETD and assignment conflict checks.")
     {
         _tourRepository = tourRepository;
@@ -105,10 +122,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         _conflictService = new TourConflictService(_scheduleService);
         _routeOptimizationService = new RouteOptimizationService();
         _openTourOnMapAsync = openTourOnMapAsync;
+        _openMapAsync = openMapAsync;
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
-        RecalculateCommand = new AsyncCommand(RecalculateAndSaveAsync, () => Tours.Count > 0);
-        SaveAssignmentCommand = new AsyncCommand(SaveSelectedAssignmentAsync, () => SelectedTour is not null);
+        RecalculateCommand = new AsyncCommand(RecalculateAndSaveAsync, () => SelectedTour is not null);
+        SaveAssignmentCommand = new AsyncCommand(SaveSelectedAssignmentAsync, () => SelectedTour is not null && !IsTourLockedByMap(SelectedTour.TourId));
         OpenTourOnMapCommand = new AsyncCommand(OpenSelectedTourOnMapAsync, () => SelectedTour is not null);
         EditTourOnMapCommand = new AsyncCommand(OpenSelectedTourOnMapForEditAsync, () => SelectedTour is not null);
         ApplyDateFilterCommand = new DelegateCommand(ApplyDateFilter);
@@ -122,16 +140,17 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         NextFromMonthCommand = new DelegateCommand(ShowNextFromMonth);
         PreviousToMonthCommand = new DelegateCommand(ShowPreviousToMonth);
         NextToMonthCommand = new DelegateCommand(ShowNextToMonth);
-        DeleteTourCommand = new AsyncCommand(DeleteSelectedToursAsync, () => SelectedTours.Count > 0);
-        ToggleArchiveTourCommand = new AsyncCommand(ToggleArchiveSelectedToursAsync, () => SelectedTours.Count > 0);
+        DeleteTourCommand = new AsyncCommand(DeleteSelectedToursAsync, CanModifySelectedTours);
+        ToggleArchiveTourCommand = new AsyncCommand(ToggleArchiveSelectedToursAsync, CanModifySelectedTours);
         ShowActiveToursCommand = new DelegateCommand(() => ShowArchivedTours = false);
         ShowArchivedToursCommand = new DelegateCommand(() => ShowArchivedTours = true);
         ShowListLayoutCommand = new DelegateCommand(() => ShowCalendarLayout = false);
         ShowCalendarLayoutCommand = new DelegateCommand(() => ShowCalendarLayout = true);
         ToggleLayoutCommand = new DelegateCommand(() => ShowCalendarLayout = !ShowCalendarLayout);
-        EditSelectedTourStopStayMinutesCommand = new AsyncCommand(EditSelectedTourStopStayMinutesAsync, () => SelectedTourStop is not null && !SelectedTourStop.IsCompanyStop);
-        RemoveSelectedTourStopCommand = new AsyncCommand(RemoveSelectedTourStopAsync, () => SelectedTourStop is not null && !SelectedTourStop.IsCompanyStop);
-        EditSelectedTourStopOrderCommand = new AsyncCommand(EditSelectedTourStopOrderAsync, () => SelectedTourStop is not null && !SelectedTourStop.IsCompanyStop);
+        ToggleWarningsFilterCommand = new DelegateCommand(() => ShowOnlyToursWithWarnings = !ShowOnlyToursWithWarnings);
+        EditSelectedTourStopStayMinutesCommand = new AsyncCommand(EditSelectedTourStopStayMinutesAsync, CanModifySelectedTourStop);
+        RemoveSelectedTourStopCommand = new AsyncCommand(RemoveSelectedTourStopAsync, CanModifySelectedTourStop);
+        EditSelectedTourStopOrderCommand = new AsyncCommand(EditSelectedTourStopOrderAsync, CanModifySelectedTourStop);
         RebuildFromCalendarDays();
         RebuildToCalendarDays();
         _dataSyncService.DataChanged += OnDataChanged;
@@ -142,6 +161,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     public ObservableCollection<TourOverviewItem> SelectedTours { get; } = new();
 
     public ObservableCollection<TourStopOverviewItem> SelectedTourStops { get; } = new();
+
+    public ObservableCollection<TourWarningDisplayItem> SelectedTourWarnings { get; } = new();
 
     public ObservableCollection<TourCalendarDayGroupItem> CalendarDayGroups { get; } = new();
 
@@ -181,6 +202,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     public ICommand ToggleLayoutCommand { get; }
 
+    public ICommand ToggleWarningsFilterCommand { get; }
+
     public ICommand EditSelectedTourStopStayMinutesCommand { get; }
 
     public ICommand RemoveSelectedTourStopCommand { get; }
@@ -207,6 +230,36 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     {
         get => _statusText;
         private set => SetProperty(ref _statusText, value);
+    }
+
+    public bool IsSelectedTourLockedByMap => SelectedTour is not null && IsTourLockedByMap(SelectedTour.TourId);
+
+    public string SelectedTourMapLockText => IsSelectedTourLockedByMap
+        ? "Diese Tour ist aktuell im Karten-Tab geöffnet. Änderungen sind hier vorübergehend gesperrt."
+        : string.Empty;
+
+    public void ConfigureMapLoadedTourProvider(Func<int> provider)
+    {
+        _getMapLoadedTourId = provider ?? (static () => 0);
+        NotifyMapLoadedTourChanged();
+    }
+
+    public void ConfigureMapTimingPreviewProvider(Func<int, IReadOnlyDictionary<string, TourTimingPreview>> provider)
+    {
+        _getMapTimingPreview = provider ??
+            (static _ => new Dictionary<string, TourTimingPreview>(StringComparer.OrdinalIgnoreCase));
+    }
+
+    public void NotifyMapLoadedTourChanged()
+    {
+        if (SelectedTour is not null && IsTourLockedByMap(SelectedTour.TourId))
+        {
+            LoadSelectedTourStops();
+        }
+
+        OnPropertyChanged(nameof(IsSelectedTourLockedByMap));
+        OnPropertyChanged(nameof(SelectedTourMapLockText));
+        RaiseCommandStates();
     }
 
     public bool ShowArchivedTours
@@ -249,6 +302,18 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     {
         get => _isToursFilterPanelVisible;
         set => SetProperty(ref _isToursFilterPanelVisible, value);
+    }
+
+    public bool ShowOnlyToursWithWarnings
+    {
+        get => _showOnlyToursWithWarnings;
+        set
+        {
+            if (SetProperty(ref _showOnlyToursWithWarnings, value))
+            {
+                RebuildTourRowsWithCurrentFilter(keepSelectionTourId: SelectedTour?.TourId);
+            }
+        }
     }
 
     public string ToggleArchiveTourButtonText => SelectedTour?.Source.IsArchived == true ? "Tour reaktivieren" : "Tour archivieren";
@@ -575,6 +640,80 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _filterInfoText, value);
     }
 
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (SetProperty(ref _searchText, value ?? string.Empty))
+            {
+                RebuildTourRowsWithCurrentFilter(keepSelectionTourId: SelectedTour?.TourId);
+            }
+        }
+    }
+
+    public string SelectedTourStatusText
+    {
+        get => _selectedTourStatusText;
+        private set => SetProperty(ref _selectedTourStatusText, value);
+    }
+
+    public string SelectedTourTimeText
+    {
+        get => _selectedTourTimeText;
+        private set => SetProperty(ref _selectedTourTimeText, value);
+    }
+
+    public string SelectedTourDistanceText
+    {
+        get => _selectedTourDistanceText;
+        private set => SetProperty(ref _selectedTourDistanceText, value);
+    }
+
+    public string SelectedTourDurationText
+    {
+        get => _selectedTourDurationText;
+        private set => SetProperty(ref _selectedTourDurationText, value);
+    }
+
+    public string SelectedTourServiceTimeText
+    {
+        get => _selectedTourServiceTimeText;
+        private set => SetProperty(ref _selectedTourServiceTimeText, value);
+    }
+
+    public string SelectedTourWaitTimeText
+    {
+        get => _selectedTourWaitTimeText;
+        private set => SetProperty(ref _selectedTourWaitTimeText, value);
+    }
+
+    public string SelectedTourWebfleetText
+    {
+        get => _selectedTourWebfleetText;
+        private set => SetProperty(ref _selectedTourWebfleetText, value);
+    }
+
+    public string SelectedTourTotalWeightValueText
+    {
+        get => _selectedTourTotalWeightValueText;
+        private set => SetProperty(ref _selectedTourTotalWeightValueText, value);
+    }
+
+    public string SelectedTourCapacityValueText
+    {
+        get => _selectedTourCapacityValueText;
+        private set => SetProperty(ref _selectedTourCapacityValueText, value);
+    }
+
+    public string SelectedTourVehicleAssignmentText
+    {
+        get => _selectedTourVehicleAssignmentText;
+        private set => SetProperty(ref _selectedTourVehicleAssignmentText, value);
+    }
+
+    public bool HasSelectedTourWarnings => SelectedTourWarnings.Count > 0;
+
     public string SelectedTourWeightText
     {
         get => _selectedTourWeightText;
@@ -605,6 +744,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 SyncEditorFromSelection();
                 UpdateSelectedTourSummary();
                 OnPropertyChanged(nameof(ToggleArchiveTourButtonText));
+                OnPropertyChanged(nameof(IsSelectedTourLockedByMap));
+                OnPropertyChanged(nameof(SelectedTourMapLockText));
                 RaiseCommandStates();
             }
         }
@@ -696,20 +837,46 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     public async Task RecalculateAndSaveAsync()
     {
-        var tours = (await _tourRepository.LoadAsync()).ToList();
-        foreach (var tour in tours)
+        if (SelectedTour is null)
         {
-            _scheduleService.ApplySchedule(tour);
+            StatusText = "Bitte zuerst eine Tour auswählen.";
+            return;
         }
 
-        await _tourRepository.SaveAsync(tours);
-        _dataSyncService.PublishTours(_instanceId);
-        await RefreshAsync();
+        var loadedTourId = _getMapLoadedTourId();
+        if (loadedTourId > 0)
+        {
+            if (loadedTourId == SelectedTour.TourId && _openMapAsync is not null)
+            {
+                StatusText = "Die Tour ist bereits auf der Karte berechnet und geöffnet.";
+                await _openMapAsync();
+                return;
+            }
+
+            ShowMapEditLockNotice();
+            return;
+        }
+
+        if (_openTourOnMapAsync is null)
+        {
+            StatusText = "Die Routenberechnung konnte nicht geöffnet werden.";
+            ToastNotificationService.ShowInfo(StatusText);
+            return;
+        }
+
+        var tourId = SelectedTour.TourId;
+        StatusText = $"Tour {tourId} wird auf der Karte neu berechnet.";
+        await _openTourOnMapAsync(tourId);
     }
 
     public async Task SaveSelectedAssignmentAsync()
     {
         if (SelectedTour is null)
+        {
+            return;
+        }
+
+        if (!EnsureTourCanBeModified(SelectedTour.TourId))
         {
             return;
         }
@@ -822,7 +989,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         SetDateFilter(null, null);
     }
 
-    public async Task FocusTourAsync(int tourId)
+    public async Task FocusTourAsync(int tourId, bool revealIfFiltered = false)
     {
         var match = Tours.FirstOrDefault(t => t.TourId == tourId);
         if (match is null)
@@ -831,10 +998,37 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             match = Tours.FirstOrDefault(t => t.TourId == tourId);
         }
 
+        var filtersWereReset = false;
+        if (match is null && revealIfFiltered)
+        {
+            var source = _loadedTours.FirstOrDefault(t => t.Id == tourId);
+            if (source is not null)
+            {
+                ShowArchivedTours = source.IsArchived;
+                SearchText = string.Empty;
+                ShowOnlyToursWithWarnings = false;
+                FromDate = null;
+                ToDate = null;
+                RebuildTourRowsWithCurrentFilter(keepSelectionTourId: tourId);
+                match = Tours.FirstOrDefault(t => t.TourId == tourId);
+                filtersWereReset = match is not null;
+            }
+        }
+
         if (match is not null)
         {
             SelectedTour = match;
+            if (filtersWereReset)
+            {
+                StatusText = $"Filter wurden zurückgesetzt, damit {match.Name} angezeigt werden kann.";
+            }
         }
+    }
+
+    public void ClearTourSelection()
+    {
+        SelectedTours.Clear();
+        SelectedTour = null;
     }
 
     public async Task FocusDateAsync(DateTime date, int? preferredTourId = null)
@@ -870,6 +1064,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         if (sourceItem.Source is null ||
             sourceItem.IsCompanyStop ||
             SelectedTour?.Source is null)
+        {
+            return false;
+        }
+
+        if (!EnsureTourCanBeModified(SelectedTour.TourId))
         {
             return false;
         }
@@ -969,6 +1168,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return false;
         }
 
+        if (!EnsureTourCanBeModified(sourceTour.Id) || !EnsureTourCanBeModified(targetTour.Id))
+        {
+            return false;
+        }
+
         if (!ConfirmStopReassignment(sourceItem, sourceTour, targetTour))
         {
             return false;
@@ -1041,6 +1245,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
+        if (!EnsureTourCanBeModified(sourceTour.Id))
+        {
+            return;
+        }
+
         var stop = sourceTour.Stops.FirstOrDefault(x => ReferenceEquals(x, SelectedTourStop.Source)) ??
                    sourceTour.Stops.FirstOrDefault(x =>
                        x.Order == SelectedTourStop.Source.Order &&
@@ -1085,6 +1294,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
+        if (!EnsureTourCanBeModified(sourceTour.Id))
+        {
+            return;
+        }
+
         var movableStops = sourceTour.Stops.Where(s => !IsCompanyStop(s)).ToList();
         var sourceIndex = movableStops.IndexOf(SelectedTourStop.Source);
         if (sourceIndex < 0)
@@ -1123,6 +1337,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var sourceTour = _loadedTours.FirstOrDefault(x => x.Id == SelectedTourStop.SourceTourId);
         if (sourceTour is null)
+        {
+            return;
+        }
+
+        if (!EnsureTourCanBeModified(sourceTour.Id))
         {
             return;
         }
@@ -1175,6 +1394,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         if (SelectedTourStop?.Source is null ||
             SelectedTourStop.IsCompanyStop ||
             SelectedTourStop.IsPauseStop)
+        {
+            return;
+        }
+
+        if (!EnsureTourCanBeModified(SelectedTourStop.SourceTourId))
         {
             return;
         }
@@ -1431,6 +1655,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
+        if (!EnsureTourCanBeModified(SelectedTour.TourId))
+        {
+            return;
+        }
+
         var target = _loadedTours.FirstOrDefault(x => x.Id == SelectedTour.TourId);
         if (target is null)
         {
@@ -1523,6 +1752,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private async Task DeleteSelectedTourAsync()
     {
         if (SelectedTour is null)
+        {
+            return;
+        }
+
+        if (!EnsureTourCanBeModified(SelectedTour.TourId))
         {
             return;
         }
@@ -1925,9 +2159,73 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     {
         var from = FromDate ?? ParseDate(FromDateText);
         var to = ToDate ?? ParseDate(ToDateText);
-        var filtered = ApplyDateFilterToTours(_loadedTours, from, to);
+        var filtered = ApplySearchFilterToTours(ApplyDateFilterToTours(_loadedTours, from, to));
+        if (ShowOnlyToursWithWarnings)
+        {
+            filtered = filtered.Where(HasPlanningWarning);
+        }
         RebuildTourRows(filtered, keepSelectionTourId);
-        FilterInfoText = BuildDateFilterInfoText(from, to, Tours.Count, ShowArchivedTours);
+        FilterInfoText = BuildDateFilterInfoText(from, to, Tours.Count, ShowArchivedTours) +
+                         (string.IsNullOrWhiteSpace(SearchText) ? string.Empty : $" | Suche: {SearchText.Trim()}") +
+                         (ShowOnlyToursWithWarnings ? " | Nur Warnungen" : string.Empty);
+    }
+
+    private bool HasPlanningWarning(TourRecord tour)
+    {
+        if ((tour.EmployeeIds ?? []).Count == 0 ||
+            BuildVehicleAssignments(tour.VehicleId, tour.TrailerId, tour.SecondaryVehicleId, tour.SecondaryTrailerId).Count == 0)
+        {
+            return true;
+        }
+
+        return BuildPlanningWarnings(_loadedTours, tour.Id).Count > 0;
+    }
+
+    private IEnumerable<TourRecord> ApplySearchFilterToTours(IEnumerable<TourRecord> tours)
+    {
+        var terms = (SearchText ?? string.Empty)
+            .Split([' ', '\t', '\r', '\n', ',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (terms.Length == 0)
+        {
+            return tours;
+        }
+
+        return tours.Where(tour =>
+        {
+            var orderSearchParts = (tour.Stops ?? [])
+                .Where(IsCustomerStop)
+                .SelectMany(stop =>
+                {
+                    _ordersById.TryGetValue((stop.Auftragsnummer ?? string.Empty).Trim(), out var order);
+                    return new[]
+                    {
+                        stop.Auftragsnummer,
+                        stop.Name,
+                        stop.Address,
+                        order?.CustomerName,
+                        order?.DeliveryAddress?.Name,
+                        order?.DeliveryAddress?.ContactPerson,
+                        order?.DeliveryType,
+                        order?.OrderStatus,
+                        order?.Notes
+                    };
+                });
+            var searchable = string.Join(" ", new[]
+                {
+                    tour.Name,
+                    tour.Date,
+                    tour.StartTime,
+                    BuildEmployeeFirstNameText(tour.EmployeeIds ?? []),
+                    BuildVehicleOverviewText(tour),
+                    BuildTrailerOverviewText(tour),
+                    tour.WebfleetDispatch?.State,
+                    tour.WebfleetDispatch?.LastMessage
+                }
+                .Concat(orderSearchParts)
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+            return terms.All(term => searchable.Contains(term, StringComparison.OrdinalIgnoreCase));
+        });
     }
 
     private IEnumerable<TourRecord> ApplyDateFilterToTours(IEnumerable<TourRecord> tours, DateTime? from, DateTime? to)
@@ -2028,10 +2326,22 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         foreach (var tour in tourList.OrderBy(t => t.Date).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
         {
             var schedule = _scheduleService.BuildSchedule(tour);
+            var metrics = BuildTourOrderMetrics(tour);
             var employeeText = BuildEmployeeFirstNameText(tour.EmployeeIds ?? []);
-            var totalWeight = tour.Stops
-                .Where(IsCustomerStop)
-                .Sum(s => ParseWeightKg(s.Gewicht));
+            var totalWeight = CalculateTourWeightKg(tour);
+            var assignments = BuildVehicleAssignments(tour.VehicleId, tour.TrailerId, tour.SecondaryVehicleId, tour.SecondaryTrailerId);
+            var capacity = TourCapacityWarningService.EvaluateFleet(_vehicleData, assignments, totalWeight);
+            var warningCount = schedule.Stops.Count(s => s.HasConflict) +
+                               (conflicts.TryGetValue(tour.Id, out var resourceConflictCount) ? resourceConflictCount : 0) +
+                               (capacity.IsOverCapacity ? 1 : 0) +
+                               (tour.EmployeeIds?.Count > 0 ? 0 : 1) +
+                               (assignments.Count > 0 ? 0 : 1);
+            var allowedWeight = capacity.AllowedWeightKg.GetValueOrDefault();
+            var utilizationPercent = allowedWeight > 0
+                ? (int)Math.Round(totalWeight * 100d / allowedWeight)
+                : 0;
+            var webfleetText = ResolveWebfleetStatusText(tour.WebfleetDispatch);
+            var overviewStatus = ResolveTourOverviewStatus(tour, ParseDate(tour.Date));
             Tours.Add(new TourOverviewItem
             {
                 TourId = tour.Id,
@@ -2045,7 +2355,24 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 StopCount = tour.Stops.Count(IsCustomerStop),
                 TotalWeightKg = totalWeight,
                 StopConflicts = schedule.Stops.Count(s => s.HasConflict),
-                AssignmentConflicts = conflicts.TryGetValue(tour.Id, out var count) ? count : 0,
+                AssignmentConflicts = resourceConflictCount,
+                WarningCount = warningCount,
+                HasWarnings = warningCount > 0,
+                WarningText = warningCount == 0 ? "Keine Warnungen" : $"{warningCount} Warnung{(warningCount == 1 ? string.Empty : "en")}",
+                DurationText = FormatDuration(metrics.DurationMinutes),
+                DistanceText = $"{metrics.DistanceKm:0.0} km",
+                TimeRangeText = $"{schedule.Start:HH:mm}–{schedule.End:HH:mm}",
+                WeightSummaryText = allowedWeight > 0
+                    ? $"{totalWeight:N0} / {allowedWeight:N0} kg ({utilizationPercent} %)"
+                    : $"{totalWeight:N0} kg",
+                CapacityPercent = utilizationPercent,
+                IsOverCapacity = capacity.IsOverCapacity,
+                WebfleetStatusText = webfleetText,
+                OperationalStatusText = ResolveOperationalStatusText(tour, warningCount, webfleetText),
+                StatusLabel = overviewStatus.Label,
+                StatusBackground = overviewStatus.Background,
+                StatusForeground = overviewStatus.Foreground,
+                StatusGlyph = overviewStatus.Glyph,
                 IsArchived = tour.IsArchived,
                 TourDateValue = ParseDate(tour.Date),
                 CalendarSummary = BuildCalendarSummaryText(schedule.Start, tour),
@@ -2393,6 +2720,88 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return $"{hours}h {minutes:00}m";
     }
 
+    private static string ResolveWebfleetStatusText(WebfleetDispatchRecord? dispatch)
+    {
+        if (dispatch is null || string.IsNullOrWhiteSpace(dispatch.State) ||
+            string.Equals(dispatch.State, "not_sent", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Nicht gesendet";
+        }
+
+        return dispatch.State.Trim().ToLowerInvariant() switch
+        {
+            "sent" => "Gesendet",
+            "partially_sent" => "Teilweise gesendet",
+            "failed" or "error" => "Versandfehler",
+            "completed" => "Abgeschlossen",
+            _ => dispatch.State.Trim().Replace('_', ' ')
+        };
+    }
+
+    private static string ResolveOperationalStatusText(TourRecord tour, int warningCount, string webfleetStatus)
+    {
+        if (tour.IsArchived)
+        {
+            return "Archiviert";
+        }
+
+        if (warningCount > 0)
+        {
+            return "Prüfung nötig";
+        }
+
+        if (string.Equals(webfleetStatus, "Abgeschlossen", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Abgeschlossen";
+        }
+
+        if (!string.Equals(webfleetStatus, "Nicht gesendet", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Gesendet";
+        }
+
+        return "Bereit";
+    }
+
+    private (string Label, string Background, string Foreground, string Glyph) ResolveTourOverviewStatus(
+        TourRecord tour,
+        DateTime? parsedDate)
+    {
+        var tourDate = parsedDate?.Date ?? DateTime.MaxValue.Date;
+        if (tourDate < DateTime.Today)
+        {
+            return ("Abgeschlossen", "#DCFCE7", "#15803D", "\uE73E");
+        }
+
+        if (tourDate == DateTime.Today)
+        {
+            return ("Aktiv", "#F3E8FF", "#7E22CE", "\uE768");
+        }
+
+        var avisoStates = (tour.Stops ?? [])
+            .Where(IsCustomerStop)
+            .Select(ExtractOrderIdFromStop)
+            .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
+            .Select(orderId => orderId.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(orderId => _ordersById.TryGetValue(orderId, out var order) ? order : null)
+            .Select(order => string.IsNullOrWhiteSpace(order?.AvisoStatus) ? "nicht avisiert" : order.AvisoStatus.Trim())
+            .ToList();
+
+        if (avisoStates.Count > 0 && avisoStates.All(status => string.Equals(status, "Bestätigt", StringComparison.OrdinalIgnoreCase)))
+        {
+            return ("Bestätigt", "#DCFCE7", "#15803D", "\uE73E");
+        }
+
+        if (avisoStates.Count > 0 &&
+            avisoStates.All(status => !string.Equals(status, "nicht avisiert", StringComparison.OrdinalIgnoreCase)))
+        {
+            return ("Avisiert", "#FFEDD5", "#EA580C", "\uE121");
+        }
+
+        return ("Geplant", "#FEE2E2", "#DC2626", "\uE121");
+    }
+
     private static void RebuildTourStopsWithAnchors(TourRecord tour, List<TourStopRecord> movableStops)
     {
         var start = tour.Stops.FirstOrDefault(s => string.Equals(s.Id, TourStopIdentity.CompanyStartStopId, StringComparison.OrdinalIgnoreCase));
@@ -2556,6 +2965,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .ThenBy(s => s.Order)
             .ToList();
         var customerStopIndex = 0;
+        var timingPreview = _getMapLoadedTourId() == SelectedTour.TourId
+            ? _getMapTimingPreview(SelectedTour.TourId)
+            : new Dictionary<string, TourTimingPreview>(StringComparer.OrdinalIgnoreCase);
 
         for (var index = 0; index < orderedStops.Count; index++)
         {
@@ -2565,12 +2977,17 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             var stopMarker = isCompanyStop || isPauseStop ? string.Empty : BuildStopMarker(customerStopIndex++);
             var isRouteStart = index == 0;
             var isRouteEnd = index == orderedStops.Count - 1;
-            var arrival = stop.PlannedArrival ?? string.Empty;
+            timingPreview.TryGetValue(BuildTimingPreviewKey(stop), out var preview);
+            var arrival = !string.IsNullOrWhiteSpace(preview?.Arrival)
+                ? preview.Arrival
+                : stop.PlannedArrival ?? string.Empty;
             var departure = stop.PlannedDeparture ?? string.Empty;
-            var isArchivedOrder = !isCompanyStop &&
-                                  !isPauseStop &&
-                                  _ordersById.TryGetValue((stop.Auftragsnummer ?? string.Empty).Trim(), out var order) &&
-                                  order.IsArchived;
+            Order? sourceOrder = null;
+            if (!isCompanyStop && !isPauseStop)
+            {
+                _ordersById.TryGetValue((stop.Auftragsnummer ?? string.Empty).Trim(), out sourceOrder);
+            }
+            var isArchivedOrder = sourceOrder?.IsArchived == true;
 
             SelectedTourStops.Add(new TourStopOverviewItem
             {
@@ -2587,14 +3004,28 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 Address = isCompanyStop || isPauseStop ? string.Empty : stop.Address,
                 Window = isCompanyStop || isPauseStop ? string.Empty : BuildCalendarWindowText(stop),
                 Arrival = arrival,
-                ArrivalRangeText = isCompanyStop ? string.Empty : BuildArrivalRangeText(stop),
+                ArrivalRangeText = isCompanyStop
+                    ? string.Empty
+                    : !string.IsNullOrWhiteSpace(preview?.ArrivalRange)
+                        ? preview.ArrivalRange
+                        : BuildArrivalRangeText(stop),
                 Departure = departure,
                 Weight = isCompanyStop || isPauseStop ? string.Empty : $"{ParseWeightKg(stop.Gewicht)} kg",
                 Conflict = isCompanyStop || isPauseStop ? string.Empty : (stop.ScheduleConflict ? (string.IsNullOrWhiteSpace(stop.ScheduleConflictText) ? "Yes" : stop.ScheduleConflictText) : string.Empty),
+                HasConflict = !isCompanyStop && !isPauseStop && stop.ScheduleConflict,
+                ServiceTimeText = isCompanyStop || isPauseStop ? string.Empty : $"{Math.Max(0, stop.ServiceMinutes)} min Aufenthalt",
+                DeliveryType = sourceOrder?.DeliveryType ?? string.Empty,
+                OrderStatus = sourceOrder?.OrderStatus ?? string.Empty,
+                HasNotes = !string.IsNullOrWhiteSpace(sourceOrder?.Notes),
+                NotesPreview = BuildNotesPreview(sourceOrder?.Notes),
+                PinStatusText = sourceOrder?.IsLocationManuallySet == true
+                    ? (sourceOrder.ManualLocationRequiresReview ? "Manueller Pin · prüfen" : "Pin manuell gesetzt")
+                    : string.Empty,
                 PauseDurationText = isPauseStop ? $"{Math.Max(0, stop.ServiceMinutes)} min" : string.Empty,
                 PauseTimeRangeText = isPauseStop ? BuildPauseTimeRangeText(arrival, departure) : string.Empty
             });
         }
+
     }
 
     private static int GetStopDisplayOrderGroup(TourStopRecord stop)
@@ -2616,18 +3047,30 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private void UpdateSelectedTourSummary()
     {
+        SelectedTourWarnings.Clear();
         if (SelectedTour?.Source is null)
         {
             SelectedTourWeightText = "Totalgewicht: 0 kg";
             SelectedTourLoadSummaryText = string.Empty;
             SelectedTourVehicleText = "Fahrzeug & Anhänger: -";
+            SelectedTourStatusText = "Keine Tour ausgewählt";
+            SelectedTourTimeText = "-";
+            SelectedTourDistanceText = "-";
+            SelectedTourDurationText = "-";
+            SelectedTourServiceTimeText = "-";
+            SelectedTourWaitTimeText = "-";
+            SelectedTourWebfleetText = "Nicht gesendet";
+            SelectedTourTotalWeightValueText = "0 kg";
+            SelectedTourCapacityValueText = "-";
+            SelectedTourVehicleAssignmentText = "-";
+            OnPropertyChanged(nameof(HasSelectedTourWarnings));
             return;
         }
 
-        var totalWeight = SelectedTour.Source.Stops
-            .Where(IsCustomerStop)
-            .Sum(s => ParseWeightKg(s.Gewicht));
+        var tour = SelectedTour.Source;
+        var totalWeight = CalculateTourWeightKg(tour);
         SelectedTourWeightText = $"Totalgewicht: {totalWeight} kg";
+        SelectedTourTotalWeightValueText = $"{totalWeight:N0} kg";
 
         var assignments = BuildVehicleAssignments(
             SelectedTour.Source.VehicleId,
@@ -2664,6 +3107,44 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         SelectedTourLoadSummaryText = string.Join(Environment.NewLine, loadSummaryLines);
         SelectedTourVehicleText = string.Join(Environment.NewLine, summaryLines);
+        SelectedTourCapacityValueText = loadSummaryLines.Count == 0
+            ? "-"
+            : string.Join(" · ", loadSummaryLines.Select(line => line.Replace("Ladegewicht: ", string.Empty, StringComparison.OrdinalIgnoreCase).Replace("Anhängelast: ", string.Empty, StringComparison.OrdinalIgnoreCase)));
+        SelectedTourVehicleAssignmentText = vehicleTrailerLines.Count == 0 ? "-" : string.Join(" · ", vehicleTrailerLines);
+
+        var metrics = BuildTourOrderMetrics(tour);
+        var serviceMinutes = (tour.Stops ?? []).Where(IsCustomerStop).Sum(stop => Math.Max(0, stop.ServiceMinutes));
+        var waitMinutes = (tour.Stops ?? []).Sum(stop => Math.Max(0, stop.WaitMinutes));
+        SelectedTourTimeText = $"{tour.Date} · {tour.StartTime}–{metrics.EndTime}";
+        SelectedTourDistanceText = $"{metrics.DistanceKm:0.0} km";
+        SelectedTourDurationText = FormatDuration(metrics.DurationMinutes);
+        SelectedTourServiceTimeText = FormatDuration(serviceMinutes);
+        SelectedTourWaitTimeText = FormatDuration(waitMinutes);
+        SelectedTourWebfleetText = ResolveWebfleetStatusText(tour.WebfleetDispatch);
+
+        var warnings = BuildPlanningWarnings(_loadedTours, tour.Id).ToList();
+        if ((tour.EmployeeIds ?? []).Count == 0)
+        {
+            warnings.Add(new TourPlanningWarningItem("Personal", "Der Tour ist kein Mitarbeiter zugewiesen.", "Mitarbeiter in «Tour bearbeiten» zuweisen."));
+        }
+
+        if (BuildVehicleAssignments(tour.VehicleId, tour.TrailerId, tour.SecondaryVehicleId, tour.SecondaryTrailerId).Count == 0)
+        {
+            warnings.Add(new TourPlanningWarningItem("Fahrzeug", "Der Tour ist kein Fahrzeug zugewiesen.", "Fahrzeug in «Tour bearbeiten» zuweisen."));
+        }
+
+        foreach (var warning in warnings.Distinct())
+        {
+            SelectedTourWarnings.Add(new TourWarningDisplayItem
+            {
+                Title = warning.Title,
+                Message = warning.Message,
+                Suggestion = warning.Suggestion
+            });
+        }
+
+        SelectedTourStatusText = ResolveOperationalStatusText(tour, SelectedTourWarnings.Count, SelectedTourWebfleetText);
+        OnPropertyChanged(nameof(HasSelectedTourWarnings));
     }
 
     private static int ParseWeightKg(string? raw)
@@ -2681,6 +3162,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         return 0;
+    }
+
+    private static string BuildNotesPreview(string? notes)
+    {
+        var normalized = string.Join(" ", (notes ?? string.Empty)
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        return normalized.Length <= 90 ? normalized : $"{normalized[..87]}...";
     }
 
     private void SyncEditorFromSelection()
@@ -2837,6 +3325,39 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         RaiseCanExecuteChangedIfSupported(EditSelectedTourStopOrderCommand);
     }
 
+    private bool IsTourLockedByMap(int tourId)
+        => tourId > 0 && _getMapLoadedTourId() == tourId;
+
+    private bool CanModifySelectedTours()
+    {
+        var selected = SelectedTours.Count > 0
+            ? SelectedTours
+            : SelectedTour is null ? [] : [SelectedTour];
+        return selected.Count > 0 && selected.All(tour => !IsTourLockedByMap(tour.TourId));
+    }
+
+    private bool CanModifySelectedTourStop()
+        => SelectedTourStop is not null &&
+           !SelectedTourStop.IsCompanyStop &&
+           !IsTourLockedByMap(SelectedTourStop.SourceTourId);
+
+    private bool EnsureTourCanBeModified(int tourId)
+    {
+        if (!IsTourLockedByMap(tourId))
+        {
+            return true;
+        }
+
+        ShowMapEditLockNotice();
+        return false;
+    }
+
+    private void ShowMapEditLockNotice()
+    {
+        StatusText = "Diese Tour ist aktuell im Karten-Tab geöffnet. Änderungen sind hier vorübergehend gesperrt.";
+        ToastNotificationService.ShowInfo(StatusText);
+    }
+
     private void ToggleDatePopup(bool isFrom)
     {
         IsFromDatePopupOpen = isFrom ? !IsFromDatePopupOpen : false;
@@ -2862,6 +3383,19 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
             RebuildToCalendarDays();
         }
+    }
+
+    private static string BuildTimingPreviewKey(TourStopRecord stop)
+    {
+        if (IsCompanyStop(stop) || IsPauseStop(stop))
+        {
+            return (stop.Id ?? string.Empty).Trim();
+        }
+
+        var orderId = ExtractOrderIdFromStop(stop);
+        return string.IsNullOrWhiteSpace(orderId)
+            ? (stop.Id ?? string.Empty).Trim()
+            : orderId.Trim();
     }
 
     private void ShiftCalendarMonth(bool isFrom, int monthDelta)
@@ -3261,11 +3795,29 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return $"Für {routeDate} sind folgende Ressourcen nicht verfügbar:{Environment.NewLine}{string.Join(Environment.NewLine, blocked.Distinct(StringComparer.OrdinalIgnoreCase))}";
     }
 
-    private static int CalculateTourWeightKg(TourRecord tour)
+    private int CalculateTourWeightKg(TourRecord tour)
     {
-        var orderWeight = (tour.Stops ?? [])
+        var orderIds = (tour.Stops ?? [])
             .Where(IsCustomerStop)
-            .Sum(s => ParseWeightKg(s.Gewicht));
+            .Select(stop => (stop.Auftragsnummer ?? string.Empty).Trim())
+            .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var orderWeight = orderIds.Count > 0
+            ? orderIds.Sum(orderId =>
+                _ordersById.TryGetValue(orderId, out var order)
+                    ? (int)Math.Ceiling(Math.Max(0d, order.ResolveTotalWeightKg()))
+                    : 0)
+            : _ordersById.Values
+                .Where(order =>
+                    !order.IsArchived &&
+                    string.Equals(
+                        (order.AssignedTourId ?? string.Empty).Trim(),
+                        tour.Id.ToString(CultureInfo.InvariantCulture),
+                        StringComparison.OrdinalIgnoreCase))
+                .Sum(order => (int)Math.Ceiling(Math.Max(0d, order.ResolveTotalWeightKg())));
+
         return orderWeight + (int)Math.Ceiling((tour.AdditionalMaterials ?? []).Sum(x => Math.Max(0, x.WeightKg)));
     }
 
@@ -3480,6 +4032,21 @@ public sealed class TourOverviewItem
     public int TotalWeightKg { get; set; }
     public int StopConflicts { get; set; }
     public int AssignmentConflicts { get; set; }
+    public int WarningCount { get; set; }
+    public bool HasWarnings { get; set; }
+    public string WarningText { get; set; } = string.Empty;
+    public string DurationText { get; set; } = string.Empty;
+    public string DistanceText { get; set; } = string.Empty;
+    public string TimeRangeText { get; set; } = string.Empty;
+    public string WeightSummaryText { get; set; } = string.Empty;
+    public int CapacityPercent { get; set; }
+    public bool IsOverCapacity { get; set; }
+    public string WebfleetStatusText { get; set; } = string.Empty;
+    public string OperationalStatusText { get; set; } = string.Empty;
+    public string StatusLabel { get; set; } = string.Empty;
+    public string StatusBackground { get; set; } = string.Empty;
+    public string StatusForeground { get; set; } = string.Empty;
+    public string StatusGlyph { get; set; } = string.Empty;
     public bool IsArchived { get; set; }
     public string CalendarSummary { get; set; } = string.Empty;
     public string CalendarWeightText { get; set; } = string.Empty;
@@ -3527,10 +4094,24 @@ public sealed class TourStopOverviewItem
     public string Departure { get; set; } = string.Empty;
     public string Weight { get; set; } = string.Empty;
     public string Conflict { get; set; } = string.Empty;
+    public bool HasConflict { get; set; }
+    public string ServiceTimeText { get; set; } = string.Empty;
+    public string DeliveryType { get; set; } = string.Empty;
+    public string OrderStatus { get; set; } = string.Empty;
+    public bool HasNotes { get; set; }
+    public string NotesPreview { get; set; } = string.Empty;
+    public string PinStatusText { get; set; } = string.Empty;
     public string PauseDurationText { get; set; } = string.Empty;
     public string PauseTimeRangeText { get; set; } = string.Empty;
     public string DisplayName => IsPauseStop ? "Pause" : (string.IsNullOrWhiteSpace(OrderNumber) ? Name : $"{Name} ({OrderNumber})");
     public string DisplayTime => !string.IsNullOrWhiteSpace(Arrival) ? Arrival : Departure;
+}
+
+public sealed class TourWarningDisplayItem
+{
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string Suggestion { get; set; } = string.Empty;
 }
 
 public sealed class LookupItem

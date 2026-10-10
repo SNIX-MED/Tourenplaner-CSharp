@@ -32,7 +32,13 @@ public sealed class PostgreSqlAppSettingsRepository : IAppSettingsStore
         command.CommandText = $"""SELECT payload::text FROM "{schema}"."singletons" WHERE key = @key;""";
         command.Parameters.AddWithValue("key", SettingsKey);
         var payload = await command.ExecuteScalarAsync(cancellationToken) as string;
-        return PostgreSqlRepositorySerializer.Deserialize(payload ?? string.Empty, () => new AppSettings());
+        var settings = PostgreSqlRepositorySerializer.Deserialize(payload ?? string.Empty, () => new AppSettings());
+        if (settings.ApplyStayMinutesDefaultsMigration())
+        {
+            await SaveAsync(settings, cancellationToken);
+        }
+
+        return settings;
     }
 
     public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default)

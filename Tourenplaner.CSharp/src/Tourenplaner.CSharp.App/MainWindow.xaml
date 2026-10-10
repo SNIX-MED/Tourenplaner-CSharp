@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:components="clr-namespace:Tourenplaner.CSharp.App.Views.Components"
+        xmlns:sections="clr-namespace:Tourenplaner.CSharp.App.Views.Sections"
         xmlns:scm="clr-namespace:System.ComponentModel;assembly=WindowsBase"
         mc:Ignorable="d"
         Title="GAWELA Tourenplaner"
@@ -132,6 +133,82 @@
                 </DockPanel>
             </Border>
 
+            <Border Grid.Column="0"
+                    Margin="0,0,14,0"
+                    Padding="5"
+                    Visibility="{Binding IsCompactSidebarVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                    Style="{StaticResource FlatCardStyle}"
+                    Background="{DynamicResource Brush.SidebarBackground}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Top"
+                            Width="42"
+                            Height="42"
+                            Margin="0,2,0,8"
+                            Padding="0"
+                            ToolTip="Seitenmenü einblenden"
+                            Command="{Binding ToggleSidebarCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}">
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                   FontSize="14"
+                                   Text="{Binding SidebarToggleGlyph}" />
+                    </Button>
+
+                    <ListBox x:Name="CompactSidebarNavigationListBox"
+                             HorizontalContentAlignment="Center"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ItemsSource="{Binding SidebarNavigationItems}"
+                             SelectedItem="{Binding SelectedNavigationItem, Mode=TwoWay}"
+                             PreviewMouseLeftButtonUp="SidebarNavigationListBox_PreviewMouseLeftButtonUp">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Width" Value="40" />
+                                <Setter Property="Height" Value="42" />
+                                <Setter Property="Margin" Value="0,3" />
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                                <Setter Property="VerticalContentAlignment" Value="Center" />
+                                <Setter Property="ToolTip" Value="{Binding DisplayName}" />
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="CompactItemBorder"
+                                                    CornerRadius="10"
+                                                    Background="{DynamicResource Brush.SidebarItemBackground}"
+                                                    BorderBrush="{DynamicResource Brush.SidebarItemBorder}"
+                                                    BorderThickness="1">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"
+                                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="CompactItemBorder" Property="Background" Value="{DynamicResource Brush.SidebarItemHover}" />
+                                                    <Setter TargetName="CompactItemBorder" Property="BorderBrush" Value="{DynamicResource Brush.BorderStrong}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="CompactItemBorder" Property="Background" Value="{DynamicResource Brush.SidebarItemSelected}" />
+                                                    <Setter TargetName="CompactItemBorder" Property="BorderBrush" Value="{DynamicResource Brush.SidebarItemSelected}" />
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock FontFamily="Segoe Fluent Icons"
+                                           FontSize="17"
+                                           Text="{Binding IconGlyph}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
             <Grid Grid.Column="1">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -161,10 +238,33 @@
                                     <Setter Property="CornerRadius" Value="0" />
                                     <Setter Property="Effect" Value="{x:Null}" />
                                 </DataTrigger>
+                                <DataTrigger Binding="{Binding IsToursSectionActive}" Value="True">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="CornerRadius" Value="0" />
+                                    <Setter Property="Effect" Value="{x:Null}" />
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <ContentControl Content="{Binding CurrentSection}" Style="{StaticResource SectionFadeInContentStyle}" />
+                    <Grid>
+                        <sections:KarteSectionView DataContext="{Binding MapSection}">
+                            <sections:KarteSectionView.Style>
+                                <Style TargetType="sections:KarteSectionView">
+                                    <Setter Property="Visibility" Value="Hidden" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DataContext.IsMapSectionActive, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </sections:KarteSectionView.Style>
+                        </sections:KarteSectionView>
+                        <ContentControl Content="{Binding NonMapCurrentSection}"
+                                        Style="{StaticResource SectionFadeInContentStyle}" />
+                    </Grid>
                 </Border>
             </Grid>
         </Grid>

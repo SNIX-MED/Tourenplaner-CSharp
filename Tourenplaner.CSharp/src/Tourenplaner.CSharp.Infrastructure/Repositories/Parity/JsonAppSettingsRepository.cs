@@ -14,9 +14,15 @@ public sealed class JsonAppSettingsRepository : IAppSettingsStore
         _store = store ?? new JsonFileStore();
     }
 
-    public Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default)
+    public async Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
-        return _store.LoadAsync(_path, () => new AppSettings(), createIfMissing: true, backupInvalid: true, cancellationToken: cancellationToken);
+        var settings = await _store.LoadAsync(_path, () => new AppSettings(), createIfMissing: true, backupInvalid: true, cancellationToken: cancellationToken);
+        if (settings.ApplyStayMinutesDefaultsMigration())
+        {
+            await _store.AtomicWriteAsync(_path, settings, cancellationToken);
+        }
+
+        return settings;
     }
 
     public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default)

@@ -22,7 +22,8 @@ public sealed class PostgreSqlConnectionFactory
             Username = settings.Username.Trim(),
             Password = settings.Password ?? string.Empty,
             Timeout = settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 10,
-            SslMode = settings.UseSsl ? SslMode.Prefer : SslMode.Disable
+            SslMode = settings.UseSsl ? SslMode.Prefer : SslMode.Disable,
+            ApplicationName = PostgreSqlClientContext.BuildApplicationName()
         };
 
         return new NpgsqlConnection(builder.ConnectionString);

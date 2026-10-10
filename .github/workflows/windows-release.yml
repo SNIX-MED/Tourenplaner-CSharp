@@ -69,10 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Manuell gesetzte Auftragspins bleiben bei Importen und Auftragsaenderungen erhalten
-          - Lieferadressaenderungen werden vor dem Speichern geprueft und klar dargestellt
-          - Verbesserte Schweizer Adresszuordnung und TomTom-Suchvorschlaege auf der Karte
-          - Erweiterte Pin-Kontextmenues und optimierte Kartenpositionspruefung
+          - Liefertouren-Ansicht umfassend ueberarbeitet und optisch mit der Kartenansicht vereinheitlicht
+          - Tourzeiten, Auswahlzustand und lokale Routenvorschau zwischen Karte und Liefertouren abgestimmt
+          - Auftraege lassen sich per Doppelklick aus einer Liefertour heraus bearbeiten
+          - Routen-Neuberechnung verwendet jetzt den bestehenden Karten- und TomTom-Ablauf
+          - PostgreSQL-Mehrbenutzerbetrieb, Aenderungsverlauf und Startverhalten verbessert
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
