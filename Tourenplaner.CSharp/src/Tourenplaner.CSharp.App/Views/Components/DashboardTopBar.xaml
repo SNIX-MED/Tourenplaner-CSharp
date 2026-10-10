@@ -268,14 +268,12 @@
                                                    Foreground="{DynamicResource Brush.TextMuted}"
                                                    Text="&#xE721;" />
                                         <Grid Grid.Column="1">
-                                            <TextBox BorderThickness="0"
+                                            <TextBox x:Name="MapSearchTextBox"
+                                                     BorderThickness="0"
                                                      Background="Transparent"
                                                      ToolTip="Aufträge filtern, mit Enter auf Karte suchen"
-                                                     Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                                                <TextBox.InputBindings>
-                                                    <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
-                                                </TextBox.InputBindings>
-                                            </TextBox>
+                                                     PreviewKeyDown="MapSearchTextBox_PreviewKeyDown"
+                                                     Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <TextBlock IsHitTestVisible="False"
                                                        Margin="2,0,0,0"
                                                        VerticalAlignment="Center"
@@ -285,9 +283,13 @@
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding SearchText}" Value="">
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding SearchText}" Value="" />
+                                                                    <Condition Binding="{Binding IsKeyboardFocusWithin, ElementName=MapSearchTextBox}" Value="False" />
+                                                                </MultiDataTrigger.Conditions>
                                                                 <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
+                                                            </MultiDataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
@@ -295,6 +297,92 @@
                                         </Grid>
                                     </Grid>
                                 </Border>
+                                <Popup PlacementTarget="{Binding ElementName=MapSearchTextBox}"
+                                       Placement="Bottom"
+                                       VerticalOffset="8"
+                                       AllowsTransparency="True"
+                                       StaysOpen="False"
+                                       IsOpen="{Binding IsSearchSuggestionsOpen, Mode=TwoWay}">
+                                    <Border Width="360"
+                                            MaxHeight="390"
+                                            Padding="6"
+                                            CornerRadius="12"
+                                            Background="White"
+                                            BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                            BorderThickness="1">
+                                        <Border.Effect>
+                                            <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.25" />
+                                        </Border.Effect>
+                                        <ListBox x:Name="MapSearchSuggestionsList"
+                                                 BorderThickness="0"
+                                                 Background="White"
+                                                 ItemsSource="{Binding SearchSuggestions}"
+                                                 SelectedItem="{Binding SelectedSearchSuggestion, Mode=TwoWay}"
+                                                 PreviewMouseLeftButtonUp="MapSearchSuggestionsList_PreviewMouseLeftButtonUp">
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Background" Value="White" />
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                    <Setter Property="Padding" Value="0" />
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#FFF6FBFF" />
+                                                        </Trigger>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter Property="Background" Value="#FFF3E8F4" />
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid>
+                                                        <Grid.Style>
+                                                            <Style TargetType="Grid">
+                                                                <Setter Property="Margin" Value="5" />
+                                                                <Setter Property="MinHeight" Value="48" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding OrderId}" Value="{x:Null}">
+                                                                        <Setter Property="Margin" Value="3" />
+                                                                        <Setter Property="MinHeight" Value="36" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Grid.Style>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="78" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Margin="0,4,10,4" Padding="6,2" CornerRadius="7"
+                                                                Background="{DynamicResource Brush.AccentSurface}">
+                                                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       FontSize="10" FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource Brush.Accent}"
+                                                                       Text="{Binding Kind}" />
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                            <TextBlock FontWeight="SemiBold" Text="{Binding PrimaryText}" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Margin="0,2,0,0" FontSize="11"
+                                                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                                                       Text="{Binding SecondaryText}" TextTrimming="CharacterEllipsis">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                        <Style.Triggers>
+                                                                            <Trigger Property="Text" Value="">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            </Trigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </Border>
+                                </Popup>
                             </Grid>
 
                             <Grid Grid.Column="1" Margin="0,0,8,0">

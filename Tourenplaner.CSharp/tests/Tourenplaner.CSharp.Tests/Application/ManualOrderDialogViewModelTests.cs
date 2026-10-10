@@ -138,6 +138,45 @@ public class ManualOrderDialogViewModelTests
         Assert.Equal(1d, order.ResolveTotalWeightKg());
     }
 
+    [Fact]
+    public void EditingOtherOrderData_PreservesManualPinAndItsMetadata()
+    {
+        var source = CreateOrder();
+        source.Location = new GeoPoint(47.271092, 8.741467);
+        source.IsLocationManuallySet = true;
+        source.ManualLocationAddress = "Woelferstrasse 8, 4414 Fuellinsdorf";
+        var viewModel = new ManualOrderDialogViewModel(source)
+        {
+            Notes = "Neue Notiz"
+        };
+
+        Assert.True(viewModel.TryBuildOrder(out var order, out var error), error);
+        Assert.Equal(source.Location, order!.Location);
+        Assert.True(order.IsLocationManuallySet);
+        Assert.Equal(source.ManualLocationAddress, order.ManualLocationAddress);
+        Assert.False(order.ManualLocationRequiresReview);
+    }
+
+    [Fact]
+    public void ChangingDeliveryAddress_PreservesManualPinAndMarksItForReview()
+    {
+        var source = CreateOrder();
+        source.Location = new GeoPoint(47.271092, 8.741467);
+        source.IsLocationManuallySet = true;
+        source.ManualLocationAddress = "Woelferstrasse 8, 4414 Fuellinsdorf";
+        var viewModel = new ManualOrderDialogViewModel(source)
+        {
+            DeliveryStreet = "Neue Strasse",
+            DeliveryHouseNumber = "10"
+        };
+
+        Assert.True(viewModel.TryBuildOrder(out var order, out var error), error);
+        Assert.Equal(source.Location, order!.Location);
+        Assert.True(order.IsLocationManuallySet);
+        Assert.Equal(source.ManualLocationAddress, order.ManualLocationAddress);
+        Assert.True(order.ManualLocationRequiresReview);
+    }
+
     private static Order CreateOrder()
     {
         return new Order

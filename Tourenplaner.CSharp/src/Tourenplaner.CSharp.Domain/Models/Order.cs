@@ -33,6 +33,9 @@ public sealed class Order
     public bool DeliveryCanOccurEarlier { get; set; }
     public OrderType Type { get; set; } = OrderType.Map;
     public GeoPoint? Location { get; set; }
+    public bool IsLocationManuallySet { get; set; }
+    public string ManualLocationAddress { get; set; } = string.Empty;
+    public bool ManualLocationRequiresReview { get; set; }
     public string? AssignedTourId { get; set; }
     public OrderAddressInfo OrderAddress { get; set; } = new();
     public DeliveryAddressInfo DeliveryAddress { get; set; } = new();

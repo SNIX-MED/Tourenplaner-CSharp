@@ -50,6 +50,8 @@ public partial class ManualOrderDialogWindow : Window
 
     public bool DeleteRequested { get; private set; }
 
+    public Func<Order, Window, Task<bool>>? BeforeSaveAsync { get; init; }
+
     private void OnEditLockConflictLoaded(object sender, RoutedEventArgs e)
     {
         AppMessageBox.Show(
@@ -74,7 +76,7 @@ public partial class ManualOrderDialogWindow : Window
         Close();
     }
 
-    private void OnSaveClicked(object sender, RoutedEventArgs e)
+    private async void OnSaveClicked(object sender, RoutedEventArgs e)
     {
         if (!ViewModel.TryBuildOrder(out var order, out var validationError))
         {
@@ -103,6 +105,32 @@ public partial class ManualOrderDialogWindow : Window
             }
 
             order.AssignedTourId = string.Empty;
+        }
+
+        if (order is not null && BeforeSaveAsync is not null)
+        {
+            SaveButton.IsEnabled = false;
+            try
+            {
+                if (!await BeforeSaveAsync(order, this))
+                {
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppMessageBox.Show(
+                    this,
+                    $"Die Kartenposition konnte nicht geprüft werden: {ex.Message}",
+                    "Kartenposition prüfen",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+            finally
+            {
+                SaveButton.IsEnabled = true;
+            }
         }
 
         DeleteRequested = false;
@@ -275,6 +303,10 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     private GeoPoint? _existingLocation;
     private string? _existingAssignedTourId;
+    private bool _existingIsLocationManuallySet;
+    private string _existingManualLocationAddress = string.Empty;
+    private bool _existingManualLocationRequiresReview;
+    private string _existingDeliveryAddressKey = string.Empty;
 
     public ManualOrderDialogViewModel(
         Order? existingOrder = null,
@@ -584,6 +616,11 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         var deliveryHouseNumber = (DeliveryHouseNumber ?? string.Empty).Trim();
         var deliveryPostalCode = (DeliveryPostalCode ?? string.Empty).Trim();
         var deliveryCity = (DeliveryCity ?? string.Empty).Trim();
+        var deliveryAddressKey = BuildDeliveryAddressKey(
+            deliveryStreet,
+            deliveryHouseNumber,
+            deliveryPostalCode,
+            deliveryCity);
         var normalizedOrderDateText = (OrderDateText ?? string.Empty).Trim();
 
         if (string.IsNullOrWhiteSpace(id) ||
@@ -684,6 +721,11 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Notes = (Notes ?? string.Empty).Trim(),
             AssignedTourId = _existingAssignedTourId,
             Location = _existingLocation,
+            IsLocationManuallySet = _existingIsLocationManuallySet,
+            ManualLocationAddress = _existingManualLocationAddress,
+            ManualLocationRequiresReview = _existingManualLocationRequiresReview ||
+                                           (_existingIsLocationManuallySet &&
+                                            !string.Equals(_existingDeliveryAddressKey, deliveryAddressKey, StringComparison.Ordinal)),
             IsArchived = IsArchived,
             IsXmlImported = IsXmlImported
         };
@@ -749,6 +791,14 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         }
 
         _existingLocation = existingOrder.Location;
+        _existingIsLocationManuallySet = existingOrder.IsLocationManuallySet;
+        _existingManualLocationAddress = existingOrder.ManualLocationAddress;
+        _existingManualLocationRequiresReview = existingOrder.ManualLocationRequiresReview;
+        _existingDeliveryAddressKey = BuildDeliveryAddressKey(
+            existingOrder.DeliveryAddress?.Street,
+            existingOrder.DeliveryAddress?.HouseNumber,
+            existingOrder.DeliveryAddress?.PostalCode,
+            existingOrder.DeliveryAddress?.City);
         _existingAssignedTourId = existingOrder.AssignedTourId;
         IsXmlImported = existingOrder.IsXmlImported;
         IsEditingEnabled = !IsXmlImported;
@@ -853,6 +903,18 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             (street ?? string.Empty).Trim(),
             (houseNumber ?? string.Empty).Trim()
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static string BuildDeliveryAddressKey(
+        string? street,
+        string? houseNumber,
+        string? postalCode,
+        string? city)
+    {
+        var value = string.Join(" ", new[] { street, houseNumber, postalCode, city }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+        return SwissAddressNormalization.NormalizeForComparison(value)
+            .Replace(" ", string.Empty, StringComparison.Ordinal);
     }
 }
 

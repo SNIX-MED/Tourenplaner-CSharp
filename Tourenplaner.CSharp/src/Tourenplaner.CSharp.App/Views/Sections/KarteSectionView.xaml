@@ -2378,6 +2378,17 @@
                                                          IsReadOnly="True"
                                                          Text="{Binding DetailCustomer, Mode=OneWay}"
                                                          TextWrapping="Wrap" />
+                                                <Border Margin="0,8,0,0"
+                                                        Padding="7,3"
+                                                        HorizontalAlignment="Left"
+                                                        CornerRadius="7"
+                                                        Background="#18A00098"
+                                                        BorderBrush="#A00098"
+                                                        BorderThickness="1"
+                                                        ToolTip="Die Kartenposition dieses Auftrags wurde manuell gesetzt."
+                                                        Visibility="{Binding IsDetailLocationManuallySet, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                    <TextBlock Text="{Binding DetailLocationStatusText}" Foreground="#800080" FontSize="11" FontWeight="SemiBold" />
+                                                </Border>
                                             </StackPanel>
                                         </Border>
 

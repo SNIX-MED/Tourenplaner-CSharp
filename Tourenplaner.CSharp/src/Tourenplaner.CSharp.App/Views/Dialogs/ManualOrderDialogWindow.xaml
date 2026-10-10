@@ -684,7 +684,7 @@
                         Style="{StaticResource SecondaryButtonStyle}"
                         IsCancel="True"
                         Click="OnCancelClicked" />
-                <Button Grid.Column="3"
+                <Button x:Name="SaveButton" Grid.Column="3"
                         Width="120"
                         Height="40"
                         Content="Speichern"

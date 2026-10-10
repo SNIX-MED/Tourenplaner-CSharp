@@ -51,7 +51,10 @@ public sealed class OrderPartitionService
 
         if (!DeliveryMethodExtensions.CanUseLiefertour(order))
         {
-            order.Location = null;
+            if (!order.IsLocationManuallySet)
+            {
+                order.Location = null;
+            }
             order.AssignedTourId = string.Empty;
         }
 

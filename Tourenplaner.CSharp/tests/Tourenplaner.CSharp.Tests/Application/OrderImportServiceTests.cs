@@ -447,6 +447,64 @@ public class OrderImportServiceTests
         Assert.Null(stored.DeliveryDate);
     }
 
+    [Fact]
+    public async Task XmlReimport_AddressChange_PreservesManualPinAndMarksItForReview()
+    {
+        var existing = CreateOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        existing.Location = new GeoPoint(47.1, 8.2);
+        existing.IsLocationManuallySet = true;
+        existing.ManualLocationAddress = "Musterstrasse 1, 8000 Zuerich";
+        var repository = new FakeOrderRepository([existing]);
+        var imported = CreateSqlOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        imported.LieferStrasse = "Neue Strasse";
+        imported.LieferHausnummer = "9";
+        imported.LieferPLZ = "9000";
+        imported.LieferOrt = "St. Gallen";
+
+        var service = new OrderImportService();
+        var preview = await service.PreviewImportAsync([imported], repository);
+        var result = await service.ImportOrdersAsync([imported], repository);
+
+        Assert.Contains(Assert.Single(preview.Items).Changes, x => x.Contains("Manueller Pin bleibt erhalten", StringComparison.Ordinal));
+        Assert.Empty(result.Errors);
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal(new GeoPoint(47.1, 8.2), stored.Location);
+        Assert.True(stored.IsLocationManuallySet);
+        Assert.True(stored.ManualLocationRequiresReview);
+        Assert.Equal("Musterstrasse 1, 8000 Zuerich", stored.ManualLocationAddress);
+        Assert.Equal("Neue Strasse", stored.DeliveryAddress.Street);
+    }
+
+    [Fact]
+    public async Task XmlReimport_UnchangedAddress_PreservesManualPinWithoutReview()
+    {
+        var existing = CreateOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        existing.Location = new GeoPoint(47.1, 8.2);
+        existing.IsLocationManuallySet = true;
+        existing.ManualLocationAddress = "Musterstrasse 1, 8000 Zuerich";
+        existing.ManualLocationRequiresReview = true;
+        // Simulate the spelling normalized by TomTom after the user confirmed the
+        // original XML address. The next XML contains the unchanged original value.
+        existing.DeliveryAddress.Street = "Musterstraße";
+        var repository = new FakeOrderRepository([existing]);
+
+        var preview = await new OrderImportService().PreviewImportAsync(
+            [CreateSqlOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz")], repository);
+        var result = await new OrderImportService().ImportOrdersAsync(
+            [CreateSqlOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz")], repository);
+
+        var previewItem = Assert.Single(preview.Items);
+        Assert.Equal(ImportPreviewAction.Unchanged, previewItem.Action);
+        Assert.Empty(previewItem.Changes);
+        Assert.Equal(1, result.UnchangedOrders);
+        Assert.Equal(0, result.UpdatedOrders);
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal(new GeoPoint(47.1, 8.2), stored.Location);
+        Assert.True(stored.IsLocationManuallySet);
+        Assert.False(stored.ManualLocationRequiresReview);
+        Assert.Equal("Musterstraße", stored.DeliveryAddress.Street);
+    }
+
     private static XmlOrderImportData CreateSqlOrder(
         string id,
         string customerName,
@@ -572,6 +630,9 @@ public class OrderImportServiceTests
             DeliveryDate = order.DeliveryDate,
             Type = order.Type,
             Location = order.Location is null ? null : new GeoPoint(order.Location.Latitude, order.Location.Longitude),
+            IsLocationManuallySet = order.IsLocationManuallySet,
+            ManualLocationAddress = order.ManualLocationAddress,
+            ManualLocationRequiresReview = order.ManualLocationRequiresReview,
             AssignedTourId = order.AssignedTourId,
             OrderAddress = new OrderAddressInfo
             {

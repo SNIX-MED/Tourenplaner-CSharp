@@ -48,8 +48,14 @@
                     <Button Margin="8,0,0,0" Content="Pin zurücksetzen" Click="ResetPin_Click"
                             Style="{StaticResource SecondaryButtonStyle}" />
                 </StackPanel>
-                <TextBlock x:Name="PositionText" Grid.Row="1" Margin="0,8,12,0"
-                           Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" />
+                <StackPanel Grid.Row="1" Margin="0,8,12,0" Orientation="Horizontal">
+                    <TextBlock x:Name="PositionText" VerticalAlignment="Center"
+                               Foreground="{DynamicResource Brush.TextMuted}" TextWrapping="Wrap" />
+                    <Border x:Name="PositionSourceBadge" Margin="10,0,0,0" Padding="7,3"
+                            CornerRadius="7" Background="#18A00098" BorderBrush="#A00098" BorderThickness="1">
+                        <TextBlock x:Name="PositionSourceText" Foreground="#800080" FontSize="11" FontWeight="SemiBold" />
+                    </Border>
+                </StackPanel>
                 <StackPanel Grid.Column="1" Grid.RowSpan="2" Orientation="Horizontal" VerticalAlignment="Bottom">
                     <Button Content="Abbrechen" IsCancel="True" Margin="0,0,8,0" Style="{StaticResource SecondaryButtonStyle}" />
                     <Button x:Name="SaveButton" Content="Position übernehmen" Click="Save_Click" Style="{StaticResource PrimaryButtonStyle}" />

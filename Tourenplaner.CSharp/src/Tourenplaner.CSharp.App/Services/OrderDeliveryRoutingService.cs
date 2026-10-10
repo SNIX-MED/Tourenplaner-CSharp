@@ -11,6 +11,19 @@ public static class OrderDeliveryRoutingService
         bool requirePreciseLocation = false)
     {
         order.Type = DeliveryMethodExtensions.ResolveOrderType(order.DeliveryType);
+
+        // A manually confirmed position is user-owned data. Normal order edits,
+        // delivery-method routing and automatic geocoding must never replace it.
+        if (order.IsLocationManuallySet && order.Location is not null)
+        {
+            if (!DeliveryMethodExtensions.CanUseLiefertour(order))
+            {
+                order.AssignedTourId = string.Empty;
+            }
+
+            return null;
+        }
+
         if (!DeliveryMethodExtensions.CanUseLiefertour(order))
         {
             order.Location = null;

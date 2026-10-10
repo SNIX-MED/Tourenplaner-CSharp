@@ -386,12 +386,28 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         }
 
         var originalId = existing.Id;
+        AddressGeocodingResult? updatedGeocodingResult = null;
         var dialog = new ManualOrderDialogWindow(
             existing,
             deliveryTypes: DeliveryMethodExtensions.AllDeliveryTypeOptions,
             defaultOrderType: OrderType.NonMap)
         {
-            Owner = System.Windows.Application.Current?.MainWindow
+            Owner = System.Windows.Application.Current?.MainWindow,
+            BeforeSaveAsync = async (candidate, owner) =>
+            {
+                if (OrderPinSaveValidationService.HasDeliveryAddressChanged(existing, candidate) &&
+                    DeliveryMethodExtensions.CanUseLiefertour(candidate))
+                {
+                    var settings = await _settingsRepository.LoadAsync();
+                    var validation = await OrderPinSaveValidationService.ValidateAsync(
+                        existing, candidate, settings.TomTomApiKey, _geocodeCachePath, owner);
+                    updatedGeocodingResult = validation.GeocodingResult;
+                    return validation.Confirmed;
+                }
+
+                updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(candidate, existing.Location);
+                return true;
+            }
         };
 
         var dialogResult = dialog.ShowDialog();
@@ -413,8 +429,6 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         {
             return;
         }
-
-        var updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, existing.Location);
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
         _allOrders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
@@ -1294,7 +1308,12 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             Address = source.Address,
             ScheduledDate = source.ScheduledDate,
             Type = source.Type,
-            Location = null,
+            Location = source.IsLocationManuallySet && source.Location is not null
+                ? new GeoPoint(source.Location.Latitude, source.Location.Longitude)
+                : null,
+            IsLocationManuallySet = source.IsLocationManuallySet,
+            ManualLocationAddress = source.ManualLocationAddress,
+            ManualLocationRequiresReview = source.ManualLocationRequiresReview,
             AssignedTourId = source.AssignedTourId,
             OrderAddress = new OrderAddressInfo
             {

@@ -175,6 +175,7 @@ internal static class MapHtmlDocumentBuilder
                    .map-context-menu.open { display: block; }
                    .map-context-menu button { width: 100%; padding: 9px 11px; border: 0; border-radius: 7px; background: transparent; color: #0f172a; cursor: pointer; text-align: left; font: 600 13px Segoe UI,sans-serif; }
                    .map-context-menu button:hover { background: #f1f5f9; }
+                   .map-context-menu button:disabled { cursor: default; color: #800080; opacity: .78; background: #faf5ff; }
                    .tt-popup-content, .mapboxgl-popup-content { transform: scale(var(--gawela-pin-scale, 1)); transform-origin: center bottom; display: inline-block; padding: 0 !important; border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
                    .tt-popup-tip, .mapboxgl-popup-tip { display: none !important; }
                    .tt-popup, .tt-popup *, .mapboxgl-popup, .mapboxgl-popup * { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; -webkit-user-drag: none !important; }
@@ -228,6 +229,8 @@ internal static class MapHtmlDocumentBuilder
                  <div id="tourHoverTooltip" class="tour-hover-tooltip" aria-hidden="true"></div>
                  <div id="mapContextMenu" class="map-context-menu" aria-hidden="true">
                    <button id="addManualStopButton" type="button">Stopp hinzufügen</button>
+                   <button id="addPinToTourButton" type="button" hidden>Zu Tour hinzufügen</button>
+                   <button id="manuallyPlacePinButton" type="button" hidden>Pin manuell setzen</button>
                  </div>
                  <div class="map-zoom-controls" aria-label="Kartenzoom">
                    <button id="mapZoomIn" class="map-zoom-button" type="button" aria-label="Karte vergrössern" title="Vergrössern">+</button>
@@ -313,6 +316,8 @@ internal static class MapHtmlDocumentBuilder
                    const tourHoverTooltipEl = document.getElementById('tourHoverTooltip');
                    const mapContextMenuEl = document.getElementById('mapContextMenu');
                    const addManualStopButtonEl = document.getElementById('addManualStopButton');
+                   const addPinToTourButtonEl = document.getElementById('addPinToTourButton');
+                   const manuallyPlacePinButtonEl = document.getElementById('manuallyPlacePinButton');
                    const detailsToggleEl = document.getElementById('detailsToggle');
                    const fleetTracksToggleEl = document.getElementById('fleetTracksToggle');
                    const fleetTracksOverlayEl = document.getElementById('fleetTracksOverlay');
@@ -527,21 +532,42 @@ internal static class MapHtmlDocumentBuilder
                          });
                          const mapCanvas = map.getCanvas();
                          let manualStopContextCoordinates = null;
+                         let contextMenuOrderId = '';
+                         let contextMenuIsSearchPin = false;
                          const closeMapContextMenu = () => {
                            manualStopContextCoordinates = null;
+                           contextMenuOrderId = '';
+                           contextMenuIsSearchPin = false;
                            if (!mapContextMenuEl) return;
                            mapContextMenuEl.classList.remove('open');
                            mapContextMenuEl.setAttribute('aria-hidden', 'true');
                          };
                          mapCanvas.addEventListener('contextmenu', event => event.preventDefault());
+                         const openMapContextMenu = (point, coordinates, orderId = '', isLocationManuallySet = false, isSearchPin = false) => {
+                           if (!mapContextMenuEl) return;
+                           contextMenuOrderId = (orderId || '').toString().trim();
+                           contextMenuIsSearchPin = isSearchPin === true;
+                           manualStopContextCoordinates = coordinates;
+                           const isExistingPin = contextMenuOrderId.length > 0;
+                           const isInteractivePin = isExistingPin || contextMenuIsSearchPin;
+                           if (addManualStopButtonEl) addManualStopButtonEl.hidden = isInteractivePin;
+                           if (addPinToTourButtonEl) addPinToTourButtonEl.hidden = !isInteractivePin;
+                           if (manuallyPlacePinButtonEl) manuallyPlacePinButtonEl.hidden = !isExistingPin;
+                           if (manuallyPlacePinButtonEl && isExistingPin) {
+                             manuallyPlacePinButtonEl.textContent = isLocationManuallySet
+                               ? 'Pin manuell setzen (manuell gesetzt)'
+                               : 'Pin manuell setzen';
+                           }
+                           mapContextMenuEl.style.left = `${Math.max(8, Math.min(point.x, mapCanvas.clientWidth - 190))}px`;
+                           const menuHeight = isExistingPin ? 92 : 55;
+                           mapContextMenuEl.style.top = `${Math.max(8, Math.min(point.y, mapCanvas.clientHeight - menuHeight))}px`;
+                           mapContextMenuEl.classList.add('open');
+                           mapContextMenuEl.setAttribute('aria-hidden', 'false');
+                         };
                          map.on('contextmenu', evt => {
                            if (!evt || !evt.lngLat || !mapContextMenuEl) return;
                            const point = evt.point || map.project(evt.lngLat);
-                           manualStopContextCoordinates = { lat: Number(evt.lngLat.lat), lon: Number(evt.lngLat.lng) };
-                           mapContextMenuEl.style.left = `${Math.max(8, Math.min(point.x, mapCanvas.clientWidth - 190))}px`;
-                           mapContextMenuEl.style.top = `${Math.max(8, Math.min(point.y, mapCanvas.clientHeight - 55))}px`;
-                           mapContextMenuEl.classList.add('open');
-                           mapContextMenuEl.setAttribute('aria-hidden', 'false');
+                           openMapContextMenu(point, { lat: Number(evt.lngLat.lat), lon: Number(evt.lngLat.lng) });
                          });
                          map.on('click', closeMapContextMenu);
                          map.on('dragstart', closeMapContextMenu);
@@ -553,6 +579,30 @@ internal static class MapHtmlDocumentBuilder
                              if (!coordinates || !Number.isFinite(coordinates.lat) || !Number.isFinite(coordinates.lon)) return;
                              if (window.chrome && window.chrome.webview) {
                                window.chrome.webview.postMessage(`addManualStop:${coordinates.lat.toFixed(6)}:${coordinates.lon.toFixed(6)}`);
+                             }
+                           });
+                         }
+                         if (addPinToTourButtonEl) {
+                           addPinToTourButtonEl.addEventListener('click', event => {
+                             event.stopPropagation();
+                             const orderId = contextMenuOrderId;
+                             const coordinates = manualStopContextCoordinates;
+                             const isSearchPin = contextMenuIsSearchPin;
+                             closeMapContextMenu();
+                             if (orderId && window.chrome && window.chrome.webview) {
+                               window.chrome.webview.postMessage(`add:${orderId}`);
+                             } else if (isSearchPin && coordinates && window.chrome && window.chrome.webview) {
+                               window.chrome.webview.postMessage(`addManualStop:${coordinates.lat.toFixed(6)}:${coordinates.lon.toFixed(6)}`);
+                             }
+                           });
+                         }
+                         if (manuallyPlacePinButtonEl) {
+                           manuallyPlacePinButtonEl.addEventListener('click', event => {
+                             event.stopPropagation();
+                             const orderId = contextMenuOrderId;
+                             closeMapContextMenu();
+                             if (orderId && window.chrome && window.chrome.webview) {
+                               window.chrome.webview.postMessage(`manuallyPlacePin:${orderId}`);
                              }
                            });
                          }
@@ -2104,6 +2154,12 @@ internal static class MapHtmlDocumentBuilder
                                 scheduleOverlapHoverReset();
                                 map.getCanvas().style.cursor = 'grab';
                               });
+                             markerEl.addEventListener('contextmenu', evt => {
+                               evt.preventDefault();
+                               evt.stopPropagation();
+                               const point = map.project(marker.getLngLat());
+                               openMapContextMenu(point, null, m.id, m.manualLocationRequiresReview === true ? 'review' : m.isLocationManuallySet === true);
+                             });
                              markerEl.addEventListener('click', (evt) => {
                                evt.stopPropagation();
                                if (window.chrome && window.chrome.webview && m.id) {
@@ -2524,6 +2580,12 @@ internal static class MapHtmlDocumentBuilder
                                scheduleOverlapHoverReset();
                                map.getCanvas().style.cursor = 'grab';
                              });
+                             markerEl.addEventListener('contextmenu', evt => {
+                               evt.preventDefault();
+                               evt.stopPropagation();
+                               const point = map.project(marker.getLngLat());
+                               openMapContextMenu(point, null, stop.id, stop.manualLocationRequiresReview === true ? 'review' : stop.isLocationManuallySet === true);
+                             });
                              let draggedDuringInteraction = false;
                              marker.on('dragstart', () => {
                                marker.__gawelaDragging = true;
@@ -2670,10 +2732,24 @@ internal static class MapHtmlDocumentBuilder
                            pinEl.style.background = '#DC2626';
                            pinEl.style.border = '2px solid #FFFFFF';
                            pinEl.style.boxShadow = '0 2px 8px rgba(0,0,0,0.28)';
-                           pinEl.style.pointerEvents = 'none';
+                           pinEl.style.pointerEvents = 'auto';
                            tempSearchMarker = new ttSdk.Marker({ element: pinEl, anchor: 'center' })
                              .setLngLat([lon, lat])
                              .addTo(map);
+                           pinEl.addEventListener('mouseenter', () => {
+                             pinEl.style.cursor = 'pointer';
+                             map.getCanvas().style.cursor = 'pointer';
+                           });
+                           pinEl.addEventListener('mouseleave', () => {
+                             pinEl.style.cursor = 'default';
+                             map.getCanvas().style.cursor = 'grab';
+                           });
+                           pinEl.addEventListener('contextmenu', event => {
+                             event.preventDefault();
+                             event.stopPropagation();
+                             const coordinates = { lat, lon };
+                             openMapContextMenu(map.project([lon, lat]), coordinates, '', false, true);
+                           });
                            if (item.focus === true) {
                              map.easeTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 13), duration: 420 });
                            }

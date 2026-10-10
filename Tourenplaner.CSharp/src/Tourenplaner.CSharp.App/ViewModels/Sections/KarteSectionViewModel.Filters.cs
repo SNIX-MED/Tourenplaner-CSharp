@@ -172,7 +172,9 @@ public sealed partial class KarteSectionViewModel
             HasPendingPreparation = source.HasPendingPreparation,
             IstVorauszahlung = source.IstVorauszahlung,
             IsDimmed = isDimmed,
-            IsBatchSelected = source.IsBatchSelected
+            IsBatchSelected = source.IsBatchSelected,
+            IsLocationManuallySet = source.IsLocationManuallySet,
+            ManualLocationRequiresReview = source.ManualLocationRequiresReview
         };
     }
 

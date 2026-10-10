@@ -829,6 +829,8 @@ public partial class KarteSectionView : UserControl
             status = x.StatusLabel,
             avisoStatus = x.AvisoStatusLabel,
             isAssigned = x.IsAssigned,
+            isLocationManuallySet = x.IsLocationManuallySet,
+            manualLocationRequiresReview = x.ManualLocationRequiresReview,
             isDimmed = x.IsDimmed,
             isBatchSelected = x.IsBatchSelected,
             hasPendingPreparation = x.HasPendingPreparation,
@@ -911,6 +913,8 @@ public partial class KarteSectionView : UserControl
                     isAssigned = visual.IsAssigned,
                     hasPendingPreparation = visual.HasPendingPreparation,
                     istVorauszahlung = visual.IstVorauszahlung,
+                    isLocationManuallySet = visual.IsLocationManuallySet,
+                    manualLocationRequiresReview = visual.ManualLocationRequiresReview,
                     color = r.IsManualStop ? "#374151" : visual.StatusColorHex,
                     shape = r.IsManualStop ? "circle" : ResolveDeliveryShape(visual.DeliveryLabel),
                     lat = r.Latitude,
@@ -1193,6 +1197,16 @@ public partial class KarteSectionView : UserControl
                 _ = vm.AddManualRouteStopAsync(latitude, longitude);
             }
 
+            return;
+        }
+
+        if (raw.StartsWith("manuallyPlacePin:", StringComparison.OrdinalIgnoreCase))
+        {
+            var orderId = raw["manuallyPlacePin:".Length..];
+            // Do not open a modal WebView2 dialog while WebView2 is still dispatching
+            // this message. The nested preview controller otherwise cannot finish its
+            // initialization and remains on "Kartenvorschau wird geladen ...".
+            Dispatcher.BeginInvoke(new Action(() => _ = vm.ManuallyPlaceOrderPinAsync(orderId)));
             return;
         }
 

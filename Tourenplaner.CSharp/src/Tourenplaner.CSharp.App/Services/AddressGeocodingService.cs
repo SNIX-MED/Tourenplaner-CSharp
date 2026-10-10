@@ -20,6 +20,93 @@ public static class AddressGeocodingService
     private static readonly ConcurrentDictionary<string, GeoPoint> InMemoryCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, AddressGeocodingResult> InMemoryResolutionCache = new(StringComparer.OrdinalIgnoreCase);
 
+    public static async Task<IReadOnlyList<TomTomSearchSuggestion>> SearchSuggestionsAsync(
+        string? query, string? tomTomApiKey, int limit = 6,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedQuery = NormalizeWhitespace(query ?? string.Empty);
+        var key = (tomTomApiKey ?? string.Empty).Trim();
+        if (normalizedQuery.Length < 3 || string.IsNullOrWhiteSpace(key)) return [];
+
+        var effectiveLimit = Math.Clamp(limit, 1, 6);
+        var uri = $"https://api.tomtom.com/search/2/search/{Uri.EscapeDataString(normalizedQuery)}.json" +
+                  $"?key={Uri.EscapeDataString(key)}&limit={effectiveLimit}&countrySet=CH&language=de-DE&typeahead=true";
+        try
+        {
+            using var response = await RequestQueue.GetAsync(Client, uri, cancellationToken: cancellationToken);
+            if (!response.IsSuccessStatusCode) return [];
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            if (!document.RootElement.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array)
+                return [];
+
+            var suggestions = new List<TomTomSearchSuggestion>();
+            foreach (var result in results.EnumerateArray())
+            {
+                if (!result.TryGetProperty("position", out var position) ||
+                    !position.TryGetProperty("lat", out var latElement) ||
+                    !position.TryGetProperty("lon", out var lonElement) ||
+                    latElement.ValueKind != JsonValueKind.Number || lonElement.ValueKind != JsonValueKind.Number)
+                    continue;
+
+                var address = result.TryGetProperty("address", out var addressElement) && addressElement.ValueKind == JsonValueKind.Object
+                    ? addressElement : default;
+                var poi = result.TryGetProperty("poi", out var poiElement) && poiElement.ValueKind == JsonValueKind.Object
+                    ? poiElement : default;
+                var type = ReadJsonString(result, "type") ?? string.Empty;
+                var entityType = ReadJsonString(result, "entityType") ?? string.Empty;
+                var freeform = ReadJsonString(address, "freeformAddress") ?? string.Empty;
+                var poiName = ReadJsonString(poi, "name") ?? string.Empty;
+                var municipality = ReadJsonString(address, "municipality") ?? string.Empty;
+                var primary = !string.IsNullOrWhiteSpace(poiName)
+                    ? poiName : BuildSuggestionPrimary(type, entityType, address, freeform, municipality);
+                var secondary = !string.IsNullOrWhiteSpace(freeform) && !string.Equals(primary, freeform, StringComparison.OrdinalIgnoreCase)
+                    ? freeform : BuildSuggestionSecondary(address, primary);
+                if (string.IsNullOrWhiteSpace(primary)) continue;
+
+                suggestions.Add(new TomTomSearchSuggestion(primary, secondary,
+                    ResolveSuggestionKind(type, entityType, poi),
+                    new GeoPoint(latElement.GetDouble(), lonElement.GetDouble())));
+            }
+
+            return suggestions
+                .GroupBy(x => $"{x.PrimaryText}|{x.SecondaryText}", StringComparer.OrdinalIgnoreCase)
+                .Select(x => x.First()).Take(effectiveLimit).ToList();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch { return []; }
+    }
+
+    private static string BuildSuggestionPrimary(string type, string entityType, JsonElement address, string freeform, string municipality)
+    {
+        if (string.Equals(type, "Geography", StringComparison.OrdinalIgnoreCase))
+        {
+            var subdivision = ReadJsonString(address, "municipalitySubdivision") ?? string.Empty;
+            return string.Equals(entityType, "MunicipalitySubdivision", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(subdivision)
+                ? subdivision : municipality;
+        }
+        return ReadJsonString(address, "streetName") ?? freeform;
+    }
+
+    private static string BuildSuggestionSecondary(JsonElement address, string primary)
+    {
+        var value = string.Join(" ", new[] { ReadJsonString(address, "postalCode"), ReadJsonString(address, "municipality") }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+        return string.Equals(value, primary, StringComparison.OrdinalIgnoreCase) ? string.Empty : value;
+    }
+
+    private static string ResolveSuggestionKind(string type, string entityType, JsonElement poi)
+    {
+        if (poi.ValueKind == JsonValueKind.Object) return "Ort / Firma";
+        if (string.Equals(type, "Point Address", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "Address Range", StringComparison.OrdinalIgnoreCase)) return "Adresse";
+        if (string.Equals(type, "Street", StringComparison.OrdinalIgnoreCase)) return "Strasse";
+        if (string.Equals(entityType, "Municipality", StringComparison.OrdinalIgnoreCase)) return "Gemeinde";
+        if (string.Equals(entityType, "MunicipalitySubdivision", StringComparison.OrdinalIgnoreCase)) return "Ortsteil";
+        if (string.Equals(entityType, "PostalCodeArea", StringComparison.OrdinalIgnoreCase)) return "Postleitzahl";
+        return "Ort";
+    }
+
     public static async Task<GeoPoint?> TryGeocodeOrderAsync(Order order, string? tomTomApiKey = null, string? cacheFilePath = null)
     {
         var result = await TryResolveOrderAsync(order, tomTomApiKey, cacheFilePath);
@@ -755,45 +842,14 @@ public static class AddressGeocodingService
 
     private static string NormalizeAddressToken(string? value)
     {
-        var normalized = NormalizeWhitespace(value ?? string.Empty)
-            .Replace("ä", "a", StringComparison.OrdinalIgnoreCase)
-            .Replace("ö", "o", StringComparison.OrdinalIgnoreCase)
-            .Replace("ü", "u", StringComparison.OrdinalIgnoreCase)
-            .Replace("ß", "ss", StringComparison.OrdinalIgnoreCase);
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return string.Empty;
-        }
-
-        var decomposed = normalized.Normalize(NormalizationForm.FormD);
-        var builder = new StringBuilder(decomposed.Length);
-        foreach (var ch in decomposed)
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
-            {
-                builder.Append(char.IsLetterOrDigit(ch) ? char.ToLowerInvariant(ch) : ' ');
-            }
-        }
-
-        return NormalizeWhitespace(builder.ToString());
+        return SwissAddressNormalization.NormalizeForComparison(value);
     }
 
     private static int GetCandidateScore(GeocodeCandidate candidate, AddressExpectation expectation)
     {
         var normalizedType = NormalizeWhitespace(candidate.Type);
         var normalizedEntityType = NormalizeWhitespace(candidate.EntityType ?? string.Empty);
-        var baseScore = normalizedType.ToLowerInvariant() switch
-        {
-            "point address" => 500,
-            "address range" => 450,
-            "street" => 350,
-            "cross street" => 300,
-            "geography" when string.Equals(normalizedEntityType, "MunicipalitySubdivision", StringComparison.OrdinalIgnoreCase) => 220,
-            "geography" when string.Equals(normalizedEntityType, "PostalCodeArea", StringComparison.OrdinalIgnoreCase) => 120,
-            "cached" => 100,
-            "geography" => 150,
-            _ => 180
-        };
+        var baseScore = GetCandidateTypeScore(normalizedType, normalizedEntityType);
 
         var score = baseScore + GetQuerySpecificityScore(candidate.Query);
         if (IsCandidateConsistentWithExpectedAddress(candidate, expectation))
@@ -807,6 +863,25 @@ public static class AddressGeocodingService
         }
 
         return score;
+    }
+
+    internal static int GetCandidateTypeScore(string? type, string? entityType)
+    {
+        var normalizedType = NormalizeWhitespace(type ?? string.Empty);
+        var normalizedEntityType = NormalizeWhitespace(entityType ?? string.Empty);
+        return normalizedType.ToLowerInvariant() switch
+        {
+            "point address" => 500,
+            "address range" => 450,
+            "geography" when string.Equals(normalizedEntityType, "Municipality", StringComparison.OrdinalIgnoreCase) => 400,
+            "street" => 350,
+            "cross street" => 300,
+            "geography" when string.Equals(normalizedEntityType, "MunicipalitySubdivision", StringComparison.OrdinalIgnoreCase) => 220,
+            "geography" when string.Equals(normalizedEntityType, "PostalCodeArea", StringComparison.OrdinalIgnoreCase) => 120,
+            "cached" => 100,
+            "geography" => 150,
+            _ => 180
+        };
     }
 
     private static int GetQuerySpecificityScore(string query)
@@ -935,7 +1010,9 @@ public static class AddressGeocodingService
         }
 
         var suspiciousGroups = orders
-            .Where(x => DeliveryMethodExtensions.CanUseLiefertour(x) && x.Location is not null)
+            .Where(x => DeliveryMethodExtensions.CanUseLiefertour(x) &&
+                        x.Location is not null &&
+                        !x.IsLocationManuallySet)
             .GroupBy(x => BuildCoordinateKey(x.Location!))
             .Where(group =>
             {
@@ -1104,6 +1181,12 @@ public sealed record AddressGeocodingResult(
     string? ResultStreetName = null,
     string? ResultFreeformAddress = null,
     int? CacheValidationVersion = null);
+
+public sealed record TomTomSearchSuggestion(
+    string PrimaryText,
+    string SecondaryText,
+    string Kind,
+    GeoPoint Location);
 
 public sealed record AddressGeocodingResolution(
     AddressGeocodingResult? Result,

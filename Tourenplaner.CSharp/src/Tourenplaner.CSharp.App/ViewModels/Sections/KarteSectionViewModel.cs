@@ -101,6 +101,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private VehicleDataRecord _vehicleData = new();
 
     private string _searchText = string.Empty;
+    private readonly Dictionary<string, IReadOnlyList<MapSearchSuggestionItem>> _searchSuggestionCache = new(StringComparer.OrdinalIgnoreCase);
+    private CancellationTokenSource? _searchSuggestionCts;
+    private MapSearchSuggestionItem? _selectedSearchSuggestion;
+    private bool _isSearchSuggestionsOpen;
+    private bool _suppressSearchSuggestionRefresh;
     private bool _includeOpenOrders = true;
     private bool _includePlannedOrders = true;
     private MapOrderItem? _selectedOrder;
@@ -297,6 +302,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     }
 
     public ObservableCollection<MapOrderItem> MapOrders { get; } = new();
+
+    public ObservableCollection<MapSearchSuggestionItem> SearchSuggestions { get; } = new();
 
     public ObservableCollection<RouteStopItem> RouteStops { get; } = new();
 
@@ -604,8 +611,24 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 }
 
                 RebuildOrderGrid(preserveSelectedOrderInstance: true);
+                if (!_suppressSearchSuggestionRefresh)
+                {
+                    ScheduleSearchSuggestions(value);
+                }
             }
         }
+    }
+
+    public MapSearchSuggestionItem? SelectedSearchSuggestion
+    {
+        get => _selectedSearchSuggestion;
+        set => SetProperty(ref _selectedSearchSuggestion, value);
+    }
+
+    public bool IsSearchSuggestionsOpen
+    {
+        get => _isSearchSuggestionsOpen;
+        set => SetProperty(ref _isSearchSuggestionsOpen, value);
     }
 
     public bool IncludeOpenOrders
@@ -739,8 +762,149 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
     }
 
+    private void ScheduleSearchSuggestions(string? value)
+    {
+        _searchSuggestionCts?.Cancel();
+        _searchSuggestionCts?.Dispose();
+        _searchSuggestionCts = new CancellationTokenSource();
+        var query = (value ?? string.Empty).Trim();
+        if (query.Length < 3)
+        {
+            ReplaceSearchSuggestions([]);
+            return;
+        }
+
+        _ = LoadSearchSuggestionsAsync(query, _searchSuggestionCts.Token);
+    }
+
+    private async Task LoadSearchSuggestionsAsync(string query, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(450, cancellationToken);
+            if (!string.Equals(query, (_searchText ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase)) return;
+
+            var local = BuildLocalSearchSuggestions(query);
+            if (local.Count > 0)
+            {
+                ReplaceSearchSuggestions(local);
+            }
+
+            if (!_searchSuggestionCache.TryGetValue(query, out var remoteSuggestions))
+            {
+                var remote = await AddressGeocodingService.SearchSuggestionsAsync(query, _tomTomApiKey, 6, cancellationToken);
+                remoteSuggestions = remote.Select(x => new MapSearchSuggestionItem(
+                    BuildRemoteSuggestionLabel(x), string.Empty, x.Kind,
+                    x.Location.Latitude, x.Location.Longitude, null)).ToList();
+                if (remoteSuggestions.Count > 0)
+                {
+                    _searchSuggestionCache[query] = remoteSuggestions;
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.Equals(query, (_searchText ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                // Keep matching orders at the top, but always reserve space for
+                // TomTom place/address suggestions when both kinds are available.
+                var suggestions = remoteSuggestions.Count == 0
+                    ? local
+                    : local.Take(2).Concat(remoteSuggestions).Take(6).ToList();
+                ReplaceSearchSuggestions(suggestions);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer input superseded this request.
+        }
+    }
+
+    private static string BuildRemoteSuggestionLabel(TomTomSearchSuggestion suggestion)
+    {
+        if (string.IsNullOrWhiteSpace(suggestion.SecondaryText)) return suggestion.PrimaryText;
+        if (suggestion.SecondaryText.Contains(suggestion.PrimaryText, StringComparison.OrdinalIgnoreCase))
+            return suggestion.SecondaryText;
+
+        return $"{suggestion.PrimaryText}, {suggestion.SecondaryText}";
+    }
+
+    private IReadOnlyList<MapSearchSuggestionItem> BuildLocalSearchSuggestions(string query)
+    {
+        var normalized = query.Trim();
+        return _allOrders
+            .Where(x => x.Id.Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+                         x.CustomerName.Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+                         x.Address.Contains(normalized, StringComparison.OrdinalIgnoreCase))
+            .Take(6)
+            .Select(x => new MapSearchSuggestionItem(
+                $"Auftrag {x.Id} · {x.CustomerName}",
+                x.Address,
+                "Auftrag",
+                x.Location?.Latitude ?? double.NaN,
+                x.Location?.Longitude ?? double.NaN,
+                x.Id))
+            .ToList();
+    }
+
+    private void ReplaceSearchSuggestions(IEnumerable<MapSearchSuggestionItem> suggestions)
+    {
+        SearchSuggestions.Clear();
+        foreach (var suggestion in suggestions.Take(6)) SearchSuggestions.Add(suggestion);
+        SelectedSearchSuggestion = SearchSuggestions.FirstOrDefault();
+        IsSearchSuggestionsOpen = SearchSuggestions.Count > 0;
+    }
+
+    public void CloseSearchSuggestions() => IsSearchSuggestionsOpen = false;
+
+    public void MoveSearchSuggestionSelection(int offset)
+    {
+        if (SearchSuggestions.Count == 0) return;
+        var index = SelectedSearchSuggestion is null ? -1 : SearchSuggestions.IndexOf(SelectedSearchSuggestion);
+        index = Math.Clamp(index + offset, 0, SearchSuggestions.Count - 1);
+        SelectedSearchSuggestion = SearchSuggestions[index];
+        IsSearchSuggestionsOpen = true;
+    }
+
+    public async Task ApplySearchSuggestionAsync(MapSearchSuggestionItem? suggestion)
+    {
+        suggestion ??= SelectedSearchSuggestion ?? SearchSuggestions.FirstOrDefault();
+        if (suggestion is null) return;
+
+        _suppressSearchSuggestionRefresh = true;
+        try { SearchText = suggestion.PrimaryText; }
+        finally { _suppressSearchSuggestionRefresh = false; }
+        IsSearchSuggestionsOpen = false;
+
+        if (!string.IsNullOrWhiteSpace(suggestion.OrderId))
+        {
+            var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, suggestion.OrderId, StringComparison.OrdinalIgnoreCase));
+            var match = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, suggestion.OrderId, StringComparison.OrdinalIgnoreCase))
+                        ?? (order is null ? null : BuildMapOrderItem(order));
+            if (match is not null)
+            {
+                if (await HandleSearchMatchWithoutPinAsync(match)) return;
+                SelectedOrder = match;
+                _searchFocusRevision++;
+                OnPropertyChanged(nameof(SearchFocusRevision));
+                ClearTemporarySearchPin();
+                StatusText = $"Auftrag {suggestion.OrderId} gefunden.";
+            }
+            return;
+        }
+
+        SetTemporarySearchPin(suggestion.Latitude, suggestion.Longitude,
+            string.IsNullOrWhiteSpace(suggestion.SecondaryText) ? suggestion.PrimaryText : suggestion.SecondaryText);
+        StatusText = $"Adresse gefunden: {suggestion.PrimaryText}";
+        await Task.CompletedTask;
+    }
+
     private async Task SearchAsync()
     {
+        if (IsSearchSuggestionsOpen && SearchSuggestions.Count > 0)
+        {
+            await ApplySearchSuggestionAsync(SelectedSearchSuggestion ?? SearchSuggestions[0]);
+            return;
+        }
         var query = (_searchText ?? string.Empty).Trim();
         RebuildOrderGrid(preserveSelectedOrderInstance: true);
         if (string.IsNullOrWhiteSpace(query))
@@ -1221,6 +1385,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 }
                 OnPropertyChanged(nameof(DetailAddress));
                 OnPropertyChanged(nameof(DetailCustomer));
+                OnPropertyChanged(nameof(IsDetailLocationManuallySet));
+                OnPropertyChanged(nameof(DetailLocationStatusText));
                 OnPropertyChanged(nameof(DetailOrderNumber));
                 OnPropertyChanged(nameof(DetailOrderStatus));
                 OnPropertyChanged(nameof(DetailOrderStatusColor));
@@ -1473,6 +1639,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public string DetailAddress => FormatOrderAddress(FindSelectedOrderModel());
     public string DetailCustomer => FormatDeliveryAddress(FindSelectedOrderModel());
+    public bool IsDetailLocationManuallySet => FindSelectedOrderModel()?.IsLocationManuallySet == true;
+    public string DetailLocationStatusText => FindSelectedOrderModel()?.ManualLocationRequiresReview == true
+        ? "⚠ Manueller Pin – Adresse geändert"
+        : "📍 Pin manuell gesetzt";
     public string DetailOrderNumber => SelectedOrder?.OrderId ?? "n/a";
     public string DetailOrderStatus => ResolveEffectiveOrderStatus(FindSelectedOrderModel());
     public string DetailOrderStatusColor => ResolveOrderStatusColor(FindSelectedOrderModel(), isAssigned: false);
@@ -1633,6 +1803,84 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         AddSelectedOrderToRoute();
     }
 
+    public async Task ManuallyPlaceOrderPinAsync(string? orderId)
+    {
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        var orderIndex = _allOrders.FindIndex(x =>
+            string.Equals(x.Id, normalizedOrderId, StringComparison.OrdinalIgnoreCase));
+        if (orderIndex < 0 || _allOrders[orderIndex].Location is null)
+        {
+            StatusText = $"Auftrag {normalizedOrderId}: Pin konnte nicht geöffnet werden.";
+            return;
+        }
+
+        var order = _allOrders[orderIndex];
+        var originalAddress = BuildRouteStopAddressLine(
+            ResolveStreet(order),
+            ResolvePostalCodeCity(order),
+            order.Address);
+        var currentLocation = order.Location!;
+        var resolutionTask = AddressGeocodingService.TryResolveOrderWithDiagnosticsAsync(
+            order,
+            TomTomApiKey,
+            _geocodeCachePath);
+        var provisionalResult = new AddressGeocodingResult(
+            currentLocation,
+            true,
+            originalAddress,
+            "Wird geladen",
+            null,
+            ResultFreeformAddress: originalAddress);
+
+        var dialog = new PinAddressInfoDialogWindow(
+            order,
+            originalAddress,
+            provisionalResult,
+            string.Empty,
+            TomTomApiKey,
+            currentLocation,
+            order.IsLocationManuallySet,
+            order.ManualLocationRequiresReview,
+            resolutionTask)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        if (dialog.ShowDialog() != true || dialog.SelectedLocation is null)
+        {
+            return;
+        }
+
+        var updated = JsonSerializer.Deserialize<Order>(JsonSerializer.Serialize(order))!;
+        updated.Location = dialog.SelectedLocation;
+        updated.IsLocationManuallySet = dialog.IsSelectedLocationManual;
+        updated.ManualLocationAddress = dialog.IsSelectedLocationManual ? originalAddress : string.Empty;
+        updated.ManualLocationRequiresReview = false;
+
+        if (_orderMutationRepository is not null)
+        {
+            await _orderMutationRepository.UpsertAsync(updated);
+        }
+        else
+        {
+            var snapshot = _allOrders.ToList();
+            snapshot[orderIndex] = updated;
+            await _orderRepository.SaveAllAsync(snapshot);
+        }
+
+        _allOrders[orderIndex] = updated;
+        foreach (var stop in RouteStops.Where(x =>
+                     string.Equals(x.OrderId, normalizedOrderId, StringComparison.OrdinalIgnoreCase)))
+        {
+            stop.Latitude = updated.Location.Latitude;
+            stop.Longitude = updated.Location.Longitude;
+        }
+
+        RebuildOrderGrid(normalizedOrderId);
+        RouteVisualRevision++;
+        StatusText = $"Pin für Auftrag {normalizedOrderId} wurde aktualisiert.";
+    }
+
     public IReadOnlyList<RouteStopItem> GetRouteSnapshot()
     {
         return RouteStops
@@ -1665,6 +1913,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 AvisoStatusLabel: "nicht avisiert",
                 HasPendingPreparation: false,
                 IstVorauszahlung: false,
+                IsLocationManuallySet: false,
+                ManualLocationRequiresReview: false,
                 StatusColorHex: ResolveOrderStatusColor((string?)null, isAssigned: false));
         }
 
@@ -1676,6 +1926,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             AvisoStatusLabel: NormalizeAvisoStatus(order.AvisoStatus),
             HasPendingPreparation: HasPendingPreparationProduct(order.Products),
             IstVorauszahlung: order.IstVorauszahlung,
+            IsLocationManuallySet: order.IsLocationManuallySet,
+            ManualLocationRequiresReview: order.ManualLocationRequiresReview,
             StatusColorHex: ResolveOrderStatusColor(order, isAssigned));
     }
 
@@ -6240,9 +6492,24 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         var originalId = selected.Id;
+        AddressGeocodingResult? updatedGeocodingResult = null;
         var dialog = new ManualOrderDialogWindow(selected)
         {
-            Owner = System.Windows.Application.Current?.MainWindow
+            Owner = System.Windows.Application.Current?.MainWindow,
+            BeforeSaveAsync = async (candidate, owner) =>
+            {
+                if (OrderPinSaveValidationService.HasDeliveryAddressChanged(selected, candidate) &&
+                    DeliveryMethodExtensions.CanUseLiefertour(candidate))
+                {
+                    var validation = await OrderPinSaveValidationService.ValidateAsync(
+                        selected, candidate, _tomTomApiKey, _geocodeCachePath, owner);
+                    updatedGeocodingResult = validation.GeocodingResult;
+                    return validation.Confirmed;
+                }
+
+                updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(candidate, selected.Location);
+                return true;
+            }
         };
 
         var dialogResult = dialog.ShowDialog();
@@ -6277,8 +6544,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         {
             return;
         }
-
-        var updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, selected.Location);
 
         _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
         _allOrders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
@@ -8564,6 +8829,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         var candidates = _allOrders
             .Where(x => DeliveryMethodExtensions.CanUseLiefertour(x) &&
                         !x.IsArchived &&
+                        !x.IsLocationManuallySet &&
                         (x.Location is null || AddressGeocodingService.IsLikelyCountryCentroid(x.Location)))
             .ToList();
 
@@ -8626,7 +8892,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             HasPendingPreparation = HasPendingPreparationProduct(order.Products),
             IstVorauszahlung = order.IstVorauszahlung,
             IsDimmed = isDimmed,
-            IsBatchSelected = _selectedBatchOrderIds.Contains(order.Id)
+            IsBatchSelected = _selectedBatchOrderIds.Contains(order.Id),
+            IsLocationManuallySet = order.IsLocationManuallySet
+            ,ManualLocationRequiresReview = order.ManualLocationRequiresReview
         };
     }
 
@@ -9340,6 +9608,8 @@ public sealed class MapOrderItem
     public bool IstVorauszahlung { get; set; }
     public bool IsDimmed { get; set; }
     public bool IsBatchSelected { get; set; }
+    public bool IsLocationManuallySet { get; set; }
+    public bool ManualLocationRequiresReview { get; set; }
 }
 
 public sealed class MapOrderFilterOption : ObservableObject
@@ -9834,7 +10104,15 @@ public sealed class RouteStopItem : ObservableObject
     }
 }
 
-public sealed record MapOrderVisualInfo(string DeliveryLabel, string StatusLabel, bool IsAssigned, string AvisoStatusLabel, bool HasPendingPreparation, bool IstVorauszahlung, string StatusColorHex);
+public sealed record MapOrderVisualInfo(string DeliveryLabel, string StatusLabel, bool IsAssigned, string AvisoStatusLabel, bool HasPendingPreparation, bool IstVorauszahlung, bool IsLocationManuallySet, bool ManualLocationRequiresReview, string StatusColorHex);
+
+public sealed record MapSearchSuggestionItem(
+    string PrimaryText,
+    string SecondaryText,
+    string Kind,
+    double Latitude,
+    double Longitude,
+    string? OrderId);
 
 public sealed record CompanyMarkerInfo(string Name, string Address, double Latitude, double Longitude);
 

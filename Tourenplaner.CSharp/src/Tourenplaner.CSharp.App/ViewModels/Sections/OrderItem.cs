@@ -36,6 +36,8 @@ public sealed class OrderItem : ObservableObject
     private bool _istVorauszahlung;
     private bool _isArchived;
     private bool _isXmlImported;
+    private bool _isLocationManuallySet;
+    private bool _manualLocationRequiresReview;
 
     public string Id
     {
@@ -276,6 +278,28 @@ public sealed class OrderItem : ObservableObject
         get => _isXmlImported;
         set => SetProperty(ref _isXmlImported, value);
     }
+
+    public bool IsLocationManuallySet
+    {
+        get => _isLocationManuallySet;
+        set => SetProperty(ref _isLocationManuallySet, value);
+    }
+
+    public bool ManualLocationRequiresReview
+    {
+        get => _manualLocationRequiresReview;
+        set
+        {
+            if (SetProperty(ref _manualLocationRequiresReview, value))
+            {
+                OnPropertyChanged(nameof(LocationStatusText));
+            }
+        }
+    }
+
+    public string LocationStatusText => ManualLocationRequiresReview
+        ? "⚠ Manueller Pin – Adresse geändert"
+        : "📍 Pin manuell gesetzt";
 
     private static string BuildStreetLine(string? street, string? houseNumber)
     {

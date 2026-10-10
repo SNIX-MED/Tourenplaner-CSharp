@@ -328,7 +328,38 @@ public sealed partial class SettingsSectionViewModel
             var nextLocation = geocodingResult?.IsPrecise == true
                 ? geocodingResult.Location
                 : null;
-            if (nextLocation != order.Location)
+
+            // Compatibility for pins that were manually corrected before the source
+            // metadata was introduced. A stored point that differs from the same
+            // imprecise TomTom result represents the user's confirmed location and
+            // must not be overwritten or warned about again.
+            if (!order.IsLocationManuallySet &&
+                geocodingResult is { IsPrecise: false } &&
+                order.Location is not null &&
+                order.Location != geocodingResult.Location)
+            {
+                order.IsLocationManuallySet = true;
+                order.ManualLocationAddress = BuildXmlImportPinIssueAddress(order);
+                order.ManualLocationRequiresReview = false;
+                try
+                {
+                    if (_orderMutationRepository is not null)
+                        await _orderMutationRepository.UpsertAsync(order);
+                    else
+                        await _orderRepository.SaveAllAsync(allOrders);
+                }
+                catch (ConcurrencyConflictException)
+                {
+                    AddChangedDuringCheckIssue(order);
+                    XmlImportCheckedOrders++;
+                    continue;
+                }
+
+                XmlImportCheckedOrders++;
+                continue;
+            }
+
+            if (!order.IsLocationManuallySet && nextLocation != order.Location)
             {
                 // Preserve edits made while the network checks were in progress.
                 var currentOrders = (await _orderRepository.GetAllAsync()).ToList();
@@ -358,6 +389,18 @@ public sealed partial class SettingsSectionViewModel
             }
 
             XmlImportCheckedOrders++;
+            if (order.IsLocationManuallySet && order.ManualLocationRequiresReview)
+            {
+                issues.Add(XmlImportPinIssueListItemViewModel.CreateManualAddressChanged(
+                    order.Id,
+                    order.CustomerName,
+                    BuildXmlImportPinIssueAddress(order),
+                    order.ManualLocationAddress,
+                    EditXmlImportPinIssueOrderAsync,
+                    RecheckXmlImportPinIssueAsync,
+                    id => ShowXmlImportPinInfoAsync(id, BuildXmlImportPinIssueAddress(order), geocodingResult, geocodingResolution.FailureReason)));
+                continue;
+            }
             var issue = CreateXmlImportPinIssue(order, geocodingResult, geocodingResolution.FailureReason);
             if (issue is not null)
             {
@@ -399,6 +442,23 @@ public sealed partial class SettingsSectionViewModel
         var orderId = (order.Id ?? string.Empty).Trim();
         var customerName = (order.CustomerName ?? string.Empty).Trim();
         var addressLine = BuildXmlImportPinIssueAddress(order);
+        if (order.IsLocationManuallySet && order.ManualLocationRequiresReview)
+        {
+            return XmlImportPinIssueListItemViewModel.CreateManualAddressChanged(
+                orderId, customerName, addressLine, order.ManualLocationAddress,
+                EditXmlImportPinIssueOrderAsync, RecheckXmlImportPinIssueAsync,
+                id => ShowXmlImportPinInfoAsync(id, addressLine, geocodingResult, failureReason));
+        }
+
+        // A manually selected location is the confirmed assignment for the current
+        // delivery address. An approximate TomTom result must not reopen the same
+        // warning on every XML reimport. Address changes are handled by the review
+        // state above.
+        if (order.IsLocationManuallySet)
+        {
+            return null;
+        }
+
         if (geocodingResult is null)
         {
             return XmlImportPinIssueListItemViewModel.CreateMissing(
@@ -451,7 +511,10 @@ public sealed partial class SettingsSectionViewModel
             failureReason = resolution.FailureReason;
         }
         var dialog = new PinAddressInfoDialogWindow(order, originalAddress, result,
-            GetGeocodingFailureSummary(failureReason), TomTomApiKey)
+            GetGeocodingFailureSummary(failureReason), TomTomApiKey,
+            order.IsLocationManuallySet ? order.Location : null,
+            order.IsLocationManuallySet,
+            order.ManualLocationRequiresReview)
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
@@ -479,6 +542,10 @@ public sealed partial class SettingsSectionViewModel
             PinAddressComparison.ApplyFoundAddress(updated, selectedResult);
         else
             updated.Location = dialog.SelectedLocation;
+        var manuallyConfirmed = dialog.IsSelectedLocationManual || result?.IsPrecise != true;
+        updated.IsLocationManuallySet = manuallyConfirmed;
+        updated.ManualLocationAddress = manuallyConfirmed ? originalAddress : string.Empty;
+        updated.ManualLocationRequiresReview = false;
         try
         {
             if (_orderMutationRepository is not null)
@@ -524,7 +591,7 @@ public sealed partial class SettingsSectionViewModel
             TomTomApiKey,
             Path.Combine(_dataRoot, "geocode-cache.json"));
         var result = resolution.Result;
-        if (result?.IsPrecise == true && order.Location != result.Location)
+        if (!order.IsLocationManuallySet && result?.IsPrecise == true && order.Location != result.Location)
         {
             order.Location = result.Location;
             await _orderRepository.SaveAllAsync(orders);
@@ -571,12 +638,31 @@ public sealed partial class SettingsSectionViewModel
             return;
         }
 
+        AddressGeocodingResult? geocodingResult = null;
         var dialog = new ManualOrderDialogWindow(
             existing,
             deliveryTypes: DeliveryMethodExtensions.AllDeliveryTypeOptions,
             defaultOrderType: existing.Type)
         {
-            Owner = System.Windows.Application.Current?.MainWindow
+            Owner = System.Windows.Application.Current?.MainWindow,
+            BeforeSaveAsync = async (candidate, owner) =>
+            {
+                if (OrderPinSaveValidationService.HasDeliveryAddressChanged(existing, candidate) &&
+                    DeliveryMethodExtensions.CanUseLiefertour(candidate))
+                {
+                    var validation = await OrderPinSaveValidationService.ValidateAsync(
+                        existing,
+                        candidate,
+                        TomTomApiKey,
+                        Path.Combine(_dataRoot, "geocode-cache.json"),
+                        owner);
+                    geocodingResult = validation.GeocodingResult;
+                    return validation.Confirmed;
+                }
+
+                geocodingResult = await ApplyDeliveryMethodRoutingAsync(candidate, existing.Location);
+                return true;
+            }
         };
 
         var dialogResult = dialog.ShowDialog();
@@ -593,7 +679,6 @@ public sealed partial class SettingsSectionViewModel
 
         var updated = dialog.CreatedOrder;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
-        var geocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, existing.Location);
 
         var originalId = existing.Id;
         orders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));

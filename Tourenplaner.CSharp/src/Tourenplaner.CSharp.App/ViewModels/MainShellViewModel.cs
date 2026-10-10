@@ -582,12 +582,28 @@ public sealed partial class MainShellViewModel : ObservableObject
             return;
         }
 
+        AddressGeocodingResult? updatedGeocodingResult = null;
         var dialog = new ManualOrderDialogWindow(
             existing,
             deliveryTypes: DeliveryMethodExtensions.AllDeliveryTypeOptions,
             defaultOrderType: existing.Type)
         {
-            Owner = System.Windows.Application.Current?.MainWindow
+            Owner = System.Windows.Application.Current?.MainWindow,
+            BeforeSaveAsync = async (candidate, owner) =>
+            {
+                if (OrderPinSaveValidationService.HasDeliveryAddressChanged(existing, candidate) &&
+                    DeliveryMethodExtensions.CanUseLiefertour(candidate))
+                {
+                    var settings = await _appSettingsRepository.LoadAsync();
+                    var validation = await OrderPinSaveValidationService.ValidateAsync(
+                        existing, candidate, settings.TomTomApiKey, _geocodeCachePath, owner);
+                    updatedGeocodingResult = validation.GeocodingResult;
+                    return validation.Confirmed;
+                }
+
+                updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(candidate, existing.Location);
+                return true;
+            }
         };
 
         var dialogResult = dialog.ShowDialog();
@@ -635,7 +651,6 @@ public sealed partial class MainShellViewModel : ObservableObject
         }
 
         var updated = dialog.CreatedOrder;
-        var updatedGeocodingResult = await ApplyDeliveryMethodRoutingAsync(updated, existing.Location);
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
         var originalId = existing.Id;

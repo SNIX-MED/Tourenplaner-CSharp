@@ -717,6 +717,12 @@
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Style="{StaticResource PrimaryTextStyle}" Text="{Binding DeliveryStreetLine}" />
                                         <TextBlock Style="{StaticResource SecondaryTextStyle}" Text="{Binding DeliveryPostalCityLine}" />
+                                        <TextBlock Text="{Binding LocationStatusText}"
+                                                   ToolTip="Die Kartenposition dieses Auftrags wurde manuell gesetzt."
+                                                   Foreground="#8B008B"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Visibility="{Binding IsLocationManuallySet, Converter={StaticResource BoolToVisibilityConverter}}" />
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>

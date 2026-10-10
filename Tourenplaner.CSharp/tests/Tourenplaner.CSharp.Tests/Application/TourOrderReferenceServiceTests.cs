@@ -169,4 +169,40 @@ public class TourOrderReferenceServiceTests
         Assert.True(tours.Single(x => x.Id == 10).IsArchived);
         Assert.False(tours.Single(x => x.Id == 20).IsArchived);
     }
+
+    [Fact]
+    public void ReconcileActiveToursWithOrders_UpdatesChangedPinAndAddressAndReschedulesTour()
+    {
+        var stop = new TourStopRecord
+        {
+            Id = "stop-a",
+            Auftragsnummer = "A-100",
+            Name = "Alter Name",
+            Address = "Alte Adresse",
+            Lat = 47.0,
+            Lng = 8.0
+        };
+        var tours = new List<TourRecord>
+        {
+            new() { Id = 10, Stops = [stop] }
+        };
+        var order = new Order
+        {
+            Id = "A-100",
+            Type = OrderType.Map,
+            CustomerName = "Neuer Name",
+            Address = "Neue Strasse 10, 8000 Zürich",
+            Location = new GeoPoint(47.4, 8.5)
+        };
+
+        var result = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, [order]);
+
+        Assert.True(result.HasChanges);
+        Assert.Equal([10], result.RescheduledTourIds);
+        Assert.Equal(order.CustomerName, stop.Name);
+        Assert.Equal(order.Address, stop.Address);
+        Assert.Equal(order.Location.Latitude, stop.Lat);
+        Assert.Equal(order.Location.Longitude, stop.Lng);
+        Assert.Equal(order.Location.Longitude, stop.Lon);
+    }
 }

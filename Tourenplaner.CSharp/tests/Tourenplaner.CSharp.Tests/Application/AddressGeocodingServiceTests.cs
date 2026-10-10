@@ -9,6 +9,26 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class AddressGeocodingServiceTests
 {
     [Fact]
+    public void CandidateScoring_PrefersMunicipalityOverMunicipalitySubdivision()
+    {
+        var municipality = AddressGeocodingService.GetCandidateTypeScore("Geography", "Municipality");
+        var subdivision = AddressGeocodingService.GetCandidateTypeScore("Geography", "MunicipalitySubdivision");
+
+        Assert.True(municipality > subdivision);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Fr")]
+    [InlineData("Frauenfeld")]
+    public async Task SearchSuggestionsAsync_DoesNotCallTomTomWithoutUsableInputOrApiKey(string query)
+    {
+        var result = await AddressGeocodingService.SearchSuggestionsAsync(query, tomTomApiKey: null);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
     public async Task TryGeocodeOrderAsync_IgnoresLegacyPreciseCacheEntryWithoutAddressValidation()
     {
         var cacheFilePath = Path.Combine(Path.GetTempPath(), $"gawela-geocode-cache-{Guid.NewGuid():N}.json");

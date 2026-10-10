@@ -87,4 +87,54 @@ public class OrderDeliveryRoutingServiceTests
         Assert.Null(order.Location);
         Assert.True(string.IsNullOrWhiteSpace(order.AssignedTourId));
     }
+
+    [Fact]
+    public async Task ManuallySetLocation_IsNeverReplacedByAutomaticGeocoding()
+    {
+        var manualLocation = new GeoPoint(47.271092, 8.741467);
+        var order = new Order
+        {
+            DeliveryType = DeliveryMethodExtensions.MitVerteilung,
+            Location = manualLocation,
+            IsLocationManuallySet = true,
+            ManualLocationAddress = "Holzhusen 16, 8618 Oetwil am See"
+        };
+        var geocodingCalled = false;
+
+        var result = await OrderDeliveryRoutingService.ApplyAsync(
+            order,
+            fallbackLocation: new GeoPoint(46, 7),
+            _ =>
+            {
+                geocodingCalled = true;
+                return Task.FromResult<AddressGeocodingResult?>(new AddressGeocodingResult(
+                    new GeoPoint(48, 9), true, "query", "Point Address", "Point Address"));
+            });
+
+        Assert.Null(result);
+        Assert.False(geocodingCalled);
+        Assert.Equal(manualLocation, order.Location);
+        Assert.True(order.IsLocationManuallySet);
+    }
+
+    [Fact]
+    public async Task ManualLocation_IsRetainedWhenDeliveryMethodStopsUsingMap()
+    {
+        var manualLocation = new GeoPoint(47.271092, 8.741467);
+        var order = new Order
+        {
+            DeliveryType = DeliveryMethodExtensions.Spediteur,
+            Location = manualLocation,
+            IsLocationManuallySet = true,
+            AssignedTourId = "7"
+        };
+
+        await OrderDeliveryRoutingService.ApplyAsync(
+            order,
+            fallbackLocation: null,
+            _ => throw new InvalidOperationException("Geocoding must not run."));
+
+        Assert.Equal(manualLocation, order.Location);
+        Assert.True(string.IsNullOrWhiteSpace(order.AssignedTourId));
+    }
 }

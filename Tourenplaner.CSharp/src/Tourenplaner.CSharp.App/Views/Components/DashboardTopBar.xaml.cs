@@ -16,6 +16,44 @@ public partial class DashboardTopBar : UserControl
         InitializeComponent();
     }
 
+    private async void MapSearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel vm) return;
+
+        switch (e.Key)
+        {
+            case Key.Down:
+                vm.MoveSearchSuggestionSelection(1);
+                e.Handled = true;
+                break;
+            case Key.Up:
+                vm.MoveSearchSuggestionSelection(-1);
+                e.Handled = true;
+                break;
+            case Key.Escape:
+                vm.CloseSearchSuggestions();
+                e.Handled = true;
+                break;
+            case Key.Enter:
+                if (vm.IsSearchSuggestionsOpen && vm.SearchSuggestions.Count > 0)
+                    await vm.ApplySearchSuggestionAsync(vm.SelectedSearchSuggestion);
+                else if (vm.SearchCommand.CanExecute(null))
+                    vm.SearchCommand.Execute(null);
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private async void MapSearchSuggestionsList_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is KarteSectionViewModel vm &&
+            (e.OriginalSource as FrameworkElement)?.DataContext is MapSearchSuggestionItem suggestion)
+        {
+            await vm.ApplySearchSuggestionAsync(suggestion);
+            e.Handled = true;
+        }
+    }
+
     private CustomPopupPlacement[] CenterPopupUnderButton(Size popupSize, Size targetSize, Point offset)
     {
         var x = (targetSize.Width - popupSize.Width) / 2d;

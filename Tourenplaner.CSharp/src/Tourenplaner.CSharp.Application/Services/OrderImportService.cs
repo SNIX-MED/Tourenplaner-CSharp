@@ -86,6 +86,7 @@ public class OrderImportService : IOrderImportService
         var result = new ImportResult { ImportedAt = DateTime.Now };
         var protectedOrderIds = GetActiveTourOrderIds(tours);
         var existingOrders = (await orderRepository.GetAllAsync()).ToList();
+        var repairedPinMetadata = false;
 
         foreach (var sqlOrder in sqlOrders ?? [])
         {
@@ -112,6 +113,16 @@ public class OrderImportService : IOrderImportService
 
                 var importedOrder = CreateImportedOrder(sqlOrder, isMapOrder, existingOrder, markAsXmlImported);
                 PreserveActiveTourOrder(existingOrder, importedOrder, protectedOrderIds);
+                if (existingOrder.IsLocationManuallySet &&
+                    existingOrder.ManualLocationRequiresReview &&
+                    !HasManualLocationAddressChanged(existingOrder, importedOrder))
+                {
+                    // Repair a stale review flag caused by older versions comparing
+                    // TomTom's normalized spelling with the unchanged XML address.
+                    // This is metadata maintenance, not a user-visible order update.
+                    existingOrder.ManualLocationRequiresReview = false;
+                    repairedPinMetadata = true;
+                }
                 var changes = DescribeDifferences(existingOrder, importedOrder);
                 if (changes.Count == 0)
                 {
@@ -134,7 +145,7 @@ public class OrderImportService : IOrderImportService
             }
         }
 
-        if (result.CreatedOrders > 0 || result.UpdatedOrders > 0)
+        if (result.CreatedOrders > 0 || result.UpdatedOrders > 0 || repairedPinMetadata)
         {
             await orderRepository.SaveAllAsync(existingOrders);
         }
@@ -337,6 +348,12 @@ public class OrderImportService : IOrderImportService
 
     private static void ApplyImportedData(Order existingOrder, Order importedOrder)
     {
+        var manualLocationAddressChanged = HasManualLocationAddressChanged(existingOrder, importedOrder);
+        if (existingOrder.IsLocationManuallySet)
+        {
+            existingOrder.ManualLocationRequiresReview = manualLocationAddressChanged;
+        }
+
         existingOrder.CustomerName = importedOrder.CustomerName;
         existingOrder.Address = importedOrder.Address;
         existingOrder.ScheduledDate = importedOrder.ScheduledDate;
@@ -344,7 +361,10 @@ public class OrderImportService : IOrderImportService
         existingOrder.DeliveryCanOccurEarlier = importedOrder.DeliveryCanOccurEarlier;
         existingOrder.Type = importedOrder.Type;
         existingOrder.OrderAddress = importedOrder.OrderAddress;
-        existingOrder.DeliveryAddress = importedOrder.DeliveryAddress;
+        if (!existingOrder.IsLocationManuallySet || manualLocationAddressChanged)
+        {
+            existingOrder.DeliveryAddress = importedOrder.DeliveryAddress;
+        }
         existingOrder.Email = importedOrder.Email;
         existingOrder.Phone = importedOrder.Phone;
         existingOrder.Products = importedOrder.Products;
@@ -388,7 +408,15 @@ public class OrderImportService : IOrderImportService
             changes.Add("Evtl. Selbstabholung -> zurückgesetzt");
         }
         AddChange(changes, "Auftragsadresse", FormatAddress(existingOrder.OrderAddress), FormatAddress(importedOrder.OrderAddress));
-        AddChange(changes, "Lieferadresse", FormatDeliveryAddress(existingOrder.DeliveryAddress), FormatDeliveryAddress(importedOrder.DeliveryAddress));
+        var manualLocationAddressChanged = HasManualLocationAddressChanged(existingOrder, importedOrder);
+        if (!existingOrder.IsLocationManuallySet || manualLocationAddressChanged)
+        {
+            AddChange(changes, "Lieferadresse", FormatDeliveryAddress(existingOrder.DeliveryAddress), FormatDeliveryAddress(importedOrder.DeliveryAddress));
+        }
+        if (manualLocationAddressChanged)
+        {
+            changes.Add("Manueller Pin bleibt erhalten; geänderte Lieferadresse muss geprüft werden.");
+        }
         AddChange(changes, "E-Mail", existingOrder.Email, importedOrder.Email);
         AddChange(changes, "Telefon", existingOrder.Phone, importedOrder.Phone);
         AddChange(changes, "Notiz", existingOrder.Notes, importedOrder.Notes);
@@ -620,6 +648,41 @@ public class OrderImportService : IOrderImportService
         {
             (address.Name ?? string.Empty).Trim(),
             (address.ContactPerson ?? string.Empty).Trim(),
+            BuildStreetLine(address.Street, address.HouseNumber),
+            $"{(address.PostalCode ?? string.Empty).Trim()} {(address.City ?? string.Empty).Trim()}".Trim()
+        }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
+    private static bool HasManualLocationAddressChanged(Order existingOrder, Order importedOrder)
+    {
+        if (!existingOrder.IsLocationManuallySet)
+        {
+            return false;
+        }
+
+        // ManualLocationAddress deliberately stores the original XML address used
+        // when the pin was confirmed. Do not compare against DeliveryAddress here:
+        // that value may contain TomTom's normalized spelling (for example
+        // "Seewernstrasse" instead of the unchanged XML value "Seewenstrasse").
+        var confirmedXmlAddress = string.IsNullOrWhiteSpace(existingOrder.ManualLocationAddress)
+            ? FormatDeliveryLocationAddress(existingOrder.DeliveryAddress)
+            : existingOrder.ManualLocationAddress;
+        var importedXmlAddress = FormatDeliveryLocationAddress(importedOrder.DeliveryAddress);
+        return !string.Equals(
+            NormalizeComparisonValue(confirmedXmlAddress),
+            NormalizeComparisonValue(importedXmlAddress),
+            StringComparison.Ordinal);
+    }
+
+    private static string FormatDeliveryLocationAddress(DeliveryAddressInfo? address)
+    {
+        if (address is null)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(", ", new[]
+        {
             BuildStreetLine(address.Street, address.HouseNumber),
             $"{(address.PostalCode ?? string.Empty).Trim()} {(address.City ?? string.Empty).Trim()}".Trim()
         }.Where(x => !string.IsNullOrWhiteSpace(x)));

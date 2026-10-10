@@ -17,6 +17,7 @@ public sealed record TourOrderReferenceReconciliationResult(
     IReadOnlyList<int> ArchivedTourIds)
 {
     public bool HasChanges => RemovedStopCount > 0 ||
+                              RescheduledTourIds.Count > 0 ||
                               DeletedTourIds.Count > 0 ||
                               ArchivedTourIds.Count > 0;
 }
@@ -104,7 +105,34 @@ public static class TourOrderReferenceService
                 archivedTourIds.Add(tour.Id);
             }
 
-            if (removedFromTour > 0)
+            var orderDataChanged = false;
+            foreach (var stop in orderStops)
+            {
+                var orderId = (stop.Auftragsnummer ?? string.Empty).Trim();
+                if (!orderById.TryGetValue(orderId, out var order))
+                {
+                    continue;
+                }
+
+                var nextAddress = (order.Address ?? string.Empty).Trim();
+                var nextName = (order.CustomerName ?? string.Empty).Trim();
+                var nextLat = order.Location?.Latitude;
+                var nextLon = order.Location?.Longitude;
+                if (!string.Equals(stop.Address ?? string.Empty, nextAddress, StringComparison.Ordinal) ||
+                    !string.Equals(stop.Name ?? string.Empty, nextName, StringComparison.Ordinal) ||
+                    stop.Lat != nextLat ||
+                    (stop.Lng ?? stop.Lon) != nextLon)
+                {
+                    stop.Address = nextAddress;
+                    stop.Name = nextName;
+                    stop.Lat = nextLat;
+                    stop.Lng = nextLon;
+                    stop.Lon = nextLon;
+                    orderDataChanged = true;
+                }
+            }
+
+            if (removedFromTour > 0 || orderDataChanged)
             {
                 rescheduledTourIds.Add(tour.Id);
             }

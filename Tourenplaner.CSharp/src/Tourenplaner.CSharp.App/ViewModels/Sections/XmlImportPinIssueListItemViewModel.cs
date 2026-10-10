@@ -107,4 +107,31 @@ public sealed class XmlImportPinIssueListItemViewModel
             recheckOrderAsync,
             showInfoAsync);
     }
+
+    public static XmlImportPinIssueListItemViewModel CreateManualAddressChanged(
+        string orderId,
+        string customerName,
+        string addressLine,
+        string previousAddressLine,
+        Func<string, Task>? editOrderAsync,
+        Func<string, Task>? recheckOrderAsync,
+        Func<string, Task>? showInfoAsync = null)
+    {
+        var previous = string.IsNullOrWhiteSpace(previousAddressLine)
+            ? "Bisherige Bezugsadresse nicht gespeichert"
+            : $"Pin gesetzt für: {previousAddressLine}";
+        return new XmlImportPinIssueListItemViewModel(
+            "Adresse geändert",
+            "#FFF7ED",
+            "#FDBA74",
+            "#C2410C",
+            orderId,
+            customerName,
+            addressLine,
+            "Der manuell gesetzte Pin wurde beibehalten. Die Lieferadresse hat sich geändert.",
+            previous,
+            editOrderAsync,
+            recheckOrderAsync,
+            showInfoAsync);
+    }
 }
