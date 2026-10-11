@@ -35,7 +35,8 @@ public partial class KarteSectionView : UserControl
         PinInfoCardZoomBehavior = 1 << 6,
         DetailsToggle = 1 << 7,
         PlannedTourOverlayHighlight = 1 << 8,
-        TemporarySearchPin = 1 << 9
+        TemporarySearchPin = 1 << 9,
+        PlannedTourOverlayFocus = 1 << 10
     }
 
     private static readonly GridLength DefaultRoutePanelWidth = new(460d, GridUnitType.Pixel);
@@ -203,7 +204,11 @@ public partial class KarteSectionView : UserControl
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedTourOverviewItem))
         {
-            QueueMapRefresh(MapRefreshOperation.Markers, UiRefreshDebounceMilliseconds);
+            QueueMapRefresh(
+                MapRefreshOperation.Markers |
+                MapRefreshOperation.PlannedTourOverlayHighlight |
+                MapRefreshOperation.PlannedTourOverlayFocus,
+                UiRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedStatus) ||
                  e.PropertyName == nameof(KarteSectionViewModel.DetailOrderStatus) ||
@@ -422,6 +427,11 @@ public partial class KarteSectionView : UserControl
             {
                 await HighlightPlannedTourOverlayAsync();
             }
+        }
+
+        if ((operation & MapRefreshOperation.PlannedTourOverlayFocus) != 0)
+        {
+            await FocusSelectedPlannedTourOverlayAsync();
         }
     }
 
@@ -996,6 +1006,23 @@ public partial class KarteSectionView : UserControl
         var tourIdJson = JsonSerializer.Serialize(vm.PlannedTourOverlayHighlightTourId);
         await MapWebView.CoreWebView2.ExecuteScriptAsync(
             $"if (typeof window.gawelaHighlightPlannedTourOverlay === 'function') window.gawelaHighlightPlannedTourOverlay({tourIdJson});");
+    }
+
+    private async Task FocusSelectedPlannedTourOverlayAsync()
+    {
+        if (!_mapReady || !_mapScriptReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        var tourId = vm.SelectedTourOverviewItem?.TourId ?? 0;
+        if (tourId <= 0)
+        {
+            return;
+        }
+
+        await MapWebView.CoreWebView2.ExecuteScriptAsync(
+            $"if (typeof window.gawelaFocusPlannedTourOverlay === 'function') window.gawelaFocusPlannedTourOverlay({tourId});");
     }
 
     private async Task ApplyPinInfoCardsVisibilityAsync()

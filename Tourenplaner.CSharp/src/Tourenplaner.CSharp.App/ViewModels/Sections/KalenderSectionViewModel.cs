@@ -272,7 +272,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         _manualEntries.Add(entry);
         if (_manualEntryMutationStore is not null) await _manualEntryMutationStore.UpsertAsync(entry);
         else await _manualEntryRepository.SaveAsync(_manualEntries);
-        _dataSyncService.PublishTours(_instanceId);
+        _dataSyncService.PublishCalendarEntries(_instanceId, null, entry.Id);
 
         BuildCalendarRange(date);
         SelectDayByDate(date);
@@ -314,7 +314,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
         if (_manualEntryMutationStore is not null) await _manualEntryMutationStore.UpsertAsync(existing);
         else await _manualEntryRepository.SaveAsync(_manualEntries);
-        _dataSyncService.PublishTours(_instanceId);
+        _dataSyncService.PublishCalendarEntries(_instanceId, existing.Id, existing.Id);
 
         BuildCalendarRange(date);
         SelectDayByDate(date);
@@ -338,7 +338,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
         if (_manualEntryMutationStore is not null) await _manualEntryMutationStore.DeleteAsync(normalizedId);
         else await _manualEntryRepository.SaveAsync(_manualEntries);
-        _dataSyncService.PublishTours(_instanceId);
+        _dataSyncService.PublishCalendarEntries(_instanceId, normalizedId, null);
 
         var focusDate = SelectedDay?.Date ?? DateTime.Today;
         BuildCalendarRange(focusDate);
@@ -717,8 +717,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 DateText = selectedDate.ToString("dd.MM.yyyy", UiCulture),
                 Name = tour.Name,
                 StartTime = NormalizeStartTime(tour.StartTime),
-                VehicleId = BuildVehicleSummary(tour),
-                Employees = string.Join(", ", tour.EmployeeIds),
                 StopCount = tour.Stops.Count(IsCalendarStop),
                 Summary = BuildTourSummary(tour, includeName: false),
                 Stops = stops
@@ -776,25 +774,6 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         }
 
         await _openDayInToursAsync(selectedDate);
-    }
-
-    private static string BuildVehicleSummary(TourRecord tour)
-    {
-        var assignments = new List<(string VehicleId, string TrailerId)>
-        {
-            ((tour.VehicleId ?? string.Empty).Trim(), (tour.TrailerId ?? string.Empty).Trim()),
-            ((tour.SecondaryVehicleId ?? string.Empty).Trim(), (tour.SecondaryTrailerId ?? string.Empty).Trim())
-        }
-        .Where(x => !string.IsNullOrWhiteSpace(x.VehicleId) || !string.IsNullOrWhiteSpace(x.TrailerId))
-        .GroupBy(x => $"{x.VehicleId}|{x.TrailerId}", StringComparer.OrdinalIgnoreCase)
-        .Select(g => g.First())
-        .ToList();
-
-        var lines = assignments
-            .Select(x => $"{(string.IsNullOrWhiteSpace(x.VehicleId) ? "-" : x.VehicleId)} & {(string.IsNullOrWhiteSpace(x.TrailerId) ? "-" : x.TrailerId)}")
-            .ToList();
-
-        return lines.Count == 0 ? "-" : string.Join(Environment.NewLine, lines);
     }
 
     public async Task OpenOrderEditorAsync(string? orderId)
@@ -1223,7 +1202,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                     var name = (p.Name ?? string.Empty).Trim();
                     var supplier = (p.Supplier ?? string.Empty).Trim();
                     var quantity = Math.Max(1, p.Quantity);
-                    var weight = Math.Max(0d, p.WeightKg);
+                    var weight = OrderProductFormatter.ResolveTotalWeightKg(p);
                     var supplierSuffix = string.IsNullOrWhiteSpace(supplier) ? string.Empty : $" [{supplier}]";
                     return string.IsNullOrWhiteSpace(name)
                         ? $"{quantity}x ({weight:0.##} kg)"
@@ -1231,6 +1210,15 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 })
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .ToList();
+        }
+
+        if (order is not null)
+        {
+            var orderWeight = order.ResolveTotalWeightKg();
+            if (orderWeight > 0)
+            {
+                return [$"Gewicht: {orderWeight:0.##} kg"];
+            }
         }
 
         var fallback = ParseStopWeight(stop.Gewicht);
@@ -1241,10 +1229,13 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
     private static string BuildWeightText(Order? order, TourStopRecord stop)
     {
-        if (order?.Products is not null && order.Products.Count > 0)
+        if (order is not null)
         {
             var total = order.ResolveTotalWeightKg();
-            return $"Total: {total:0.##} kg";
+            if (total > 0)
+            {
+                return $"Total: {total:0.##} kg";
+            }
         }
 
         var parsed = ParseStopWeight(stop.Gewicht);
@@ -1268,8 +1259,11 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
     private static double ParseStopWeight(string? raw)
     {
-        var text = (raw ?? string.Empty).Trim().Replace(',', '.');
-        return double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed)
+        var text = new string((raw ?? string.Empty)
+            .Where(character => char.IsDigit(character) || character is '.' or ',' or '-' or '+')
+            .ToArray())
+            .Replace(',', '.');
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
             ? Math.Max(0d, parsed)
             : 0d;
     }
@@ -1376,7 +1370,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
     {
         if (args.SourceId == _instanceId ||
-            (args.Kinds & (AppDataKind.Tours | AppDataKind.Employees | AppDataKind.Vehicles)) == AppDataKind.None)
+            (args.Kinds & (AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Employees |
+                           AppDataKind.Vehicles | AppDataKind.CalendarEntries)) == AppDataKind.None)
         {
             return;
         }
@@ -1577,10 +1572,6 @@ public sealed class CalendarTourItem
     public string Name { get; set; } = string.Empty;
 
     public string StartTime { get; set; } = string.Empty;
-
-    public string VehicleId { get; set; } = string.Empty;
-
-    public string Employees { get; set; } = string.Empty;
 
     public int StopCount { get; set; }
 

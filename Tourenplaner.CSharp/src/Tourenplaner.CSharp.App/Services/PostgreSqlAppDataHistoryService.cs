@@ -468,7 +468,7 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
     private void PublishFullReload()
     {
         const AppDataKind all = AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Employees |
-                                AppDataKind.Vehicles | AppDataKind.Settings;
+                                AppDataKind.Vehicles | AppDataKind.Settings | AppDataKind.CalendarEntries;
         _restoring = true;
         try
         {
@@ -576,6 +576,7 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
         if (args.Kinds == AppDataKind.Tours) return DescribeEntity("Tour", "Touren", args);
         if (args.Kinds == AppDataKind.Employees) return DescribeEntity("Mitarbeiter", "Mitarbeiter", args);
         if (args.Kinds == AppDataKind.Vehicles) return DescribeEntity("Fahrzeug", "Fahrzeuge", args);
+        if (args.Kinds == AppDataKind.CalendarEntries) return DescribeEntity("Kalendereintrag", "Kalendereinträge", args);
         return "Daten ändern";
     }
 

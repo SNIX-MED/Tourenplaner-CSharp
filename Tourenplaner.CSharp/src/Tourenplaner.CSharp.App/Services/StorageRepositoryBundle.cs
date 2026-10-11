@@ -36,6 +36,7 @@ public sealed class StorageRepositoryBundle
             ToursJsonPath,
             EmployeesJsonPath,
             VehiclesJsonPath,
+            CalendarManualEntriesJsonPath,
             SettingsBootstrapPath
         ];
     }

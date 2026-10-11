@@ -255,10 +255,34 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         Note = period.Note
     };
 
-    public async Task DeleteEntryAsync(EmployeeCardItem entry)
+    public async Task<string?> DeleteEntryAsync(EmployeeCardItem entry)
     {
+        var tours = await _tourRepository.LoadAsync();
+        var referencedTours = tours
+            .Where(tour => (tour.EmployeeIds ?? []).Any(id =>
+                string.Equals((id ?? string.Empty).Trim(), entry.Id, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(tour => ResourceAvailabilityService.ParseDate(tour.Date))
+            .ThenBy(tour => tour.StartTime, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (referencedTours.Count > 0)
+        {
+            return BuildDeletionBlockedMessage("Mitarbeiter", entry.Name, referencedTours);
+        }
+
         _employees.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
         await SaveCurrentStateAsync(deletedEmployeeId: entry.Id);
+        return null;
+    }
+
+    private static string BuildDeletionBlockedMessage(string resourceLabel, string resourceName, IReadOnlyList<TourRecord> tours)
+    {
+        var lines = tours.Take(6).Select(tour => $"{tour.Date} {tour.StartTime} – {tour.Name}").ToList();
+        if (tours.Count > lines.Count)
+        {
+            lines.Add($"… und {tours.Count - lines.Count} weitere Tour(en).");
+        }
+
+        return $"{resourceLabel} \"{resourceName}\" kann nicht gelöscht werden, weil noch Touren darauf verweisen:{Environment.NewLine}{string.Join(Environment.NewLine, lines)}";
     }
 
     public async Task RefreshAsync()
@@ -301,7 +325,8 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         Entries.Clear();
         var today = DateOnly.FromDateTime(DateTime.Today);
         foreach (var employee in _employees
-                     .OrderByDescending(x => x.IsFavorite)
+                     .OrderByDescending(x => x.Active)
+                     .ThenByDescending(x => x.IsFavorite)
                      .ThenByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
                      .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase))
         {
@@ -312,6 +337,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
                 Name = employee.DisplayName,
                 ShortCode = employee.ShortCode,
                 Phone = employee.Phone,
+                Active = employee.Active,
                 IsFavorite = employee.IsFavorite,
                 IsUnavailableToday = isUnavailableToday,
                 NextUnavailabilityText = BuildNextUnavailabilityText(employee.UnavailabilityPeriods, today)
@@ -413,11 +439,12 @@ public sealed class EmployeeCardItem : ObservableObject
     public string Name { get; set; } = string.Empty;
     public string ShortCode { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
+    public bool Active { get; set; } = true;
     public bool IsFavorite { get; set; }
     public bool IsUnavailableToday { get; set; }
     public string NextUnavailabilityText { get; set; } = string.Empty;
 
-    public string AvailabilityLabel => IsUnavailableToday ? "Abwesend" : "Verfügbar";
+    public string AvailabilityLabel => !Active ? "Inaktiv" : IsUnavailableToday ? "Abwesend" : "Verfügbar";
 
     public string DetailsLine
     {

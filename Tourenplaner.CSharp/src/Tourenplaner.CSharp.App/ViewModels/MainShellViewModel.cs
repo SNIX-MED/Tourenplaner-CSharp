@@ -310,6 +310,8 @@ public sealed partial class MainShellViewModel : ObservableObject
 
     public KarteSectionViewModel MapSection => _mapSection;
 
+    public SettingsSectionViewModel SettingsSection => _settingsSection;
+
     public object? NonMapCurrentSection => IsMapSectionActive ? null : CurrentSection;
 
     public bool IsSidebarCollapsed => _isSidebarCollapsed;

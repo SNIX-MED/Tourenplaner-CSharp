@@ -56,6 +56,29 @@ internal static class OrderSectionSharedHelpers
             .Any(suppliers.Contains);
     }
 
+    public static string ResolveDeliveryName(Order order)
+    {
+        var deliveryName = (order.DeliveryAddress?.Name ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(deliveryName)
+            ? (order.CustomerName ?? string.Empty).Trim()
+            : deliveryName;
+    }
+
+    public static string BuildProductsSummary(Order order)
+    {
+        var summary = Tourenplaner.CSharp.App.Services.OrderProductFormatter.BuildSummary(order.Products);
+        if (!order.ManualTotalWeightKg.HasValue)
+        {
+            return summary;
+        }
+
+        var totalWeight = order.ResolveTotalWeightKg();
+        var weightText = $"Gesamtgewicht: {totalWeight:0.##} kg";
+        return string.Equals(summary, "N/A", StringComparison.OrdinalIgnoreCase)
+            ? weightText
+            : $"{summary} · {weightText}";
+    }
+
     public static bool MatchesSearchQuery(Order order, string query)
     {
         if (string.IsNullOrWhiteSpace(query))

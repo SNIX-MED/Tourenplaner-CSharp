@@ -516,7 +516,8 @@ public sealed partial class SettingsSectionViewModel
             order.IsLocationManuallySet,
             order.ManualLocationRequiresReview)
         {
-            Owner = System.Windows.Application.Current?.MainWindow
+            Owner = System.Windows.Application.Current?.Windows.OfType<Window>().FirstOrDefault(window => window.IsActive)
+                    ?? System.Windows.Application.Current?.MainWindow
         };
         if (dialog.ShowDialog() != true) return;
         if (result is null || dialog.SelectedLocation is null)
@@ -644,7 +645,8 @@ public sealed partial class SettingsSectionViewModel
             deliveryTypes: DeliveryMethodExtensions.AllDeliveryTypeOptions,
             defaultOrderType: existing.Type)
         {
-            Owner = System.Windows.Application.Current?.MainWindow,
+            Owner = System.Windows.Application.Current?.Windows.OfType<Window>().FirstOrDefault(window => window.IsActive)
+                    ?? System.Windows.Application.Current?.MainWindow,
             BeforeSaveAsync = async (candidate, owner) =>
             {
                 if (OrderPinSaveValidationService.HasDeliveryAddressChanged(existing, candidate) &&

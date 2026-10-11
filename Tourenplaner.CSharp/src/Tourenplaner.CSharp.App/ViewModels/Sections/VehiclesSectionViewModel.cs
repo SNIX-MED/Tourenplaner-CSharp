@@ -358,8 +358,26 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         return (value ?? string.Empty).Replace(" ", string.Empty).Trim().ToUpperInvariant();
     }
 
-    public async Task DeleteEntryAsync(FleetEntryCardItem entry)
+    public async Task<string?> DeleteEntryAsync(FleetEntryCardItem entry)
     {
+        if (!entry.IsCombination)
+        {
+            var tours = await _tourRepository.LoadAsync();
+            var referencedTours = tours
+                .Where(tour => entry.IsTrailer
+                    ? string.Equals(tour.TrailerId, entry.Id, StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(tour.SecondaryTrailerId, entry.Id, StringComparison.OrdinalIgnoreCase)
+                    : string.Equals(tour.VehicleId, entry.Id, StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(tour.SecondaryVehicleId, entry.Id, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(tour => ResourceAvailabilityService.ParseDate(tour.Date))
+                .ThenBy(tour => tour.StartTime, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (referencedTours.Count > 0)
+            {
+                return BuildDeletionBlockedMessage(entry.IsTrailer ? "Anhänger" : "Fahrzeug", entry.Name, referencedTours);
+            }
+        }
+
         if (entry.IsCombination)
         {
             _combinations.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
@@ -380,6 +398,18 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         }
 
         await SaveCurrentStateAsync();
+        return null;
+    }
+
+    private static string BuildDeletionBlockedMessage(string resourceLabel, string resourceName, IReadOnlyList<TourRecord> tours)
+    {
+        var lines = tours.Take(6).Select(tour => $"{tour.Date} {tour.StartTime} – {tour.Name}").ToList();
+        if (tours.Count > lines.Count)
+        {
+            lines.Add($"… und {tours.Count - lines.Count} weitere Tour(en).");
+        }
+
+        return $"{resourceLabel} \"{resourceName}\" kann nicht gelöscht werden, weil noch Touren darauf verweisen:{Environment.NewLine}{string.Join(Environment.NewLine, lines)}";
     }
 
     public async Task RefreshAsync()
@@ -443,7 +473,8 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         if (_displayMode == FleetDisplayMode.Vehicles)
         {
             foreach (var vehicle in _vehicles
-                         .OrderByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
+                         .OrderByDescending(x => x.Active)
+                         .ThenByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
                          .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
             {
                 var isUnavailableToday = ResourceAvailabilityService.IsUnavailableOnDate(vehicle.UnavailabilityPeriods, today);
@@ -475,7 +506,8 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         else if (_displayMode == FleetDisplayMode.Trailers)
         {
             foreach (var trailer in _trailers
-                         .OrderByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
+                         .OrderByDescending(x => x.Active)
+                         .ThenByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
                          .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
             {
                 var isUnavailableToday = ResourceAvailabilityService.IsUnavailableOnDate(trailer.UnavailabilityPeriods, today);
@@ -798,7 +830,7 @@ public sealed class FleetEntryCardItem : ObservableObject
     public int CombinationVehiclePayloadKg { get; set; }
     public int CombinationTrailerLoadKg { get; set; }
 
-    public string AvailabilityLabel => IsUnavailableToday ? "Ausfall" : "Verfügbar";
+    public string AvailabilityLabel => !Active ? "Inaktiv" : IsUnavailableToday ? "Ausfall" : "Verfügbar";
 
     public string HeaderTypeLabel => IsCombination ? "Fahrzeugkombination" : (IsTrailer ? "Anhänger" : "Zugfahrzeug");
 

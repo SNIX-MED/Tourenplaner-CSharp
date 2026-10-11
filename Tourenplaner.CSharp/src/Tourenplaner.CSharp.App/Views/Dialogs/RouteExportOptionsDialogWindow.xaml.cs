@@ -26,10 +26,4 @@ public partial class RouteExportOptionsDialogWindow : Window
         Close();
     }
 
-    private void OnGpxClicked(object sender, RoutedEventArgs e)
-    {
-        SelectedOption = RouteExportOption.Gpx;
-        DialogResult = true;
-        Close();
-    }
 }

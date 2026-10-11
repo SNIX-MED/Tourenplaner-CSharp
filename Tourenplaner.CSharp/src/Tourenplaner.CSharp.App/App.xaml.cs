@@ -228,7 +228,11 @@ public partial class App : System.Windows.Application
                     AppRuntimeDiagnosticsService.FindUpdateConfigPath(AppContext.BaseDirectory),
                     repositories.StorageMode.ToString(),
                     null));
-            await PromptPastTourArchivingOnStartupAsync(mainWindow, repositories.TourRecordStore, repositories.OrderRepository);
+            await PromptPastTourArchivingOnStartupAsync(
+                mainWindow,
+                repositories.TourRecordStore,
+                repositories.OrderRepository,
+                dataSyncService);
         }
         catch (Exception ex)
         {
@@ -397,7 +401,11 @@ public partial class App : System.Windows.Application
             $"Verwaiste Tourzuordnungen wurden bei {changedOrders.Count} Auftrag/Aufträgen entfernt.");
     }
 
-    private async Task PromptPastTourArchivingOnStartupAsync(Window owner, ITourRecordStore toursRepository, IOrderRepository orderRepository)
+    private async Task PromptPastTourArchivingOnStartupAsync(
+        Window owner,
+        ITourRecordStore toursRepository,
+        IOrderRepository orderRepository,
+        AppDataSyncService dataSyncService)
     {
         try
         {
@@ -501,6 +509,10 @@ public partial class App : System.Windows.Application
 
             if (toursChanged || ordersChanged)
             {
+                var changedKinds = (toursChanged ? AppDataKind.Tours : AppDataKind.None) |
+                                   (ordersChanged ? AppDataKind.Orders : AppDataKind.None);
+                dataSyncService.Publish(new AppDataChangedEventArgs(Guid.NewGuid(), changedKinds));
+
                 var scope = userCanceled ? "teilweise" : "vollständig";
                 TryLogInfo(
                     "PromptPastTourArchivingOnStartupAsync",

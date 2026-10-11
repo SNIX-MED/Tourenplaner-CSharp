@@ -62,19 +62,18 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private DateTime? _toDate;
     private string _filterInfoText = "Alle Touren | Treffer: 0";
     private string _searchText = string.Empty;
-    private string _selectedTourWeightText = "Totalgewicht: 0 kg";
     private string _selectedTourLoadSummaryText = string.Empty;
-    private string _selectedTourVehicleText = "Fahrzeug & Anhänger: -";
     private string _selectedTourStatusText = "Keine Tour ausgewählt";
     private string _selectedTourTimeText = "-";
     private string _selectedTourDistanceText = "-";
     private string _selectedTourDurationText = "-";
     private string _selectedTourServiceTimeText = "-";
-    private string _selectedTourWaitTimeText = "-";
     private string _selectedTourWebfleetText = "Nicht gesendet";
     private string _selectedTourTotalWeightValueText = "0 kg";
     private string _selectedTourCapacityValueText = "-";
+    private string _selectedTourCapacityPercentText = string.Empty;
     private string _selectedTourVehicleAssignmentText = "-";
+    private string _selectedTourEmployeeText = "–";
     private string _dragPreviewEtaText = string.Empty;
     private string _dragPreviewDurationText = string.Empty;
     private string _dragPreviewDistanceText = string.Empty;
@@ -682,12 +681,6 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _selectedTourServiceTimeText, value);
     }
 
-    public string SelectedTourWaitTimeText
-    {
-        get => _selectedTourWaitTimeText;
-        private set => SetProperty(ref _selectedTourWaitTimeText, value);
-    }
-
     public string SelectedTourWebfleetText
     {
         get => _selectedTourWebfleetText;
@@ -706,30 +699,30 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         private set => SetProperty(ref _selectedTourCapacityValueText, value);
     }
 
+    public string SelectedTourCapacityPercentText
+    {
+        get => _selectedTourCapacityPercentText;
+        private set => SetProperty(ref _selectedTourCapacityPercentText, value);
+    }
+
     public string SelectedTourVehicleAssignmentText
     {
         get => _selectedTourVehicleAssignmentText;
         private set => SetProperty(ref _selectedTourVehicleAssignmentText, value);
     }
 
-    public bool HasSelectedTourWarnings => SelectedTourWarnings.Count > 0;
-
-    public string SelectedTourWeightText
+    public string SelectedTourEmployeeText
     {
-        get => _selectedTourWeightText;
-        private set => SetProperty(ref _selectedTourWeightText, value);
+        get => _selectedTourEmployeeText;
+        private set => SetProperty(ref _selectedTourEmployeeText, value);
     }
+
+    public bool HasSelectedTourWarnings => SelectedTourWarnings.Count > 0;
 
     public string SelectedTourLoadSummaryText
     {
         get => _selectedTourLoadSummaryText;
         private set => SetProperty(ref _selectedTourLoadSummaryText, value);
-    }
-
-    public string SelectedTourVehicleText
-    {
-        get => _selectedTourVehicleText;
-        private set => SetProperty(ref _selectedTourVehicleText, value);
     }
 
     public TourOverviewItem? SelectedTour
@@ -824,8 +817,16 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             }
         }
 
+        var incompleteScheduleTours = _loadedTours
+            .Where(HasIncompleteStopSchedule)
+            .ToList();
+        foreach (var tour in incompleteScheduleTours)
+        {
+            _scheduleService.ApplySchedule(tour);
+        }
+
         var companyStopsNormalized = NormalizeCompanyStops(_loadedTours, settings);
-        if (tourReconciliation.HasChanges || companyStopsNormalized)
+        if (tourReconciliation.HasChanges || companyStopsNormalized || incompleteScheduleTours.Count > 0)
         {
             await _tourRepository.SaveAsync(_loadedTours);
             _dataSyncService.PublishTours(_instanceId);
@@ -2429,9 +2430,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private string BuildCalendarWeightText(TourRecord tour)
     {
-        var totalWeight = (tour.Stops ?? [])
-            .Where(IsCustomerStop)
-            .Sum(s => ParseWeightKg(s.Gewicht));
+        var totalWeight = CalculateTourWeightKg(tour);
         return totalWeight > 0 ? $"Total: {totalWeight} kg" : string.Empty;
     }
 
@@ -2548,7 +2547,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                     var name = (p.Name ?? string.Empty).Trim();
                     var supplier = (p.Supplier ?? string.Empty).Trim();
                     var quantity = Math.Max(1, p.Quantity);
-                    var weight = Math.Max(0d, p.WeightKg);
+                    var weight = OrderProductFormatter.ResolveTotalWeightKg(p);
                     var supplierSuffix = string.IsNullOrWhiteSpace(supplier) ? string.Empty : $" [{supplier}]";
                     return string.IsNullOrWhiteSpace(name)
                         ? $"{quantity}x ({weight:0.##} kg)"
@@ -2558,16 +2557,28 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 .ToList();
         }
 
+        if (order is not null)
+        {
+            var orderWeight = order.ResolveTotalWeightKg();
+            if (orderWeight > 0)
+            {
+                return [$"Gewicht: {orderWeight:0.##} kg"];
+            }
+        }
+
         var fallbackWeight = ParseWeightKg(stop.Gewicht);
         return fallbackWeight > 0 ? [$"Gewicht: {fallbackWeight} kg"] : [];
     }
 
     private static string BuildCalendarStopWeightText(Order? order, TourStopRecord stop)
     {
-        if (order?.Products is not null && order.Products.Count > 0)
+        if (order is not null)
         {
             var total = order.ResolveTotalWeightKg();
-            return total > 0 ? $"Total: {total:0.##} kg" : string.Empty;
+            if (total > 0)
+            {
+                return $"Total: {total:0.##} kg";
+            }
         }
 
         var fallbackWeight = ParseWeightKg(stop.Gewicht);
@@ -2651,9 +2662,15 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var schedule = _scheduleService.BuildSchedule(scheduleSource);
         var totalDurationMinutes = Math.Max(0, (int)Math.Round((schedule.End - schedule.Start).TotalMinutes));
-        var routeDistanceKm = CalculateRouteDistanceKm((orderedStopsOverride ?? tour.Stops)
+        var orderedStops = (orderedStopsOverride ?? tour.Stops)
             .OrderBy(s => s.Order)
-            .ToList());
+            .ToList();
+        var routeDistanceKm = orderedStopsOverride is null && HasCompleteRouteGeometry(tour, orderedStops)
+            ? _routeOptimizationService.ComputeTotalDistanceKm(
+                tour.RouteGeometryPoints,
+                point => point.Latitude,
+                point => point.Longitude)
+            : CalculateRouteDistanceKm(orderedStops);
 
         return new TourOrderMetrics(
             EndTime: schedule.End.ToString("HH:mm"),
@@ -2677,6 +2694,38 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .ToList();
 
         return _routeOptimizationService.ComputeTotalDistanceKm(points, p => p.Latitude, p => p.Longitude);
+    }
+
+    private static bool HasCompleteRouteGeometry(TourRecord tour, IReadOnlyList<TourStopRecord> orderedStops)
+    {
+        var geometry = tour.RouteGeometryPoints;
+        if (geometry is null || geometry.Count < 2)
+        {
+            return false;
+        }
+
+        var routedStops = orderedStops
+            .Where(stop => !IsPauseStop(stop))
+            .Where(stop => stop.Lat.HasValue && (stop.Lon ?? stop.Lng).HasValue)
+            .ToList();
+        if (routedStops.Count < 2)
+        {
+            return false;
+        }
+
+        var geometryStart = geometry[0];
+        var geometryEnd = geometry[^1];
+        var routeStart = routedStops[0];
+        var routeEnd = routedStops[^1];
+        return AreCoordinatesClose(geometryStart, routeStart) && AreCoordinatesClose(geometryEnd, routeEnd);
+    }
+
+    private static bool AreCoordinatesClose(GeoPoint geometryPoint, TourStopRecord stop)
+    {
+        var longitude = stop.Lon ?? stop.Lng;
+        return stop.Lat.HasValue && longitude.HasValue &&
+               Math.Abs(geometryPoint.Latitude - stop.Lat.Value) <= 0.001d &&
+               Math.Abs(geometryPoint.Longitude - longitude.Value) <= 0.001d;
     }
 
     private static string FormatSignedMinutes(int deltaMinutes)
@@ -2981,7 +3030,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             var arrival = !string.IsNullOrWhiteSpace(preview?.Arrival)
                 ? preview.Arrival
                 : stop.PlannedArrival ?? string.Empty;
-            var departure = stop.PlannedDeparture ?? string.Empty;
+            var departure = !string.IsNullOrWhiteSpace(preview?.Departure)
+                ? preview.Departure
+                : stop.PlannedDeparture ?? string.Empty;
             Order? sourceOrder = null;
             if (!isCompanyStop && !isPauseStop)
             {
@@ -3010,7 +3061,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                         ? preview.ArrivalRange
                         : BuildArrivalRangeText(stop),
                 Departure = departure,
-                Weight = isCompanyStop || isPauseStop ? string.Empty : $"{ParseWeightKg(stop.Gewicht)} kg",
+                Weight = isCompanyStop || isPauseStop ? string.Empty : BuildStopWeightText(sourceOrder, stop),
                 Conflict = isCompanyStop || isPauseStop ? string.Empty : (stop.ScheduleConflict ? (string.IsNullOrWhiteSpace(stop.ScheduleConflictText) ? "Yes" : stop.ScheduleConflictText) : string.Empty),
                 HasConflict = !isCompanyStop && !isPauseStop && stop.ScheduleConflict,
                 ServiceTimeText = isCompanyStop || isPauseStop ? string.Empty : $"{Math.Max(0, stop.ServiceMinutes)} min Aufenthalt",
@@ -3050,26 +3101,24 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         SelectedTourWarnings.Clear();
         if (SelectedTour?.Source is null)
         {
-            SelectedTourWeightText = "Totalgewicht: 0 kg";
             SelectedTourLoadSummaryText = string.Empty;
-            SelectedTourVehicleText = "Fahrzeug & Anhänger: -";
             SelectedTourStatusText = "Keine Tour ausgewählt";
             SelectedTourTimeText = "-";
             SelectedTourDistanceText = "-";
             SelectedTourDurationText = "-";
             SelectedTourServiceTimeText = "-";
-            SelectedTourWaitTimeText = "-";
             SelectedTourWebfleetText = "Nicht gesendet";
             SelectedTourTotalWeightValueText = "0 kg";
             SelectedTourCapacityValueText = "-";
+            SelectedTourCapacityPercentText = string.Empty;
             SelectedTourVehicleAssignmentText = "-";
+            SelectedTourEmployeeText = "–";
             OnPropertyChanged(nameof(HasSelectedTourWarnings));
             return;
         }
 
         var tour = SelectedTour.Source;
         var totalWeight = CalculateTourWeightKg(tour);
-        SelectedTourWeightText = $"Totalgewicht: {totalWeight} kg";
         SelectedTourTotalWeightValueText = $"{totalWeight:N0} kg";
 
         var assignments = BuildVehicleAssignments(
@@ -3077,16 +3126,6 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             SelectedTour.Source.TrailerId,
             SelectedTour.Source.SecondaryVehicleId,
             SelectedTour.Source.SecondaryTrailerId);
-
-        var vehicleTrailerLines = BuildVehicleTrailerOverviewLines(
-            SelectedTour.Source.VehicleId,
-            SelectedTour.Source.TrailerId,
-            SelectedTour.Source.SecondaryVehicleId,
-            SelectedTour.Source.SecondaryTrailerId,
-            useShortVehicleLabel: false);
-
-        var summaryLines = new List<string> { "Fahrzeug & Anhänger:" };
-        summaryLines.AddRange(vehicleTrailerLines.Count == 0 ? ["-"] : vehicleTrailerLines);
 
         var loadSummaryLines = new List<string>();
         for (var i = 0; i < assignments.Count; i++)
@@ -3106,20 +3145,40 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         SelectedTourLoadSummaryText = string.Join(Environment.NewLine, loadSummaryLines);
-        SelectedTourVehicleText = string.Join(Environment.NewLine, summaryLines);
-        SelectedTourCapacityValueText = loadSummaryLines.Count == 0
+        var totalCapacityKg = assignments
+            .Select(assignment => VehicleCombinationDisplayResolver.Resolve(_vehicleData, assignment.VehicleId, assignment.TrailerId))
+            .Sum(display => display.VehiclePayloadKg.GetValueOrDefault() + display.TrailerLoadKg.GetValueOrDefault());
+        SelectedTourCapacityValueText = totalCapacityKg <= 0
             ? "-"
-            : string.Join(" · ", loadSummaryLines.Select(line => line.Replace("Ladegewicht: ", string.Empty, StringComparison.OrdinalIgnoreCase).Replace("Anhängelast: ", string.Empty, StringComparison.OrdinalIgnoreCase)));
-        SelectedTourVehicleAssignmentText = vehicleTrailerLines.Count == 0 ? "-" : string.Join(" · ", vehicleTrailerLines);
+            : $"{totalWeight:N0} / {totalCapacityKg:N0} kg";
+        SelectedTourCapacityPercentText = totalCapacityKg <= 0
+            ? string.Empty
+            : $"{(double)totalWeight / totalCapacityKg:P0} ausgelastet";
+
+        var assignmentLines = assignments.Select((assignment, index) =>
+        {
+            var display = VehicleCombinationDisplayResolver.Resolve(_vehicleData, assignment.VehicleId, assignment.TrailerId);
+            var prefix = assignments.Count > 1 ? $"Gespann {index + 1}: " : string.Empty;
+            var vehicle = string.IsNullOrWhiteSpace(display.VehicleLabel) ? "–" : display.VehicleLabel;
+            return string.IsNullOrWhiteSpace(display.TrailerLabel)
+                ? $"{prefix}{vehicle}"
+                : $"{prefix}{vehicle} + {display.TrailerLabel}";
+        }).ToList();
+        SelectedTourVehicleAssignmentText = assignmentLines.Count == 0 ? "–" : string.Join(Environment.NewLine, assignmentLines);
+
+        var employeeNames = (tour.EmployeeIds ?? [])
+            .Select(ResolveEmployeeLabel)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .ToList();
+        var employeeText = employeeNames.Count == 0 ? "–" : string.Join(", ", employeeNames);
+        SelectedTourEmployeeText = employeeText;
 
         var metrics = BuildTourOrderMetrics(tour);
         var serviceMinutes = (tour.Stops ?? []).Where(IsCustomerStop).Sum(stop => Math.Max(0, stop.ServiceMinutes));
-        var waitMinutes = (tour.Stops ?? []).Sum(stop => Math.Max(0, stop.WaitMinutes));
-        SelectedTourTimeText = $"{tour.Date} · {tour.StartTime}–{metrics.EndTime}";
+        SelectedTourTimeText = $"{tour.StartTime}–{metrics.EndTime}";
         SelectedTourDistanceText = $"{metrics.DistanceKm:0.0} km";
         SelectedTourDurationText = FormatDuration(metrics.DurationMinutes);
         SelectedTourServiceTimeText = FormatDuration(serviceMinutes);
-        SelectedTourWaitTimeText = FormatDuration(waitMinutes);
         SelectedTourWebfleetText = ResolveWebfleetStatusText(tour.WebfleetDispatch);
 
         var warnings = BuildPlanningWarnings(_loadedTours, tour.Id).ToList();
@@ -3155,13 +3214,25 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return 0;
         }
 
-        var digits = new string(text.Where(char.IsDigit).ToArray());
-        if (int.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+        var numericText = new string(text
+            .Where(character => char.IsDigit(character) || character is '.' or ',' or '-' or '+')
+            .ToArray())
+            .Replace(',', '.');
+        if (double.TryParse(numericText, NumberStyles.Float, CultureInfo.InvariantCulture, out var localizedValue))
         {
-            return Math.Max(0, value);
+            return (int)Math.Ceiling(Math.Max(0d, localizedValue));
         }
 
         return 0;
+    }
+
+    private static string BuildStopWeightText(Order? order, TourStopRecord stop)
+    {
+        var orderWeight = order is null
+            ? 0
+            : (int)Math.Ceiling(Math.Max(0d, order.ResolveTotalWeightKg()));
+        var weight = orderWeight > 0 ? orderWeight : ParseWeightKg(stop.Gewicht);
+        return weight > 0 ? $"{weight:N0} kg" : string.Empty;
     }
 
     private static string BuildNotesPreview(string? notes)
@@ -3396,6 +3467,16 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return string.IsNullOrWhiteSpace(orderId)
             ? (stop.Id ?? string.Empty).Trim()
             : orderId.Trim();
+    }
+
+    private static bool HasIncompleteStopSchedule(TourRecord tour)
+    {
+        var stops = tour.Stops ?? [];
+        return stops.Count > 0 && stops.Any(stop =>
+            string.IsNullOrWhiteSpace(stop.PlannedArrival) ||
+            string.IsNullOrWhiteSpace(stop.PlannedDeparture) ||
+            string.IsNullOrWhiteSpace(stop.PlannedArrivalOptimistic) ||
+            string.IsNullOrWhiteSpace(stop.PlannedArrivalPessimistic));
     }
 
     private void ShiftCalendarMonth(bool isFrom, int monthDelta)
@@ -4093,6 +4174,7 @@ public sealed class TourStopOverviewItem
     public string ArrivalRangeText { get; set; } = string.Empty;
     public string Departure { get; set; } = string.Empty;
     public string Weight { get; set; } = string.Empty;
+    public bool HasWeight => !string.IsNullOrWhiteSpace(Weight);
     public string Conflict { get; set; } = string.Empty;
     public bool HasConflict { get; set; }
     public string ServiceTimeText { get; set; } = string.Empty;

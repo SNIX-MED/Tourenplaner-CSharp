@@ -114,7 +114,15 @@ public partial class EmployeesSectionView : UserControl
                 MessageBoxImage.Warning);
             if (confirm == MessageBoxResult.Yes)
             {
-                await vm.DeleteEntryAsync(entry);
+                var deletionError = await vm.DeleteEntryAsync(entry);
+                if (!string.IsNullOrWhiteSpace(deletionError))
+                {
+                    Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                        deletionError,
+                        "Mitarbeiter kann nicht gelöscht werden",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
             }
 
             return;

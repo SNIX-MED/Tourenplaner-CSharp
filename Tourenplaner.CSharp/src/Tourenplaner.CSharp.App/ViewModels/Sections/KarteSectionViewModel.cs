@@ -558,8 +558,19 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 group => group.Key,
                 group => new TourTimingPreview(
                     group.First().EtaText ?? string.Empty,
-                    group.First().EtaRangeText ?? string.Empty),
+                    group.First().EtaRangeText ?? string.Empty,
+                    BuildPreviewDeparture(group.First())),
                 StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string BuildPreviewDeparture(RouteStopItem stop)
+    {
+        if (!TimeOnly.TryParseExact(stop.EtaText, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var arrival))
+        {
+            return string.Empty;
+        }
+
+        return arrival.AddMinutes(Math.Max(0, stop.PlannedStayMinutes)).ToString("HH:mm", CultureInfo.InvariantCulture);
     }
     public bool IsRouteCalculating
     {
@@ -3276,6 +3287,16 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private async Task SendCurrentTourToWebfleetAsync()
     {
+        if (_hasUnsavedRouteChanges)
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                "Die Tour enthält noch ungespeicherte Änderungen. Bitte speichere die Tour zuerst, damit WEBFLEET exakt den aktuellen Stand mit Stoppreihenfolge und Zeiten erhält.",
+                "WEBFLEET-Tour synchronisieren",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
         var tourId = ResolveCurrentTourId();
         var tours = (await _tourRepository.LoadAsync()).ToList();
         var tour = tours.FirstOrDefault(x => x.Id == tourId);
@@ -3724,6 +3745,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 defaultServiceMinutes: _stayMinutesFreiBordsteinkante);
             ApplyCurrentRouteTravelTimeCaches(tour);
             ApplyCurrentAvisoArrivalWindowFixations(tour);
+            _scheduleService.ApplySchedule(tour);
             tour.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
             tour.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
             tour.SecondaryVehicleId = string.IsNullOrWhiteSpace(secondaryVehicleId) ? null : secondaryVehicleId.Trim();
@@ -4657,54 +4679,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         return GetExportPoints().Count >= 2;
     }
 
-    private void ExportRouteToGoogleMaps()
-    {
-        var points = GetExportPoints();
-        if (points.Count < 2)
-        {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                "Für den Export werden mindestens zwei Stopps mit Koordinaten benötigt.",
-                "Route exportieren",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Information);
-            return;
-        }
-
-        var origin = $"{points[0].Latitude.ToString(CultureInfo.InvariantCulture)},{points[0].Longitude.ToString(CultureInfo.InvariantCulture)}";
-        var destination = $"{points[^1].Latitude.ToString(CultureInfo.InvariantCulture)},{points[^1].Longitude.ToString(CultureInfo.InvariantCulture)}";
-
-        var url = $"https://www.google.com/maps/dir/?api=1&origin={Uri.EscapeDataString(origin)}&destination={Uri.EscapeDataString(destination)}&travelmode=driving";
-
-        if (points.Count > 2)
-        {
-            var waypointsValue = string.Join(
-                "|",
-                points.Skip(1).Take(points.Count - 2).Select(x =>
-                    $"{x.Latitude.ToString(CultureInfo.InvariantCulture)},{x.Longitude.ToString(CultureInfo.InvariantCulture)}"));
-            if (!string.IsNullOrWhiteSpace(waypointsValue))
-            {
-                url += $"&waypoints={Uri.EscapeDataString(waypointsValue)}";
-            }
-        }
-
-        try
-        {
-            Process.Start(new ProcessStartInfo(url)
-            {
-                UseShellExecute = true
-            });
-            StatusText = "Route in Google Maps geöffnet.";
-        }
-        catch (Exception ex)
-        {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                $"Google Maps konnte nicht geöffnet werden.\n{ex.Message}",
-                "Route exportieren",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Error);
-        }
-    }
-
     private List<GeoPoint> GetExportPoints()
     {
         return RouteStops
@@ -4742,12 +4716,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        if (dialog.SelectedOption == RouteExportOption.Gpx)
-        {
-            await ExportRouteToGpxAsync(snapshot);
-            return;
-        }
-
         if (PdfExportHandler is null)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
@@ -4775,48 +4743,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             "Route exportieren",
             System.Windows.MessageBoxButton.OK,
             System.Windows.MessageBoxImage.Error);
-    }
-
-    private async Task ExportRouteToGpxAsync(RouteExportSnapshot snapshot)
-    {
-        if (!GpxRouteExportService.TryBuild(snapshot, out var gpx, out var error))
-        {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                error,
-                "Route exportieren",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Information);
-            return;
-        }
-
-        var dialog = new Microsoft.Win32.SaveFileDialog
-        {
-            Title = "Tour als GPX exportieren",
-            Filter = "GPX-Datei (*.gpx)|*.gpx",
-            FileName = BuildDefaultGpxFileName(snapshot),
-            AddExtension = true,
-            DefaultExt = ".gpx",
-            OverwritePrompt = true
-        };
-
-        if (dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) != true)
-        {
-            return;
-        }
-
-        try
-        {
-            await File.WriteAllTextAsync(dialog.FileName, gpx, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            StatusText = $"Tour-GPX gespeichert: {dialog.FileName}";
-        }
-        catch (Exception ex)
-        {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                $"Der GPX-Export ist fehlgeschlagen.\n{ex.Message}",
-                "Route exportieren",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Error);
-        }
     }
 
     private void ExportRouteToGoogleMaps(RouteExportSnapshot snapshot)
@@ -4911,15 +4837,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         return true;
     }
 
-    private static string BuildDefaultGpxFileName(RouteExportSnapshot snapshot)
-    {
-        var name = string.IsNullOrWhiteSpace(snapshot.TourName) ? "Tour-Export" : snapshot.TourName.Trim();
-        var date = string.IsNullOrWhiteSpace(snapshot.TourDate) ? DateTime.Today.ToString("yyyy-MM-dd") : snapshot.TourDate.Trim();
-        var raw = $"{name}_{date}.gpx";
-        var invalid = Path.GetInvalidFileNameChars();
-        return string.Concat(raw.Select(ch => invalid.Contains(ch) ? '_' : ch));
-    }
-
     private string BuildExportTourNameWithEmployees()
     {
         var baseName = string.IsNullOrWhiteSpace(RouteName) ? "Aktuelle Route" : RouteName.Trim();
@@ -4953,10 +4870,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private string ResolveTimeWindow(string orderId)
     {
-        var stop = _savedTours
-            .SelectMany(x => x.Stops ?? [])
-            .FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(x.Auftragsnummer, orderId, StringComparison.OrdinalIgnoreCase));
+        var stop = FindCurrentTourStop(orderId);
 
         if (stop is null)
         {
@@ -4982,10 +4896,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private string ResolveArrivalTimeText(string orderId)
     {
-        var stop = _savedTours
-            .SelectMany(x => x.Stops ?? [])
-            .FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(x.Auftragsnummer, orderId, StringComparison.OrdinalIgnoreCase));
+        var currentRouteStop = RouteStops.FirstOrDefault(candidate =>
+            string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(currentRouteStop?.EtaText))
+        {
+            return currentRouteStop.EtaText.Trim();
+        }
+
+        var stop = FindCurrentTourStop(orderId);
 
         if (stop is null)
         {
@@ -5008,10 +4926,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private string ResolveArrivalRangeText(string orderId)
     {
-        var stop = _savedTours
-            .SelectMany(x => x.Stops ?? [])
-            .FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(x.Auftragsnummer, orderId, StringComparison.OrdinalIgnoreCase));
+        var currentRouteStop = RouteStops.FirstOrDefault(candidate =>
+            string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(currentRouteStop?.EtaRangeText))
+        {
+            return currentRouteStop.EtaRangeText.Trim();
+        }
+
+        var stop = FindCurrentTourStop(orderId);
 
         if (stop is null)
         {
@@ -5026,13 +4948,50 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private string ResolveWeightText(string orderId)
     {
-        var stop = _savedTours
-            .SelectMany(x => x.Stops ?? [])
-            .FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(x.Auftragsnummer, orderId, StringComparison.OrdinalIgnoreCase));
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        var order = _allOrders.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, normalizedOrderId, StringComparison.OrdinalIgnoreCase));
+        if (order is not null)
+        {
+            var currentWeight = order.ResolveTotalWeightKg();
+            if (currentWeight > 0)
+            {
+                return $"{currentWeight:0.##} kg";
+            }
+        }
 
+        var stop = FindCurrentTourStop(normalizedOrderId);
         return stop?.Gewicht ?? string.Empty;
     }
+
+    private TourStopRecord? FindCurrentTourStop(string? orderId)
+    {
+        var normalizedOrderId = (orderId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalizedOrderId))
+        {
+            return null;
+        }
+
+        var currentTourId = ResolveCurrentTourId();
+        var currentTour = currentTourId > 0
+            ? _savedTours.FirstOrDefault(tour => tour.Id == currentTourId)
+            : null;
+        var currentStop = (currentTour?.Stops ?? [])
+            .FirstOrDefault(stop => IsMatchingTourStop(stop, normalizedOrderId));
+        if (currentStop is not null)
+        {
+            return currentStop;
+        }
+
+        return _savedTours
+            .Where(tour => !tour.IsArchived)
+            .SelectMany(tour => tour.Stops ?? [])
+            .FirstOrDefault(stop => IsMatchingTourStop(stop, normalizedOrderId));
+    }
+
+    private static bool IsMatchingTourStop(TourStopRecord stop, string orderId) =>
+        string.Equals(stop.Id, orderId, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(stop.Auftragsnummer, orderId, StringComparison.OrdinalIgnoreCase);
 
     private string ResolveOrderNotes(string orderId)
     {
@@ -5982,7 +5941,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             {
                 var vehicleLabel = ResolveVehicleLabel(x.VehicleId);
                 var trailerLabel = ResolveTrailerLabel(x.TrailerId);
-                return $"{(string.IsNullOrWhiteSpace(vehicleLabel) ? "-" : vehicleLabel)} & {(string.IsNullOrWhiteSpace(trailerLabel) ? "-" : trailerLabel)}";
+                var vehicleText = string.IsNullOrWhiteSpace(vehicleLabel) ? "-" : vehicleLabel;
+                return string.IsNullOrWhiteSpace(trailerLabel)
+                    ? vehicleText
+                    : $"{vehicleText} + {trailerLabel}";
             })
             .ToList();
 
@@ -6003,11 +5965,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return 0;
         }
 
-        return (int)Math.Max(
-            0,
-            Math.Round(
-                order.ResolveTotalWeightKg(),
-                MidpointRounding.AwayFromZero));
+        return (int)Math.Ceiling(Math.Max(0d, order.ResolveTotalWeightKg()));
     }
 
     private string ResolveDeliveryTypeText(string? orderId)
@@ -6161,7 +6119,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         return _activeTourId <= 0 && _selectedTourOverviewId > 0;
     }
 
-    private bool CanSendCurrentTourToWebfleet() => ResolveCurrentTourId() > 0;
+    private bool CanSendCurrentTourToWebfleet() =>
+        !IsRouteCalculating &&
+        ResolveCurrentTourId() > 0;
 
     private bool CanOpenSelectedTourOverview()
     {
@@ -8263,12 +8223,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 .Where(x => !double.IsNaN(x.Latitude) && !double.IsNaN(x.Longitude))
                 .Where(x => x.Latitude is >= -90 and <= 90 && x.Longitude is >= -180 and <= 180)
                 .ToList();
-            if (!_isReturnToCompanyLegVisible &&
-                validStops.Count > 1 &&
-                validStops[^1].IsRouteEnd)
-            {
-                validStops.RemoveAt(validStops.Count - 1);
-            }
             var waypoints = validStops.Select(x => new GeoPoint(x.Latitude, x.Longitude)).ToList();
             var plannedDeparture = BuildPlannedDepartureDateTime();
             var trafficDeparture = _tomTomUseDepartAtTraffic ? plannedDeparture : null;
@@ -8632,14 +8586,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
             var leg = _routeLegs[routeLegIndex];
             var isReturnToCompanyLeg = stop.IsRouteEnd;
-            if (isReturnToCompanyLeg && !_isReturnToCompanyLegVisible)
-            {
-                stop.EtaText = string.Empty;
-                stop.EtaRangeText = string.Empty;
-                previousRoutedStop = stop;
-                routeLegIndex++;
-                continue;
-            }
 
             var realisticDepart = realisticCurrent;
             optimisticCurrent = optimisticCurrent.AddMinutes(leg.OptimisticDurationMinutes);
@@ -8668,13 +8614,16 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             totalDriveMinutes += leg.DurationMinutes;
             totalDistanceKm += leg.DistanceKm;
 
-            previousRoutedStop.SetNextLeg(
-                durationText: FormatDuration(leg.DurationMinutes),
-                distanceText: $"{leg.DistanceKm:0.0} km",
-                departureText: realisticDepart.ToString("HH:mm"),
-                arrivalText: arrive.ToString("HH:mm"),
-                arrivalRangeText: legRangeText,
-                accentColorHex: routeLegIndex % 2 == 0 ? "#7BC6A4" : "#8EC6E8");
+            if (!isReturnToCompanyLeg || _isReturnToCompanyLegVisible)
+            {
+                previousRoutedStop.SetNextLeg(
+                    durationText: FormatDuration(leg.DurationMinutes),
+                    distanceText: $"{leg.DistanceKm:0.0} km",
+                    departureText: realisticDepart.ToString("HH:mm"),
+                    arrivalText: arrive.ToString("HH:mm"),
+                    arrivalRangeText: legRangeText,
+                    accentColorHex: routeLegIndex % 2 == 0 ? "#7BC6A4" : "#8EC6E8");
+            }
 
             sb.AppendLine($"{BuildStopLabel(previousRoutedStop, isFrom: true)} -> {BuildStopLabel(stop, isFrom: false)}");
             sb.AppendLine($"{leg.DurationMinutes} min | {leg.DistanceKm:0.0} km");
@@ -8692,8 +8641,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 sb.AppendLine();
             }
 
-            stop.EtaText = arrive.ToString("HH:mm");
-            stop.EtaRangeText = legRangeText;
+            stop.EtaText = isReturnToCompanyLeg && !_isReturnToCompanyLegVisible
+                ? string.Empty
+                : arrive.ToString("HH:mm");
+            stop.EtaRangeText = isReturnToCompanyLeg && !_isReturnToCompanyLegVisible
+                ? string.Empty
+                : legRangeText;
             if (!IsCompanyStop(stop) && !IsPauseStop(stop))
             {
                 totalStayMinutes += Math.Max(0, stop.PlannedStayMinutes);
@@ -8707,6 +8660,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         var end = realisticCurrent;
+        RouteDistanceKm = totalDistanceKm;
         RouteTimingSummary = $"Start: {start:HH:mm} | Fahrt: {totalDriveMinutes} min | Staupuffer: {totalTrafficBufferMinutes} min | Aufenthalt: {totalStayMinutes} min | Ende: {end:HH:mm}";
         RouteOperationalSummaryText = $"Gesamt Fahrzeit: {FormatDuration(totalDriveMinutes)} | Staupuffer: {FormatDuration(totalTrafficBufferMinutes)} | Gesamt Distanz: {totalDistanceKm:0.0} km | Start: {start:HH:mm} | Ende: {end:HH:mm}";
         DriveTimesText = sb.Length == 0 ? "Noch keine Stopps geplant." : sb.ToString().TrimEnd();
@@ -10202,7 +10156,7 @@ public sealed record WebfleetPauseMarker(DateTimeOffset StartTime, DateTimeOffse
 
 internal sealed record WebfleetTrackDriverAssignment(string DriverUid, string DriverName);
 
-public sealed record TourTimingPreview(string Arrival, string ArrivalRange);
+public sealed record TourTimingPreview(string Arrival, string ArrivalRange, string Departure);
 
 public sealed class SavedTourLookupItem
 {

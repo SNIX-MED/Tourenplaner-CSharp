@@ -213,6 +213,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <Grid Grid.Column="0">
@@ -783,6 +784,22 @@
                                        Source="{Binding WebfleetVehiclesButtonImagePath}" />
                             </Button>
                             <Button Grid.Column="6"
+                                    Width="44"
+                                    Height="40"
+                                    Padding="0"
+                                    Margin="0,0,8,0"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    ToolTip="Aufträge aus XML importieren"
+                                    ToolTipService.InitialShowDelay="800"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Click="OnOpenXmlImportClicked">
+                                <TextBlock FontSize="12"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource Brush.ButtonForeground}"
+                                           Text="XML" />
+                            </Button>
+                            <Button Grid.Column="7"
                                     Width="44"
                                     Height="40"
                                     Padding="0"

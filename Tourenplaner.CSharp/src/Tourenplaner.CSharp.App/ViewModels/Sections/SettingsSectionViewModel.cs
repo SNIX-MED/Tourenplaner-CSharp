@@ -425,6 +425,13 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
     public string SelectedSettingsCategoryKey => SelectedSettingsCategory?.Key ?? string.Empty;
 
+    public void SelectSettingsCategory(string key)
+    {
+        var normalizedKey = (key ?? string.Empty).Trim();
+        SelectedSettingsCategory = SettingsCategories.FirstOrDefault(category =>
+            string.Equals(category.Key, normalizedKey, StringComparison.OrdinalIgnoreCase));
+    }
+
     public string AdditionalMaterialGroupsSummary => _additionalMaterialGroups.Count == 0
         ? "Noch keine Werkzeuggruppen eingerichtet."
         : $"{_additionalMaterialGroups.Count} Werkzeuggruppe(n) eingerichtet.";
@@ -1423,7 +1430,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
                     IsPostgreSqlStorageMode ? BuildPostgreSqlStorageSettings() : null);
                 _dataSyncService?.Publish(new AppDataChangedEventArgs(
                     _instanceId,
-                    AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees | AppDataKind.Settings));
+                    AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees |
+                    AppDataKind.Settings | AppDataKind.CalendarEntries));
                 StatusText = "Sicherung wurde wiederhergestellt. Der Speichermodus dieses PCs wurde beibehalten. Bitte das Programm neu starten.";
                 ValidationSummary = string.Empty;
             }

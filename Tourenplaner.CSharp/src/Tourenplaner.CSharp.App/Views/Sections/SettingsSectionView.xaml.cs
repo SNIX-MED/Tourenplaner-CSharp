@@ -7,6 +7,18 @@ namespace Tourenplaner.CSharp.App.Views.Sections;
 
 public partial class SettingsSectionView : UserControl
 {
+    public static readonly DependencyProperty IsXmlImportOnlyModeProperty = DependencyProperty.Register(
+        nameof(IsXmlImportOnlyMode),
+        typeof(bool),
+        typeof(SettingsSectionView),
+        new PropertyMetadata(false, OnIsXmlImportOnlyModeChanged));
+
+    public bool IsXmlImportOnlyMode
+    {
+        get => (bool)GetValue(IsXmlImportOnlyModeProperty);
+        set => SetValue(IsXmlImportOnlyModeProperty, value);
+    }
+
     private void OnWebfleetPasswordChanged(object sender, RoutedEventArgs e)
     {
         if (DataContext is ViewModels.Sections.SettingsSectionViewModel viewModel && sender is PasswordBox passwordBox)
@@ -17,8 +29,29 @@ public partial class SettingsSectionView : UserControl
     public SettingsSectionView()
     {
         InitializeComponent();
+        ApplyDisplayMode();
         Loaded += (_, _) => SynchronizeWebfleetPassword();
         DataContextChanged += (_, _) => SynchronizeWebfleetPassword();
+    }
+
+    private static void OnIsXmlImportOnlyModeChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
+    {
+        if (dependencyObject is SettingsSectionView view)
+        {
+            view.ApplyDisplayMode();
+        }
+    }
+
+    private void ApplyDisplayMode()
+    {
+        if (SettingsSidebarColumn is null || SettingsSidebar is null || GeneralSaveButton is null)
+        {
+            return;
+        }
+
+        SettingsSidebarColumn.Width = IsXmlImportOnlyMode ? new GridLength(0) : new GridLength(252);
+        SettingsSidebar.Visibility = IsXmlImportOnlyMode ? Visibility.Collapsed : Visibility.Visible;
+        GeneralSaveButton.Visibility = IsXmlImportOnlyMode ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void SynchronizeWebfleetPassword()

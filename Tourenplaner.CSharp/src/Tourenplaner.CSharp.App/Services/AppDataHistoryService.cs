@@ -114,16 +114,20 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
                 return;
             }
 
-            target = _undoStack.Pop();
+            target = _undoStack.Peek();
             current = _current;
-            _redoStack.Push(CloneSnapshotWithDescription(current, target.Description));
-            _current = CloneSnapshot(target);
             _captureSuppressed = true;
         }
 
         try
         {
             await RestoreSnapshotAsync(target);
+            lock (_gate)
+            {
+                _undoStack.Pop();
+                _redoStack.Push(CloneSnapshotWithDescription(current, target.Description));
+                _current = CloneSnapshot(target);
+            }
         }
         finally
         {
@@ -167,16 +171,20 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
                 return;
             }
 
-            target = _redoStack.Pop();
+            target = _redoStack.Peek();
             current = _current;
-            _undoStack.Push(CloneSnapshotWithDescription(current, target.Description));
-            _current = CloneSnapshot(target);
             _captureSuppressed = true;
         }
 
         try
         {
             await RestoreSnapshotAsync(target);
+            lock (_gate)
+            {
+                _redoStack.Pop();
+                _undoStack.Push(CloneSnapshotWithDescription(current, target.Description));
+                _current = CloneSnapshot(target);
+            }
         }
         finally
         {
@@ -476,21 +484,42 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
         fileInfo.Directory?.Create();
 
         var tempPath = Path.Combine(fileInfo.DirectoryName ?? string.Empty, $"{fileInfo.Name}.{Guid.NewGuid():N}.tmp");
-        await File.WriteAllBytesAsync(tempPath, content);
+        try
+        {
+            await File.WriteAllBytesAsync(tempPath, content);
 
-        if (File.Exists(path))
-        {
-            File.Replace(tempPath, path, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            if (!File.Exists(path))
+            {
+                File.Move(tempPath, path);
+                return;
+            }
+
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    File.Replace(tempPath, path, destinationBackupFileName: null, ignoreMetadataErrors: true);
+                    return;
+                }
+                catch (IOException) when (attempt < 2)
+                {
+                    await Task.Delay(40 * (attempt + 1));
+                }
+            }
         }
-        else
+        finally
         {
-            File.Move(tempPath, path);
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
         }
     }
 
     private void PublishFullReload()
     {
-        const AppDataKind allKinds = AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Employees | AppDataKind.Vehicles | AppDataKind.Settings;
+        const AppDataKind allKinds = AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Employees |
+                                     AppDataKind.Vehicles | AppDataKind.Settings | AppDataKind.CalendarEntries;
         _dataSyncService.Publish(new AppDataChangedEventArgs(_instanceId, allKinds));
     }
 
@@ -532,6 +561,11 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
             labels.Add("Einstellungen");
         }
 
+        if (kinds.HasFlag(AppDataKind.CalendarEntries))
+        {
+            labels.Add("Kalendereinträge");
+        }
+
         return labels.Count == 0 ? "Änderung" : string.Join(", ", labels);
     }
 
@@ -570,6 +604,11 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
         if (kinds == AppDataKind.Settings)
         {
             return "Einstellungen ändern";
+        }
+
+        if (kinds == AppDataKind.CalendarEntries)
+        {
+            return BuildEntityAction("Kalendereintrag", "Kalendereinträge", args.PreviousId, args.CurrentId);
         }
 
         return DescribeKinds(kinds);

@@ -2,6 +2,7 @@
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.App.Views.Dialogs;
 
@@ -149,6 +150,24 @@ public partial class DashboardTopBar : UserControl
                 Tourenplaner.CSharp.App.Services.AppMessageBox.Show(result.Message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
+    }
+
+    private async void OnOpenXmlImportClicked(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainShellViewModel shell)
+        {
+            return;
+        }
+
+        var settings = shell.SettingsSection;
+        await settings.RefreshAsync();
+        settings.SelectSettingsCategory("imports");
+
+        var dialog = new XmlImportDialogWindow(settings)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        _ = dialog.ShowDialog();
     }
 }
 

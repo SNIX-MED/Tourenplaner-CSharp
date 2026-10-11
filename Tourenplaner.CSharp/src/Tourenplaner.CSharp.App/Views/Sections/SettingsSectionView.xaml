@@ -398,11 +398,12 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="252" />
+            <ColumnDefinition x:Name="SettingsSidebarColumn" Width="252" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0"
+        <Border x:Name="SettingsSidebar"
+                Grid.Column="0"
                 Margin="0,0,14,0"
                 Style="{StaticResource SettingsSidebarCardStyle}">
             <StackPanel>
@@ -2474,7 +2475,8 @@
             </StackPanel>
             </ScrollViewer>
 
-            <Button Width="150"
+            <Button x:Name="GeneralSaveButton"
+                    Width="150"
                     Margin="0,0,18,18"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Bottom"

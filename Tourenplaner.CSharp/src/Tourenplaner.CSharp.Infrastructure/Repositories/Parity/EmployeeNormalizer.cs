@@ -11,6 +11,11 @@ internal static class EmployeeNormalizer
         source.Role = (source.Role ?? string.Empty).Trim();
         source.ShortCode = (source.ShortCode ?? string.Empty).Trim();
         source.Phone = (source.Phone ?? string.Empty).Trim();
+        source.WebfleetObjectUid = (source.WebfleetObjectUid ?? string.Empty).Trim();
+        source.WebfleetObjectNumber = (source.WebfleetObjectNumber ?? string.Empty).Trim();
+        source.WebfleetDriverUid = (source.WebfleetDriverUid ?? string.Empty).Trim();
+        source.WebfleetDriverNumber = (source.WebfleetDriverNumber ?? string.Empty).Trim();
+        source.WebfleetDriverName = (source.WebfleetDriverName ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(source.ShortCode) && !string.IsNullOrWhiteSpace(source.Role))
         {
             source.ShortCode = source.Role;

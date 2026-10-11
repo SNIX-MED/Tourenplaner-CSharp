@@ -8,7 +8,8 @@ public enum AppDataKind
     Tours = 2,
     Vehicles = 4,
     Employees = 8,
-    Settings = 16
+    Settings = 16,
+    CalendarEntries = 32
 }
 
 public sealed record AppDataChangedEventArgs(
@@ -162,6 +163,11 @@ public sealed class AppDataSyncService
     public void PublishSettings(Guid sourceId)
     {
         Publish(new AppDataChangedEventArgs(sourceId, AppDataKind.Settings));
+    }
+
+    public void PublishCalendarEntries(Guid sourceId, string? previousEntryId = null, string? currentEntryId = null)
+    {
+        Publish(new AppDataChangedEventArgs(sourceId, AppDataKind.CalendarEntries, previousEntryId, currentEntryId));
     }
 
     private void UpdateStatus(string statusText, bool isConnected, string? errorMessage, DateTime occurredAtUtc)

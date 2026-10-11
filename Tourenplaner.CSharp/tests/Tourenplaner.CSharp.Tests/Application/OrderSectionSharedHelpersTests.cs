@@ -86,4 +86,45 @@ public sealed class OrderSectionSharedHelpersTests
         Assert.All(queries, query =>
             Assert.True(OrderSectionSharedHelpers.MatchesSearchQuery(order, query), query));
     }
+
+    [Fact]
+    public void ResolveDeliveryName_FallsBackToCustomerName_WhenDeliveryNameIsBlank()
+    {
+        var order = new Order
+        {
+            CustomerName = "Muster AG",
+            DeliveryAddress = new DeliveryAddressInfo { Name = "   " }
+        };
+
+        Assert.Equal("Muster AG", OrderSectionSharedHelpers.ResolveDeliveryName(order));
+    }
+
+    [Fact]
+    public void BuildProductsSummary_ShowsManualTotalWeight_WithoutProducts()
+    {
+        var order = new Order
+        {
+            ManualTotalWeightKg = 125
+        };
+
+        Assert.Equal("Gesamtgewicht: 125 kg", OrderSectionSharedHelpers.BuildProductsSummary(order));
+    }
+
+    [Fact]
+    public void BuildProductsSummary_AppendsAuthoritativeManualTotalWeight_ToProducts()
+    {
+        var order = new Order
+        {
+            ManualTotalWeightKg = 125,
+            Products =
+            [
+                new OrderProductInfo { Name = "Schrank", Quantity = 1, WeightKg = 100 }
+            ]
+        };
+
+        var summary = OrderSectionSharedHelpers.BuildProductsSummary(order);
+
+        Assert.Contains("1x Schrank (100 kg)", summary);
+        Assert.Contains("Gesamtgewicht: 125 kg", summary);
+    }
 }

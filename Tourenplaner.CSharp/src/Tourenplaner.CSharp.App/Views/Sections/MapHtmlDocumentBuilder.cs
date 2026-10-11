@@ -379,6 +379,7 @@ internal static class MapHtmlDocumentBuilder
                    window.gawelaSetCompanyMarker = function() {};
                    window.gawelaSetPlannedTourOverlays = function() {};
                    window.gawelaHighlightPlannedTourOverlay = function() {};
+                   window.gawelaFocusPlannedTourOverlay = function() {};
                    window.gawelaHighlightMarker = function() {};
                    window.gawelaHighlightRouteStop = function() {};
                    window.gawelaSetRouteInfo = function() {};
@@ -2811,6 +2812,37 @@ internal static class MapHtmlDocumentBuilder
                            const parsed = Number(tourId);
                            plannedTourOverlaySelectedId = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
                            applyPlannedTourOverlayHighlight();
+                         };
+
+                         window.gawelaFocusPlannedTourOverlay = function(tourId) {
+                           const parsed = Number(tourId);
+                           if (!Number.isFinite(parsed) || parsed <= 0) return;
+
+                           const overlays = Array.isArray(window.__gawelaLastPlannedTourOverlays)
+                             ? window.__gawelaLastPlannedTourOverlays
+                             : [];
+                           const overlay = overlays.find(item => Number(item && item.id) === parsed);
+                           if (!overlay) return;
+
+                           const coordinates = [];
+                           (Array.isArray(overlay.path) ? overlay.path : []).forEach(point => {
+                             const coordinate = toMapCoordinate(point);
+                             if (Array.isArray(coordinate)) coordinates.push(coordinate);
+                           });
+                           (Array.isArray(overlay.manualStops) ? overlay.manualStops : []).forEach(point => {
+                             const coordinate = toMapCoordinate(point);
+                             if (Array.isArray(coordinate)) coordinates.push(coordinate);
+                           });
+                           if (coordinates.length === 0) return;
+
+                           if (coordinates.length === 1) {
+                             map.easeTo({ center: coordinates[0], zoom: Math.max(map.getZoom(), 14), duration: 420 });
+                             return;
+                           }
+
+                           const bounds = new ttSdk.LngLatBounds();
+                           coordinates.forEach(coordinate => bounds.extend(coordinate));
+                           map.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: 420 });
                          };
                          const scalePopupElement = function() {};
 

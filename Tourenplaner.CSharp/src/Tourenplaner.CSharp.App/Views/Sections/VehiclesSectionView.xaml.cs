@@ -119,7 +119,15 @@ public partial class VehiclesSectionView : UserControl
                     MessageBoxImage.Warning);
                 if (confirm == MessageBoxResult.Yes)
                 {
-                    await vm.DeleteEntryAsync(entry);
+                    var deletionError = await vm.DeleteEntryAsync(entry);
+                    if (!string.IsNullOrWhiteSpace(deletionError))
+                    {
+                        Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                            deletionError,
+                            "Fahrzeugkombination kann nicht gelöscht werden",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                    }
                 }
 
                 return;
@@ -155,7 +163,15 @@ public partial class VehiclesSectionView : UserControl
                 MessageBoxImage.Warning);
             if (confirm == MessageBoxResult.Yes)
             {
-                await vm.DeleteEntryAsync(entry);
+                var deletionError = await vm.DeleteEntryAsync(entry);
+                if (!string.IsNullOrWhiteSpace(deletionError))
+                {
+                    Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                        deletionError,
+                        entry.IsTrailer ? "Anhänger kann nicht gelöscht werden" : "Fahrzeug kann nicht gelöscht werden",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
             }
 
             return;
