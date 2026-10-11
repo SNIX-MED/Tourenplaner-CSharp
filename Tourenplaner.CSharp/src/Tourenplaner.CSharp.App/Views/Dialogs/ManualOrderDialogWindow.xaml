@@ -64,26 +64,6 @@
             </Setter>
         </Style>
 
-        <Style x:Key="ProductsGridRowStyle" TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
-            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#D6ECFF" />
-                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="ProductsGridCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
-            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-                    <Setter Property="Background" Value="Transparent" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
         <Style x:Key="DialogIconActionButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
             <Setter Property="Width" Value="34" />
             <Setter Property="Height" Value="34" />
@@ -536,9 +516,16 @@
                 </TabItem>
 
                 <TabItem Header="Produkte" Style="{StaticResource ManualOrderTabItemStyle}">
-                    <ScrollViewer x:Name="ContentScrollViewer"
-                                  VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="0,12,0,0">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <ScrollViewer x:Name="ContentScrollViewer"
+                                      Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
                             <Border Style="{StaticResource SoftCardStyle}"
                                     Padding="12"
                                     Margin="0,0,0,10"
@@ -547,28 +534,86 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" FontSize="18" FontWeight="SemiBold" Text="Produkte" />
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                            <Button Content="Produkt bearbeiten" Click="OnEditProductClicked">
-                                                <Button.Style>
-                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                        <Setter Property="IsEnabled" Value="False" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding CanEditOrRemoveProductLine}" Value="True">
-                                                                <Setter Property="IsEnabled" Value="True" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                            </Button>
-                                            <Button Margin="8,0,0,0" ToolTip="Produkt entfernen" Click="OnRemoveProductClicked">
+                                        <StackPanel Grid.Column="0"
+                                                    Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock FontSize="18"
+                                                       FontWeight="SemiBold"
+                                                       Text="Produkte" />
+                                            <TextBlock Margin="12,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding SelectedProductsSummary}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Bottom">
+                                            <Grid Height="34"
+                                                  Margin="0,0,8,0"
+                                                  VerticalAlignment="Bottom">
+                                                <Button x:Name="SupplierFilterButton"
+                                                        Height="34"
+                                                        VerticalAlignment="Bottom"
+                                                        ToolTip="{Binding SupplierFilterToolTip}"
+                                                        Style="{StaticResource DialogIconActionButtonStyle}"
+                                                        Click="OnSupplierFilterClicked">
+                                                    <TextBlock Style="{StaticResource DialogIconGlyphStyle}"
+                                                               Text="&#xE71C;" />
+                                                </Button>
+                                                <Popup x:Name="SupplierFilterPopup"
+                                                       Placement="Bottom"
+                                                       PlacementTarget="{Binding ElementName=SupplierFilterButton}"
+                                                       StaysOpen="True"
+                                                       AllowsTransparency="True">
+                                                    <Border MinWidth="220"
+                                                            MaxHeight="320"
+                                                            Margin="0,8,0,0"
+                                                            Padding="14"
+                                                            Background="#FFFFFFFF"
+                                                            BorderBrush="#FFD5DDEA"
+                                                            BorderThickness="1"
+                                                            CornerRadius="10"
+                                                            Effect="{StaticResource Shadow.ToolTip}">
+                                                        <StackPanel>
+                                                            <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                                                                <ItemsControl ItemsSource="{Binding SupplierFilterItems}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Grid Height="32">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="22" />
+                                                                                    <ColumnDefinition Width="*" />
+                                                                                </Grid.ColumnDefinitions>
+                                                                                <CheckBox MinWidth="20"
+                                                                                          MinHeight="20"
+                                                                                          HorizontalAlignment="Center"
+                                                                                          VerticalAlignment="Center"
+                                                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                                                <TextBlock Grid.Column="1"
+                                                                                           Margin="8,0,0,0"
+                                                                                           VerticalAlignment="Center"
+                                                                                           Text="{Binding Label}"
+                                                                                           MouseLeftButtonDown="OnSupplierFilterLabelClicked" />
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </ScrollViewer>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Popup>
+                                            </Grid>
+                                            <Button Margin="0,0,0,0"
+                                                    VerticalAlignment="Bottom"
+                                                    ToolTip="Produkt entfernen"
+                                                    Click="OnRemoveProductClicked">
                                                 <Button.Style>
                                                     <Style TargetType="Button" BasedOn="{StaticResource DialogIconActionButtonStyle}">
                                                         <Setter Property="IsEnabled" Value="False" />
@@ -583,57 +628,105 @@
                                                            Text="&#xE74D;" />
                                             </Button>
                                             <Button Margin="8,0,0,0"
+                                                    Height="34"
+                                                    VerticalAlignment="Bottom"
                                                     Content="Produkt hinzufügen"
                                                     Style="{StaticResource SuccessButtonStyle}"
                                                     IsEnabled="{Binding IsEditingEnabled}"
                                                     Click="OnAddProductClicked" />
+                                            <ComboBox Width="180"
+                                                      Height="34"
+                                                      Margin="8,0,0,0"
+                                                      VerticalAlignment="Bottom"
+                                                      ToolTip="Status der ausgewählten Produkte ändern"
+                                                      IsEnabled="{Binding CanChangeSelectedProductStatus}"
+                                                      ItemsSource="{Binding ProductDeliveryStatusOptions}"
+                                                      SelectedItem="{Binding SelectedProductDeliveryStatus, Mode=TwoWay}" />
                                         </StackPanel>
                                     </Grid>
 
-                                    <DataGrid Grid.Row="1"
-                                              Margin="0,10,0,8"
-                                              AutoGenerateColumns="False"
-                                              CanUserAddRows="False"
-                                              IsReadOnly="True"
-                                              RowStyle="{StaticResource ProductsGridRowStyle}"
-                                              CellStyle="{StaticResource ProductsGridCellStyle}"
-                                              PreviewMouseWheel="OnProductGridPreviewMouseWheel"
-                                              MouseDoubleClick="OnProductGridDoubleClick"
-                                              ItemsSource="{Binding ProductLines}"
-                                              SelectedItem="{Binding SelectedProductLine}">
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Produkt" Width="*" Binding="{Binding Name}" />
-                                            <DataGridTextColumn Header="Lieferant" Width="180" Binding="{Binding Supplier}" />
-                                            <DataGridTextColumn Header="Menge" Width="90" Binding="{Binding Quantity}" />
-                                            <DataGridTextColumn Header="Gew./Stk" Width="95" Binding="{Binding UnitWeightKgRoundedUp, StringFormat={}{0:0.##}}" />
-                                            <DataGridTextColumn Header="Total kg" Width="95" Binding="{Binding TotalWeightKgRoundedUp, StringFormat={}{0:0.##}}" />
-                                            <DataGridTextColumn Header="Masse" Width="180" Binding="{Binding Dimensions}" />
-                                            <DataGridTextColumn Header="Lieferstatus" Width="130" Binding="{Binding DeliveryStatus}" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                    <StackPanel Grid.Row="2" Margin="0,4,0,0">
-                                        <TextBlock FontWeight="SemiBold" Text="Manuelles Gesamtgewicht des Auftrags (kg)" />
-                                        <Grid Margin="0,4,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="240" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox Grid.Column="0"
-                                                     ToolTip="Leer lassen, um das Gesamtgewicht automatisch aus den Produktpositionen zu berechnen."
-                                                     Text="{Binding ManualTotalWeightKgText, UpdateSourceTrigger=PropertyChanged}" />
-                                            <TextBox Grid.Column="1"
-                                                     Margin="8,0,0,0"
-                                                     ToolTip="Optionale Information zum manuellen Gesamtgewicht."
-                                                     Text="{Binding ManualTotalWeightInfoText, UpdateSourceTrigger=PropertyChanged}" />
-                                        </Grid>
-                                        <TextBlock Margin="0,4,0,0"
-                                                   Foreground="#FF64748B"
-                                                   Text="Dieser Wert hat Vorrang vor der Summe der Produktgewichte." />
+                                    <StackPanel Grid.Row="1" Margin="0,10,0,8">
+                                        <ListBox x:Name="ProductListBox"
+                                             Padding="0"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             SelectionMode="Extended"
+                                             PreviewMouseWheel="OnProductGridPreviewMouseWheel"
+                                             PreviewKeyDown="OnProductListPreviewKeyDown"
+                                             SelectionChanged="OnProductSelectionChanged"
+                                             MouseDoubleClick="OnProductGridDoubleClick"
+                                             ItemsSource="{Binding FilteredProductLines}"
+                                             SelectedItem="{Binding SelectedProductLine}">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="Padding" Value="0" />
+                                                <Setter Property="Margin" Value="0,0,0,8" />
+                                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                <Setter Property="Background" Value="Transparent" />
+                                                <Setter Property="BorderThickness" Value="0" />
+                                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ListBoxItem">
+                                                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                                              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <controls:ProductOverviewCard
+                                                    Title="{Binding DisplayTitle, Mode=OneWay}"
+                                                    Supplier="{Binding Supplier, Mode=OneWay}"
+                                                    ExpectedDelivery="{Binding DisplayExpectedDelivery, Mode=OneWay}"
+                                                    DimensionsLine="{Binding DimensionsLine, Mode=OneWay}"
+                                                    WeightLine="{Binding WeightLine, Mode=OneWay}"
+                                                    TotalLine="{Binding TotalLine, Mode=OneWay}"
+                                                    DeliveryStatus="{Binding DeliveryStatus, Mode=OneWay}"
+                                                    BackgroundColor="{Binding StatusBackgroundColor, Mode=OneWay}"
+                                                    BorderColor="{Binding StatusBorderColor, Mode=OneWay}"
+                                                    IsSelected="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=OneWay}"
+                                                    HasSupplier="{Binding HasSupplier, Mode=OneWay}"
+                                                    HasExpectedDelivery="{Binding HasExpectedDelivery, Mode=OneWay}"
+                                                    HasDimensions="{Binding HasDimensions, Mode=OneWay}" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                        </ListBox>
                                     </StackPanel>
                                 </Grid>
                             </Border>
                         </StackPanel>
-                    </ScrollViewer>
+                        </ScrollViewer>
+
+                        <Border Grid.Row="1"
+                                Style="{StaticResource SoftCardStyle}"
+                                Padding="12"
+                                Margin="0,0,0,10"
+                                Effect="{x:Null}">
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold" Text="Manuelles Gesamtgewicht des Auftrags (kg)" />
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="240" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             ToolTip="Leer lassen, um das Gesamtgewicht automatisch aus den Produktpositionen zu berechnen."
+                                             Text="{Binding ManualTotalWeightKgText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Grid.Column="1"
+                                             Margin="8,0,0,0"
+                                             ToolTip="Optionale Information zum manuellen Gesamtgewicht."
+                                             Text="{Binding ManualTotalWeightInfoText, UpdateSourceTrigger=PropertyChanged}" />
+                                </Grid>
+                                <TextBlock Margin="0,4,0,0"
+                                           Foreground="#FF64748B"
+                                           Text="Dieser Wert hat Vorrang vor der Summe der Produktgewichte." />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </TabItem>
 
                 <TabItem Header="Notizen" Style="{StaticResource ManualOrderTabItemStyle}">

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              mc:Ignorable="d"
@@ -2523,126 +2524,21 @@
                                             </ItemsControl.Style>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border Margin="0,0,0,8"
-                                                            Padding="10"
-                                                            CornerRadius="10"
-                                                            Background="{Binding BackgroundColor}"
-                                                            MouseLeftButtonDown="OnDetailProductMouseLeftButtonDown">
-                                                        <Border.Style>
-                                                            <Style TargetType="Border">
-                                                                <Setter Property="BorderBrush" Value="{Binding BorderColor}" />
-                                                                <Setter Property="BorderThickness" Value="1" />
-                                                                <Setter Property="Background" Value="{Binding BackgroundColor}" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                                        <Setter Property="BorderThickness" Value="3" />
-                                                                        <Setter Property="Background" Value="#E8F1FF" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Border.Style>
-                                                        <StackPanel>
-                                                                <Grid>
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="*" />
-                                                                        <ColumnDefinition Width="Auto" />
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <TextBlock Grid.Column="0"
-                                                                               FontWeight="SemiBold"
-                                                                               Text="{Binding Title}"
-                                                                               TextWrapping="Wrap" />
-                                                                    <StackPanel Grid.Column="1" Margin="12,0,0,0">
-                                                                        <TextBlock FontWeight="SemiBold"
-                                                                                   Foreground="{DynamicResource Brush.TextMuted}"
-                                                                                   Text="{Binding Supplier}">
-                                                                            <TextBlock.Style>
-                                                                                <Style TargetType="TextBlock">
-                                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                                    <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding HasSupplier}" Value="True">
-                                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                                        </DataTrigger>
-                                                                                    </Style.Triggers>
-                                                                                </Style>
-                                                                            </TextBlock.Style>
-                                                                        </TextBlock>
-                                                                        <TextBlock Margin="0,3,0,0"
-                                                                                   Foreground="{DynamicResource Brush.TextSecondary}"
-                                                                                   Text="{Binding ExpectedDelivery, StringFormat=Lieferung erwartet: {0}}"
-                                                                                   TextWrapping="Wrap">
-                                                                            <TextBlock.Style>
-                                                                                <Style TargetType="TextBlock">
-                                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                                    <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding HasExpectedDelivery}" Value="True">
-                                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                                        </DataTrigger>
-                                                                                    </Style.Triggers>
-                                                                                </Style>
-                                                                            </TextBlock.Style>
-                                                                        </TextBlock>
-                                                                    </StackPanel>
-                                                                </Grid>
-                                                                <StackPanel Margin="0,4,0,0"
-                                                                            Orientation="Horizontal">
-                                                                    <StackPanel.Style>
-                                                                        <Style TargetType="StackPanel">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding HasDimensions}" Value="True">
-                                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </StackPanel.Style>
-                                                                    <Ellipse Width="5"
-                                                                             Height="5"
-                                                                             Margin="0,0,8,0"
-                                                                             VerticalAlignment="Center"
-                                                                             Fill="{DynamicResource Brush.Accent}" />
-                                                                    <TextBlock Text="{Binding DimensionsLine}"
-                                                                               TextWrapping="Wrap"
-                                                                               Foreground="{DynamicResource Brush.TextSecondary}" />
-                                                                </StackPanel>
-                                                                <Grid Margin="0,4,0,0">
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="*" />
-                                                                        <ColumnDefinition Width="Auto" />
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <StackPanel Grid.Column="0"
-                                                                                Orientation="Horizontal">
-                                                                        <StackPanel Orientation="Horizontal">
-                                                                            <Ellipse Width="5"
-                                                                                     Height="5"
-                                                                                     Margin="0,0,8,0"
-                                                                                     VerticalAlignment="Center"
-                                                                                     Fill="{DynamicResource Brush.Accent}" />
-                                                                            <TextBlock Text="{Binding WeightLine}"
-                                                                                       TextWrapping="Wrap"
-                                                                                       Foreground="{DynamicResource Brush.TextSecondary}" />
-                                                                        </StackPanel>
-                                                                        <StackPanel Orientation="Horizontal"
-                                                                                    Margin="18,0,0,0">
-                                                                            <Ellipse Width="5"
-                                                                                     Height="5"
-                                                                                     Margin="0,0,8,0"
-                                                                                     VerticalAlignment="Center"
-                                                                                     Fill="{DynamicResource Brush.Accent}" />
-                                                                            <TextBlock Text="{Binding TotalLine}"
-                                                                                       TextWrapping="Wrap"
-                                                                                       Foreground="{DynamicResource Brush.TextSecondary}" />
-                                                                        </StackPanel>
-                                                                    </StackPanel>
-                                                                    <TextBlock Grid.Column="1"
-                                                                               Margin="12,0,0,0"
-                                                                               VerticalAlignment="Center"
-                                                                               FontWeight="SemiBold"
-                                                                               Foreground="{Binding BorderColor}"
-                                                                               Text="{Binding DeliveryStatus}" />
-                                                                </Grid>
-                                                        </StackPanel>
-                                                    </Border>
+                                                    <controls:ProductOverviewCard Margin="0,0,0,8"
+                                                                                  Title="{Binding Title, Mode=OneWay}"
+                                                                                  Supplier="{Binding Supplier, Mode=OneWay}"
+                                                                                  ExpectedDelivery="{Binding ExpectedDelivery, Mode=OneWay}"
+                                                                                  DimensionsLine="{Binding DimensionsLine, Mode=OneWay}"
+                                                                                  WeightLine="{Binding WeightLine, Mode=OneWay}"
+                                                                                  TotalLine="{Binding TotalLine, Mode=OneWay}"
+                                                                                  DeliveryStatus="{Binding DeliveryStatus, Mode=OneWay}"
+                                                                                  BackgroundColor="{Binding BackgroundColor, Mode=OneWay}"
+                                                                                  BorderColor="{Binding BorderColor, Mode=OneWay}"
+                                                                                  IsSelected="{Binding IsSelected, Mode=OneWay}"
+                                                                                  HasSupplier="{Binding HasSupplier, Mode=OneWay}"
+                                                                                  HasExpectedDelivery="{Binding HasExpectedDelivery, Mode=OneWay}"
+                                                                                  HasDimensions="{Binding HasDimensions, Mode=OneWay}"
+                                                                                  MouseLeftButtonDown="OnDetailProductMouseLeftButtonDown" />
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>

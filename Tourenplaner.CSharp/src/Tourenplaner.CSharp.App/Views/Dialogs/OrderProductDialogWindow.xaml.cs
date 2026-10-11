@@ -1,5 +1,7 @@
 ﻿using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.Domain.Models;
@@ -36,6 +38,60 @@ public partial class OrderProductDialogWindow : Window
         Result = result;
         DialogResult = true;
         Close();
+    }
+
+    private void OnUnitWeightPreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        e.Handled = sender is not TextBox textBox || !IsValidWeightInput(BuildProspectiveText(textBox, e.Text));
+    }
+
+    private void OnUnitWeightPasting(object sender, DataObjectPastingEventArgs e)
+    {
+        if (sender is not TextBox textBox ||
+            !e.SourceDataObject.GetDataPresent(DataFormats.UnicodeText, true) ||
+            e.SourceDataObject.GetData(DataFormats.UnicodeText, true) is not string pastedText ||
+            !IsValidWeightInput(BuildProspectiveText(textBox, pastedText)))
+        {
+            e.CancelCommand();
+        }
+    }
+
+    private static string BuildProspectiveText(TextBox textBox, string insertedText)
+    {
+        var currentText = textBox.Text ?? string.Empty;
+        var selectionStart = Math.Clamp(textBox.SelectionStart, 0, currentText.Length);
+        var selectionLength = Math.Clamp(textBox.SelectionLength, 0, currentText.Length - selectionStart);
+        return currentText.Remove(selectionStart, selectionLength).Insert(selectionStart, insertedText);
+    }
+
+    private static bool IsValidWeightInput(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return true;
+        }
+
+        var decimalSeparatorCount = 0;
+        foreach (var character in text)
+        {
+            if (char.IsDigit(character))
+            {
+                continue;
+            }
+
+            if (character is ',' or '.')
+            {
+                decimalSeparatorCount++;
+                if (decimalSeparatorCount <= 1)
+                {
+                    continue;
+                }
+            }
+
+            return false;
+        }
+
+        return true;
     }
 }
 

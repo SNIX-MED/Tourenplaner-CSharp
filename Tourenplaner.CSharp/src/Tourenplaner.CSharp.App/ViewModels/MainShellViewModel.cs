@@ -228,14 +228,14 @@ public sealed partial class MainShellViewModel : ObservableObject
     public bool CanRedo => _historyService.CanRedo;
 
     public string UndoToolTip => CanUndoDraftRouteStopRemoval
-        ? "Rückgängig: Stopp entfernen"
+        ? "Rückgängig: Stopp entfernen (Strg+Z)"
         : (CanUndo
-            ? $"Rückgängig: {_historyService.UndoDescription}"
-            : "Keine rückgängig zu machende Änderung");
+            ? $"Rückgängig: {_historyService.UndoDescription} (Strg+Z)"
+            : "Keine rückgängig zu machende Änderung (Strg+Z)");
 
     public string RedoToolTip => CanRedo
-        ? $"Wiederholen: {_historyService.RedoDescription}"
-        : "Keine wiederholbare Änderung";
+        ? $"Wiederholen: {_historyService.RedoDescription} (Strg+Y / Strg+Umschalt+Z)"
+        : "Keine wiederholbare Änderung (Strg+Y / Strg+Umschalt+Z)";
 
     public string GlobalSearchText
     {

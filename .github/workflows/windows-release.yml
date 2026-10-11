@@ -69,12 +69,12 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Karten- und Liefertourenansicht optisch sowie bei Tourdaten und Zeitberechnung vereinheitlicht
-          - Direkter XML-Auftragsimport im Karten-Tab mit eigenem, reduziertem Importfenster
-          - Gewaehlte Touren werden auf der Karte automatisch fokussiert
-          - Tourbearbeitung, Mehrbenutzersperren und PostgreSQL-Synchronisation robuster umgesetzt
-          - Kalender, Auftragsverwaltung, Fahrzeuge, Mitarbeiter, Archiv und Verlauf bereinigt
-          - Veralteten GPX-Export und nicht mehr benoetigte Bedienelemente entfernt
+          - Produktkarten in Auftragsbearbeitung und Detailansicht optisch sowie funktional vereinheitlicht
+          - Mehrfachauswahl und direkte Statusaenderung fuer Produkte ergaenzt
+          - Lieferantenfilter mit frei waehlbaren Lieferanten hinzugefuegt
+          - Manuelles Gesamtgewicht im Produkte-Tab dauerhaft am unteren Rand fixiert
+          - Numerische Eingabe fuer Produktgewichte abgesichert
+          - Standardkuerzel fuer Rueckgaengig und Wiederholen vervollstaendigt
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

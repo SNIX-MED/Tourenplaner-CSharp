@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -26,6 +27,8 @@ public partial class ManualOrderDialogWindow : Window
         _isEditMode = existingOrder is not null;
         ViewModel = new ManualOrderDialogViewModel(existingOrder, deliveryTypes, defaultOrderType);
         DataContext = ViewModel;
+        PreviewMouseDown += OnWindowPreviewMouseDown;
+        Deactivated += OnWindowDeactivated;
         Title = existingOrder is null ? "Kundenkartei" : $"Auftrag bearbeiten - {existingOrder.Id}";
         DeleteButton.Visibility = _isEditMode ? Visibility.Visible : Visibility.Collapsed;
         if (_isEditMode && existingOrder is not null)
@@ -209,6 +212,54 @@ public partial class ManualOrderDialogWindow : Window
         e.Handled = true;
     }
 
+    private void OnProductSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ListBox listBox)
+        {
+            ViewModel.SetSelectedProductLines(listBox.SelectedItems.Cast<ProductLineInput>());
+        }
+    }
+
+    private void OnProductListPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not ListBox listBox ||
+            e.Key != Key.A ||
+            (Keyboard.Modifiers & ModifierKeys.Control) == 0)
+        {
+            return;
+        }
+
+        listBox.SelectAll();
+        e.Handled = true;
+    }
+
+    private void OnWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (SupplierFilterPopup.IsOpen && !SupplierFilterButton.IsMouseOver)
+        {
+            SupplierFilterPopup.IsOpen = false;
+        }
+    }
+
+    private void OnWindowDeactivated(object? sender, EventArgs e)
+    {
+        SupplierFilterPopup.IsOpen = false;
+    }
+
+    private void OnSupplierFilterClicked(object sender, RoutedEventArgs e)
+    {
+        SupplierFilterPopup.IsOpen = !SupplierFilterPopup.IsOpen;
+    }
+
+    private void OnSupplierFilterLabelClicked(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: SupplierFilterItem filter })
+        {
+            filter.IsSelected = !filter.IsSelected;
+            e.Handled = true;
+        }
+    }
+
     private void OnUseOrderAddressForDeliveryClicked(object sender, RoutedEventArgs e)
     {
         ViewModel.CopyOrderAddressToDeliveryAddress();
@@ -256,6 +307,7 @@ public partial class ManualOrderDialogWindow : Window
 
 public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 {
+    private const string WithoutSupplierFilter = "Ohne Lieferant";
     private static readonly IReadOnlyList<string> Statuses =
     [
         Order.DefaultOrderStatus,
@@ -270,6 +322,9 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     private readonly IReadOnlyList<string> _deliveryTypes;
     private ProductLineInput? _selectedProductLine;
+    private readonly HashSet<ProductLineInput> _selectedProductLines = [];
+    private string? _selectedProductDeliveryStatus;
+    private bool _synchronizingSelectedProductStatus;
     private string _orderNumber = string.Empty;
     private string _orderDateText = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     private string _deliveryDateText = string.Empty;
@@ -325,6 +380,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
         _selectedDeliveryType = _deliveryTypes.FirstOrDefault(x =>
             DeliveryMethodExtensions.ResolveOrderType(x) == defaultOrderType) ?? _deliveryTypes[0];
+        FilteredProductLines = CollectionViewSource.GetDefaultView(ProductLines);
+        FilteredProductLines.Filter = MatchesSelectedSupplier;
         ApplyExistingOrder(existingOrder);
     }
 
@@ -332,9 +389,26 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     public ObservableCollection<ProductLineInput> ProductLines { get; } = new();
 
+    public ICollectionView FilteredProductLines { get; }
+
+    public ObservableCollection<SupplierFilterItem> SupplierFilterItems { get; } = [];
+
+    public string SupplierFilterToolTip
+    {
+        get
+        {
+            var selectedCount = SupplierFilterItems.Count(item => item.IsSelected);
+            return selectedCount == SupplierFilterItems.Count
+                ? "Lieferanten filtern"
+                : $"Lieferanten filtern ({selectedCount} von {SupplierFilterItems.Count} ausgewählt)";
+        }
+    }
+
     public IReadOnlyList<string> DeliveryTypeOptions => _deliveryTypes;
 
     public IReadOnlyList<string> StatusOptions => Statuses;
+
+    public IReadOnlyList<string> ProductDeliveryStatusOptions => OrderProductInfo.DeliveryStatusOptions;
 
     public bool IsXmlImported
     {
@@ -351,6 +425,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(CanEditOrRemoveProductLine));
                 OnPropertyChanged(nameof(CanEditDeliveryCanOccurEarlier));
+                OnPropertyChanged(nameof(CanChangeSelectedProductStatus));
             }
         }
     }
@@ -368,6 +443,44 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     }
 
     public bool CanEditOrRemoveProductLine => IsEditingEnabled && SelectedProductLine is not null;
+
+    public bool CanChangeSelectedProductStatus => IsEditingEnabled && _selectedProductLines.Count > 0;
+
+    public string SelectedProductsSummary => _selectedProductLines.Count switch
+    {
+        0 => "Keine Produkte ausgewählt",
+        1 => "1 Produkt ausgewählt",
+        _ => $"{_selectedProductLines.Count} Produkte ausgewählt"
+    };
+
+    public string? SelectedProductDeliveryStatus
+    {
+        get => _selectedProductDeliveryStatus;
+        set
+        {
+            if (!SetProperty(ref _selectedProductDeliveryStatus, value) ||
+                _synchronizingSelectedProductStatus ||
+                string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            ApplyDeliveryStatusToSelectedProducts(value);
+        }
+    }
+
+    public void SetSelectedProductLines(IEnumerable<ProductLineInput> selectedProducts)
+    {
+        _selectedProductLines.Clear();
+        foreach (var product in selectedProducts.Where(ProductLines.Contains))
+        {
+            _selectedProductLines.Add(product);
+        }
+
+        SynchronizeSelectedProductStatus();
+        OnPropertyChanged(nameof(CanChangeSelectedProductStatus));
+        OnPropertyChanged(nameof(SelectedProductsSummary));
+    }
 
     public string OrderNumber
     {
@@ -736,6 +849,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     public void AddProductLine(ProductLineInput line)
     {
         ProductLines.Add(line);
+        RefreshSupplierFilters();
         SelectedProductLine = line;
         RefreshSelectedStatusFromProducts();
     }
@@ -754,6 +868,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         }
 
         ProductLines[index] = line;
+        RefreshSupplierFilters();
         SelectedProductLine = line;
         RefreshSelectedStatusFromProducts();
     }
@@ -767,6 +882,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
         var index = ProductLines.IndexOf(SelectedProductLine);
         ProductLines.Remove(SelectedProductLine);
+        RefreshSupplierFilters();
         SelectedProductLine = ProductLines.ElementAtOrDefault(Math.Max(0, index - 1)) ?? ProductLines.FirstOrDefault();
         RefreshSelectedStatusFromProducts();
     }
@@ -843,8 +959,64 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             ProductLines.Add(ProductLineInput.FromOrderProductInfo(product));
         }
 
+        RefreshSupplierFilters();
         RefreshSelectedStatusFromProducts();
         SelectedProductLine = ProductLines.FirstOrDefault();
+    }
+
+    private bool MatchesSelectedSupplier(object item)
+    {
+        if (item is not ProductLineInput product)
+        {
+            return true;
+        }
+
+        var supplier = (product.Supplier ?? string.Empty).Trim();
+        var filterLabel = supplier.Length == 0 ? WithoutSupplierFilter : supplier;
+        return SupplierFilterItems.Any(filter =>
+            filter.IsSelected &&
+            string.Equals(filter.Label, filterLabel, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void RefreshSupplierFilters()
+    {
+        var previousSelections = SupplierFilterItems.ToDictionary(
+            item => item.Label,
+            item => item.IsSelected,
+            StringComparer.OrdinalIgnoreCase);
+        var suppliers = ProductLines
+            .Select(product => (product.Supplier ?? string.Empty).Trim())
+            .Where(supplier => supplier.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(supplier => supplier, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        SupplierFilterItems.Clear();
+        foreach (var supplier in suppliers)
+        {
+            SupplierFilterItems.Add(CreateSupplierFilterItem(
+                supplier,
+                !previousSelections.TryGetValue(supplier, out var wasSelected) || wasSelected));
+        }
+
+        if (ProductLines.Any(product => string.IsNullOrWhiteSpace(product.Supplier)))
+        {
+            SupplierFilterItems.Add(CreateSupplierFilterItem(
+                WithoutSupplierFilter,
+                !previousSelections.TryGetValue(WithoutSupplierFilter, out var wasSelected) || wasSelected));
+        }
+
+        FilteredProductLines.Refresh();
+        OnPropertyChanged(nameof(SupplierFilterToolTip));
+    }
+
+    private SupplierFilterItem CreateSupplierFilterItem(string label, bool isSelected)
+    {
+        return new SupplierFilterItem(label, isSelected, () =>
+        {
+            FilteredProductLines.Refresh();
+            OnPropertyChanged(nameof(SupplierFilterToolTip));
+        });
     }
 
     private void RefreshSelectedStatusFromProducts()
@@ -854,6 +1026,36 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             .Select(x => x.ToOrderProductInfo());
 
         SelectedStatus = Order.ResolveOrderStatusFromProducts(products);
+    }
+
+    private void SynchronizeSelectedProductStatus()
+    {
+        var statuses = _selectedProductLines
+            .Select(product => OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        _synchronizingSelectedProductStatus = true;
+        try
+        {
+            SelectedProductDeliveryStatus = statuses.Count == 1 ? statuses[0] : null;
+        }
+        finally
+        {
+            _synchronizingSelectedProductStatus = false;
+        }
+    }
+
+    private void ApplyDeliveryStatusToSelectedProducts(string deliveryStatus)
+    {
+        var normalized = OrderProductInfo.NormalizeDeliveryStatus(deliveryStatus);
+        foreach (var product in _selectedProductLines.ToList())
+        {
+            product.DeliveryStatus = normalized;
+        }
+
+        RefreshSelectedStatusFromProducts();
+        SynchronizeSelectedProductStatus();
     }
 
     private static string FormatNullableDeliveryDate(DateOnly? deliveryDate)
@@ -918,6 +1120,39 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     }
 }
 
+public sealed class SupplierFilterItem : INotifyPropertyChanged
+{
+    private readonly Action _selectionChanged;
+    private bool _isSelected;
+
+    public SupplierFilterItem(string label, bool isSelected, Action selectionChanged)
+    {
+        Label = label;
+        _isSelected = isSelected;
+        _selectionChanged = selectionChanged;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public string Label { get; }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (_isSelected == value)
+            {
+                return;
+            }
+
+            _isSelected = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+            _selectionChanged();
+        }
+    }
+}
+
 public sealed class ProductLineInput : INotifyPropertyChanged
 {
     private string _name = string.Empty;
@@ -940,6 +1175,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
                 OnPropertyChanged(nameof(TotalWeightKg));
                 OnPropertyChanged(nameof(TotalWeightKgRoundedUp));
                 OnPropertyChanged(nameof(Summary));
+                OnPropertyChanged(nameof(DisplayTitle));
             }
         }
     }
@@ -952,6 +1188,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             if (SetProperty(ref _supplier, value))
             {
                 OnPropertyChanged(nameof(Summary));
+                OnPropertyChanged(nameof(HasSupplier));
             }
         }
     }
@@ -964,6 +1201,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             if (SetProperty(ref _expectedDelivery, value))
             {
                 OnPropertyChanged(nameof(Summary));
+                OnPropertyChanged(nameof(DisplayExpectedDelivery));
+                OnPropertyChanged(nameof(HasExpectedDelivery));
             }
         }
     }
@@ -979,6 +1218,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
                 OnPropertyChanged(nameof(TotalWeightKg));
                 OnPropertyChanged(nameof(TotalWeightKgRoundedUp));
                 OnPropertyChanged(nameof(Summary));
+                OnPropertyChanged(nameof(DisplayTitle));
+                OnPropertyChanged(nameof(TotalLine));
             }
         }
     }
@@ -995,6 +1236,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
                 OnPropertyChanged(nameof(UnitWeightKgRoundedUp));
                 OnPropertyChanged(nameof(TotalWeightKgRoundedUp));
                 OnPropertyChanged(nameof(Summary));
+                OnPropertyChanged(nameof(WeightLine));
+                OnPropertyChanged(nameof(TotalLine));
             }
         }
     }
@@ -1007,6 +1250,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             if (SetProperty(ref _dimensions, value))
             {
                 OnPropertyChanged(nameof(Summary));
+                OnPropertyChanged(nameof(DimensionsLine));
+                OnPropertyChanged(nameof(HasDimensions));
             }
         }
     }
@@ -1020,6 +1265,10 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             if (SetProperty(ref _deliveryStatus, normalized))
             {
                 OnPropertyChanged(nameof(Summary));
+                OnPropertyChanged(nameof(StatusBorderColor));
+                OnPropertyChanged(nameof(StatusBackgroundColor));
+                OnPropertyChanged(nameof(DisplayExpectedDelivery));
+                OnPropertyChanged(nameof(HasExpectedDelivery));
             }
         }
     }
@@ -1029,6 +1278,30 @@ public sealed class ProductLineInput : INotifyPropertyChanged
     public double UnitWeightKgRoundedUp => Math.Ceiling(UnitWeightKg * 100d) / 100d;
 
     public double TotalWeightKgRoundedUp => Math.Ceiling(TotalWeightKg * 100d) / 100d;
+
+    public string DisplayTitle => $"{Math.Max(1, Quantity)}x {(Name ?? string.Empty).Trim()}";
+
+    public string DisplayExpectedDelivery => OrderProductInfo.ShouldShowExpectedDelivery(ExpectedDelivery, DeliveryStatus)
+        ? (ExpectedDelivery ?? string.Empty).Trim()
+        : string.Empty;
+
+    public string DimensionsLine => string.IsNullOrWhiteSpace(Dimensions)
+        ? string.Empty
+        : $"Masse: {Dimensions.Trim()}";
+
+    public string WeightLine => $"{UnitWeightKgRoundedUp.ToString("0.##", CultureInfo.CurrentCulture)} kg/Stk";
+
+    public string TotalLine => $"Gesamt: {TotalWeightKgRoundedUp.ToString("0.##", CultureInfo.CurrentCulture)} kg";
+
+    public bool HasSupplier => !string.IsNullOrWhiteSpace(Supplier);
+
+    public bool HasExpectedDelivery => !string.IsNullOrWhiteSpace(DisplayExpectedDelivery);
+
+    public bool HasDimensions => !string.IsNullOrWhiteSpace(DimensionsLine);
+
+    public string StatusBorderColor => ProductStatusVisualService.ResolveBorderColor(DeliveryStatus);
+
+    public string StatusBackgroundColor => ProductStatusVisualService.ResolveBackgroundColor(DeliveryStatus);
 
     public string Summary => OrderProductFormatter.BuildDetails([ToOrderProductInfo()]);
 

@@ -36,7 +36,11 @@
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Gewicht pro Stück (kg)" />
-                <TextBox Margin="0,6,0,0" Height="38" Text="{Binding UnitWeightKgText, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox Margin="0,6,0,0"
+                         Height="38"
+                         Text="{Binding UnitWeightKgText, UpdateSourceTrigger=PropertyChanged}"
+                         PreviewTextInput="OnUnitWeightPreviewTextInput"
+                         DataObject.Pasting="OnUnitWeightPasting" />
 
                 <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Masse (optional)" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding Dimensions, UpdateSourceTrigger=PropertyChanged}" />

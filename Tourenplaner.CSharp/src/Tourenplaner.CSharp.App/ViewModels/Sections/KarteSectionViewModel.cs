@@ -1493,6 +1493,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _statusColorPendingPreparation = NormalizeStatusColor(userPreference.StatusColorPendingPreparation, AppSettings.DefaultStatusColorPendingPreparation);
         _statusColorInStock = NormalizeStatusColor(userPreference.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         _statusColorPlanned = NormalizeStatusColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
+        ProductStatusVisualService.Configure(
+            _statusColorNotSpecified,
+            _statusColorOrdered,
+            _statusColorOnTheWay,
+            _statusColorInStock);
         _mapUseDistinctPlannedTourColors = userPreference.MapUseDistinctPlannedTourColors;
         _mapAutoOpenDetailsOnPinSelection = userPreference.MapAutoOpenDetailsOnPinSelection;
         _mapSearchDimNonMatchingPins = userPreference.MapSearchDimNonMatchingPins;
@@ -7561,6 +7566,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 _statusColorPendingPreparation = nextStatusColorPendingPreparation;
                 _statusColorInStock = nextStatusColorInStock;
                 _statusColorPlanned = nextStatusColorPlanned;
+                ProductStatusVisualService.Configure(
+                    _statusColorNotSpecified,
+                    _statusColorOrdered,
+                    _statusColorOnTheWay,
+                    _statusColorInStock);
                 NotifyLegendColorsChanged();
                 changed = true;
             }
