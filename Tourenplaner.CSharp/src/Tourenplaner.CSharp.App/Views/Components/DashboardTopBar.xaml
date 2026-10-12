@@ -249,6 +249,7 @@
                                                      BorderThickness="0"
                                                      Background="Transparent"
                                                      ToolTip="Aufträge filtern, mit Enter auf Karte suchen"
+                                                     PreviewMouseLeftButtonDown="SearchTextBox_PreviewMouseLeftButtonDown"
                                                      PreviewKeyDown="MapSearchTextBox_PreviewKeyDown"
                                                      Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <TextBlock IsHitTestVisible="False"
@@ -874,6 +875,7 @@
                                                  BorderThickness="0"
                                                  Background="Transparent"
                                                  ToolTip="Suche nach Tour, Auftrag, Kunde, Adresse, Mitarbeiter oder Fahrzeug. Mehrere Begriffe mit Leerzeichen trennen."
+                                                 PreviewMouseLeftButtonDown="SearchTextBox_PreviewMouseLeftButtonDown"
                                                  Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock Margin="2,0,0,0"
                                                    VerticalAlignment="Center"
@@ -1241,6 +1243,7 @@
                                                  BorderThickness="0"
                                                  Background="Transparent"
                                                  ToolTip="Suche nach Nummer, Auftraggeber, Lieferadresse oder Tour. Mehrere Auftragsnummern mit Leerzeichen trennen."
+                                                 PreviewMouseLeftButtonDown="SearchTextBox_PreviewMouseLeftButtonDown"
                                                  Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock IsHitTestVisible="False"
                                                    Margin="2,0,0,0"
@@ -1374,6 +1377,7 @@
                                                  BorderThickness="0"
                                                  Background="Transparent"
                                                  ToolTip="Suche nach Nummer, Auftraggeber, Lieferadresse oder Tour. Mehrere Auftragsnummern mit Leerzeichen trennen."
+                                                 PreviewMouseLeftButtonDown="SearchTextBox_PreviewMouseLeftButtonDown"
                                                  Text="{Binding SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock IsHitTestVisible="False"
                                                    Margin="2,0,0,0"

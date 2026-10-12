@@ -153,6 +153,23 @@ public class OrderImportServiceTests
         Assert.Equal(1, result.CreatedOrders);
         Assert.Equal(1, result.UpdatedOrders);
         Assert.Equal(1, result.UnchangedOrders);
+        Assert.Collection(
+            result.Items,
+            item =>
+            {
+                Assert.Equal("A-3", item.OrderId);
+                Assert.Equal(ImportPreviewAction.Create, item.Action);
+            },
+            item =>
+            {
+                Assert.Equal("A-1", item.OrderId);
+                Assert.Equal(ImportPreviewAction.Update, item.Action);
+            },
+            item =>
+            {
+                Assert.Equal("A-2", item.OrderId);
+                Assert.Equal(ImportPreviewAction.Unchanged, item.Action);
+            });
 
         var updated = Assert.Single(result.Items, x => x.Action == ImportPreviewAction.Update);
         Assert.Equal("A-1", updated.OrderId);

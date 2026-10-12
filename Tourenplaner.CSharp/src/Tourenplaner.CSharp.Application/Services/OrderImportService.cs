@@ -74,6 +74,15 @@ public class OrderImportService : IOrderImportService
             }
         }
 
+        preview.Items = preview.Items
+            .OrderBy(item => item.Action switch
+            {
+                ImportPreviewAction.Create => 0,
+                ImportPreviewAction.Update => 1,
+                _ => 2
+            })
+            .ToList();
+
         return preview;
     }
 

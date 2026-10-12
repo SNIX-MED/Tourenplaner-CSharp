@@ -17,6 +17,18 @@ public partial class DashboardTopBar : UserControl
         InitializeComponent();
     }
 
+    private void SearchTextBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 3 || sender is not TextBox textBox)
+        {
+            return;
+        }
+
+        textBox.Focus();
+        textBox.SelectAll();
+        e.Handled = true;
+    }
+
     private async void MapSearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (sender is not FrameworkElement element ||
