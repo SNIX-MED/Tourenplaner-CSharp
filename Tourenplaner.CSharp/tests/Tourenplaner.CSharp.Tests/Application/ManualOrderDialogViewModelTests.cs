@@ -197,6 +197,24 @@ public class ManualOrderDialogViewModelTests
         Assert.True(order.ManualLocationRequiresReview);
     }
 
+    [Fact]
+    public void SupplierSelection_FiltersProductListImmediately()
+    {
+        var source = CreateOrder();
+        source.Products =
+        [
+            new OrderProductInfo { Name = "Produkt A", Supplier = "Lieferant A", Quantity = 1 },
+            new OrderProductInfo { Name = "Produkt B", Supplier = "Lieferant B", Quantity = 1 }
+        ];
+        var viewModel = new ManualOrderDialogViewModel(source);
+        var supplierA = Assert.Single(viewModel.SupplierFilterItems, item => item.Label == "Lieferant A");
+
+        supplierA.IsSelected = false;
+
+        var visibleProduct = Assert.Single(viewModel.FilteredProductLines.Cast<ProductLineInput>());
+        Assert.Equal("Produkt B", visibleProduct.Name);
+    }
+
     private static Order CreateOrder()
     {
         return new Order

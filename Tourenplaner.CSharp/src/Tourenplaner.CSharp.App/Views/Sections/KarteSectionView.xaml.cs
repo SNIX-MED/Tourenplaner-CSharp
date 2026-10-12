@@ -36,7 +36,8 @@ public partial class KarteSectionView : UserControl
         DetailsToggle = 1 << 7,
         PlannedTourOverlayHighlight = 1 << 8,
         TemporarySearchPin = 1 << 9,
-        PlannedTourOverlayFocus = 1 << 10
+        PlannedTourOverlayFocus = 1 << 10,
+        RouteWithoutAutoCenter = 1 << 11
     }
 
     private static readonly GridLength DefaultRoutePanelWidth = new(460d, GridUnitType.Pixel);
@@ -49,6 +50,8 @@ public partial class KarteSectionView : UserControl
     private bool _viewInitialized;
     private bool _mapReady;
     private bool _mapScriptReady;
+    private bool _hasAutoCenteredRouteForCurrentMapDocument;
+    private long _suppressAutomaticMapFocusUntilTick;
     private INotifyPropertyChanged? _vmNotifier;
     private INotifyCollectionChanged? _ordersCollection;
     private INotifyCollectionChanged? _routeCollection;
@@ -168,7 +171,7 @@ public partial class KarteSectionView : UserControl
 
     private void OnRouteCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        QueueMapRefresh(MapRefreshOperation.Markers | MapRefreshOperation.Route, DataRefreshDebounceMilliseconds);
+        QueueMapRefresh(MapRefreshOperation.Markers | MapRefreshOperation.RouteWithoutAutoCenter, DataRefreshDebounceMilliseconds);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -200,34 +203,37 @@ public partial class KarteSectionView : UserControl
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.RouteStops))
         {
-            QueueMapRefresh(MapRefreshOperation.Route, DataRefreshDebounceMilliseconds);
+            QueueMapRefresh(MapRefreshOperation.RouteWithoutAutoCenter, DataRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedTourOverviewItem))
         {
-            QueueMapRefresh(
-                MapRefreshOperation.PlannedTourOverlayHighlight |
-                MapRefreshOperation.PlannedTourOverlayFocus,
-                UiRefreshDebounceMilliseconds);
+            QueueMapRefresh(MapRefreshOperation.PlannedTourOverlayHighlight, UiRefreshDebounceMilliseconds);
         }
-        else if (e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedStatus) ||
+        else if (e.PropertyName == nameof(KarteSectionViewModel.TourOverviewFocusRevision))
+        {
+            QueueMapRefresh(MapRefreshOperation.PlannedTourOverlayFocus, UiRefreshDebounceMilliseconds);
+        }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedProductStatus) ||
+                 e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedStatus) ||
                  e.PropertyName == nameof(KarteSectionViewModel.DetailOrderStatus) ||
                  e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedAvisoStatus) ||
                  e.PropertyName == nameof(KarteSectionViewModel.DetailAvisoStatus))
         {
-            QueueMapRefresh(MapRefreshOperation.Markers | MapRefreshOperation.Route, DataRefreshDebounceMilliseconds);
+            SuppressAutomaticMapFocus();
+            QueueMapRefresh(MapRefreshOperation.Markers | MapRefreshOperation.RouteWithoutAutoCenter, DataRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.RouteGeometryPoints))
         {
-            QueueMapRefresh(MapRefreshOperation.Route, DataRefreshDebounceMilliseconds);
+            QueueMapRefresh(MapRefreshOperation.RouteWithoutAutoCenter, DataRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.RouteVisualRevision))
         {
-            QueueMapRefresh(MapRefreshOperation.Route, UiRefreshDebounceMilliseconds);
+            QueueMapRefresh(MapRefreshOperation.RouteWithoutAutoCenter, UiRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.IsAllPlannedToursVisible) ||
                  e.PropertyName == nameof(KarteSectionViewModel.PlannedTourOverlayRevision))
         {
-            QueueMapRefresh(MapRefreshOperation.Route, DataRefreshDebounceMilliseconds);
+            QueueMapRefresh(MapRefreshOperation.RouteWithoutAutoCenter, DataRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedBatchOrderCount))
         {
@@ -297,6 +303,7 @@ public partial class KarteSectionView : UserControl
         }
 
         _mapScriptReady = false;
+        _hasAutoCenteredRouteForCurrentMapDocument = false;
         _lastCompanyMarkerPayloadJson = null;
         var html = MapHtmlDocumentBuilder.Build(
             vm.TomTomApiKey,
@@ -413,7 +420,19 @@ public partial class KarteSectionView : UserControl
 
         if ((operation & MapRefreshOperation.Route) != 0)
         {
-            await PushRouteToMapAsync();
+            // A regular route refresh may be raised again when order/product data changes.
+            // Only the first route render of a map document may choose the initial viewport;
+            // subsequent explicit tour selections use PlannedTourOverlayFocus instead.
+            var allowInitialAutoCenter = !_hasAutoCenteredRouteForCurrentMapDocument && !IsAutomaticMapFocusSuppressed;
+            await PushRouteToMapAsync(allowAutoCenter: allowInitialAutoCenter);
+            if (allowInitialAutoCenter && _mapReady && _mapScriptReady)
+            {
+                _hasAutoCenteredRouteForCurrentMapDocument = true;
+            }
+        }
+        else if ((operation & MapRefreshOperation.RouteWithoutAutoCenter) != 0)
+        {
+            await PushRouteToMapAsync(allowAutoCenter: false);
         }
         else
         {
@@ -428,10 +447,26 @@ public partial class KarteSectionView : UserControl
             }
         }
 
-        if ((operation & MapRefreshOperation.PlannedTourOverlayFocus) != 0)
+        if ((operation & MapRefreshOperation.PlannedTourOverlayFocus) != 0 && !IsAutomaticMapFocusSuppressed)
         {
             await FocusSelectedPlannedTourOverlayAsync();
         }
+    }
+
+    private bool IsAutomaticMapFocusSuppressed =>
+        Environment.TickCount64 < _suppressAutomaticMapFocusUntilTick;
+
+    private void SuppressAutomaticMapFocus()
+    {
+        // Product changes publish several follow-up notifications asynchronously. Keep all
+        // resulting route/overlay refreshes from changing a viewport chosen by the user.
+        _suppressAutomaticMapFocusUntilTick = Environment.TickCount64 + 5000;
+        _pendingMapRefresh &= ~(MapRefreshOperation.Route | MapRefreshOperation.PlannedTourOverlayFocus);
+    }
+
+    private void AllowExplicitMapFocus()
+    {
+        _suppressAutomaticMapFocusUntilTick = 0;
     }
 
     private void OnDetailsPreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -695,6 +730,7 @@ public partial class KarteSectionView : UserControl
             MapWebView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
             MapWebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
             MapWebView.CoreWebView2.ContextMenuRequested += OnMapContextMenuRequested;
+            _hasAutoCenteredRouteForCurrentMapDocument = false;
             var vm = DataContext as KarteSectionViewModel;
             var html = MapHtmlDocumentBuilder.Build(
                 vm?.TomTomApiKey,
@@ -902,7 +938,7 @@ public partial class KarteSectionView : UserControl
         await ApplyTemporarySearchPinAsync();
     }
 
-    private async Task PushRouteToMapAsync()
+    private async Task PushRouteToMapAsync(bool allowAutoCenter = true)
     {
         if (!_mapReady || !_mapScriptReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
         {
@@ -960,8 +996,9 @@ public partial class KarteSectionView : UserControl
         var routeColorJson = JsonSerializer.Serialize(vm.GetActiveRoutePolylineColor());
         var overlaysJson = JsonSerializer.Serialize(overlays);
         var routeInfoJson = JsonSerializer.Serialize(vm.RoutingProviderStatusText);
+        var allowAutoCenterJson = allowAutoCenter ? "true" : "false";
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetPlannedTourOverlays === 'function') window.gawelaSetPlannedTourOverlays({overlaysJson});");
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson}, {routeColorJson}, {trafficSegmentsJson});");
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson}, {routeColorJson}, {trafficSegmentsJson}, {allowAutoCenterJson});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRouteInfo === 'function') window.gawelaSetRouteInfo({routeInfoJson});");
         await HighlightSelectedRouteStopAsync();
         await HighlightPlannedTourOverlayAsync();
@@ -1286,6 +1323,7 @@ public partial class KarteSectionView : UserControl
             var tourIdText = raw["plannedTourSelect:".Length..];
             if (int.TryParse(tourIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tourId) && tourId > 0)
             {
+                AllowExplicitMapFocus();
                 vm.SelectTourOverviewById(tourId);
             }
 
@@ -1395,6 +1433,7 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
+        AllowExplicitMapFocus();
         await vm.FocusTourAsync(selected.TourId);
     }
 
@@ -1407,8 +1446,10 @@ public partial class KarteSectionView : UserControl
         }
 
         var listItem = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
-        if (listItem is not null)
+        if (listItem?.DataContext is SavedTourOverviewItem selected)
         {
+            AllowExplicitMapFocus();
+            vm.SelectTourOverviewById(selected.TourId);
             return;
         }
 
@@ -1473,6 +1514,7 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
+        AllowExplicitMapFocus();
         vm.SelectTourOverviewById(selected.TourId);
     }
 

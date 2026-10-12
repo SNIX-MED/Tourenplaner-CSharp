@@ -235,7 +235,9 @@ public partial class ManualOrderDialogWindow : Window
 
     private void OnWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (SupplierFilterPopup.IsOpen && !SupplierFilterButton.IsMouseOver)
+        if (SupplierFilterPopup.IsOpen &&
+            !SupplierFilterButton.IsMouseOver &&
+            !IsPointerOverSupplierFilterPopup())
         {
             SupplierFilterPopup.IsOpen = false;
         }
@@ -243,8 +245,14 @@ public partial class ManualOrderDialogWindow : Window
 
     private void OnWindowDeactivated(object? sender, EventArgs e)
     {
-        SupplierFilterPopup.IsOpen = false;
+        if (!IsPointerOverSupplierFilterPopup())
+        {
+            SupplierFilterPopup.IsOpen = false;
+        }
     }
+
+    private bool IsPointerOverSupplierFilterPopup() =>
+        SupplierFilterPopup.Child is UIElement { IsMouseOver: true };
 
     private void OnSupplierFilterClicked(object sender, RoutedEventArgs e)
     {

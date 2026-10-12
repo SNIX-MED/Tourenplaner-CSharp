@@ -2090,7 +2090,7 @@ internal static class MapHtmlDocumentBuilder
                           scheduleMarkerFanOutRecompute();
                           if (window.__gawelaLastRoutePayload) {
                             const last = window.__gawelaLastRoutePayload;
-                             window.gawelaSetRoute(last.routeStops, last.geometryPoints, last.routeColor, last.trafficSegments);
+                             window.gawelaSetRoute(last.routeStops, last.geometryPoints, last.routeColor, last.trafficSegments, false);
                            }
                           if (window.__gawelaLastPlannedTourOverlays) {
                             window.gawelaSetPlannedTourOverlays(window.__gawelaLastPlannedTourOverlays);
@@ -2474,7 +2474,7 @@ internal static class MapHtmlDocumentBuilder
                            highlightedRouteMarkerElement = markerEl;
                          };
 
-                         window.gawelaSetRoute = function(routeStops, geometryPoints, routeColor, trafficSegments) {
+                         window.gawelaSetRoute = function(routeStops, geometryPoints, routeColor, trafficSegments, allowAutoCenter) {
                            window.__gawelaLastRoutePayload = {
                              routeStops: Array.isArray(routeStops) ? routeStops : [],
                              geometryPoints: Array.isArray(geometryPoints) ? geometryPoints : [],
@@ -2512,7 +2512,7 @@ internal static class MapHtmlDocumentBuilder
                            ensureRouteLayersOnTop();
                            ensureFleetTrackLayersOnTop();
 
-                           if (routeKey && routeKey !== lastAutoCenteredRouteKey) {
+                           if (allowAutoCenter !== false && routeKey && routeKey !== lastAutoCenteredRouteKey) {
                              const bounds = new ttSdk.LngLatBounds();
                              let hasBounds = false;
 

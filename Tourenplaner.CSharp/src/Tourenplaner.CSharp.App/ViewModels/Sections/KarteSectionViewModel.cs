@@ -226,6 +226,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private string _temporarySearchPinLabel = string.Empty;
     private int _temporarySearchPinRevision;
     private int _searchFocusRevision;
+    private int _tourOverviewFocusRevision;
+    private string? _orderOpenedFromSearchId;
+    private readonly SemaphoreSlim _orderRefreshGate = new(1, 1);
     private readonly Guid _instanceId = Guid.NewGuid();
 
     public KarteSectionViewModel(
@@ -628,6 +631,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
     }
 
+    public int TourOverviewFocusRevision => _tourOverviewFocusRevision;
+
     public string SearchText
     {
         get => _searchText;
@@ -635,6 +640,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         {
             if (SetProperty(ref _searchText, value))
             {
+                _orderOpenedFromSearchId = null;
                 if (string.IsNullOrWhiteSpace(value))
                 {
                     ClearTemporarySearchPin();
@@ -915,6 +921,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             {
                 if (await HandleSearchMatchWithoutPinAsync(match)) return;
                 SelectedOrder = match;
+                _orderOpenedFromSearchId = match.OrderId;
                 _searchFocusRevision++;
                 OnPropertyChanged(nameof(SearchFocusRevision));
                 ClearTemporarySearchPin();
@@ -953,6 +960,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             }
 
             SelectedOrder = localExactMatch;
+            _orderOpenedFromSearchId = localExactMatch.OrderId;
             _searchFocusRevision++;
             OnPropertyChanged(nameof(SearchFocusRevision));
             ClearTemporarySearchPin();
@@ -1383,6 +1391,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 : null;
             if (SetProperty(ref _selectedOrder, value))
             {
+                if (value is null ||
+                    !string.Equals(value.OrderId, _orderOpenedFromSearchId, StringComparison.OrdinalIgnoreCase))
+                {
+                    _orderOpenedFromSearchId = null;
+                }
                 var wasDetailsOpen = IsDetailsOpen;
                 var shouldOpenDetails = value is not null &&
                                         (!_suppressAutoDetailsOpenForNextSelection || wasDetailsOpen);
@@ -1471,6 +1484,19 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     }
 
     public async Task RefreshAsync()
+    {
+        await _orderRefreshGate.WaitAsync();
+        try
+        {
+            await RefreshCoreAsync();
+        }
+        finally
+        {
+            _orderRefreshGate.Release();
+        }
+    }
+
+    private async Task RefreshCoreAsync()
     {
         var settingsTask = _settingsRepository.LoadAsync();
         var ordersTask = _orderRepository.GetAllAsync();
@@ -1654,8 +1680,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
         EnsureCompanyAnchors();
         OnPropertyChanged(nameof(CompanyMarker));
+        var loadedOrders = DeduplicateOrders(await ordersTask);
         _allOrders.Clear();
-        _allOrders.AddRange(await ordersTask);
+        _allOrders.AddRange(loadedOrders);
 
         var statusSynchronized = SyncDerivedOrderStatuses(_allOrders);
         var suspiciousLocationsCleared = AddressGeocodingService.ClearSuspiciousSharedOrderLocations(_allOrders) > 0;
@@ -2087,6 +2114,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         if (target is not null)
         {
             SelectedTourOverviewItem = target;
+            RequestTourOverviewFocus();
         }
     }
 
@@ -2155,6 +2183,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         SelectedTourOverviewItem = target;
+        RequestTourOverviewFocus();
+    }
+
+    private void RequestTourOverviewFocus()
+    {
+        _tourOverviewFocusRevision++;
+        OnPropertyChanged(nameof(TourOverviewFocusRevision));
     }
 
     public async Task FocusAndEditTourAsync(int tourId)
@@ -6422,8 +6457,16 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private void CloseDetails()
     {
+        var clearSuccessfulOrderSearch =
+            SelectedOrder is not null &&
+            !string.IsNullOrWhiteSpace(SearchText) &&
+            string.Equals(SelectedOrder.OrderId, _orderOpenedFromSearchId, StringComparison.OrdinalIgnoreCase);
         SelectedOrder = null;
         SelectedRouteStop = null;
+        if (clearSuccessfulOrderSearch)
+        {
+            SearchText = string.Empty;
+        }
     }
 
     private void NotifyManualStopDetailsChanged()
@@ -7353,11 +7396,25 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private async Task ApplyExternalOrderChangeAsync(OrderChangedEventArgs args)
     {
+        await _orderRefreshGate.WaitAsync();
+        try
+        {
+            await ApplyExternalOrderChangeCoreAsync(args);
+        }
+        finally
+        {
+            _orderRefreshGate.Release();
+        }
+    }
+
+    private async Task ApplyExternalOrderChangeCoreAsync(OrderChangedEventArgs args)
+    {
         var preferredSelectedOrderId = ResolvePreferredOrderId(args, SelectedOrder?.OrderId);
         var preferredRouteStopOrderId = ResolvePreferredOrderId(args, SelectedRouteStop?.OrderId);
 
+        var loadedOrders = DeduplicateOrders(await _orderRepository.GetAllAsync());
         _allOrders.Clear();
-        _allOrders.AddRange(await _orderRepository.GetAllAsync());
+        _allOrders.AddRange(loadedOrders);
         if (SyncDerivedOrderStatuses(_allOrders))
         {
             await _orderRepository.SaveAllAsync(_allOrders);
@@ -7379,6 +7436,22 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         {
             SelectedRouteStop = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, preferredRouteStopOrderId, StringComparison.OrdinalIgnoreCase));
         }
+    }
+
+    private static IReadOnlyList<Order> DeduplicateOrders(IEnumerable<Order> orders)
+    {
+        var result = new List<Order>();
+        var seenOrderIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var order in orders)
+        {
+            var orderId = (order.Id ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(orderId) || seenOrderIds.Add(orderId))
+            {
+                result.Add(order);
+            }
+        }
+
+        return result;
     }
 
     private void RefreshRouteStopsFromOrders(OrderChangedEventArgs args)
