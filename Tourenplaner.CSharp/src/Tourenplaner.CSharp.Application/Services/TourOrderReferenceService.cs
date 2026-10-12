@@ -78,7 +78,7 @@ public static class TourOrderReferenceService
         {
             var stops = tour.Stops ?? [];
             var nextStops = stops
-                .Where(stop => !ShouldRemoveStop(stop, validOrderIds))
+                .Where(stop => !ShouldRemoveStop(stop, validOrderIds) && !ShouldRemoveCompletedDeliveryStop(stop, orderById))
                 .ToList();
 
             var removedFromTour = stops.Count - nextStops.Count;
@@ -112,6 +112,17 @@ public static class TourOrderReferenceService
                 if (!orderById.TryGetValue(orderId, out var order))
                 {
                     continue;
+                }
+
+                var matchingDeliveries = (order.Deliveries ?? [])
+                    .Where(x => x.Status != OrderDeliveryStatus.Cancelled &&
+                                string.Equals((x.AssignedTourId ?? string.Empty).Trim(), tour.Id.ToString(), StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (string.IsNullOrWhiteSpace(stop.DeliveryId) && matchingDeliveries.Count == 1)
+                {
+                    stop.DeliveryId = matchingDeliveries[0].Id;
+                    stop.DeliverySequenceNumber = matchingDeliveries[0].SequenceNumber;
+                    orderDataChanged = true;
                 }
 
                 var nextAddress = (order.Address ?? string.Empty).Trim();
@@ -200,5 +211,25 @@ public static class TourOrderReferenceService
         }
 
         return !string.IsNullOrWhiteSpace(stop.Auftragsnummer);
+    }
+
+    private static bool ShouldRemoveCompletedDeliveryStop(
+        TourStopRecord? stop,
+        IReadOnlyDictionary<string, Order> orderById)
+    {
+        if (!IsOrderStop(stop) || string.IsNullOrWhiteSpace(stop!.DeliveryId))
+        {
+            return false;
+        }
+
+        var orderId = (stop.Auftragsnummer ?? string.Empty).Trim();
+        if (!orderById.TryGetValue(orderId, out var order))
+        {
+            return false;
+        }
+
+        var delivery = (order.Deliveries ?? []).FirstOrDefault(x =>
+            string.Equals(x.Id, stop.DeliveryId.Trim(), StringComparison.OrdinalIgnoreCase));
+        return delivery?.Status is OrderDeliveryStatus.Delivered or OrderDeliveryStatus.Cancelled;
     }
 }

@@ -97,6 +97,8 @@ public partial class OrderProductDialogWindow : Window
 
 public sealed class OrderProductDialogViewModel : ObservableObject
 {
+    private readonly string _positionId;
+    private readonly string _externalPositionId;
     private string _name = string.Empty;
     private string _supplier = string.Empty;
     private string _expectedDelivery = string.Empty;
@@ -107,6 +109,8 @@ public sealed class OrderProductDialogViewModel : ObservableObject
 
     public OrderProductDialogViewModel(ProductLineInput? existingProduct = null)
     {
+        _positionId = existingProduct?.PositionId ?? string.Empty;
+        _externalPositionId = existingProduct?.ExternalPositionId ?? string.Empty;
         if (existingProduct is null)
         {
             return;
@@ -258,6 +262,8 @@ public sealed class OrderProductDialogViewModel : ObservableObject
 
         result = new ProductLineInput
         {
+            PositionId = _positionId,
+            ExternalPositionId = _externalPositionId,
             Name = Name.Trim(),
             Supplier = (Supplier ?? string.Empty).Trim(),
             ExpectedDelivery = (ExpectedDelivery ?? string.Empty).Trim(),

@@ -9,4 +9,6 @@ public sealed record MapRouteStop(
     double Longitude,
     int ServiceMinutes = 10,
     string EmployeeInfoText = "",
-    string StopKind = "");
+    string StopKind = "",
+    string DeliveryId = "",
+    int? DeliverySequenceNumber = null);

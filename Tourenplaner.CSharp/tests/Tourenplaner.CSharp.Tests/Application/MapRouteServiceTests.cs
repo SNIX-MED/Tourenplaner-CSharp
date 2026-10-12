@@ -163,4 +163,22 @@ public class MapRouteServiceTests
         Assert.Equal(11, nextForList);
         Assert.Equal(1, nextForEmpty);
     }
+
+    [Fact]
+    public void BuildTour_PreservesPartialDeliveryIdentity()
+    {
+        var service = new MapRouteService();
+        var stops = new[]
+        {
+            new MapRouteStop(1, "A-100", "Kunde", "Adresse", 47.1, 8.1,
+                DeliveryId: "DEL-2", DeliverySequenceNumber: 2)
+        };
+
+        var tour = service.BuildTour(stops, 7, "Tour", "12.10.2026", "08:00");
+        var customerStop = Assert.Single(tour.Stops, x => x.Auftragsnummer == "A-100");
+
+        Assert.Equal("DEL-2", customerStop.DeliveryId);
+        Assert.Equal(2, customerStop.DeliverySequenceNumber);
+        Assert.Equal("auftrag:A-100:lieferung:DEL-2", customerStop.Id);
+    }
 }

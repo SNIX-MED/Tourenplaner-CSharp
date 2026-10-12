@@ -30,6 +30,20 @@ public sealed class JsonFileStore
 
     public async Task AtomicWriteAsync<T>(string path, T payload, CancellationToken cancellationToken = default)
     {
+        var gate = ResolveFileGate(path);
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            await AtomicWriteCoreAsync(path, payload, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static async Task AtomicWriteCoreAsync<T>(string path, T payload, CancellationToken cancellationToken)
+    {
         var target = new FileInfo(path);
         target.Directory?.Create();
 
@@ -67,19 +81,21 @@ public sealed class JsonFileStore
         bool backupInvalid = false,
         CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(path))
-        {
-            var fallback = defaultFactory();
-            if (createIfMissing)
-            {
-                await AtomicWriteAsync(path, fallback, cancellationToken);
-            }
-
-            return fallback;
-        }
-
+        var gate = ResolveFileGate(path);
+        await gate.WaitAsync(cancellationToken);
         try
         {
+            if (!File.Exists(path))
+            {
+                var fallback = defaultFactory();
+                if (createIfMissing)
+                {
+                    await AtomicWriteCoreAsync(path, fallback, cancellationToken);
+                }
+
+                return fallback;
+            }
+
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             var value = await JsonSerializer.DeserializeAsync<T>(stream, ReadOptions, cancellationToken);
             return value is null ? defaultFactory() : value;
@@ -97,7 +113,46 @@ public sealed class JsonFileStore
         {
             throw new JsonStorageException($"Could not read JSON file {path}", ex);
         }
+        finally
+        {
+            gate.Release();
+        }
     }
+
+    public async Task UpdateAsync<T>(
+        string path,
+        Func<T> defaultFactory,
+        Action<T> mutation,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(defaultFactory);
+        ArgumentNullException.ThrowIfNull(mutation);
+        var gate = ResolveFileGate(path);
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            T value;
+            if (!File.Exists(path))
+            {
+                value = defaultFactory();
+            }
+            else
+            {
+                await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                value = await JsonSerializer.DeserializeAsync<T>(stream, ReadOptions, cancellationToken) ?? defaultFactory();
+            }
+
+            mutation(value);
+            await AtomicWriteCoreAsync(path, value, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static SemaphoreSlim ResolveFileGate(string path) =>
+        JsonPathAccessCoordinator.Resolve(path);
 
     private static void PromoteTempFile(string tempPath, string targetPath)
     {

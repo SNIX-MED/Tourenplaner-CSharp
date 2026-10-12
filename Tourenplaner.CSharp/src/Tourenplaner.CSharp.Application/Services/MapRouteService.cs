@@ -123,9 +123,11 @@ public sealed class MapRouteService
                 ? (string.IsNullOrWhiteSpace(x.OrderId) ? $"{PauseStopIdPrefix}{Guid.NewGuid():N}" : x.OrderId)
                 : IsManualRouteStop(x)
                     ? (string.IsNullOrWhiteSpace(x.OrderId) ? $"{ManualStopIdPrefix}{Guid.NewGuid():N}" : x.OrderId)
-                    : $"auftrag:{x.OrderId}",
+                    : string.IsNullOrWhiteSpace(x.DeliveryId) ? $"auftrag:{x.OrderId}" : $"auftrag:{x.OrderId}:lieferung:{x.DeliveryId}",
             StopKind = IsPauseRouteStop(x) ? PauseStopKind : IsManualRouteStop(x) ? ManualStopKind : string.Empty,
             Auftragsnummer = IsPauseRouteStop(x) || IsManualRouteStop(x) ? string.Empty : x.OrderId,
+            DeliveryId = IsPauseRouteStop(x) || IsManualRouteStop(x) ? string.Empty : x.DeliveryId,
+            DeliverySequenceNumber = IsPauseRouteStop(x) || IsManualRouteStop(x) ? null : x.DeliverySequenceNumber,
             Name = IsPauseRouteStop(x) ? "Pause" : x.Customer,
             Address = IsPauseRouteStop(x) ? string.Empty : x.Address,
             Order = x.Position + 1,

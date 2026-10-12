@@ -28,6 +28,7 @@ public sealed class OrderItem : ObservableObject
     private string _phone = string.Empty;
     private string _deliveryType = string.Empty;
     private string _orderStatus = string.Empty;
+    private string _deliveryProgress = string.Empty;
     private string _orderStatusBadgeBackground = "#E8F1FF";
     private string _orderStatusBadgeBorderBrush = "#BFDBFE";
     private string _orderStatusBadgeForeground = "#2563EB";
@@ -229,6 +230,12 @@ public sealed class OrderItem : ObservableObject
     {
         get => _orderStatus;
         set => SetProperty(ref _orderStatus, value);
+    }
+
+    public string DeliveryProgress
+    {
+        get => _deliveryProgress;
+        set => SetProperty(ref _deliveryProgress, value);
     }
 
     public string OrderStatusBadgeBackground

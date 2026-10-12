@@ -370,6 +370,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _existingManualLocationAddress = string.Empty;
     private bool _existingManualLocationRequiresReview;
     private string _existingDeliveryAddressKey = string.Empty;
+    private readonly List<OrderDelivery> _existingDeliveries = [];
 
     public ManualOrderDialogViewModel(
         Order? existingOrder = null,
@@ -396,6 +397,18 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<ProductLineInput> ProductLines { get; } = new();
+
+    public ObservableCollection<DeliveryNoteInput> DeliveryNotes { get; } = new();
+
+    public ObservableCollection<DeliveryProductGroup> DeliveryProductGroups { get; } = new();
+
+    public bool HasDeliveryProductGroups => DeliveryProductGroups.Count > 0;
+
+    public bool HasNoDeliveryProductGroups => DeliveryProductGroups.Count == 0;
+
+    public bool HasDeliveryNotes => DeliveryNotes.Count > 0;
+
+    public bool HasNoDeliveryNotes => DeliveryNotes.Count == 0;
 
     public ICollectionView FilteredProductLines { get; }
 
@@ -480,10 +493,16 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     public void SetSelectedProductLines(IEnumerable<ProductLineInput> selectedProducts)
     {
         _selectedProductLines.Clear();
-        foreach (var product in selectedProducts.Where(ProductLines.Contains))
+        foreach (var selected in selectedProducts)
         {
-            _selectedProductLines.Add(product);
+            var product = ProductLines.FirstOrDefault(x =>
+                string.Equals(x.PositionId, selected.PositionId, StringComparison.OrdinalIgnoreCase));
+            if (product is not null)
+            {
+                _selectedProductLines.Add(product);
+            }
         }
+        SelectedProductLine = _selectedProductLines.FirstOrDefault();
 
         SynchronizeSelectedProductStatus();
         OnPropertyChanged(nameof(CanChangeSelectedProductStatus));
@@ -830,6 +849,21 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Email = (Email ?? string.Empty).Trim(),
             Phone = (Phone ?? string.Empty).Trim(),
             Products = products,
+            Deliveries = _existingDeliveries.Select(delivery => new OrderDelivery
+            {
+                Id = delivery.Id,
+                SequenceNumber = delivery.SequenceNumber,
+                Status = delivery.Status,
+                PlannedDeliveryDate = delivery.PlannedDeliveryDate,
+                DeliveredAt = delivery.DeliveredAt,
+                AssignedTourId = delivery.AssignedTourId,
+                Notes = DeliveryNotes.FirstOrDefault(x => string.Equals(x.DeliveryId, delivery.Id, StringComparison.OrdinalIgnoreCase))?.Notes?.Trim() ?? string.Empty,
+                Lines = (delivery.Lines ?? []).Select(line => new OrderDeliveryLine
+                {
+                    OrderProductPositionId = line.OrderProductPositionId,
+                    Quantity = line.Quantity
+                }).ToList()
+            }).ToList(),
             ManualTotalWeightKg = manualTotalWeightKg,
             ManualTotalWeightInfo = (ManualTotalWeightInfoText ?? string.Empty).Trim(),
             DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(
@@ -839,7 +873,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             OrderStatus = Order.ResolveOrderStatusFromProducts(products),
             IstVorauszahlung = IstVorauszahlung,
             IstVorauszahlungBezahlt = IstVorauszahlungBezahlt,
-            Notes = (Notes ?? string.Empty).Trim(),
+            Notes = DeliveryNotes.Count == 0 ? (Notes ?? string.Empty).Trim() : string.Empty,
             AssignedTourId = _existingAssignedTourId,
             Location = _existingLocation,
             IsLocationManuallySet = _existingIsLocationManuallySet,
@@ -858,6 +892,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     {
         ProductLines.Add(line);
         RefreshSupplierFilters();
+        RebuildDeliveryProductGroups();
         SelectedProductLine = line;
         RefreshSelectedStatusFromProducts();
     }
@@ -877,6 +912,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
         ProductLines[index] = line;
         RefreshSupplierFilters();
+        RebuildDeliveryProductGroups();
         SelectedProductLine = line;
         RefreshSelectedStatusFromProducts();
     }
@@ -891,6 +927,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         var index = ProductLines.IndexOf(SelectedProductLine);
         ProductLines.Remove(SelectedProductLine);
         RefreshSupplierFilters();
+        RebuildDeliveryProductGroups();
         SelectedProductLine = ProductLines.ElementAtOrDefault(Math.Max(0, index - 1)) ?? ProductLines.FirstOrDefault();
         RefreshSelectedStatusFromProducts();
     }
@@ -955,6 +992,28 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         IsAlternativeDeliveryEnabled = existingOrder.IsAlternativeDeliveryEnabled && ShowAlternativeDeliveryOption;
         IsSelfPickupAlternativeEnabled = existingOrder.IsSelfPickupAlternativeEnabled && ShowSelfPickupAlternativeOption;
         Notes = existingOrder.Notes ?? string.Empty;
+        _existingDeliveries.Clear();
+        DeliveryNotes.Clear();
+        foreach (var delivery in (existingOrder.Deliveries ?? []).OrderBy(x => x.SequenceNumber))
+        {
+            var copy = new OrderDelivery
+            {
+                Id = delivery.Id,
+                SequenceNumber = delivery.SequenceNumber,
+                Status = delivery.Status,
+                PlannedDeliveryDate = delivery.PlannedDeliveryDate,
+                DeliveredAt = delivery.DeliveredAt,
+                AssignedTourId = delivery.AssignedTourId,
+                Notes = delivery.Notes ?? string.Empty,
+                Lines = (delivery.Lines ?? []).Select(line => new OrderDeliveryLine
+                {
+                    OrderProductPositionId = line.OrderProductPositionId,
+                    Quantity = line.Quantity
+                }).ToList()
+            };
+            _existingDeliveries.Add(copy);
+            DeliveryNotes.Add(new DeliveryNoteInput(copy.Id, copy.SequenceNumber, copy.Notes));
+        }
         ManualTotalWeightKgText = existingOrder.ManualTotalWeightKg?.ToString("0.##", CultureInfo.CurrentCulture) ?? string.Empty;
         ManualTotalWeightInfoText = existingOrder.ManualTotalWeightInfo ?? string.Empty;
         IstVorauszahlung = existingOrder.IstVorauszahlung;
@@ -968,6 +1027,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         }
 
         RefreshSupplierFilters();
+        RebuildDeliveryProductGroups();
         RefreshSelectedStatusFromProducts();
         SelectedProductLine = ProductLines.FirstOrDefault();
     }
@@ -984,6 +1044,43 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         return SupplierFilterItems.Any(filter =>
             filter.IsSelected &&
             string.Equals(filter.Label, filterLabel, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void RebuildDeliveryProductGroups()
+    {
+        DeliveryProductGroups.Clear();
+        if (_existingDeliveries.Count == 0)
+        {
+            OnPropertyChanged(nameof(HasDeliveryProductGroups));
+            OnPropertyChanged(nameof(HasNoDeliveryProductGroups));
+            return;
+        }
+
+        var productsById = ProductLines
+            .Where(x => !string.IsNullOrWhiteSpace(x.PositionId))
+            .ToDictionary(x => x.PositionId, StringComparer.OrdinalIgnoreCase);
+        var deliveries = _existingDeliveries.OrderBy(x => x.SequenceNumber).ToList();
+        for (var index = 0; index < deliveries.Count; index++)
+        {
+            var delivery = deliveries[index];
+            var productCards = (delivery.Lines ?? [])
+                .Where(x => x.Quantity > 0 && productsById.TryGetValue(x.OrderProductPositionId, out var product) && MatchesSelectedSupplier(product))
+                .Select(x =>
+                {
+                    var source = productsById[x.OrderProductPositionId];
+                    var card = ProductLineInput.FromOrderProductInfo(source.ToOrderProductInfo());
+                    card.Quantity = x.Quantity;
+                    return card;
+                })
+                .ToList();
+            DeliveryProductGroups.Add(new DeliveryProductGroup(
+                $"Produkte Lieferung {index + 1}/{deliveries.Count}",
+                delivery.Status == OrderDeliveryStatus.Delivered ? "Geliefert" : "Offen",
+                delivery.Status == OrderDeliveryStatus.Delivered,
+                productCards));
+        }
+        OnPropertyChanged(nameof(HasDeliveryProductGroups));
+        OnPropertyChanged(nameof(HasNoDeliveryProductGroups));
     }
 
     private void RefreshSupplierFilters()
@@ -1023,6 +1120,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         return new SupplierFilterItem(label, isSelected, () =>
         {
             FilteredProductLines.Refresh();
+            RebuildDeliveryProductGroups();
             OnPropertyChanged(nameof(SupplierFilterToolTip));
         });
     }
@@ -1064,6 +1162,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
         RefreshSelectedStatusFromProducts();
         SynchronizeSelectedProductStatus();
+        RebuildDeliveryProductGroups();
     }
 
     private static string FormatNullableDeliveryDate(DateOnly? deliveryDate)
@@ -1161,8 +1260,44 @@ public sealed class SupplierFilterItem : INotifyPropertyChanged
     }
 }
 
+public sealed class DeliveryNoteInput : INotifyPropertyChanged
+{
+    private string _notes;
+
+    public DeliveryNoteInput(string deliveryId, int sequenceNumber, string notes)
+    {
+        DeliveryId = deliveryId;
+        SequenceNumber = sequenceNumber;
+        _notes = notes ?? string.Empty;
+    }
+
+    public string DeliveryId { get; }
+    public int SequenceNumber { get; }
+    public string Heading => $"Notizen Lieferung Teil {SequenceNumber}";
+    public string Notes
+    {
+        get => _notes;
+        set
+        {
+            var normalized = value ?? string.Empty;
+            if (_notes == normalized) return;
+            _notes = normalized;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Notes)));
+        }
+    }
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+public sealed record DeliveryProductGroup(
+    string Heading,
+    string Status,
+    bool IsDelivered,
+    IReadOnlyList<ProductLineInput> ProductLines);
+
 public sealed class ProductLineInput : INotifyPropertyChanged
 {
+    public string PositionId { get; set; } = string.Empty;
+    public string ExternalPositionId { get; set; } = string.Empty;
     private string _name = string.Empty;
     private string _supplier = string.Empty;
     private string _expectedDelivery = string.Empty;
@@ -1317,6 +1452,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
     {
         return new OrderProductInfo
         {
+            PositionId = string.IsNullOrWhiteSpace(PositionId) ? Guid.NewGuid().ToString("N") : PositionId,
+            ExternalPositionId = ExternalPositionId,
             Name = (Name ?? string.Empty).Trim(),
             Supplier = (Supplier ?? string.Empty).Trim(),
             ExpectedDelivery = (ExpectedDelivery ?? string.Empty).Trim(),
@@ -1332,6 +1469,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
     {
         return new ProductLineInput
         {
+            PositionId = product.PositionId,
+            ExternalPositionId = product.ExternalPositionId,
             Name = product.Name ?? string.Empty,
             Supplier = product.Supplier ?? string.Empty,
             ExpectedDelivery = product.ExpectedDelivery ?? string.Empty,

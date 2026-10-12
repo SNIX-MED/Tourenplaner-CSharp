@@ -860,29 +860,6 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Border Grid.Row="0" Margin="0,0,0,10" Padding="10">
-                            <Border.Style>
-                                <Style TargetType="Border" BasedOn="{StaticResource FlatCardStyle}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsRouteCalculating}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <ProgressBar Width="90"
-                                             IsIndeterminate="True"
-                                             Style="{StaticResource InlineRouteLoadingBarStyle}" />
-                                <TextBlock Margin="10,0,0,0"
-                                           VerticalAlignment="Center"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource Brush.TextSecondary}"
-                                           Text="Route wird berechnet..." />
-                            </StackPanel>
-                        </Border>
-
                         <Border Grid.Row="1" Margin="0,0,0,10" Style="{StaticResource FlatCardStyle}" Padding="10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -2185,6 +2162,7 @@
                                     <ColumnDefinition Width="40" />
                                     <ColumnDefinition Width="40" />
                                     <ColumnDefinition Width="40" />
+                                    <ColumnDefinition Width="40" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Row="0"
                                          Grid.Column="0"
@@ -2249,6 +2227,19 @@
                                         Grid.Column="3"
                                         Margin="0,0,6,0"
                                         Style="{StaticResource DetailsHeaderToggleButtonStyle}"
+                                        Command="{Binding ArchiveSelectedDeliveryCommand}"
+                                        ToolTip="Ausgewählte Teillieferung als geliefert archivieren">
+                                    <TextBlock Text="✓"
+                                               FontSize="16"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource Brush.Success}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Button>
+                                <Button Grid.Row="0"
+                                        Grid.Column="4"
+                                        Margin="0,0,6,0"
+                                        Style="{StaticResource DetailsHeaderToggleButtonStyle}"
                                         Command="{Binding CloseDetailsCommand}">
                                     <TextBlock Text="X"
                                                FontSize="14"
@@ -2258,7 +2249,7 @@
                                                VerticalAlignment="Center" />
                                 </Button>
                                 <Button Grid.Row="0"
-                                        Grid.Column="4"
+                                        Grid.Column="5"
                                         Style="{StaticResource DetailsHeaderToggleButtonStyle}"
                                         Command="{Binding ToggleDetailsPanelCommand}">
                                     <Grid Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -2276,7 +2267,7 @@
 
                                 <Border Grid.Row="1"
                                         Grid.Column="1"
-                                        Grid.ColumnSpan="4"
+                                        Grid.ColumnSpan="5"
                                         MinHeight="38"
                                         Margin="0,6,0,0"
                                         VerticalAlignment="Top"
@@ -2297,7 +2288,7 @@
 
                                 <Grid Grid.Row="2"
                                       Grid.Column="1"
-                                      Grid.ColumnSpan="4"
+                                      Grid.ColumnSpan="5"
                                       Margin="0,6,0,0"
                                       VerticalAlignment="Top">
                                     <ComboBox MinHeight="38"

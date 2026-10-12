@@ -631,9 +631,20 @@
                                 <MenuItem Header="Auftrag bearbeiten"
                                           Style="{StaticResource QuickActionsMenuItemStyle}"
                                           Command="{Binding EditSelectedOrderCommand}" />
+                                <MenuItem Header="Teillieferung erstellen"
+                                          Style="{StaticResource QuickActionsMenuItemStyle}"
+                                          Command="{Binding CreatePartialDeliveryCommand}" />
                                 <MenuItem Header="Tour anzeigen"
                                           Style="{StaticResource QuickActionsMenuItemStyle}"
                                           Command="{Binding ShowAssignedTourCommand}" />
+                                <MenuItem Header="Lieferung 1 als geliefert archivieren"
+                                          Style="{StaticResource QuickActionsMenuItemStyle}"
+                                          Visibility="{Binding SelectedOrderHasPartialDeliveries, Converter={StaticResource BoolToVisibilityConverter}}"
+                                          Command="{Binding ArchiveDelivery1Command}" />
+                                <MenuItem Header="Lieferung 2 als geliefert archivieren"
+                                          Style="{StaticResource QuickActionsMenuItemStyle}"
+                                          Visibility="{Binding SelectedOrderHasPartialDeliveries, Converter={StaticResource BoolToVisibilityConverter}}"
+                                          Command="{Binding ArchiveDelivery2Command}" />
                                 <MenuItem Header="{Binding ToggleArchiveSelectedOrderMenuText}"
                                           Style="{StaticResource QuickActionsMenuItemStyle}"
                                           Command="{Binding ToggleArchiveSelectedOrderCommand}" />
@@ -795,6 +806,7 @@
                                             <TextBlock Style="{StaticResource DeliveryTypeBadgeTextStyle}" Text="{Binding DeliveryType}" />
                                         </Border>
                                         <TextBlock Style="{StaticResource DeliveryStatusTextStyle}" Text="{Binding OrderStatus}" />
+                                        <TextBlock Style="{StaticResource DeliveryStatusTextStyle}" Text="{Binding DeliveryProgress}" />
                                     </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>

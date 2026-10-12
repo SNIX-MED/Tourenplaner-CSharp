@@ -646,6 +646,67 @@
                                     </Grid>
 
                                     <StackPanel Grid.Row="1" Margin="0,10,0,8">
+                                        <ItemsControl ItemsSource="{Binding DeliveryProductGroups}"
+                                                      Visibility="{Binding HasDeliveryProductGroups, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,0,0,10"
+                                                            Padding="10"
+                                                            CornerRadius="10"
+                                                            Background="{DynamicResource Brush.CardSoft}"
+                                                            BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                            BorderThickness="1">
+                                                        <StackPanel>
+                                                            <Grid Margin="0,0,0,8">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding Heading}" />
+                                                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="{Binding Status}" />
+                                                            </Grid>
+                                                            <ListBox Padding="0"
+                                                                     Background="Transparent"
+                                                                     BorderThickness="0"
+                                                                     SelectionMode="Extended"
+                                                                     PreviewMouseWheel="OnProductGridPreviewMouseWheel"
+                                                                     PreviewKeyDown="OnProductListPreviewKeyDown"
+                                                                     SelectionChanged="OnProductSelectionChanged"
+                                                                     MouseDoubleClick="OnProductGridDoubleClick"
+                                                                     ItemsSource="{Binding ProductLines}">
+                                                                <ListBox.ItemContainerStyle>
+                                                                    <Style TargetType="ListBoxItem">
+                                                                        <Setter Property="Padding" Value="0" />
+                                                                        <Setter Property="Margin" Value="0,0,0,8" />
+                                                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                                        <Setter Property="Background" Value="Transparent" />
+                                                                        <Setter Property="BorderThickness" Value="0" />
+                                                                    </Style>
+                                                                </ListBox.ItemContainerStyle>
+                                                                <ListBox.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <controls:ProductOverviewCard
+                                                                            Title="{Binding DisplayTitle}"
+                                                                            Supplier="{Binding Supplier}"
+                                                                            ExpectedDelivery="{Binding DisplayExpectedDelivery}"
+                                                                            DimensionsLine="{Binding DimensionsLine}"
+                                                                            WeightLine="{Binding WeightLine}"
+                                                                            TotalLine="{Binding TotalLine}"
+                                                                            DeliveryStatus="{Binding DeliveryStatus}"
+                                                                            BackgroundColor="{Binding StatusBackgroundColor}"
+                                                                            BorderColor="{Binding StatusBorderColor}"
+                                                                            IsSelected="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                                                                            HasSupplier="{Binding HasSupplier}"
+                                                                            HasExpectedDelivery="{Binding HasExpectedDelivery}"
+                                                                            HasDimensions="{Binding HasDimensions}" />
+                                                                    </DataTemplate>
+                                                                </ListBox.ItemTemplate>
+                                                            </ListBox>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                         <ListBox x:Name="ProductListBox"
                                              Padding="0"
                                              Background="Transparent"
@@ -657,6 +718,16 @@
                                              MouseDoubleClick="OnProductGridDoubleClick"
                                              ItemsSource="{Binding FilteredProductLines}"
                                              SelectedItem="{Binding SelectedProductLine}">
+                                        <ListBox.Style>
+                                            <Style TargetType="ListBox">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasDeliveryProductGroups}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ListBox.Style>
                                         <ListBox.ItemContainerStyle>
                                             <Style TargetType="ListBoxItem">
                                                 <Setter Property="Padding" Value="0" />
@@ -736,15 +807,34 @@
                                 Margin="0,12,0,0"
                                 Effect="{x:Null}">
                             <StackPanel>
-                                <TextBlock FontSize="18"
-                                           FontWeight="SemiBold"
-                                           Margin="0,0,0,10"
-                                           Text="Notizen" />
-                                <TextBox MinHeight="420"
-                                         AcceptsReturn="True"
-                                         VerticalScrollBarVisibility="Auto"
-                                         TextWrapping="Wrap"
-                                         Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" />
+                                <StackPanel Visibility="{Binding HasNoDeliveryNotes, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <TextBlock FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,10"
+                                               Text="Notizen" />
+                                    <TextBox MinHeight="420"
+                                             AcceptsReturn="True"
+                                             VerticalScrollBarVisibility="Auto"
+                                             TextWrapping="Wrap"
+                                             Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <ItemsControl Margin="0,16,0,0" ItemsSource="{Binding DeliveryNotes}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,0,0,16">
+                                                <TextBlock Margin="0,0,0,6"
+                                                           FontSize="15"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding Heading}" />
+                                                <TextBox MinHeight="100"
+                                                         AcceptsReturn="True"
+                                                         VerticalScrollBarVisibility="Auto"
+                                                         TextWrapping="Wrap"
+                                                         Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </Border>
                     </ScrollViewer>

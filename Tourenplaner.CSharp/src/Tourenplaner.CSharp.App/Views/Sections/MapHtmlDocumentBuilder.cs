@@ -898,8 +898,16 @@ internal static class MapHtmlDocumentBuilder
                                 : groupKey === expandedGroupKey
                                   ? Math.max(getOverlapRadiusPixels(group.length, true), group.length * 16 * markerScale / Math.PI)
                                   : getOverlapRadiusPixels(group.length, false);
-                              const angleOffset = group.length === 2 ? 0 : -(Math.PI / 2);
-                              group.forEach((entry, index) => {
+                              const orderedGroup = group.length === 2 &&
+                                group.every(entry => Number.isFinite(Number(entry.marker.deliveryNumber))) &&
+                                group.every(entry => String(entry.marker.orderNumber || '') === String(group[0].marker.orderNumber || ''))
+                                  ? [...group].sort((left, right) =>
+                                      Number(left.marker.deliveryNumber) - Number(right.marker.deliveryNumber))
+                                  : group;
+                              // For two partial deliveries, delivery 1 starts on the left and
+                              // subsequent deliveries continue to the right.
+                              const angleOffset = orderedGroup.length === 2 ? Math.PI : -(Math.PI / 2);
+                              orderedGroup.forEach((entry, index) => {
                                 const angle = angleOffset + (((Math.PI * 2) / group.length) * index);
                                 const displacedPoint = {
                                   x: centerPoint.x + (Math.cos(angle) * radiusPixels),
@@ -1134,7 +1142,8 @@ internal static class MapHtmlDocumentBuilder
                            const showTotalWeight = !!(m && m.showTotalWeight);
 
                            const customer = m && m.customer ? String(m.customer).trim() : '';
-                           const orderId = m && m.id ? String(m.id).trim() : '';
+                           const markerId = m && m.id ? String(m.id).trim() : '';
+                           const orderId = m && m.orderNumber ? String(m.orderNumber).trim() : markerId;
                            const street = m && m.street ? String(m.street).trim() : '';
                            const postalCodeCity = m && m.postalCodeCity ? String(m.postalCodeCity).trim() : '';
                            const notes = m && m.notes ? String(m.notes).trim() : '';
@@ -2617,8 +2626,7 @@ internal static class MapHtmlDocumentBuilder
                                 enableOrderPopupInteraction(popup);
                                 bringOrderPopupToFront(popup);
                                 // Use the same message path as normal map pins for reliable details selection.
-                                window.chrome.webview.postMessage(String(stop.id));
-                                // Keep route selection behavior in sync.
+                                // Use one authoritative selection message for route markers.
                                 window.chrome.webview.postMessage(`routeSelect:${stop.id}`);
                               }
                              };

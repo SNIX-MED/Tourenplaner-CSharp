@@ -205,4 +205,37 @@ public class TourOrderReferenceServiceTests
         Assert.Equal(order.Location.Longitude, stop.Lng);
         Assert.Equal(order.Location.Longitude, stop.Lon);
     }
+
+    [Fact]
+    public void ReconcileActiveToursWithOrders_RemovesOnlyDeliveredPartialDeliveryStop()
+    {
+        var tours = new List<TourRecord>
+        {
+            new()
+            {
+                Id = 10,
+                Stops =
+                [
+                    new TourStopRecord { Id = "stop-d1", Auftragsnummer = "A-100", DeliveryId = "D1" },
+                    new TourStopRecord { Id = "stop-d2", Auftragsnummer = "A-100", DeliveryId = "D2" }
+                ]
+            }
+        };
+        var order = new Order
+        {
+            Id = "A-100",
+            Deliveries =
+            [
+                new OrderDelivery { Id = "D1", SequenceNumber = 1, Status = OrderDeliveryStatus.Delivered },
+                new OrderDelivery { Id = "D2", SequenceNumber = 2, Status = OrderDeliveryStatus.Planned, AssignedTourId = "10" }
+            ]
+        };
+
+        var result = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, [order]);
+
+        Assert.Equal(1, result.RemovedStopCount);
+        Assert.Equal([10], result.RescheduledTourIds);
+        Assert.DoesNotContain(tours.Single().Stops, x => x.DeliveryId == "D1");
+        Assert.Contains(tours.Single().Stops, x => x.DeliveryId == "D2");
+    }
 }

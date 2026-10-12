@@ -1145,6 +1145,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
     private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
     {
         var tours = (await _tourRepository.LoadAsync()).ToList();
+        var originalTours = tours.ToList();
         var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
         if (!cleanup.HasChanges)
         {
@@ -1161,7 +1162,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             }
         }
 
-        await _tourRepository.SaveAsync(tours);
+        await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, tours, cleanup);
         _dataSyncService.PublishTours(_instanceId);
     }
 
@@ -1344,6 +1345,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             Phone = source.Phone,
             Products = (source.Products ?? []).Select(p => new OrderProductInfo
             {
+                PositionId = p.PositionId,
+                ExternalPositionId = p.ExternalPositionId,
                 Name = p.Name,
                 Supplier = p.Supplier,
                 ExpectedDelivery = p.ExpectedDelivery,
@@ -1352,6 +1355,21 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
                 WeightKg = p.WeightKg,
                 Dimensions = p.Dimensions,
                 DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(p.DeliveryStatus)
+            }).ToList(),
+            Deliveries = (source.Deliveries ?? []).Select(d => new OrderDelivery
+            {
+                Id = d.Id,
+                SequenceNumber = d.SequenceNumber,
+                Status = d.Status,
+                PlannedDeliveryDate = d.PlannedDeliveryDate,
+                DeliveredAt = d.DeliveredAt,
+                AssignedTourId = d.AssignedTourId,
+                Notes = d.Notes,
+                Lines = (d.Lines ?? []).Select(line => new OrderDeliveryLine
+                {
+                    OrderProductPositionId = line.OrderProductPositionId,
+                    Quantity = line.Quantity
+                }).ToList()
             }).ToList(),
             ManualTotalWeightKg = source.ManualTotalWeightKg,
             ManualTotalWeightInfo = source.ManualTotalWeightInfo,

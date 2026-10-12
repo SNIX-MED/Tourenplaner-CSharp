@@ -28,6 +28,13 @@ function runMarkerFanOutTests(source) {
       assert(distance(api.spread([b], '')[0]) === 0, 'Single free order must stay at address');
       const pair = api.spread([a, b], '');
       assert(pair[0].displayLon !== pair[1].displayLon, 'Free orders must fan out');
+      const deliveryTwo = { ...a, id: 'delivery-2', orderNumber: '4711', deliveryNumber: 2 };
+      const deliveryOne = { ...a, id: 'delivery-1', orderNumber: '4711', deliveryNumber: 1 };
+      const partialDeliveries = api.spread([deliveryTwo, deliveryOne], '');
+      const displayedDeliveryOne = partialDeliveries.find(pin => pin.deliveryNumber === 1);
+      const displayedDeliveryTwo = partialDeliveries.find(pin => pin.deliveryNumber === 2);
+      assert(displayedDeliveryOne.displayLon < displayedDeliveryTwo.displayLon,
+        'Delivery 1 must be displayed to the left of delivery 2');
       state.__gawelaLastRoutePayload.routeStops = [a];
       const remaining = api.spread([b], '')[0];
       assert(distance(remaining) >= 32 * Math.max(1, scale) - 1e-7, 'Route pin must not cover remaining order');
@@ -43,7 +50,7 @@ function runMarkerFanOutTests(source) {
       state.__gawelaLastRoutePayload.routeStops = [];
       api.recompute();
       assert(position[0] === b.lon && position[1] === b.lat, 'Clearing route must restore location');
-      checks += 9;
+      checks += 10;
 
       const routePins = new Map([a, b].map(stop => [stop.id, {
         position: { lng: stop.lon, lat: stop.lat },

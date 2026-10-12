@@ -140,6 +140,12 @@ public class OrderImportService : IOrderImportService
                     continue;
                 }
 
+                var deliveryService = new OrderDeliveryService();
+                if (!deliveryService.TryReconcileImportedProducts(existingOrder, importedOrder.Products, out var deliveryError))
+                {
+                    throw new InvalidOperationException($"Teillieferungen konnten nicht mit den XML-Produktmengen abgeglichen werden: {deliveryError}");
+                }
+
                 ApplyImportedData(existingOrder, importedOrder);
                 result.UpdatedOrders++;
                 result.ProcessedOrderIds.Add(existingOrder.Id);
@@ -190,6 +196,11 @@ public class OrderImportService : IOrderImportService
 
         var importedOrder = CreateImportedOrder(sqlOrder, isMapOrder, existingOrder);
         PreserveActiveTourOrder(existingOrder, importedOrder, protectedOrderIds);
+        var deliveryService = new OrderDeliveryService();
+        if (!deliveryService.TryReconcileImportedProducts(existingOrder, importedOrder.Products, out var deliveryError, applyChanges: false))
+        {
+            throw new InvalidOperationException($"Teillieferungen konnten nicht mit den XML-Produktmengen abgeglichen werden: {deliveryError}");
+        }
         var changes = DescribeDifferences(existingOrder, importedOrder);
         return new ImportPreviewItem
         {
@@ -322,6 +333,8 @@ public class OrderImportService : IOrderImportService
 
             products.Add(new OrderProductInfo
             {
+                PositionId = previousProduct?.PositionId ?? Guid.NewGuid().ToString("N"),
+                ExternalPositionId = previousProduct?.ExternalPositionId ?? string.Empty,
                 Name = (sqlProduct.Bezeichnung ?? string.Empty).Trim(),
                 Supplier = !string.IsNullOrWhiteSpace(sqlProduct.Lieferant)
                     ? sqlProduct.Lieferant.Trim()

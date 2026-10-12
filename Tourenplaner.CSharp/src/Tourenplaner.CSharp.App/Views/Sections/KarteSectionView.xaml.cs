@@ -36,7 +36,6 @@ public partial class KarteSectionView : UserControl
         DetailsToggle = 1 << 7,
         PlannedTourOverlayHighlight = 1 << 8,
         TemporarySearchPin = 1 << 9,
-        PlannedTourOverlayFocus = 1 << 10,
         RouteWithoutAutoCenter = 1 << 11
     }
 
@@ -208,10 +207,6 @@ public partial class KarteSectionView : UserControl
         else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedTourOverviewItem))
         {
             QueueMapRefresh(MapRefreshOperation.PlannedTourOverlayHighlight, UiRefreshDebounceMilliseconds);
-        }
-        else if (e.PropertyName == nameof(KarteSectionViewModel.TourOverviewFocusRevision))
-        {
-            QueueMapRefresh(MapRefreshOperation.PlannedTourOverlayFocus, UiRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedProductStatus) ||
                  e.PropertyName == nameof(KarteSectionViewModel.DetailSelectedStatus) ||
@@ -422,7 +417,7 @@ public partial class KarteSectionView : UserControl
         {
             // A regular route refresh may be raised again when order/product data changes.
             // Only the first route render of a map document may choose the initial viewport;
-            // subsequent explicit tour selections use PlannedTourOverlayFocus instead.
+            // subsequent route refreshes preserve the user's viewport.
             var allowInitialAutoCenter = !_hasAutoCenteredRouteForCurrentMapDocument && !IsAutomaticMapFocusSuppressed;
             await PushRouteToMapAsync(allowAutoCenter: allowInitialAutoCenter);
             if (allowInitialAutoCenter && _mapReady && _mapScriptReady)
@@ -447,10 +442,6 @@ public partial class KarteSectionView : UserControl
             }
         }
 
-        if ((operation & MapRefreshOperation.PlannedTourOverlayFocus) != 0 && !IsAutomaticMapFocusSuppressed)
-        {
-            await FocusSelectedPlannedTourOverlayAsync();
-        }
     }
 
     private bool IsAutomaticMapFocusSuppressed =>
@@ -461,12 +452,7 @@ public partial class KarteSectionView : UserControl
         // Product changes publish several follow-up notifications asynchronously. Keep all
         // resulting route/overlay refreshes from changing a viewport chosen by the user.
         _suppressAutomaticMapFocusUntilTick = Environment.TickCount64 + 5000;
-        _pendingMapRefresh &= ~(MapRefreshOperation.Route | MapRefreshOperation.PlannedTourOverlayFocus);
-    }
-
-    private void AllowExplicitMapFocus()
-    {
-        _suppressAutomaticMapFocusUntilTick = 0;
+        _pendingMapRefresh &= ~MapRefreshOperation.Route;
     }
 
     private void OnDetailsPreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -854,7 +840,9 @@ public partial class KarteSectionView : UserControl
 
         var markers = vm.GetMapMarkerSnapshot().Select(x => new
         {
-            id = x.OrderId,
+            id = x.MarkerId,
+            orderNumber = x.OrderId,
+            deliveryNumber = x.DeliverySequenceNumber,
             customer = x.Customer,
             street = x.Street,
             postalCodeCity = x.PostalCodeCity,
@@ -948,10 +936,12 @@ public partial class KarteSectionView : UserControl
         var route = vm.GetRouteSnapshot()
             .Select(r =>
             {
-                var visual = vm.ResolveOrderVisualInfo(r.OrderId);
+                var visual = vm.ResolveOrderVisualInfo(r.OrderId, r.DeliveryId);
                 return new
                 {
-                    id = r.OrderId,
+                    id = r.MarkerId,
+                    orderNumber = r.OrderId,
+                    deliveryNumber = r.DeliverySequenceNumber,
                     position = r.Position,
                     label = r.DisplayPosition,
                     avisoStatus = visual.AvisoStatusLabel,
@@ -1028,7 +1018,7 @@ public partial class KarteSectionView : UserControl
 
         var id = vm.SelectedRouteStop is { IsLegSelected: true }
             ? string.Empty
-            : vm.SelectedRouteStop?.OrderId ?? string.Empty;
+            : vm.SelectedRouteStop?.MarkerId ?? string.Empty;
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaHighlightRouteStop === 'function') window.gawelaHighlightRouteStop({JsonSerializer.Serialize(id)});");
     }
 
@@ -1042,23 +1032,6 @@ public partial class KarteSectionView : UserControl
         var tourIdJson = JsonSerializer.Serialize(vm.PlannedTourOverlayHighlightTourId);
         await MapWebView.CoreWebView2.ExecuteScriptAsync(
             $"if (typeof window.gawelaHighlightPlannedTourOverlay === 'function') window.gawelaHighlightPlannedTourOverlay({tourIdJson});");
-    }
-
-    private async Task FocusSelectedPlannedTourOverlayAsync()
-    {
-        if (!_mapReady || !_mapScriptReady || DataContext is not KarteSectionViewModel vm || MapWebView.CoreWebView2 is null)
-        {
-            return;
-        }
-
-        var tourId = vm.SelectedTourOverviewItem?.TourId ?? 0;
-        if (tourId <= 0)
-        {
-            return;
-        }
-
-        await MapWebView.CoreWebView2.ExecuteScriptAsync(
-            $"if (typeof window.gawelaFocusPlannedTourOverlay === 'function') window.gawelaFocusPlannedTourOverlay({tourId});");
     }
 
     private async Task ApplyPinInfoCardsVisibilityAsync()
@@ -1323,7 +1296,6 @@ public partial class KarteSectionView : UserControl
             var tourIdText = raw["plannedTourSelect:".Length..];
             if (int.TryParse(tourIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var tourId) && tourId > 0)
             {
-                AllowExplicitMapFocus();
                 vm.SelectTourOverviewById(tourId);
             }
 
@@ -1340,13 +1312,14 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        var match = vm.MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, raw, StringComparison.OrdinalIgnoreCase));
+        var match = vm.MapOrders.FirstOrDefault(x => string.Equals(x.MarkerId, raw, StringComparison.OrdinalIgnoreCase))
+                    ?? vm.MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, raw, StringComparison.OrdinalIgnoreCase));
         if (match is not null)
         {
             try
             {
                 _suppressSelectionSync = true;
-                vm.SelectOrderFromMapPin(match.OrderId);
+                vm.SelectOrderFromMapPin(match.MarkerId);
             }
             finally
             {
@@ -1433,7 +1406,7 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        AllowExplicitMapFocus();
+        SuppressAutomaticMapFocus();
         await vm.FocusTourAsync(selected.TourId);
     }
 
@@ -1448,7 +1421,6 @@ public partial class KarteSectionView : UserControl
         var listItem = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
         if (listItem?.DataContext is SavedTourOverviewItem selected)
         {
-            AllowExplicitMapFocus();
             vm.SelectTourOverviewById(selected.TourId);
             return;
         }
@@ -1514,7 +1486,6 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        AllowExplicitMapFocus();
         vm.SelectTourOverviewById(selected.TourId);
     }
 

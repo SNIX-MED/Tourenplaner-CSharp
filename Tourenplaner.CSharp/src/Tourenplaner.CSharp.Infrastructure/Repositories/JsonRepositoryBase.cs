@@ -1,5 +1,7 @@
 ﻿using System.Text.Json;
 
+using Tourenplaner.CSharp.Infrastructure.Storage;
+
 namespace Tourenplaner.CSharp.Infrastructure.Repositories;
 
 public abstract class JsonRepositoryBase<T>
@@ -22,64 +24,120 @@ public abstract class JsonRepositoryBase<T>
 
     protected async Task<IReadOnlyList<T>> ReadListAsync(CancellationToken cancellationToken)
     {
-        EnsureParentDirectory();
-        if (!File.Exists(FilePath))
+        var gate = ResolveFileGate();
+        await gate.WaitAsync(cancellationToken);
+        try
         {
-            await File.WriteAllTextAsync(FilePath, "[]", cancellationToken);
-        }
+            EnsureParentDirectory();
+            if (!File.Exists(FilePath))
+            {
+                await File.WriteAllTextAsync(FilePath, "[]", cancellationToken);
+            }
 
-        await using var stream = await OpenFileWithRetryAsync(
-            FilePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            cancellationToken);
-        var result = await JsonSerializer.DeserializeAsync<List<T>>(stream, _serializerOptions, cancellationToken);
-        return result ?? new List<T>();
+            await using var stream = await OpenFileWithRetryAsync(
+                FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, cancellationToken);
+            var result = await JsonSerializer.DeserializeAsync<List<T>>(stream, _serializerOptions, cancellationToken);
+            return result ?? new List<T>();
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     protected async Task WriteListAsync(IEnumerable<T> values, CancellationToken cancellationToken)
     {
-        EnsureParentDirectory();
-        await using var stream = await OpenFileWithRetryAsync(
-            FilePath,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None,
-            cancellationToken);
-        await JsonSerializer.SerializeAsync(stream, values.ToList(), _serializerOptions, cancellationToken);
+        var gate = ResolveFileGate();
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            EnsureParentDirectory();
+            await using var stream = await OpenFileWithRetryAsync(
+                FilePath, FileMode.Create, FileAccess.Write, FileShare.None, cancellationToken);
+            await JsonSerializer.SerializeAsync(stream, values.ToList(), _serializerOptions, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    protected async Task MutateListAsync(Action<List<T>> mutation, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(mutation);
+        var gate = ResolveFileGate();
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            EnsureParentDirectory();
+            List<T> items;
+            if (!File.Exists(FilePath))
+            {
+                items = [];
+            }
+            else
+            {
+                await using var readStream = await OpenFileWithRetryAsync(
+                    FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, cancellationToken);
+                items = await JsonSerializer.DeserializeAsync<List<T>>(readStream, _serializerOptions, cancellationToken) ?? [];
+            }
+
+            mutation(items);
+            await using var writeStream = await OpenFileWithRetryAsync(
+                FilePath, FileMode.Create, FileAccess.Write, FileShare.None, cancellationToken);
+            await JsonSerializer.SerializeAsync(writeStream, items, _serializerOptions, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     protected async Task<T> ReadSingleAsync(T fallback, CancellationToken cancellationToken)
     {
-        EnsureParentDirectory();
-        if (!File.Exists(FilePath))
+        var gate = ResolveFileGate();
+        await gate.WaitAsync(cancellationToken);
+        try
         {
-            await WriteSingleAsync(fallback, cancellationToken);
-            return fallback;
-        }
+            EnsureParentDirectory();
+            if (!File.Exists(FilePath))
+            {
+                await using var createStream = await OpenFileWithRetryAsync(
+                    FilePath, FileMode.Create, FileAccess.Write, FileShare.None, cancellationToken);
+                await JsonSerializer.SerializeAsync(createStream, fallback, _serializerOptions, cancellationToken);
+                return fallback;
+            }
 
-        await using var stream = await OpenFileWithRetryAsync(
-            FilePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            cancellationToken);
-        var value = await JsonSerializer.DeserializeAsync<T>(stream, _serializerOptions, cancellationToken);
-        return value ?? fallback;
+            await using var stream = await OpenFileWithRetryAsync(
+                FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, cancellationToken);
+            var value = await JsonSerializer.DeserializeAsync<T>(stream, _serializerOptions, cancellationToken);
+            return value ?? fallback;
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     protected async Task WriteSingleAsync(T value, CancellationToken cancellationToken)
     {
-        EnsureParentDirectory();
-        await using var stream = await OpenFileWithRetryAsync(
-            FilePath,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None,
-            cancellationToken);
-        await JsonSerializer.SerializeAsync(stream, value, _serializerOptions, cancellationToken);
+        var gate = ResolveFileGate();
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            EnsureParentDirectory();
+            await using var stream = await OpenFileWithRetryAsync(
+                FilePath, FileMode.Create, FileAccess.Write, FileShare.None, cancellationToken);
+            await JsonSerializer.SerializeAsync(stream, value, _serializerOptions, cancellationToken);
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
+
+    private SemaphoreSlim ResolveFileGate() =>
+        JsonPathAccessCoordinator.Resolve(FilePath);
 
     private static async Task<FileStream> OpenFileWithRetryAsync(
         string path,

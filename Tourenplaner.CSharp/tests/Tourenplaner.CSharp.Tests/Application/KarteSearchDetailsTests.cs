@@ -75,7 +75,7 @@ public sealed class KarteSearchDetailsTests
     }
 
     [Fact]
-    public async Task RefreshingTourOverview_DoesNotRequestMapRecentering()
+    public async Task SelectingAndRefreshingTourOverview_DoesNotRequestMapRecentering()
     {
         var viewModel = CreateViewModel(tourRepository: new SingleTourStore());
         await viewModel.RefreshAsync();
@@ -83,7 +83,7 @@ public sealed class KarteSearchDetailsTests
         var tour = Assert.Single(viewModel.TourOverviewItems);
         viewModel.SelectTourOverviewById(tour.TourId);
         var focusRevision = viewModel.TourOverviewFocusRevision;
-        Assert.True(focusRevision > 0);
+        Assert.Equal(0, focusRevision);
 
         await viewModel.RefreshAsync();
 

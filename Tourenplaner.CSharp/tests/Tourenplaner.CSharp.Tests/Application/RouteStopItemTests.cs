@@ -30,4 +30,27 @@ public sealed class RouteStopItemTests
 
         Assert.Empty(item.DisplayAvisoStatus);
     }
+
+    [Fact]
+    public void PartialDelivery_UsesUniqueTechnicalMarkerIdButDisplaysCanonicalOrderNumber()
+    {
+        var item = new RouteStopItem
+        {
+            OrderId = "222018",
+            DeliveryId = "delivery-1",
+            DeliverySequenceNumber = 1
+        };
+
+        Assert.Equal("222018::delivery::delivery-1", item.MarkerId);
+        Assert.Equal("222018", item.DisplayOrder);
+    }
+
+    [Fact]
+    public void NormalOrder_UsesUnchangedOrderNumberAsMarkerId()
+    {
+        var item = new RouteStopItem { OrderId = "222018" };
+
+        Assert.Equal("222018", item.MarkerId);
+        Assert.Equal("222018", item.DisplayOrder);
+    }
 }

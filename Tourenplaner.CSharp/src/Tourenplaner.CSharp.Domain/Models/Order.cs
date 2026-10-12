@@ -42,6 +42,7 @@ public sealed class Order
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public List<OrderProductInfo> Products { get; set; } = new();
+    public List<OrderDelivery> Deliveries { get; set; } = new();
     public double? ManualTotalWeightKg { get; set; }
     public string ManualTotalWeightInfo { get; set; } = string.Empty;
     public string DeliveryType { get; set; } = "Frei Bordsteinkante";
@@ -252,6 +253,8 @@ public sealed class OrderProductInfo
 
     public static int NormalizeQuantity(int value) => value == 0 ? 1 : value;
 
+    public string PositionId { get; set; } = string.Empty;
+    public string ExternalPositionId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Supplier { get; set; } = string.Empty;
     public string ExpectedDelivery { get; set; } = string.Empty;
@@ -288,4 +291,32 @@ public sealed class OrderProductInfo
                    InStockStatus,
                    StringComparison.OrdinalIgnoreCase);
     }
+}
+
+public enum OrderDeliveryStatus
+{
+    Draft,
+    ReadyForPlanning,
+    Planned,
+    InTransit,
+    Delivered,
+    Cancelled
+}
+
+public sealed class OrderDelivery
+{
+    public string Id { get; set; } = string.Empty;
+    public int SequenceNumber { get; set; }
+    public OrderDeliveryStatus Status { get; set; } = OrderDeliveryStatus.Draft;
+    public DateOnly? PlannedDeliveryDate { get; set; }
+    public DateTimeOffset? DeliveredAt { get; set; }
+    public string? AssignedTourId { get; set; }
+    public List<OrderDeliveryLine> Lines { get; set; } = new();
+    public string Notes { get; set; } = string.Empty;
+}
+
+public sealed class OrderDeliveryLine
+{
+    public string OrderProductPositionId { get; set; } = string.Empty;
+    public int Quantity { get; set; }
 }

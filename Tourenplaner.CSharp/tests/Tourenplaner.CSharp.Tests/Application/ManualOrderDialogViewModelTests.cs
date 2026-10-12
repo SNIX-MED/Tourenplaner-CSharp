@@ -215,6 +215,67 @@ public class ManualOrderDialogViewModelTests
         Assert.Equal("Produkt B", visibleProduct.Name);
     }
 
+    [Fact]
+    public void TryBuildOrder_PreservesSeparateDeliveryNotes()
+    {
+        var source = CreateOrder();
+        source.Deliveries =
+        [
+            new OrderDelivery { Id = "D1", SequenceNumber = 1, Notes = "Notiz eins" },
+            new OrderDelivery { Id = "D2", SequenceNumber = 2, Notes = "Notiz zwei" }
+        ];
+        var viewModel = new ManualOrderDialogViewModel(source);
+        viewModel.DeliveryNotes[1].Notes = "Geänderte Notiz zwei";
+
+        Assert.True(viewModel.TryBuildOrder(out var result, out var error), error);
+        Assert.NotNull(result);
+        Assert.Equal("Notiz eins", result!.Deliveries[0].Notes);
+        Assert.Equal("Geänderte Notiz zwei", result.Deliveries[1].Notes);
+    }
+
+    [Fact]
+    public void ExistingPartialDeliveries_AreShownAsSeparateProductGroups()
+    {
+        var source = CreateOrder();
+        source.Products =
+        [
+            new OrderProductInfo { PositionId = "P1", Name = "Regal", Quantity = 3, UnitWeightKg = 10 }
+        ];
+        source.Deliveries =
+        [
+            new OrderDelivery
+            {
+                Id = "D1", SequenceNumber = 1, Status = OrderDeliveryStatus.Delivered,
+                Lines = [new OrderDeliveryLine { OrderProductPositionId = "P1", Quantity = 1 }]
+            },
+            new OrderDelivery
+            {
+                Id = "D2", SequenceNumber = 2, Status = OrderDeliveryStatus.ReadyForPlanning,
+                Lines = [new OrderDeliveryLine { OrderProductPositionId = "P1", Quantity = 2 }]
+            }
+        ];
+
+        var viewModel = new ManualOrderDialogViewModel(source);
+
+        Assert.Equal(2, viewModel.DeliveryProductGroups.Count);
+        Assert.Equal("Produkte Lieferung 1/2", viewModel.DeliveryProductGroups[0].Heading);
+        Assert.Equal("Geliefert", viewModel.DeliveryProductGroups[0].Status);
+        /* Legacy string assertions replaced by product-card assertions.
+        Assert.Equal("1× Regal", Assert.Single(viewModel.DeliveryProductGroups[0].ProductLines));
+        Assert.Equal("Produkte Lieferung 2/2", viewModel.DeliveryProductGroups[1].Heading);
+        Assert.Equal("Offen", viewModel.DeliveryProductGroups[1].Status);
+        Assert.Equal("2× Regal", Assert.Single(viewModel.DeliveryProductGroups[1].ProductLines));
+        */
+        var firstProduct = Assert.Single(viewModel.DeliveryProductGroups[0].ProductLines);
+        Assert.Equal("Regal", firstProduct.Name);
+        Assert.Equal(1, firstProduct.Quantity);
+        Assert.Equal("Produkte Lieferung 2/2", viewModel.DeliveryProductGroups[1].Heading);
+        Assert.Equal("Offen", viewModel.DeliveryProductGroups[1].Status);
+        var secondProduct = Assert.Single(viewModel.DeliveryProductGroups[1].ProductLines);
+        Assert.Equal("Regal", secondProduct.Name);
+        Assert.Equal(2, secondProduct.Quantity);
+    }
+
     private static Order CreateOrder()
     {
         return new Order

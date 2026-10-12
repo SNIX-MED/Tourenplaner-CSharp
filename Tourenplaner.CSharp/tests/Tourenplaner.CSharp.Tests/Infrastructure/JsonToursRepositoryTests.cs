@@ -90,6 +90,32 @@ public class JsonToursRepositoryTests
         }
     }
 
+    [Fact]
+    public async Task ConcurrentUpserts_DoNotLockFileOrLoseTours()
+    {
+        var root = CreateTempRoot();
+        var file = Path.Combine(root, "tours.json");
+        try
+        {
+            var firstRepository = new JsonToursRepository(file);
+            var secondRepository = new JsonToursRepository(file);
+            await firstRepository.SaveAsync([]);
+
+            var writes = Enumerable.Range(1, 40).Select(index =>
+                (index % 2 == 0 ? firstRepository : secondRepository)
+                .UpsertAsync(new TourRecord { Id = index, Name = $"Tour {index}" }));
+            await Task.WhenAll(writes);
+
+            var tours = await firstRepository.LoadAsync();
+            Assert.Equal(40, tours.Count);
+            Assert.Equal(40, tours.Select(x => x.Id).Distinct().Count());
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     private static string CreateTempRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));

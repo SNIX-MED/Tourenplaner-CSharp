@@ -42,6 +42,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private readonly string _geocodeCachePath;
     private readonly List<Order> _allOrders = new();
     private readonly Guid _instanceId = Guid.NewGuid();
+    private readonly OrderDeliveryService _deliveryService = new();
     private Order? _lastDeletedOrder;
     private int _lastDeletedIndex = -1;
 
@@ -83,6 +84,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         AddCommand = new DelegateCommand(AddOrder);
         AddManualOrderCommand = new AsyncCommand(AddManualOrderAsync);
         EditSelectedOrderCommand = new AsyncCommand(EditSelectedOrderAsync, () => SelectedOrder is not null);
+        CreatePartialDeliveryCommand = new AsyncCommand(CreatePartialDeliveryAsync, CanCreatePartialDelivery);
         ShowAssignedTourCommand = new AsyncCommand(ShowAssignedTourAsync, CanShowAssignedTour);
         CopySelectedOrderNumberCommand = new DelegateCommand(CopySelectedOrderNumber, () => SelectedOrder is not null);
         SetSelectedOrderStatusDefaultCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.DefaultOrderStatus), () => SelectedOrder is not null);
@@ -92,6 +94,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         SetSelectedOrderStatusPartiallyReadyCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.PartiallyReadyStatus), () => SelectedOrder is not null);
         SetSelectedOrderStatusReadyCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.ReadyToDeliverStatus), () => SelectedOrder is not null);
         ToggleArchiveSelectedOrderCommand = new AsyncCommand(ToggleArchiveSelectedOrderAsync, () => SelectedOrders.Count > 0);
+        ArchiveDelivery1Command = new AsyncCommand(() => ArchiveSelectedDeliveryAsync(1), () => CanArchiveSelectedDelivery(1));
+        ArchiveDelivery2Command = new AsyncCommand(() => ArchiveSelectedDeliveryAsync(2), () => CanArchiveSelectedDelivery(2));
         UndoDeleteCommand = new AsyncCommand(UndoDeleteAsync, () => _lastDeletedOrder is not null);
         RemoveCommand = new AsyncCommand(RemoveSelectedOrderAsync, () => SelectedOrders.Count > 0);
         ShowActiveOrdersCommand = new DelegateCommand(() => ShowArchivedOrders = false);
@@ -122,6 +126,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     public ICommand EditSelectedOrderCommand { get; }
 
+    public ICommand CreatePartialDeliveryCommand { get; }
+
     public ICommand ShowAssignedTourCommand { get; }
 
     public ICommand CopySelectedOrderNumberCommand { get; }
@@ -139,6 +145,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     public ICommand SetSelectedOrderStatusReadyCommand { get; }
 
     public ICommand ToggleArchiveSelectedOrderCommand { get; }
+
+    public ICommand ArchiveDelivery1Command { get; }
+
+    public ICommand ArchiveDelivery2Command { get; }
 
     public ICommand UndoDeleteCommand { get; }
 
@@ -251,6 +261,21 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         ? "Auftrag reaktivieren"
         : "Auftrag archivieren";
 
+    public bool SelectedOrderHasPartialDeliveries
+    {
+        get
+        {
+            if (SelectedOrder is null)
+            {
+                return false;
+            }
+
+            var order = _allOrders.FirstOrDefault(x =>
+                string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
+            return (order?.Deliveries ?? []).Count >= 2;
+        }
+    }
+
     public OrderItem? SelectedOrder
     {
         get => _selectedOrder;
@@ -259,6 +284,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             if (SetProperty(ref _selectedOrder, value))
             {
                 OnPropertyChanged(nameof(ToggleArchiveSelectedOrderMenuText));
+                OnPropertyChanged(nameof(SelectedOrderHasPartialDeliveries));
                 RaiseCommandStates();
             }
         }
@@ -302,6 +328,47 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         await _repository.SaveAllAsync(_allOrders);
         PublishOrderChange(SelectedOrder?.Id, SelectedOrder?.Id);
         StatusText = $"Aufträge gespeichert: {_allOrders.Count(DeliveryMethodExtensions.CanUseLiefertour)}";
+    }
+
+    private bool CanCreatePartialDelivery()
+    {
+        if (SelectedOrder is null)
+        {
+            return false;
+        }
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
+        return order is not null &&
+               !order.IsArchived &&
+               (order.Deliveries ?? []).Count < OrderDeliveryService.MaximumDeliveryCount &&
+               _deliveryService.GetRemainingQuantities(order).Values.Any(x => x > 0);
+    }
+
+    private async Task CreatePartialDeliveryAsync()
+    {
+        if (SelectedOrder is null)
+        {
+            return;
+        }
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
+        if (order is null)
+        {
+            return;
+        }
+        var dialog = new OrderDeliveryDialogWindow(order) { Owner = System.Windows.Application.Current?.MainWindow };
+        if (dialog.ShowDialog() != true || dialog.ResultLines is null)
+        {
+            return;
+        }
+        var delivery = _deliveryService.Create(order, dialog.ResultLines, dialog.PlannedDeliveryDate, dialog.Notes);
+        _deliveryService.EnsureRemainderDelivery(order);
+        _deliveryService.DistributeOrderNotesToDeliveries(order);
+        if (!await SaveOrderAsync(order))
+        {
+            return;
+        }
+        await RefreshFromRepositoryAsync(order.Id);
+        PublishOrderChange(order.Id, order.Id);
+        StatusText = $"Teillieferung {order.Id}-{delivery.SequenceNumber} wurde erstellt.";
     }
 
     private void AddOrder()
@@ -408,6 +475,11 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
         var updated = dialog.CreatedOrder;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
+        if (!_deliveryService.TryValidateUpdate(existing, updated, out var deliveryValidationError))
+        {
+            AppMessageBox.Show(System.Windows.Application.Current?.MainWindow, deliveryValidationError, "Teillieferungen prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
 
         if (!await ConfirmManualArchiveForAssignedActiveTourAsync(existing, updated.IsArchived))
         {
@@ -523,6 +595,60 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         await ReconcileToursWithOrdersAsync(_allOrders);
         await RefreshFromRepositoryAsync();
         StatusText = $"{changed} Auftrag/Aufträge wurden {(nextIsArchived ? "archiviert" : "reaktiviert")}.";
+        ToastNotificationService.ShowInfo(StatusText);
+    }
+
+    private bool CanArchiveSelectedDelivery(int sequenceNumber)
+    {
+        if (SelectedOrder is null)
+        {
+            return false;
+        }
+
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
+        var delivery = (order?.Deliveries ?? []).FirstOrDefault(x => x.SequenceNumber == sequenceNumber);
+        return order is not null && !order.IsArchived && delivery is not null &&
+               delivery.Status is not OrderDeliveryStatus.Delivered and not OrderDeliveryStatus.Cancelled;
+    }
+
+    private async Task ArchiveSelectedDeliveryAsync(int sequenceNumber)
+    {
+        if (SelectedOrder is null)
+        {
+            return;
+        }
+
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
+        var delivery = (order?.Deliveries ?? []).FirstOrDefault(x => x.SequenceNumber == sequenceNumber);
+        if (order is null || delivery is null || !CanArchiveSelectedDelivery(sequenceNumber))
+        {
+            return;
+        }
+
+        var confirmation = AppMessageBox.Show(
+            System.Windows.Application.Current?.MainWindow,
+            $"Lieferung {sequenceNumber} als geliefert archivieren?",
+            "Teillieferung archivieren",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _deliveryService.MarkDelivered(order, delivery.Id, DateTimeOffset.Now);
+        if (!await SaveOrderAsync(order))
+        {
+            return;
+        }
+
+        await ReconcileToursWithOrdersAsync(_allOrders);
+        PublishOrderChange(order.Id, order.Id);
+        var archivedWholeOrder = order.IsArchived;
+        await RefreshFromRepositoryAsync();
+        StatusText = archivedWholeOrder
+            ? $"Lieferung {sequenceNumber} und Auftrag {order.Id} wurden archiviert."
+            : $"Lieferung {sequenceNumber} wurde archiviert.";
         ToastNotificationService.ShowInfo(StatusText);
     }
 
@@ -755,6 +881,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         RaiseCanExecuteChangedIfSupported(SaveCommand);
         RaiseCanExecuteChangedIfSupported(RemoveCommand);
         RaiseCanExecuteChangedIfSupported(EditSelectedOrderCommand);
+        RaiseCanExecuteChangedIfSupported(CreatePartialDeliveryCommand);
         RaiseCanExecuteChangedIfSupported(ShowAssignedTourCommand);
         RaiseCanExecuteChangedIfSupported(CopySelectedOrderNumberCommand);
         RaiseCanExecuteChangedIfSupported(SetSelectedOrderStatusDefaultCommand);
@@ -764,6 +891,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         RaiseCanExecuteChangedIfSupported(SetSelectedOrderStatusPartiallyReadyCommand);
         RaiseCanExecuteChangedIfSupported(SetSelectedOrderStatusReadyCommand);
         RaiseCanExecuteChangedIfSupported(ToggleArchiveSelectedOrderCommand);
+        RaiseCanExecuteChangedIfSupported(ArchiveDelivery1Command);
+        RaiseCanExecuteChangedIfSupported(ArchiveDelivery2Command);
         RaiseCanExecuteChangedIfSupported(UndoDeleteCommand);
     }
 
@@ -805,7 +934,14 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     {
         _allOrders.Clear();
         _allOrders.AddRange(await _repository.GetAllAsync());
-        if (OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders))
+        var deliveriesChanged = false;
+        foreach (var order in _allOrders)
+        {
+            deliveriesChanged |= _deliveryService.Normalize(order);
+            deliveriesChanged |= _deliveryService.EnsureRemainderDelivery(order) is not null;
+            deliveriesChanged |= _deliveryService.DistributeOrderNotesToDeliveries(order);
+        }
+        if (deliveriesChanged || OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders))
         {
             await _repository.SaveAllAsync(_allOrders);
         }
@@ -1142,6 +1278,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
     {
         var tours = (await _tourRepository.LoadAsync()).ToList();
+        var originalTours = tours.ToList();
         var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
         if (!cleanup.HasChanges)
         {
@@ -1158,7 +1295,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             }
         }
 
-        await _tourRepository.SaveAsync(tours);
+        await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, tours, cleanup);
         _dataSyncService.PublishTours(_instanceId);
     }
 
@@ -1238,11 +1375,12 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             Phone = order.Phone ?? string.Empty,
             DeliveryType = DeliveryMethodExtensions.GetPlanningDeliveryDisplayLabel(order),
             OrderStatus = NormalizeOrderStatus(order.OrderStatus),
+            DeliveryProgress = BuildDeliveryProgress(order),
             OrderStatusBadgeBackground = palette.BackgroundHex,
             OrderStatusBadgeBorderBrush = palette.BorderHex,
             OrderStatusBadgeForeground = palette.ForegroundHex,
             ProductsSummary = OrderSectionSharedHelpers.BuildProductsSummary(order),
-            Notes = order.Notes ?? string.Empty,
+            Notes = BuildDeliveryNotesSummary(order),
             IstVorauszahlung = order.IstVorauszahlung,
             IsArchived = order.IsArchived,
             IsXmlImported = order.IsXmlImported,
@@ -1262,6 +1400,28 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase))
                         ?? MapOrders.FirstOrDefault();
     }
+
+    private static string BuildDeliveryProgress(Order order)
+    {
+        var deliveries = order.Deliveries ?? [];
+        if (deliveries.Count < 2)
+        {
+            return string.Empty;
+        }
+        var total = (order.Products ?? []).Where(x => !string.IsNullOrWhiteSpace(x.Name)).Sum(x => Math.Max(0, OrderProductInfo.NormalizeQuantity(x.Quantity)));
+        var delivered = deliveries.Where(x => x.Status == OrderDeliveryStatus.Delivered).SelectMany(x => x.Lines ?? []).Sum(x => Math.Max(0, x.Quantity));
+        var active = deliveries.Count(x => x.Status != OrderDeliveryStatus.Cancelled);
+        return $"{delivered} von {total} geliefert · {active} Lieferung(en)";
+    }
+
+    private static string BuildDeliveryNotesSummary(Order order)
+    {
+        var deliveries = (order.Deliveries ?? []).OrderBy(x => x.SequenceNumber).ToList();
+        return deliveries.Count < 2
+            ? order.Notes ?? string.Empty
+            : string.Join(Environment.NewLine, deliveries.Select(x => x.Notes).Where(x => !string.IsNullOrWhiteSpace(x)));
+    }
+
 
     private static void RaiseCanExecuteChangedIfSupported(ICommand command)
     {
@@ -1313,6 +1473,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             Phone = source.Phone,
             Products = (source.Products ?? []).Select(p => new OrderProductInfo
             {
+                PositionId = p.PositionId,
+                ExternalPositionId = p.ExternalPositionId,
                 Name = p.Name,
                 Supplier = p.Supplier,
                 ExpectedDelivery = p.ExpectedDelivery,
@@ -1321,6 +1483,21 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 WeightKg = p.WeightKg,
                 Dimensions = p.Dimensions,
                 DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(p.DeliveryStatus)
+            }).ToList(),
+            Deliveries = (source.Deliveries ?? []).Select(d => new OrderDelivery
+            {
+                Id = d.Id,
+                SequenceNumber = d.SequenceNumber,
+                Status = d.Status,
+                PlannedDeliveryDate = d.PlannedDeliveryDate,
+                DeliveredAt = d.DeliveredAt,
+                AssignedTourId = d.AssignedTourId,
+                Notes = d.Notes,
+                Lines = (d.Lines ?? []).Select(line => new OrderDeliveryLine
+                {
+                    OrderProductPositionId = line.OrderProductPositionId,
+                    Quantity = line.Quantity
+                }).ToList()
             }).ToList(),
             ManualTotalWeightKg = source.ManualTotalWeightKg,
             ManualTotalWeightInfo = source.ManualTotalWeightInfo,

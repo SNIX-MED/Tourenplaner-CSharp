@@ -12,23 +12,14 @@ public sealed partial class KarteSectionViewModel
             ? SelectedOrder?.OrderId
             : preferredSelectedId;
         RefreshOrderFilterOptions();
-        var routeOrderIds = RouteStops.Select(s => s.OrderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var routeDeliveryIds = RouteStops.Select(s => s.DeliveryId).Where(x => !string.IsNullOrWhiteSpace(x)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var legacyRouteOrderIds = RouteStops.Where(s => string.IsNullOrWhiteSpace(s.DeliveryId)).Select(s => s.OrderId).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var query = (_searchText ?? string.Empty).Trim();
         IEnumerable<Order> filtered = _allOrders
             .Where(o => DeliveryMethodExtensions.CanUseLiefertour(o) && o.Location is not null)
             .Where(o => !o.IsArchived)
-            .Where(o => !routeOrderIds.Contains(o.Id));
-
-        if (!IncludeOpenOrders)
-        {
-            filtered = filtered.Where(o => !string.IsNullOrWhiteSpace(o.AssignedTourId));
-        }
-
-        if (!IncludePlannedOrders)
-        {
-            filtered = filtered.Where(o => string.IsNullOrWhiteSpace(o.AssignedTourId));
-        }
+            .Where(o => !legacyRouteOrderIds.Contains(o.Id));
 
         var selectedOrderStatuses = OrderSectionSharedHelpers.GetSelectedFilterLabels(OrderStatusFilters);
         if (selectedOrderStatuses.Count != 0 && selectedOrderStatuses.Count != OrderStatusFilters.Count)
@@ -70,7 +61,29 @@ public sealed partial class KarteSectionViewModel
                      .OrderBy(o => o.ScheduledDate)
                      .ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
         {
-            MapOrders.Add(BuildMapOrderItem(order));
+            var deliveries = (order.Deliveries ?? [])
+                .Where(x => x.Status is OrderDeliveryStatus.ReadyForPlanning or OrderDeliveryStatus.Planned or OrderDeliveryStatus.InTransit)
+                .Where(x => !routeDeliveryIds.Contains(x.Id))
+                .Where(x => (IncludeOpenOrders && string.IsNullOrWhiteSpace(x.AssignedTourId)) ||
+                            (IncludePlannedOrders && !string.IsNullOrWhiteSpace(x.AssignedTourId)))
+                .OrderBy(x => x.SequenceNumber)
+                .ToList();
+            if (deliveries.Count == 0)
+            {
+                if ((order.Deliveries ?? []).Count == 0 &&
+                    ((IncludeOpenOrders && string.IsNullOrWhiteSpace(order.AssignedTourId)) ||
+                     (IncludePlannedOrders && !string.IsNullOrWhiteSpace(order.AssignedTourId))))
+                {
+                    MapOrders.Add(BuildMapOrderItem(order));
+                }
+            }
+            else
+            {
+                foreach (var delivery in deliveries)
+                {
+                    MapOrders.Add(BuildMapOrderItem(order, delivery));
+                }
+            }
         }
 
         _dimmedMapOrders.Clear();

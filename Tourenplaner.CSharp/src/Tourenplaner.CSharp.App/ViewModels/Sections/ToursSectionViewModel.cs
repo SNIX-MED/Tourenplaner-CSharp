@@ -820,6 +820,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var loadedTours = await _tourRepository.LoadAsync();
+        var originalTours = loadedTours.ToList();
         _loadedTours.Clear();
         _loadedTours.AddRange(loadedTours
             .GroupBy(tour => tour.Id)
@@ -845,7 +846,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var companyStopsNormalized = NormalizeCompanyStops(_loadedTours, settings);
         if (tourReconciliation.HasChanges || companyStopsNormalized || incompleteScheduleTours.Count > 0)
         {
-            await _tourRepository.SaveAsync(_loadedTours);
+            await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, _loadedTours, tourReconciliation);
             _dataSyncService.PublishTours(_instanceId);
         }
 
@@ -1222,7 +1223,16 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             var order = orders.FirstOrDefault(o => string.Equals(o.Id, movedOrderId, StringComparison.OrdinalIgnoreCase));
             if (order is not null)
             {
-                order.AssignedTourId = targetTour.Id.ToString(CultureInfo.InvariantCulture);
+                var delivery = (order.Deliveries ?? []).FirstOrDefault(x => string.Equals(x.Id, movedStop.DeliveryId, StringComparison.OrdinalIgnoreCase));
+                if (delivery is not null)
+                {
+                    delivery.AssignedTourId = targetTour.Id.ToString(CultureInfo.InvariantCulture);
+                    delivery.Status = OrderDeliveryStatus.Planned;
+                }
+                else
+                {
+                    order.AssignedTourId = targetTour.Id.ToString(CultureInfo.InvariantCulture);
+                }
                 if (!await SaveOrderAsync(order, orders))
                 {
                     return false;
@@ -1384,7 +1394,19 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             var order = orders.FirstOrDefault(o => string.Equals(o.Id, removedOrderId, StringComparison.OrdinalIgnoreCase));
             if (order is not null)
             {
-                order.AssignedTourId = string.Empty;
+                var delivery = (order.Deliveries ?? []).FirstOrDefault(x => string.Equals(x.Id, removedStop.DeliveryId, StringComparison.OrdinalIgnoreCase));
+                if (delivery is not null)
+                {
+                    delivery.AssignedTourId = null;
+                    if (delivery.Status == OrderDeliveryStatus.Planned)
+                    {
+                        delivery.Status = OrderDeliveryStatus.ReadyForPlanning;
+                    }
+                }
+                else
+                {
+                    order.AssignedTourId = string.Empty;
+                }
                 if (!await SaveOrderAsync(order, orders))
                 {
                     return;
@@ -1546,6 +1568,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
     {
+        var originalTours = _loadedTours.ToList();
         var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(_loadedTours, orders);
         if (!cleanup.HasChanges)
         {
@@ -1561,7 +1584,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             }
         }
 
-        await _tourRepository.SaveAsync(_loadedTours);
+        await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, _loadedTours, cleanup);
         _dataSyncService.PublishTours(_instanceId);
     }
 
@@ -1686,45 +1709,92 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var nextTourArchivedState = !target.IsArchived;
         var changedOrderCount = 0;
+        var changedPartialDeliveryCount = 0;
 
         var tourKey = target.Id.ToString(CultureInfo.InvariantCulture);
         var orders = (await _orderRepository.GetAllAsync()).ToList();
-        var relatedOrders = orders
-            .Where(x => string.Equals((x.AssignedTourId ?? string.Empty).Trim(), tourKey, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        var affectedOrders = relatedOrders
-            .Where(x => x.IsArchived != nextTourArchivedState)
-            .ToList();
+        var archiveOrderService = new TourArchiveOrderService();
+        var impact = nextTourArchivedState
+            ? archiveOrderService.GetImpact(target, orders)
+            : new TourArchiveImpact(0, 0);
 
-        if (affectedOrders.Count > 0)
+        if (impact.HasTargets)
         {
-            var orderActionQuestion = nextTourArchivedState ? "archiviert" : "reaktiviert";
+            var archiveQuestion = impact.PartialDeliveryCount > 0 && impact.WholeOrderCount > 0
+                ? $"Sollen die {impact.WholeOrderCount} zugehörigen Aufträge und {impact.PartialDeliveryCount} Teillieferungen ebenfalls als geliefert archiviert werden?"
+                : impact.PartialDeliveryCount > 0
+                    ? impact.PartialDeliveryCount == 1 ? "Soll die zugehörige Teillieferung ebenfalls als geliefert archiviert werden?" : $"Sollen die {impact.PartialDeliveryCount} zugehörigen Teillieferungen ebenfalls als geliefert archiviert werden?"
+                    : impact.WholeOrderCount == 1 ? "Soll der zugehörige Auftrag ebenfalls archiviert werden?" : $"Sollen die {impact.WholeOrderCount} zugehörigen Aufträge ebenfalls archiviert werden?";
             var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                $"Sollen die {affectedOrders.Count} zugehörigen Aufträge ebenfalls {orderActionQuestion} werden?",
-                "Aufträge mitführen",
+                $"{archiveQuestion}\n\nBei «Nein» wird nur die Tour archiviert; die Lieferung(en) stehen danach wieder zur Planung bereit.",
+                "Lieferungen mitführen",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
-
-            if (confirmation == MessageBoxResult.Yes)
+            if (confirmation is not MessageBoxResult.Yes and not MessageBoxResult.No)
             {
-                foreach (var order in affectedOrders)
-                {
-                    order.IsArchived = nextTourArchivedState;
-                }
+                return;
+            }
 
-                if (_orderMutationRepository is null)
+            var result = archiveOrderService.Apply(target, orders, confirmation == MessageBoxResult.Yes, DateTimeOffset.Now);
+            if (_orderMutationRepository is null)
+            {
+                await _orderRepository.SaveAllAsync(orders);
+            }
+            else
+            {
+                var changedOrderIds = (target.Stops ?? [])
+                    .Select(x => (x.Auftragsnummer ?? string.Empty).Trim())
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var order in orders.Where(x => changedOrderIds.Contains(x.Id)))
                 {
-                    await _orderRepository.SaveAllAsync(orders);
+                    await _orderMutationRepository.UpsertAsync(order);
                 }
-                else
+            }
+            _dataSyncService.PublishOrders(_instanceId);
+            changedOrderCount = result.ArchivedOrderCount;
+            changedPartialDeliveryCount = result.ArchivedPartialDeliveryCount;
+        }
+        else if (!nextTourArchivedState)
+        {
+            // Preserve the established whole-order reactivation flow. Delivered partial
+            // deliveries remain delivered and are deliberately never reopened implicitly.
+            var affectedOrders = orders
+                .Where(x => x.IsArchived &&
+                            string.Equals((x.AssignedTourId ?? string.Empty).Trim(), tourKey, StringComparison.OrdinalIgnoreCase) &&
+                            (x.Deliveries ?? []).Count < 2)
+                .ToList();
+            if (affectedOrders.Count > 0)
+            {
+                var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                    $"Sollen die {affectedOrders.Count} zugehörigen Aufträge ebenfalls reaktiviert werden?",
+                    "Aufträge mitführen",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                if (confirmation is not MessageBoxResult.Yes and not MessageBoxResult.No)
+                {
+                    return;
+                }
+                if (confirmation == MessageBoxResult.Yes)
                 {
                     foreach (var order in affectedOrders)
                     {
-                        await _orderMutationRepository.UpsertAsync(order);
+                        order.IsArchived = false;
                     }
+                    if (_orderMutationRepository is null)
+                    {
+                        await _orderRepository.SaveAllAsync(orders);
+                    }
+                    else
+                    {
+                        foreach (var order in affectedOrders)
+                        {
+                            await _orderMutationRepository.UpsertAsync(order);
+                        }
+                    }
+                    _dataSyncService.PublishOrders(_instanceId);
+                    changedOrderCount = affectedOrders.Count;
                 }
-                _dataSyncService.PublishOrders(_instanceId);
-                changedOrderCount = affectedOrders.Count;
             }
         }
 
@@ -1741,8 +1811,17 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             ? target.Id.ToString(CultureInfo.InvariantCulture)
             : target.Name.Trim();
         var action = target.IsArchived ? "archiviert" : "reaktiviert";
-        var orderInfo = changedOrderCount > 0
-            ? $" {changedOrderCount} Auftrag/Aufträge wurden ebenfalls {action}."
+        var archiveParts = new List<string>();
+        if (changedOrderCount > 0)
+        {
+            archiveParts.Add($"{changedOrderCount} Auftrag/Aufträge");
+        }
+        if (changedPartialDeliveryCount > 0)
+        {
+            archiveParts.Add($"{changedPartialDeliveryCount} Teillieferung(en)");
+        }
+        var orderInfo = archiveParts.Count > 0
+            ? $" {string.Join(" und ", archiveParts)} wurden ebenfalls als geliefert archiviert."
             : string.Empty;
         ToastNotificationService.ShowInfo($"Tour {label} wurde {action}.{orderInfo}");
     }
@@ -2160,6 +2239,17 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
         var orders = (await _orderRepository.GetAllAsync()).ToList();
         var changed = false;
+
+        foreach (var delivery in orders.SelectMany(x => x.Deliveries ?? [])
+                     .Where(x => string.Equals(x.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            delivery.AssignedTourId = null;
+            if (delivery.Status == OrderDeliveryStatus.Planned)
+            {
+                delivery.Status = OrderDeliveryStatus.ReadyForPlanning;
+            }
+            changed = true;
+        }
 
         foreach (var order in orders.Where(x => string.Equals(x.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase)))
         {
@@ -3378,6 +3468,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 Name = stop.Name,
                 Address = stop.Address,
                 Auftragsnummer = stop.Auftragsnummer,
+                DeliveryId = stop.DeliveryId,
+                DeliverySequenceNumber = stop.DeliverySequenceNumber,
                 Lat = stop.Lat,
                 Lon = stop.Lon,
                 Lng = stop.Lng,

@@ -32,10 +32,11 @@ public sealed class JsonOrderRepository : JsonRepositoryBase<Order>, IOrderRepos
         ArgumentNullException.ThrowIfNull(order);
         order.ConcurrencyToken = CreateConcurrencyToken();
 
-        var items = (await ReadListAsync(cancellationToken)).ToList();
-        items.RemoveAll(x => string.Equals(x.Id, order.Id, StringComparison.OrdinalIgnoreCase));
-        items.Add(order);
-        await WriteListAsync(items, cancellationToken);
+        await MutateListAsync(items =>
+        {
+            items.RemoveAll(x => string.Equals(x.Id, order.Id, StringComparison.OrdinalIgnoreCase));
+            items.Add(order);
+        }, cancellationToken);
     }
 
     public async Task DeleteAsync(string orderId, string? concurrencyToken = null, CancellationToken cancellationToken = default)
@@ -46,9 +47,9 @@ public sealed class JsonOrderRepository : JsonRepositoryBase<Order>, IOrderRepos
             return;
         }
 
-        var items = (await ReadListAsync(cancellationToken)).ToList();
-        items.RemoveAll(x => string.Equals(x.Id, normalizedId, StringComparison.OrdinalIgnoreCase));
-        await WriteListAsync(items, cancellationToken);
+        await MutateListAsync(
+            items => items.RemoveAll(x => string.Equals(x.Id, normalizedId, StringComparison.OrdinalIgnoreCase)),
+            cancellationToken);
     }
 
     private static string CreateConcurrencyToken()

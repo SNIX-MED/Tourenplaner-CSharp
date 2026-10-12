@@ -717,10 +717,11 @@ public sealed partial class SettingsSectionViewModel
         }
 
         var tours = (await LoadToursForXmlImportAsync()).ToList();
+        var originalTours = tours.ToList();
         var reconciliation = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
         if (reconciliation.HasChanges)
         {
-            await _tourRecordStore!.SaveAsync(tours);
+            await TourReconciliationPersistenceService.SaveAsync(_tourRecordStore!, originalTours, tours, reconciliation);
             _dataSyncService?.PublishTours(_instanceId);
         }
 

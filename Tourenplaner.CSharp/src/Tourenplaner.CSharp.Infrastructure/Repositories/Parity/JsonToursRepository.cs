@@ -45,17 +45,24 @@ public sealed class JsonToursRepository : ITourRecordStore, ITourRecordMutationS
         ArgumentNullException.ThrowIfNull(tour);
         tour.ConcurrencyToken = CreateConcurrencyToken();
 
-        var items = (await LoadAsync(cancellationToken)).ToList();
-        items.RemoveAll(x => x.Id == tour.Id);
-        items.Add(TourNormalizer.NormalizeTour(tour));
-        await SaveAsync(items, cancellationToken);
+        await _store.UpdateAsync(
+            _path,
+            () => new List<TourRecord>(),
+            items =>
+            {
+                items.RemoveAll(x => x.Id == tour.Id);
+                items.Add(TourNormalizer.NormalizeTour(tour));
+            },
+            cancellationToken);
     }
 
     public async Task DeleteAsync(int tourId, string? concurrencyToken = null, CancellationToken cancellationToken = default)
     {
-        var items = (await LoadAsync(cancellationToken)).ToList();
-        items.RemoveAll(x => x.Id == tourId);
-        await SaveAsync(items, cancellationToken);
+        await _store.UpdateAsync(
+            _path,
+            () => new List<TourRecord>(),
+            items => items.RemoveAll(x => x.Id == tourId),
+            cancellationToken);
     }
 
     private static string CreateConcurrencyToken()

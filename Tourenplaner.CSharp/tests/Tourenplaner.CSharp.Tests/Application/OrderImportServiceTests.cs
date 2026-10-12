@@ -570,6 +570,64 @@ public class OrderImportServiceTests
         };
     }
 
+    [Fact]
+    public async Task XmlReimport_AdjustsOnlyOpenSecondDeliveryToNewQuantity()
+    {
+        var existing = CreateOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        existing.Deliveries =
+        [
+            new OrderDelivery { Id = "D1", SequenceNumber = 1, Lines = [new() { OrderProductPositionId = "P-1", Quantity = 1 }] },
+            new OrderDelivery { Id = "D2", SequenceNumber = 2, Lines = [new() { OrderProductPositionId = "P-1", Quantity = 1 }] }
+        ];
+        var repository = new FakeOrderRepository([existing]);
+        var xmlOrder = CreateSqlOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        xmlOrder.Produkte[0].Menge = 3;
+
+        var service = new OrderImportService();
+        var preview = await service.PreviewImportAsync([xmlOrder], repository);
+        Assert.Empty(preview.Errors);
+        Assert.Equal(2, Assert.Single(repository.StoredOrders).Products[0].Quantity);
+
+        var result = await service.ImportOrdersAsync([xmlOrder], repository);
+
+        Assert.Empty(result.Errors);
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal(3, stored.Products[0].Quantity);
+        Assert.Equal(1, stored.Deliveries.Single(x => x.Id == "D1").Lines.Single().Quantity);
+        Assert.Equal(2, stored.Deliveries.Single(x => x.Id == "D2").Lines.Single().Quantity);
+    }
+
+    [Fact]
+    public async Task XmlReimport_RejectsChangeThatWouldModifyDeliveredSecondDelivery()
+    {
+        var existing = CreateOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        existing.Deliveries =
+        [
+            new OrderDelivery { Id = "D1", SequenceNumber = 1, Lines = [new() { OrderProductPositionId = "P-1", Quantity = 1 }] },
+            new OrderDelivery
+            {
+                Id = "D2", SequenceNumber = 2, Status = OrderDeliveryStatus.Delivered,
+                Lines = [new() { OrderProductPositionId = "P-1", Quantity = 1 }]
+            }
+        ];
+        var repository = new FakeOrderRepository([existing]);
+        var xmlOrder = CreateSqlOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        xmlOrder.Produkte[0].Menge = 3;
+
+        var service = new OrderImportService();
+        var preview = await service.PreviewImportAsync([xmlOrder], repository);
+        Assert.Single(preview.Errors);
+        Assert.Equal(2, Assert.Single(repository.StoredOrders).Products[0].Quantity);
+
+        var result = await service.ImportOrdersAsync([xmlOrder], repository);
+
+        Assert.Single(result.Errors);
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal(2, stored.Products[0].Quantity);
+        Assert.Equal(1, stored.Deliveries.Single(x => x.Id == "D2").Lines.Single().Quantity);
+        Assert.Equal(0, repository.SaveAllCalls);
+    }
+
     private static Order CreateOrder(string id, string customerName, string deliveryType, string notes)
     {
         return new Order
@@ -599,6 +657,7 @@ public class OrderImportServiceTests
             [
                 new OrderProductInfo
                 {
+                    PositionId = "P-1",
                     Name = "Produkt A",
                     Quantity = 2,
                     UnitWeightKg = 10,
@@ -691,6 +750,8 @@ public class OrderImportServiceTests
             Phone = order.Phone,
             Products = order.Products.Select(x => new OrderProductInfo
             {
+                PositionId = x.PositionId,
+                ExternalPositionId = x.ExternalPositionId,
                 Name = x.Name,
                 Supplier = x.Supplier,
                 ExpectedDelivery = x.ExpectedDelivery,
@@ -699,6 +760,21 @@ public class OrderImportServiceTests
                 WeightKg = x.WeightKg,
                 Dimensions = x.Dimensions,
                 DeliveryStatus = x.DeliveryStatus
+            }).ToList(),
+            Deliveries = (order.Deliveries ?? []).Select(delivery => new OrderDelivery
+            {
+                Id = delivery.Id,
+                SequenceNumber = delivery.SequenceNumber,
+                Status = delivery.Status,
+                PlannedDeliveryDate = delivery.PlannedDeliveryDate,
+                DeliveredAt = delivery.DeliveredAt,
+                AssignedTourId = delivery.AssignedTourId,
+                Notes = delivery.Notes,
+                Lines = (delivery.Lines ?? []).Select(line => new OrderDeliveryLine
+                {
+                    OrderProductPositionId = line.OrderProductPositionId,
+                    Quantity = line.Quantity
+                }).ToList()
             }).ToList(),
             ManualTotalWeightKg = order.ManualTotalWeightKg,
             ManualTotalWeightInfo = order.ManualTotalWeightInfo,

@@ -69,9 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Touren mit manuellen Stopps lassen sich auch mit Fahrzeugdaten aus aelteren Versionen wieder speichern
-          - Aeltere vehicles.json-Dateien werden automatisch und verlustfrei ins aktuelle Format migriert
-          - Fahrzeuge, Anhaenger und Fahrzeugkombinationen bleiben bei einer PostgreSQL-Backup-Wiederherstellung in den lokalen Modus auch nach dem Neustart erhalten
+          - Auftraege koennen in zwei unabhaengig planbare Teillieferungen mit eigenen Produkten und Notizen aufgeteilt werden
+          - Teillieferungen lassen sich einzeln planen, anzeigen, als geliefert archivieren und sicher in JSON oder PostgreSQL speichern
+          - Tourzuordnungen, Pins, Auftragsdetails und Archivierung von Teillieferungen wurden umfassend korrigiert und abgesichert
+          - Kartenposition und Zoom bleiben beim Wechsel der Tour erhalten; Tourpins oeffnen ihre Auftragsdetails zuverlaessig
+          - Gleichzeitige Dateizugriffe beim Speichern werden koordiniert, um Dateisperren und verlorene Aenderungen zu vermeiden
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

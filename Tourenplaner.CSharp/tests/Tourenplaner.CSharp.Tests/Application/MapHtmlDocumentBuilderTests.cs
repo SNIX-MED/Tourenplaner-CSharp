@@ -5,6 +5,21 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class MapHtmlDocumentBuilderTests
 {
     [Fact]
+    public void CoincidentPartialDeliveryPins_AreOrderedByDeliveryNumberFromTheLeft()
+    {
+        var html = MapHtmlDocumentBuilder.Build(null, true, true, null, false, true, true, false, false, true, true, 1d, 0);
+
+        Assert.Contains(
+            "Number(left.marker.deliveryNumber) - Number(right.marker.deliveryNumber)",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "const angleOffset = orderedGroup.length === 2 ? Math.PI",
+            html,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RouteRendering_CanExplicitlySuppressAutomaticCentering()
     {
         var html = MapHtmlDocumentBuilder.Build(

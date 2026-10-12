@@ -7,6 +7,8 @@ public sealed class TourStopRecord
     public string Name { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string Auftragsnummer { get; set; } = string.Empty;
+    public string DeliveryId { get; set; } = string.Empty;
+    public int? DeliverySequenceNumber { get; set; }
     public double? Lat { get; set; }
     public double? Lon { get; set; }
     public double? Lng { get; set; }

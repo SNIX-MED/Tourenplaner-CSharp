@@ -682,6 +682,17 @@ public sealed partial class MainShellViewModel : ObservableObject
         var updated = dialog.CreatedOrder;
         updated.ConcurrencyToken = existing.ConcurrencyToken;
 
+        var deliveryService = new OrderDeliveryService();
+        if (!deliveryService.TryValidateUpdate(existing, updated, out var deliveryValidationError))
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                deliveryValidationError,
+                "Teillieferungen prüfen",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
         var originalId = existing.Id;
         orders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
         orders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
@@ -728,6 +739,7 @@ public sealed partial class MainShellViewModel : ObservableObject
     private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
     {
         var tours = (await _tourRepository.LoadAsync()).ToList();
+        var originalTours = tours.ToList();
         var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
         if (!cleanup.HasChanges)
         {
@@ -744,7 +756,7 @@ public sealed partial class MainShellViewModel : ObservableObject
             }
         }
 
-        await _tourRepository.SaveAsync(tours);
+        await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, tours, cleanup);
         _dataSyncService.PublishTours(_instanceId);
     }
 
