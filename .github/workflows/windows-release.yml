@@ -69,11 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Auftraege koennen in zwei unabhaengig planbare Teillieferungen mit eigenen Produkten und Notizen aufgeteilt werden
-          - Teillieferungen lassen sich einzeln planen, anzeigen, als geliefert archivieren und sicher in JSON oder PostgreSQL speichern
-          - Tourzuordnungen, Pins, Auftragsdetails und Archivierung von Teillieferungen wurden umfassend korrigiert und abgesichert
-          - Kartenposition und Zoom bleiben beim Wechsel der Tour erhalten; Tourpins oeffnen ihre Auftragsdetails zuverlaessig
-          - Gleichzeitige Dateizugriffe beim Speichern werden koordiniert, um Dateisperren und verlorene Aenderungen zu vermeiden
+          - Pins gleicher Lieferadressen werden auch bei geladenen Touren zuverlaessig gefaechert dargestellt
+          - Freie und eingeplante Pins verwenden eine gemeinsame, stabile Positionierung ohne Flackern oder Ueberlagerung
+          - Teillieferungen werden anhand ihrer Lieferadresse konsistent gruppiert, auch wenn gespeicherte Koordinaten leicht abweichen
+          - Lieferung 1 und Lieferung 2 bleiben auf der Karte eindeutig unterscheidbar und anklickbar
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

@@ -937,11 +937,14 @@ public partial class KarteSectionView : UserControl
             .Select(r =>
             {
                 var visual = vm.ResolveOrderVisualInfo(r.OrderId, r.DeliveryId);
+                var overlapAddress = vm.ResolveOrderOverlapAddress(r.OrderId);
                 return new
                 {
                     id = r.MarkerId,
                     orderNumber = r.OrderId,
                     deliveryNumber = r.DeliverySequenceNumber,
+                    street = overlapAddress.Street,
+                    postalCodeCity = overlapAddress.PostalCodeCity,
                     position = r.Position,
                     label = r.DisplayPosition,
                     avisoStatus = visual.AvisoStatusLabel,

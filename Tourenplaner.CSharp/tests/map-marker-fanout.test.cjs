@@ -7,7 +7,7 @@ function runMarkerFanOutTests(source) {
   const create = new Function('map', 'window', 'markerScale', 'mapMarkers', 'markerMap', 'routeMarkerMap = new Map()',
     "let hoveredOverlapGroupKey = ''; let overlapHoverResetHandle = 0; let routeStopHitTargets = []; const scheduleMarkerFanOutRecompute = () => {}; " +
     source.slice(start, end) +
-    '; return { spread: spreadOverlappingMarkers, recompute: recomputeVisibleMarkerFanOut, hover: setHoveredOverlapGroupKey, move: handleOverlapPointerMove, leave: scheduleOverlapHoverReset, group: () => hoveredOverlapGroupKey, hitTargets: () => routeStopHitTargets };');
+    '; return { spread: spreadOverlappingMarkers, resolve: resolveVisibleMarkerFanOut, resolveLayer: resolveVisibleMarkersForLayer, recompute: recomputeVisibleMarkerFanOut, hover: setHoveredOverlapGroupKey, move: handleOverlapPointerMove, leave: scheduleOverlapHoverReset, group: () => hoveredOverlapGroupKey, hitTargets: () => routeStopHitTargets };');
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
   let checks = 0;
   for (const zoom of [6, 10, 15]) {
@@ -39,6 +39,12 @@ function runMarkerFanOutTests(source) {
       const remaining = api.spread([b], '')[0];
       assert(distance(remaining) >= 32 * Math.max(1, scale) - 1e-7, 'Route pin must not cover remaining order');
       assert(remaining.id === 'b' && remaining.lat === b.lat && remaining.lon === b.lon, 'Preserve order identity and coordinates');
+      const addressedFree = { ...b, id: 'address-free', street: 'Hauptstrasse 1', postalCodeCity: '8000 Zürich' };
+      state.__gawelaLastRoutePayload.routeStops = [{ ...a, lat: a.lat + 0.0002, street: ' Hauptstrasse 1 ', postalCodeCity: '8000 ZÜRICH' }];
+      const addressedRemaining = api.spread([addressedFree], '')[0];
+      assert(distance(addressedRemaining) >= 32 * Math.max(1, scale) - 1e-7,
+        'Same address must fan out even when saved route coordinates differ slightly');
+      state.__gawelaLastRoutePayload.routeStops = [a];
       const hovered = api.spread([b], remaining.__overlapGroupKey)[0];
       assert(distance(hovered) >= 32 - 1e-7, 'Hover must preserve separation');
       api.recompute();
@@ -50,7 +56,7 @@ function runMarkerFanOutTests(source) {
       state.__gawelaLastRoutePayload.routeStops = [];
       api.recompute();
       assert(position[0] === b.lon && position[1] === b.lat, 'Clearing route must restore location');
-      checks += 10;
+      checks += 11;
 
       const routePins = new Map([a, b].map(stop => [stop.id, {
         position: { lng: stop.lon, lat: stop.lat },
@@ -80,7 +86,34 @@ function runMarkerFanOutTests(source) {
       routeApi.recompute();
       assert(draggingPin.position.lng === 9 && draggingPin.position.lat === 48, 'Fan-out must not move a pin being dragged');
       assert(a.lon === 8.4 && b.lon === 8.4, 'Fan-out must preserve real tour coordinates');
-      checks += 7;
+      const routeAtAddress = { ...a, id: 'route-address', street: 'Hauptstrasse 1', postalCodeCity: '8000 Zürich' };
+      const freeAtAddress = { ...b, id: 'free-address', lat: b.lat + 0.0002, street: 'hauptstrasse 1', postalCodeCity: '8000 ZÜRICH' };
+      const jointRoutePin = {
+        position: { lng: routeAtAddress.lon, lat: routeAtAddress.lat },
+        setLngLat(p) { this.position = { lng: p[0], lat: p[1] }; },
+        getLngLat() { return this.position; }
+      };
+      const jointFreePin = {
+        position: { lng: freeAtAddress.lon, lat: freeAtAddress.lat },
+        setLngLat(p) { this.position = { lng: p[0], lat: p[1] }; },
+        getLngLat() { return this.position; }
+      };
+      state.__gawelaLastMarkers = [freeAtAddress];
+      state.__gawelaLastRoutePayload.routeStops = [routeAtAddress];
+      const jointApi = create(map, state, scale, [jointFreePin], new Map([['free-address', jointFreePin]]), new Map([['route-address', jointRoutePin]]));
+      const initiallyResolvedFree = jointApi.resolveLayer('order');
+      const initiallyResolvedRoute = jointApi.resolveLayer('route');
+      assert(initiallyResolvedFree.length === 1 && initiallyResolvedRoute.length === 1,
+        'Joint initial layout must retain both marker layers');
+      assert(initiallyResolvedFree[0].displayLon !== initiallyResolvedRoute[0].displayLon ||
+        initiallyResolvedFree[0].displayLat !== initiallyResolvedRoute[0].displayLat,
+        'Initial rendering must use the same separated layout as recomputation');
+      jointApi.recompute();
+      assert(jointRoutePin.position.lng !== routeAtAddress.lon || jointRoutePin.position.lat !== routeAtAddress.lat,
+        'Route marker must leave the shared center when a free pin has the same address');
+      assert(jointFreePin.position.lng !== jointRoutePin.position.lng || jointFreePin.position.lat !== jointRoutePin.position.lat,
+        'Planned and free pins at the same address must have separate displayed positions');
+      checks += 11;
 
       let nextTimer = 1;
       const timers = new Map();

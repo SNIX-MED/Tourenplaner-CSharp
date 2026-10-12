@@ -2060,6 +2060,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             StatusColorHex: ResolveOrderStatusColor(order, isAssigned));
     }
 
+    public MapOrderOverlapAddress ResolveOrderOverlapAddress(string? orderId)
+    {
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase));
+        return order is null
+            ? new MapOrderOverlapAddress(string.Empty, string.Empty)
+            : new MapOrderOverlapAddress(ResolveStreet(order), ResolvePostalCodeCity(order));
+    }
+
     public IReadOnlyList<GeoPoint> GetRouteGeometrySnapshot()
     {
         return _routeGeometryPoints.ToList();
@@ -10587,6 +10595,8 @@ public sealed class RouteStopItem : ObservableObject
 }
 
 public sealed record MapOrderVisualInfo(string DeliveryLabel, string StatusLabel, bool IsAssigned, string AvisoStatusLabel, bool HasPendingPreparation, bool IstVorauszahlung, bool IsLocationManuallySet, bool ManualLocationRequiresReview, string StatusColorHex);
+
+public sealed record MapOrderOverlapAddress(string Street, string PostalCodeCity);
 
 public sealed record MapSearchSuggestionItem(
     string PrimaryText,

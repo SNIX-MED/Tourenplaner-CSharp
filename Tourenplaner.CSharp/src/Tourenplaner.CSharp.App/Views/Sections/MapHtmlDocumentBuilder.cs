@@ -786,15 +786,15 @@ internal static class MapHtmlDocumentBuilder
 
                          const buildOverlapGroupKey = (marker) => {
                            if (!marker || typeof marker !== 'object') return '';
-                           const coordinateKey = buildOverlapCoordinateKey(marker.lat, marker.lon);
-                           if (coordinateKey) {
-                             return `coord:${coordinateKey}`;
-                           }
-
                            const street = normalizeOverlapAddressPart(marker.street);
                            const postalCodeCity = normalizeOverlapAddressPart(marker.postalCodeCity);
                            if (street && postalCodeCity) {
                              return `addr:${street}|${postalCodeCity}`;
+                           }
+
+                           const coordinateKey = buildOverlapCoordinateKey(marker.lat, marker.lon);
+                           if (coordinateKey) {
+                             return `coord:${coordinateKey}`;
                            }
 
                            return '';
@@ -933,26 +933,41 @@ internal static class MapHtmlDocumentBuilder
                               });
                          };
 
-                         const recomputeVisibleMarkerFanOut = () => {
+                         const resolveVisibleMarkerFanOut = () => {
                            const originalMarkers = window.__gawelaLastMarkers || [];
-                           const resolvedMarkers = spreadOverlappingMarkers(originalMarkers, hoveredOverlapGroupKey);
-                           resolvedMarkers.forEach((markerData, index) => {
-                             const marker = markerData && markerData.id ? markerMap.get(markerData.id) : mapMarkers[index];
+                           const routeStops = window.__gawelaLastRoutePayload?.routeStops || [];
+                           // Free pins and planned route stops at the same address form one
+                           // visual group. Both sides move away from the shared center so a
+                           // route marker never remains hidden underneath a free pin.
+                           const combinedMarkers = [
+                             ...originalMarkers.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'order', __gawelaLayerIndex: index })),
+                             ...routeStops.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'route', __gawelaLayerIndex: index }))
+                           ];
+                           return spreadOverlappingMarkers(combinedMarkers, hoveredOverlapGroupKey, false);
+                         };
+
+                         const resolveVisibleMarkersForLayer = layer => resolveVisibleMarkerFanOut()
+                           .filter(marker => marker.__gawelaMarkerLayer === layer)
+                           .sort((left, right) => left.__gawelaLayerIndex - right.__gawelaLayerIndex);
+
+                         const recomputeVisibleMarkerFanOut = () => {
+                           const resolvedMarkers = resolveVisibleMarkerFanOut();
+                           routeStopHitTargets = [];
+                           resolvedMarkers.forEach(markerData => {
+                             const isRouteMarker = markerData.__gawelaMarkerLayer === 'route';
+                             const marker = isRouteMarker
+                               ? routeMarkerMap.get(markerData.id)
+                               : markerMap.get(markerData.id);
                              if (!marker || !Number.isFinite(markerData.displayLat) || !Number.isFinite(markerData.displayLon)) {
                                return;
                              }
 
-                             marker.setLngLat([markerData.displayLon, markerData.displayLat]);
-                           });
-                           const routeStops = window.__gawelaLastRoutePayload?.routeStops || [];
-                           const resolvedRouteStops = spreadOverlappingMarkers(routeStops, hoveredOverlapGroupKey, false);
-                           routeStopHitTargets = [];
-                           resolvedRouteStops.forEach(stop => {
-                             const marker = routeMarkerMap.get(stop.id);
-                             if (!marker) return;
-                             if (!marker.__gawelaDragging) marker.setLngLat([stop.displayLon, stop.displayLat]);
+                             if (!marker.__gawelaDragging) {
+                               marker.setLngLat([markerData.displayLon, markerData.displayLat]);
+                             }
+                             if (!isRouteMarker) return;
                              const position = marker.getLngLat();
-                             routeStopHitTargets.push({ id: stop.id, lat: position.lat, lon: position.lng });
+                             routeStopHitTargets.push({ id: markerData.id, lat: position.lat, lon: position.lng });
                            });
                          };
 
@@ -2132,7 +2147,10 @@ internal static class MapHtmlDocumentBuilder
                              return;
                            }
 
-                           const resolvedMarkers = spreadOverlappingMarkers(markers, hoveredOverlapGroupKey);
+                           // Initial rendering and later recomputations must use the same
+                           // joint layout. Otherwise colocated free and route pins alternate
+                           // between two positions and visibly flicker.
+                           const resolvedMarkers = resolveVisibleMarkersForLayer('order');
                            const bounds = new ttSdk.LngLatBounds();
                            let hasBounds = false;
 
@@ -2201,6 +2219,7 @@ internal static class MapHtmlDocumentBuilder
                              map.fitBounds(bounds, { padding: 24, maxZoom: 14 });
                              hasAppliedInitialMarkerFit = true;
                            }
+                           scheduleMarkerFanOutRecompute();
                          };
 
                          const fleetTrackSourceId = 'gawela-fleet-track-source';
@@ -2558,7 +2577,7 @@ internal static class MapHtmlDocumentBuilder
                              }
                            }
 
-                           spreadOverlappingMarkers(routeStops, hoveredOverlapGroupKey, false).forEach(stop => {
+                           resolveVisibleMarkersForLayer('route').forEach(stop => {
                              if (!stop || typeof stop.lat !== 'number' || typeof stop.lon !== 'number') return;
                              if (stop.id) {
                                routeStopHitTargets.push({
