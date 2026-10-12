@@ -205,7 +205,6 @@ public partial class KarteSectionView : UserControl
         else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedTourOverviewItem))
         {
             QueueMapRefresh(
-                MapRefreshOperation.Markers |
                 MapRefreshOperation.PlannedTourOverlayHighlight |
                 MapRefreshOperation.PlannedTourOverlayFocus,
                 UiRefreshDebounceMilliseconds);

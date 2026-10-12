@@ -113,6 +113,26 @@ public class ManualOrderDialogViewModelTests
     }
 
     [Fact]
+    public void ProductStatus_CanBeChangedForLockedXmlOrder()
+    {
+        var source = CreateOrder();
+        source.IsXmlImported = true;
+        var viewModel = new ManualOrderDialogViewModel(source);
+        var product = Assert.Single(viewModel.ProductLines);
+        viewModel.SetSelectedProductLines([product]);
+
+        Assert.False(viewModel.IsEditingEnabled);
+        Assert.True(viewModel.CanChangeSelectedProductStatus);
+
+        viewModel.SelectedProductDeliveryStatus = OrderProductInfo.PendingPreparationStatus;
+
+        Assert.True(viewModel.TryBuildOrder(out var order, out var error), error);
+        Assert.Equal(
+            OrderProductInfo.PendingPreparationStatus,
+            Assert.Single(order!.Products).DeliveryStatus);
+    }
+
+    [Fact]
     public void ManualTotalWeight_IsLoadedAndSaved()
     {
         var source = CreateOrder();

@@ -1201,7 +1201,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 {
                     var name = (p.Name ?? string.Empty).Trim();
                     var supplier = (p.Supplier ?? string.Empty).Trim();
-                    var quantity = Math.Max(1, p.Quantity);
+                    var quantity = OrderProductInfo.NormalizeQuantity(p.Quantity);
                     var weight = OrderProductFormatter.ResolveTotalWeightKg(p);
                     var supplierSuffix = string.IsNullOrWhiteSpace(supplier) ? string.Empty : $" [{supplier}]";
                     return string.IsNullOrWhiteSpace(name)

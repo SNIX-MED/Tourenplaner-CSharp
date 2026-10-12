@@ -863,12 +863,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         var normalized = query.Trim();
         return _allOrders
             .Where(x => x.Id.Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
-                         x.CustomerName.Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
-                         x.Address.Contains(normalized, StringComparison.OrdinalIgnoreCase))
+                         ResolveRouteStopName(x).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+                         ResolveStreet(x).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
+                         ResolvePostalCodeCity(x).Contains(normalized, StringComparison.OrdinalIgnoreCase))
             .Take(6)
             .Select(x => new MapSearchSuggestionItem(
-                $"Auftrag {x.Id} · {x.CustomerName}",
-                x.Address,
+                $"Auftrag {x.Id} · {ResolveRouteStopName(x)}",
+                BuildRouteStopAddressLine(ResolveStreet(x), ResolvePostalCodeCity(x), x.Address),
                 "Auftrag",
                 x.Location?.Latitude ?? double.NaN,
                 x.Location?.Longitude ?? double.NaN,
@@ -6557,6 +6558,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         var updated = dialog.CreatedOrder;
+        updated.ConcurrencyToken = selected.ConcurrencyToken;
 
         if (!await ConfirmManualArchiveForAssignedActiveTourAsync(selected, updated))
         {
@@ -6568,7 +6570,20 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                                   string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
         _allOrders.Add(updated);
 
-        await _orderRepository.SaveAllAsync(_allOrders);
+        if (_orderMutationRepository is not null)
+        {
+            if (!string.Equals(originalId, updated.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                await _orderMutationRepository.DeleteAsync(originalId, selected.ConcurrencyToken);
+                updated.ConcurrencyToken = null;
+            }
+
+            await _orderMutationRepository.UpsertAsync(updated);
+        }
+        else
+        {
+            await _orderRepository.SaveAllAsync(_allOrders);
+        }
         await ReconcileToursWithOrdersAsync(_allOrders);
         await RefreshAsync();
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, updated.Id, StringComparison.OrdinalIgnoreCase));
@@ -9257,7 +9272,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 continue;
             }
 
-            var quantity = Math.Max(1, product.Quantity);
+            var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
             var supplier = NormalizeUiText(product.Supplier);
             var supplierSuffix = string.IsNullOrWhiteSpace(supplier) ? string.Empty : $" [{supplier}]";
             lines.Add($"{quantity}x {NormalizeUiText(product.Name)}{supplierSuffix}");
@@ -9463,7 +9478,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 continue;
             }
 
-            var quantity = Math.Max(1, product.Quantity);
+            var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
             var unitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(product);
             var totalWeightKg = OrderProductFormatter.ResolveTotalWeightKg(product);
             var dimensionsLine = string.IsNullOrWhiteSpace(product.Dimensions)

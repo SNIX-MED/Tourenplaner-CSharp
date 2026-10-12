@@ -114,68 +114,9 @@ public sealed partial class KarteSectionViewModel
 
     public IReadOnlyList<MapOrderItem> GetMapMarkerSnapshot()
     {
-        var markers = _mapSearchDimNonMatchingPins && !string.IsNullOrWhiteSpace(_searchText)
+        return _mapSearchDimNonMatchingPins && !string.IsNullOrWhiteSpace(_searchText)
             ? MapOrders.Concat(_dimmedMapOrders).ToList()
             : MapOrders.ToList();
-        var selectedTourOrderIds = GetSelectedTourOverviewOrderIds();
-        if (selectedTourOrderIds.Count == 0)
-        {
-            return markers;
-        }
-
-        return markers
-            .Select(marker => CloneMapOrderItem(marker, marker.IsDimmed || !selectedTourOrderIds.Contains(marker.OrderId)))
-            .ToList();
-    }
-
-    private HashSet<string> GetSelectedTourOverviewOrderIds()
-    {
-        if (_activeTourId > 0 || _selectedTourOverviewId <= 0)
-        {
-            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        var selectedTour = _savedTours.FirstOrDefault(tour => tour.Id == _selectedTourOverviewId);
-        return (selectedTour?.Stops ?? [])
-            .Where(IsCustomerTourStop)
-            .Select(ExtractTourStopOrderId)
-            .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
-            .Select(orderId => orderId.Trim())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static MapOrderItem CloneMapOrderItem(MapOrderItem source, bool isDimmed)
-    {
-        return new MapOrderItem
-        {
-            OrderId = source.OrderId,
-            Customer = source.Customer,
-            Address = source.Address,
-            Street = source.Street,
-            PostalCodeCity = source.PostalCodeCity,
-            Notes = source.Notes,
-            ProductLines = [.. source.ProductLines],
-            TotalWeightKgText = source.TotalWeightKgText,
-            ScheduledDate = source.ScheduledDate,
-            DeliveryDate = source.DeliveryDate,
-            DeliveryCanOccurEarlier = source.DeliveryCanOccurEarlier,
-            IsAlternativeLiefertour = source.IsAlternativeLiefertour,
-            AssignedTourId = source.AssignedTourId,
-            IsAssigned = source.IsAssigned,
-            Latitude = source.Latitude,
-            Longitude = source.Longitude,
-            DeliveryLabel = source.DeliveryLabel,
-            StatusLabel = source.StatusLabel,
-            StatusColorHex = source.StatusColorHex,
-            AvisoStatusLabel = source.AvisoStatusLabel,
-            TourStatusLabel = source.TourStatusLabel,
-            HasPendingPreparation = source.HasPendingPreparation,
-            IstVorauszahlung = source.IstVorauszahlung,
-            IsDimmed = isDimmed,
-            IsBatchSelected = source.IsBatchSelected,
-            IsLocationManuallySet = source.IsLocationManuallySet,
-            ManualLocationRequiresReview = source.ManualLocationRequiresReview
-        };
     }
 
     private void ResetOrderFilters()

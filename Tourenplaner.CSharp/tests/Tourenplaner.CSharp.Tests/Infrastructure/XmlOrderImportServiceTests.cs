@@ -80,7 +80,7 @@ public class XmlOrderImportServiceTests
                     <AdressID>100</AdressID>
                     <LieferadressID>200</LieferadressID>
                     <firma>A GmbH | Konstanzerstrasse 14 | CH-8274 Tägerwilen | 100038</firma>
-                    <Standort>Frau Janine Fäsi | Ara-Strasse 6 | CH-8274 Tägerwilen | 200039</Standort>
+                    <standort>Frau Janine Fäsi | Ara-Strasse 6 | CH-8274 Tägerwilen | 200039</standort>
                     <LiefKondID>Lieferung</LiefKondID>
                     <Lieferdatum>2026-06-11T00:00:00</Lieferdatum>
                     <Archiviert>false</Archiviert>
@@ -398,6 +398,7 @@ public class XmlOrderImportServiceTests
                     <datum>15.07.2026 00:00:00</datum>
                     <versandart>LKW</versandart>
                     <archiv>False</archiv>
+                    <adresszeile>Auftraggeber Zeile AG | Hauptstrasse 12 | CH-7001 Chur | 123456</adresszeile>
                     <adresskopf>Auftraggeber AG
                     Auftragsweg 3
                     7000 Chur</adresskopf>
@@ -411,7 +412,7 @@ public class XmlOrderImportServiceTests
                       <position>
                         <kopfid>order-1</kopfid>
                         <artikel>PRODUKT-D</artikel>
-                        <menge>1</menge>
+                        <menge>-5</menge>
                         <bezeichnung>Produkt D</bezeichnung>
                         <gewicht>2.5</gewicht>
                       </position>
@@ -433,11 +434,16 @@ public class XmlOrderImportServiceTests
             Assert.Single(result.Orders);
             Assert.Equal("A-302", result.Orders[0].AuftragNr);
             Assert.Equal("Tresor-Bordstein", result.Orders[0].Lieferbedingung);
-            Assert.Equal("Auftraggeber AG", result.Orders[0].KundeFirma);
+            Assert.Equal("Auftraggeber Zeile AG", result.Orders[0].KundeFirma);
+            Assert.Equal("Hauptstrasse 12", result.Orders[0].KundeStrasse);
+            Assert.Equal("7001", result.Orders[0].KundePLZ);
+            Assert.Equal("Chur", result.Orders[0].KundeOrt);
+            Assert.Equal("123456", result.Orders[0].KundeAdressNummer);
             Assert.Equal("Liefer AG", result.Orders[0].LieferFirma);
             Assert.Single(result.Orders[0].Produkte);
             Assert.Equal("PRODUKT-D", result.Orders[0].Produkte[0].ArtikelNummer);
             Assert.Equal("Produkt D", result.Orders[0].Produkte[0].Bezeichnung);
+            Assert.Equal(-5m, result.Orders[0].Produkte[0].Menge);
             Assert.Empty(result.Errors);
         }
         finally

@@ -27,13 +27,13 @@ public static class OrderProductFormatter
 
     public static double ResolveUnitWeightKg(OrderProductInfo product)
     {
-        var quantity = Math.Max(1, product.Quantity);
+        var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
         if (product.UnitWeightKg > 0)
         {
             return product.UnitWeightKg;
         }
 
-        if (product.WeightKg > 0)
+        if (product.WeightKg != 0)
         {
             return product.WeightKg / quantity;
         }
@@ -43,8 +43,8 @@ public static class OrderProductFormatter
 
     public static double ResolveTotalWeightKg(OrderProductInfo product)
     {
-        var quantity = Math.Max(1, product.Quantity);
-        if (product.WeightKg > 0)
+        var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
+        if (product.WeightKg != 0)
         {
             return product.WeightKg;
         }
@@ -59,7 +59,7 @@ public static class OrderProductFormatter
             return string.Empty;
         }
 
-        var quantity = Math.Max(1, product.Quantity);
+        var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
         var totalWeightKg = ResolveTotalWeightKg(product);
         var summary = $"{quantity}x {product.Name.Trim()} ({totalWeightKg.ToString("0.##", CultureInfo.InvariantCulture)} kg)";
         if (!string.IsNullOrWhiteSpace(product.Supplier))
@@ -77,7 +77,7 @@ public static class OrderProductFormatter
             return string.Empty;
         }
 
-        var quantity = Math.Max(1, product.Quantity);
+        var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
         var unitWeightKg = ResolveUnitWeightKg(product);
         var totalWeightKg = ResolveTotalWeightKg(product);
         var parts = new List<string>

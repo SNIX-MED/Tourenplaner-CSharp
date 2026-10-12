@@ -19,7 +19,11 @@ public partial class DashboardTopBar : UserControl
 
     private async void MapSearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (DataContext is not KarteSectionViewModel vm) return;
+        if (sender is not FrameworkElement element ||
+            element.DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
 
         switch (e.Key)
         {
@@ -47,7 +51,8 @@ public partial class DashboardTopBar : UserControl
 
     private async void MapSearchSuggestionsList_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (DataContext is KarteSectionViewModel vm &&
+        if (sender is FrameworkElement element &&
+            element.DataContext is KarteSectionViewModel vm &&
             (e.OriginalSource as FrameworkElement)?.DataContext is MapSearchSuggestionItem suggestion)
         {
             await vm.ApplySearchSuggestionAsync(suggestion);
@@ -160,6 +165,7 @@ public partial class DashboardTopBar : UserControl
         }
 
         var settings = shell.SettingsSection;
+        var previousCategory = settings.SelectedSettingsCategory;
         await settings.RefreshAsync();
         settings.SelectSettingsCategory("imports");
 
@@ -167,7 +173,15 @@ public partial class DashboardTopBar : UserControl
         {
             Owner = Window.GetWindow(this)
         };
-        _ = dialog.ShowDialog();
+        try
+        {
+            _ = dialog.ShowDialog();
+        }
+        finally
+        {
+            dialog.DataContext = null;
+            settings.SelectedSettingsCategory = previousCategory;
+        }
     }
 }
 

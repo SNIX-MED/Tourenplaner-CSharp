@@ -68,11 +68,13 @@ public sealed class Order
             return Math.Max(0d, ManualTotalWeightKg.Value);
         }
 
-        return (Products ?? [])
+        var totalWeightKg = (Products ?? [])
             .Where(product => product is not null)
-            .Sum(product => product.WeightKg > 0
+            .Sum(product => product.WeightKg != 0
                 ? product.WeightKg
-                : Math.Max(0d, product.UnitWeightKg) * Math.Max(1, product.Quantity));
+                : Math.Max(0d, product.UnitWeightKg) * OrderProductInfo.NormalizeQuantity(product.Quantity));
+
+        return Math.Max(0d, totalWeightKg);
     }
 
     public static string NormalizeOrderStatus(string? value)
@@ -247,6 +249,8 @@ public sealed class OrderProductInfo
     public const string InStockStatus = "An Lager";
 
     public static IReadOnlyList<string> DeliveryStatusOptions => DeliveryStatusValues;
+
+    public static int NormalizeQuantity(int value) => value == 0 ? 1 : value;
 
     public string Name { get; set; } = string.Empty;
     public string Supplier { get; set; } = string.Empty;

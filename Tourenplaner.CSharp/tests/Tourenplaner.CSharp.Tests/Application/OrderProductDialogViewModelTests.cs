@@ -27,6 +27,39 @@ public class OrderProductDialogViewModelTests
         Assert.Equal("Mitte Oktober", result.ToOrderProductInfo().ExpectedDelivery);
     }
 
+    [Fact]
+    public void NegativeQuantity_IsAcceptedAndPreserved()
+    {
+        var viewModel = new OrderProductDialogViewModel
+        {
+            Name = "Endkappe rechts",
+            QuantityText = "-5",
+            UnitWeightKgText = "2"
+        };
+
+        Assert.True(viewModel.TryBuildResult(out var result, out var error), error);
+        Assert.Equal(-5, result.Quantity);
+
+        var product = result.ToOrderProductInfo();
+        Assert.Equal(-5, product.Quantity);
+        Assert.Equal(-10d, product.WeightKg);
+        Assert.Contains("-5x Endkappe rechts", viewModel.SummaryText);
+    }
+
+    [Fact]
+    public void ZeroQuantity_IsRejected()
+    {
+        var viewModel = new OrderProductDialogViewModel
+        {
+            Name = "Endkappe rechts",
+            QuantityText = "0",
+            UnitWeightKgText = "2"
+        };
+
+        Assert.False(viewModel.TryBuildResult(out _, out var error));
+        Assert.Contains("ungleich 0", error);
+    }
+
     [Theory]
     [InlineData(OrderProductInfo.OrderedStatus, true)]
     [InlineData(OrderProductInfo.InTransitStatus, true)]

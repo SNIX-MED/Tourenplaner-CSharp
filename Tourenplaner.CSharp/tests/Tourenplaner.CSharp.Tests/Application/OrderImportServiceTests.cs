@@ -505,6 +505,22 @@ public class OrderImportServiceTests
         Assert.Equal("Musterstraße", stored.DeliveryAddress.Street);
     }
 
+    [Fact]
+    public async Task XmlImport_PreservesNegativeProductQuantityAndWeight()
+    {
+        var imported = CreateSqlOrder("A-MINUS", "Kunde", "Frei Bordsteinkante", "Notiz");
+        imported.Produkte[0].Menge = -5;
+        imported.Produkte[0].Gewicht = 2;
+        var repository = new FakeOrderRepository([]);
+
+        var result = await new OrderImportService().ImportOrdersAsync([imported], repository);
+
+        Assert.Empty(result.Errors);
+        var product = Assert.Single(Assert.Single(repository.StoredOrders).Products);
+        Assert.Equal(-5, product.Quantity);
+        Assert.Equal(-10d, product.WeightKg);
+    }
+
     private static XmlOrderImportData CreateSqlOrder(
         string id,
         string customerName,

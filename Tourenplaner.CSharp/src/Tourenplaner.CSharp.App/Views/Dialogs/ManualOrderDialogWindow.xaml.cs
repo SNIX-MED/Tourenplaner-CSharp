@@ -444,7 +444,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     public bool CanEditOrRemoveProductLine => IsEditingEnabled && SelectedProductLine is not null;
 
-    public bool CanChangeSelectedProductStatus => IsEditingEnabled && _selectedProductLines.Count > 0;
+    public bool CanChangeSelectedProductStatus => _selectedProductLines.Count > 0;
 
     public string SelectedProductsSummary => _selectedProductLines.Count switch
     {
@@ -1212,7 +1212,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
         get => _quantity;
         set
         {
-            var normalized = Math.Max(1, value);
+            var normalized = OrderProductInfo.NormalizeQuantity(value);
             if (SetProperty(ref _quantity, normalized))
             {
                 OnPropertyChanged(nameof(TotalWeightKg));
@@ -1279,7 +1279,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
 
     public double TotalWeightKgRoundedUp => Math.Ceiling(TotalWeightKg * 100d) / 100d;
 
-    public string DisplayTitle => $"{Math.Max(1, Quantity)}x {(Name ?? string.Empty).Trim()}";
+    public string DisplayTitle => $"{OrderProductInfo.NormalizeQuantity(Quantity)}x {(Name ?? string.Empty).Trim()}";
 
     public string DisplayExpectedDelivery => OrderProductInfo.ShouldShowExpectedDelivery(ExpectedDelivery, DeliveryStatus)
         ? (ExpectedDelivery ?? string.Empty).Trim()
@@ -1312,9 +1312,9 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             Name = (Name ?? string.Empty).Trim(),
             Supplier = (Supplier ?? string.Empty).Trim(),
             ExpectedDelivery = (ExpectedDelivery ?? string.Empty).Trim(),
-            Quantity = Math.Max(1, Quantity),
+            Quantity = OrderProductInfo.NormalizeQuantity(Quantity),
             UnitWeightKg = Math.Max(0d, UnitWeightKg),
-            WeightKg = Math.Max(1, Quantity) * Math.Max(0d, UnitWeightKg),
+            WeightKg = OrderProductInfo.NormalizeQuantity(Quantity) * Math.Max(0d, UnitWeightKg),
             Dimensions = (Dimensions ?? string.Empty).Trim(),
             DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(DeliveryStatus)
         };
@@ -1327,7 +1327,7 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             Name = product.Name ?? string.Empty,
             Supplier = product.Supplier ?? string.Empty,
             ExpectedDelivery = product.ExpectedDelivery ?? string.Empty,
-            Quantity = Math.Max(1, product.Quantity),
+            Quantity = OrderProductInfo.NormalizeQuantity(product.Quantity),
             UnitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(product),
             Dimensions = product.Dimensions ?? string.Empty,
             DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus)

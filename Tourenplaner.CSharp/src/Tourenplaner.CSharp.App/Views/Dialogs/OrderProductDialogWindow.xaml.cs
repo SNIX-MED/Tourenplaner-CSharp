@@ -115,7 +115,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
         _name = existingProduct.Name;
         _supplier = existingProduct.Supplier;
         _expectedDelivery = existingProduct.ExpectedDelivery;
-        _quantityText = Math.Max(1, existingProduct.Quantity).ToString(CultureInfo.InvariantCulture);
+        _quantityText = OrderProductInfo.NormalizeQuantity(existingProduct.Quantity).ToString(CultureInfo.InvariantCulture);
         _unitWeightKgText = existingProduct.UnitWeightKg.ToString("0.###", CultureInfo.InvariantCulture);
         _dimensions = existingProduct.Dimensions;
         _selectedDeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(existingProduct.DeliveryStatus);
@@ -215,7 +215,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
     {
         get
         {
-            _ = TryParsePositiveInt(QuantityText, out var quantity);
+            _ = TryParseNonZeroInt(QuantityText, out var quantity);
             _ = TryParseNonNegativeDouble(UnitWeightKgText, out var unitWeightKg);
             var totalWeightKg = quantity * unitWeightKg;
             var product = new OrderProductInfo
@@ -244,9 +244,9 @@ public sealed class OrderProductDialogViewModel : ObservableObject
             return false;
         }
 
-        if (!TryParsePositiveInt(QuantityText, out var quantity))
+        if (!TryParseNonZeroInt(QuantityText, out var quantity))
         {
-            error = "Bitte eine gültige Menge größer oder gleich 1 eingeben.";
+            error = "Bitte eine gültige Menge ungleich 0 eingeben.";
             return false;
         }
 
@@ -269,7 +269,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
         return true;
     }
 
-    private static bool TryParsePositiveInt(string? text, out int value)
+    private static bool TryParseNonZeroInt(string? text, out int value)
     {
         var raw = (text ?? string.Empty).Trim();
         if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
@@ -278,8 +278,7 @@ public sealed class OrderProductDialogViewModel : ObservableObject
             return false;
         }
 
-        value = Math.Max(1, value);
-        return true;
+        return value != 0;
     }
 
     private static bool TryParseNonNegativeDouble(string? text, out double value)

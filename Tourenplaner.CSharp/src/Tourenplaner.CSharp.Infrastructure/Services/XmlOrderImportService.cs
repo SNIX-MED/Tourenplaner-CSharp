@@ -146,14 +146,18 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                 }
                 else if (string.Equals(effectiveMapping.OrderRecordElement, "beleg", StringComparison.OrdinalIgnoreCase))
                 {
-                    var orderAddressBlock = ReadString(orderElement, effectiveMapping.OrderBillingAddressBlock);
-                    if (string.IsNullOrWhiteSpace(orderAddressBlock) &&
-                        !effectiveMapping.OrderBillingAddressBlock.Equals("adresskopfrechnung", StringComparison.OrdinalIgnoreCase))
+                    var hasOrderAddress = ApplyExportAddressLine(order, ReadString(orderElement, "adresszeile"));
+                    if (!hasOrderAddress)
                     {
-                        orderAddressBlock = ReadString(orderElement, "adresskopfrechnung");
-                    }
+                        var orderAddressBlock = ReadString(orderElement, effectiveMapping.OrderBillingAddressBlock);
+                        if (string.IsNullOrWhiteSpace(orderAddressBlock) &&
+                            !effectiveMapping.OrderBillingAddressBlock.Equals("adresskopfrechnung", StringComparison.OrdinalIgnoreCase))
+                        {
+                            orderAddressBlock = ReadString(orderElement, "adresskopfrechnung");
+                        }
 
-                    ApplyExportAddressBlock(order, orderAddressBlock, isDeliveryAddress: false);
+                        ApplyExportAddressBlock(order, orderAddressBlock, isDeliveryAddress: false);
+                    }
                     hasDeliveryAddress = ApplyExportAddressBlock(order, ReadString(orderElement, effectiveMapping.OrderDeliveryAddressBlock), isDeliveryAddress: true);
                 }
 
@@ -447,6 +451,17 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
     private static string ResolveAddressNumber(XElement orderElement, string fieldName, string fallback)
     {
         var explicitValue = ReadString(orderElement, fieldName, string.Empty);
+        if (string.IsNullOrWhiteSpace(explicitValue) && !string.IsNullOrWhiteSpace(fieldName))
+        {
+            explicitValue = orderElement.Elements()
+                .FirstOrDefault(element => string.Equals(
+                    element.Name.LocalName,
+                    fieldName.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+                ?.Value
+                .Trim() ?? string.Empty;
+        }
+
         return ExtractTrailingAddressNumber(!string.IsNullOrWhiteSpace(explicitValue)
             ? explicitValue
             : fallback);
@@ -633,6 +648,31 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
     private sealed record DeliveryConditionResult(string Label, bool WasRecognized);
 
     private sealed record DeliveryTypeRule(string Label, IReadOnlySet<string> MatchValues, int Priority);
+
+    private static bool ApplyExportAddressLine(XmlOrderImportData order, string value)
+    {
+        var parts = (value ?? string.Empty)
+            .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 4)
+        {
+            return false;
+        }
+
+        var street = parts[^3];
+        var postalCity = parts[^2];
+        if (postalCity.StartsWith("CH-", StringComparison.OrdinalIgnoreCase))
+        {
+            postalCity = postalCity[3..].TrimStart();
+        }
+
+        var postalParts = postalCity.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        order.KundeFirma = parts[0];
+        order.KundeStrasse = street;
+        order.KundePLZ = postalParts.ElementAtOrDefault(0) ?? string.Empty;
+        order.KundeOrt = postalParts.ElementAtOrDefault(1) ?? string.Empty;
+        order.KundeAdressNummer = parts[^1];
+        return HasCustomerAddress(order);
+    }
 
     private static bool ApplyExportAddressBlock(XmlOrderImportData order, string value, bool isDeliveryAddress)
     {
