@@ -69,12 +69,9 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Produktkarten in Auftragsbearbeitung und Detailansicht optisch sowie funktional vereinheitlicht
-          - Mehrfachauswahl und direkte Statusaenderung fuer Produkte ergaenzt
-          - Lieferantenfilter mit frei waehlbaren Lieferanten hinzugefuegt
-          - Manuelles Gesamtgewicht im Produkte-Tab dauerhaft am unteren Rand fixiert
-          - Numerische Eingabe fuer Produktgewichte abgesichert
-          - Standardkuerzel fuer Rueckgaengig und Wiederholen vervollstaendigt
+          - Touren mit manuellen Stopps lassen sich auch mit Fahrzeugdaten aus aelteren Versionen wieder speichern
+          - Aeltere vehicles.json-Dateien werden automatisch und verlustfrei ins aktuelle Format migriert
+          - Fahrzeuge, Anhaenger und Fahrzeugkombinationen bleiben bei einer PostgreSQL-Backup-Wiederherstellung in den lokalen Modus auch nach dem Neustart erhalten
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

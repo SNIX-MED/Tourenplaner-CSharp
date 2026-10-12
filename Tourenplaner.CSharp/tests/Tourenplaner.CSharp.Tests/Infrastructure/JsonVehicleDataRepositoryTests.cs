@@ -6,6 +6,96 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 public class JsonVehicleDataRepositoryTests
 {
     [Fact]
+    public async Task LoadAsync_MigratesLegacyVehicleArrayToCurrentEnvelope()
+    {
+        var root = CreateTempRoot();
+        var file = Path.Combine(root, "vehicles.json");
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                file,
+                """
+                [
+                  {
+                    "Id": "v1",
+                    "Type": "truck",
+                    "Name": "LKW 1",
+                    "LicensePlate": "AG 123",
+                    "MaxPayloadKg": 1000,
+                    "Active": true
+                  }
+                ]
+                """);
+
+            var repository = new JsonVehicleDataRepository(file);
+
+            var loaded = await repository.LoadAsync();
+
+            var vehicle = Assert.Single(loaded.Vehicles);
+            Assert.Equal("v1", vehicle.Id);
+            Assert.Equal("LKW 1", vehicle.Name);
+
+            var migratedJson = await File.ReadAllTextAsync(file);
+            Assert.StartsWith("{", migratedJson.TrimStart());
+            Assert.Contains("\"Vehicles\"", migratedJson);
+            Assert.Contains("\"Trailers\"", migratedJson);
+            Assert.Contains("\"VehicleCombinations\"", migratedJson);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task LoadAsync_MigratesEmptyLegacyVehicleArray()
+    {
+        var root = CreateTempRoot();
+        var file = Path.Combine(root, "vehicles.json");
+
+        try
+        {
+            await File.WriteAllTextAsync(file, "[]");
+            var repository = new JsonVehicleDataRepository(file);
+
+            var loaded = await repository.LoadAsync();
+
+            Assert.Empty(loaded.Vehicles);
+            Assert.Empty(loaded.Trailers);
+            Assert.Empty(loaded.VehicleCombinations);
+            Assert.StartsWith("{", (await File.ReadAllTextAsync(file)).TrimStart());
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task LoadAsync_KeepsMalformedJsonAndCreatesCorruptBackup()
+    {
+        var root = CreateTempRoot();
+        var file = Path.Combine(root, "vehicles.json");
+
+        try
+        {
+            await File.WriteAllTextAsync(file, "{ invalid");
+            var repository = new JsonVehicleDataRepository(file);
+
+            await Assert.ThrowsAsync<Tourenplaner.CSharp.Infrastructure.Storage.InvalidJsonFileException>(
+                () => repository.LoadAsync());
+
+            Assert.Equal("{ invalid", await File.ReadAllTextAsync(file));
+            Assert.Single(Directory.GetFiles(root, "vehicles.corrupt_*.json"));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public async Task SaveAndLoad_NormalizesAndDeduplicatesVehicles()
     {
         var root = CreateTempRoot();

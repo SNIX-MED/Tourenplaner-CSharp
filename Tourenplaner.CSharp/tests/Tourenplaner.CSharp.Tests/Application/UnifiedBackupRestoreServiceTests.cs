@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.Tests.Application;
 
@@ -32,9 +33,14 @@ public sealed class UnifiedBackupRestoreServiceTests
             var orders = await File.ReadAllTextAsync(Path.Combine(dataRoot, "orders.json"));
             var settings = JsonSerializer.Deserialize<AppSettings>(
                 await File.ReadAllTextAsync(Path.Combine(dataRoot, "settings.json")))!;
+            var vehicleDataAfterRestart = await new JsonVehicleDataRepository(
+                Path.Combine(dataRoot, "vehicles.json")).LoadAsync();
             Assert.Contains("order-1", orders);
             Assert.Equal(AppStorageMode.JsonFiles, settings.StorageMode);
             Assert.Equal("SQL Firma", settings.CompanyName);
+            var vehicle = Assert.Single(vehicleDataAfterRestart.Vehicles);
+            Assert.Equal("vehicle-1", vehicle.Id);
+            Assert.Equal("SQL LKW", vehicle.Name);
         }
         finally
         {
@@ -101,7 +107,10 @@ public sealed class UnifiedBackupRestoreServiceTests
         WriteEntry(
             archive,
             "postgresql/singletons.json",
-            "[{\"key\":\"app_settings\",\"payload\":{\"CompanyName\":\"SQL Firma\",\"StorageMode\":1},\"updated_at\":\"2026-10-09T00:00:00Z\"}]");
+            "[" +
+            "{\"key\":\"app_settings\",\"payload\":{\"CompanyName\":\"SQL Firma\",\"StorageMode\":1},\"updated_at\":\"2026-10-09T00:00:00Z\"}," +
+            "{\"key\":\"vehicle_data\",\"payload\":{\"Vehicles\":[{\"Id\":\"vehicle-1\",\"Name\":\"SQL LKW\",\"Active\":true}],\"Trailers\":[],\"VehicleCombinations\":[]},\"updated_at\":\"2026-10-09T00:00:00Z\"}" +
+            "]");
     }
 
     private static void WriteEntry(ZipArchive archive, string name, string content)

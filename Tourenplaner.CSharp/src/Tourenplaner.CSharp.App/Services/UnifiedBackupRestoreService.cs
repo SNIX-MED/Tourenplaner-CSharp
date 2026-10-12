@@ -15,7 +15,6 @@ internal sealed class UnifiedBackupRestoreService
         ["orders.json"] = "orders",
         ["tours.json"] = "tour_records",
         ["employees.json"] = "employees",
-        ["vehicles.json"] = "vehicles",
         ["kalender-manuelle-eintraege.json"] = "calendar_manual_entries"
     };
 
@@ -154,6 +153,8 @@ internal sealed class UnifiedBackupRestoreService
                     cancellationToken);
             }
 
+            await WritePostgreSqlVehicleDataAsync(archive, dataRoot, cancellationToken);
+
             var sharedSettings = await ReadPostgreSqlSettingsPayloadAsync(archive, cancellationToken);
             if (sharedSettings is not null)
             {
@@ -168,6 +169,33 @@ internal sealed class UnifiedBackupRestoreService
         restoredSettings.StorageMode = AppStorageMode.JsonFiles;
         restoredSettings.PostgreSqlStorage = currentSettings.PostgreSqlStorage;
         await currentSettingsRepository.SaveAsync(restoredSettings, cancellationToken);
+    }
+
+    private static async Task WritePostgreSqlVehicleDataAsync(
+        ZipArchive archive,
+        string dataRoot,
+        CancellationToken cancellationToken)
+    {
+        var vehicleData = await ReadPostgreSqlSingletonPayloadAsync(
+            archive,
+            "vehicle_data",
+            cancellationToken);
+        if (vehicleData is not null)
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(dataRoot, "vehicles.json"),
+                vehicleData.Value.GetRawText(),
+                cancellationToken);
+            return;
+        }
+
+        // Compatibility with backups created before vehicle data was moved into
+        // the singletons table.
+        await WritePayloadArrayAsync(
+            archive,
+            "vehicles",
+            Path.Combine(dataRoot, "vehicles.json"),
+            cancellationToken);
     }
 
     private static async Task ExtractLocalDataAsync(
@@ -215,6 +243,18 @@ internal sealed class UnifiedBackupRestoreService
         ZipArchive archive,
         CancellationToken cancellationToken)
     {
+        var payload = await ReadPostgreSqlSingletonPayloadAsync(
+            archive,
+            "app_settings",
+            cancellationToken);
+        return payload?.Deserialize<AppSettings>();
+    }
+
+    private static async Task<JsonElement?> ReadPostgreSqlSingletonPayloadAsync(
+        ZipArchive archive,
+        string keyName,
+        CancellationToken cancellationToken)
+    {
         var entry = archive.GetEntry("postgresql/singletons.json");
         if (entry is null)
         {
@@ -224,10 +264,12 @@ internal sealed class UnifiedBackupRestoreService
         await using var stream = entry.Open();
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
         var row = document.RootElement.EnumerateArray().FirstOrDefault(x =>
-            x.TryGetProperty("key", out var key) && key.GetString() == "app_settings");
-        return row.ValueKind == JsonValueKind.Undefined
+            x.TryGetProperty("key", out var key) &&
+            string.Equals(key.GetString(), keyName, StringComparison.OrdinalIgnoreCase));
+        return row.ValueKind == JsonValueKind.Undefined ||
+               !row.TryGetProperty("payload", out var payload)
             ? null
-            : row.GetProperty("payload").Deserialize<AppSettings>();
+            : payload.Clone();
     }
 
     private static async Task<string> ConvertLocalBackupToPostgreSqlBackupAsync(

@@ -16,7 +16,38 @@ public sealed class JsonVehicleDataRepository : IVehicleDataStore
 
     public async Task<VehicleDataRecord> LoadAsync(CancellationToken cancellationToken = default)
     {
-        var payload = await _store.LoadAsync(_path, () => new VehicleDataRecord(), createIfMissing: true, backupInvalid: true, cancellationToken: cancellationToken);
+        VehicleDataRecord payload;
+        try
+        {
+            payload = await _store.LoadAsync(
+                _path,
+                () => new VehicleDataRecord(),
+                createIfMissing: true,
+                backupInvalid: false,
+                cancellationToken: cancellationToken);
+        }
+        catch (InvalidJsonFileException currentFormatException)
+        {
+            try
+            {
+                var legacyVehicles = await _store.LoadAsync(
+                    _path,
+                    () => new List<Vehicle>(),
+                    cancellationToken: cancellationToken);
+                payload = new VehicleDataRecord { Vehicles = legacyVehicles };
+
+                // Older releases stored vehicles.json as a plain vehicle array.
+                // Rewrite it once in the current envelope format so subsequent
+                // reads also preserve trailers and vehicle combinations.
+                await SaveAsync(payload, cancellationToken);
+            }
+            catch (InvalidJsonFileException)
+            {
+                _store.BackupCorruptFile(_path);
+                throw currentFormatException;
+            }
+        }
+
         var normalized = VehicleNormalizer.NormalizePayload(payload);
         return normalized;
     }
