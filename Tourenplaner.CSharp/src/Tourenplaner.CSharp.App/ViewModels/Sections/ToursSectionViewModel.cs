@@ -41,6 +41,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private readonly Func<int, Task>? _openTourOnMapAsync;
     private readonly Func<Task>? _openMapAsync;
     private readonly Guid _instanceId = Guid.NewGuid();
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private bool _editorSyncInProgress;
     private bool _dateFilterSyncInProgress;
     private bool _isFromDatePopupOpen;
@@ -774,6 +775,19 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     public async Task RefreshAsync()
     {
+        await _refreshGate.WaitAsync();
+        try
+        {
+            await RefreshCoreAsync();
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
+
+    private async Task RefreshCoreAsync()
+    {
         await LoadReferenceDataAsync();
         var settings = await _settingsRepository.LoadAsync();
         var userPreference = settings.ResolveUserPreference(AppSettings.NormalizeUserName(LocalUserSessionService.CurrentUserName));
@@ -805,8 +819,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             _ordersById[order.Id.Trim()] = order;
         }
 
+        var loadedTours = await _tourRepository.LoadAsync();
         _loadedTours.Clear();
-        _loadedTours.AddRange(await _tourRepository.LoadAsync());
+        _loadedTours.AddRange(loadedTours
+            .GroupBy(tour => tour.Id)
+            .Select(group => group.First()));
         var tourReconciliation = TourOrderReferenceService.ReconcileActiveToursWithOrders(_loadedTours, _ordersById.Values);
         foreach (var changedTourId in tourReconciliation.RescheduledTourIds)
         {
