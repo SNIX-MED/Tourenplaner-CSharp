@@ -11,6 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.Globalization;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
@@ -46,6 +47,8 @@ public partial class KarteSectionView : UserControl
     private const int UiRefreshDebounceMilliseconds = 12;
     private const int PinInfoCardScaleScriptThrottleMilliseconds = 16;
     private const double DetailsPanelMinWidthExpanded = 280d;
+    private const double RouteDragAutoScrollEdgeSize = 72d;
+    private const double RouteDragAutoScrollMaximumStep = 18d;
     private bool _viewInitialized;
     private bool _mapReady;
     private bool _mapScriptReady;
@@ -58,6 +61,8 @@ public partial class KarteSectionView : UserControl
     private GridLength _lastDetailsPanelWidth = DefaultDetailsPanelWidth;
     private Point? _routeGridDragStart;
     private RouteDragPayload? _routeGridDragItem;
+    private DispatcherTimer? _routeDragAutoScrollTimer;
+    private double _routeDragAutoScrollVelocity;
     private int _mapRefreshRevision;
     private bool _isMapRefreshLoopRunning;
     private MapRefreshOperation _pendingMapRefresh;
@@ -493,12 +498,15 @@ public partial class KarteSectionView : UserControl
 
     private void OnRouteStopsPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (sender is not ScrollViewer stopsViewer || stopsViewer.ScrollableHeight <= 0)
+        var stopsViewer = GetActiveRouteStopsScrollViewer();
+        if (stopsViewer is null || stopsViewer.ScrollableHeight <= 0)
         {
             return;
         }
 
-        var delta = e.Delta / 3d;
+        var delta = stopsViewer.CanContentScroll
+            ? Math.Sign(e.Delta) * Math.Max(1, SystemParameters.WheelScrollLines)
+            : e.Delta / 3d;
         var target = stopsViewer.VerticalOffset - delta;
 
         if (target < 0)
@@ -1774,8 +1782,16 @@ public partial class KarteSectionView : UserControl
         var dragItem = _routeGridDragItem;
         _routeGridDragStart = null;
         _routeGridDragItem = null;
-        DragDrop.DoDragDrop(RouteStopsList, new DataObject(typeof(RouteDragPayload), dragItem), DragDropEffects.Move);
-        ClearRouteDropIndicator();
+        StartRouteDragAutoScroll();
+        try
+        {
+            DragDrop.DoDragDrop(RouteStopsList, new DataObject(typeof(RouteDragPayload), dragItem), DragDropEffects.Move);
+        }
+        finally
+        {
+            StopRouteDragAutoScroll();
+            ClearRouteDropIndicator();
+        }
     }
 
     private void RouteStopsList_DragOver(object sender, DragEventArgs e)
@@ -1788,6 +1804,8 @@ public partial class KarteSectionView : UserControl
             e.Handled = true;
             return;
         }
+
+        UpdateRouteDragAutoScrollVelocity(e);
 
         var payload = e.Data.GetData(typeof(RouteDragPayload)) as RouteDragPayload;
         var targetItem = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
@@ -1838,6 +1856,102 @@ public partial class KarteSectionView : UserControl
         e.Handled = true;
     }
 
+    private void UpdateRouteDragAutoScrollVelocity(DragEventArgs e)
+    {
+        var stopsViewer = GetActiveRouteStopsScrollViewer();
+        if (stopsViewer is null || stopsViewer.ScrollableHeight <= 0)
+        {
+            _routeDragAutoScrollVelocity = 0d;
+            return;
+        }
+
+        var pointerY = e.GetPosition(stopsViewer).Y;
+        _routeDragAutoScrollVelocity = CalculateRouteDragAutoScrollDelta(
+            pointerY,
+            stopsViewer.ActualHeight,
+            stopsViewer.ScrollableHeight);
+    }
+
+    private void StartRouteDragAutoScroll()
+    {
+        _routeDragAutoScrollVelocity = 0d;
+        _routeDragAutoScrollTimer ??= new DispatcherTimer(
+            TimeSpan.FromMilliseconds(16),
+            DispatcherPriority.Input,
+            (_, _) => ApplyRouteDragAutoScroll(),
+            Dispatcher);
+        _routeDragAutoScrollTimer.Start();
+    }
+
+    private void StopRouteDragAutoScroll()
+    {
+        _routeDragAutoScrollVelocity = 0d;
+        _routeDragAutoScrollTimer?.Stop();
+    }
+
+    private void ApplyRouteDragAutoScroll()
+    {
+        if (Math.Abs(_routeDragAutoScrollVelocity) < 0.05d)
+        {
+            return;
+        }
+
+        var stopsViewer = GetActiveRouteStopsScrollViewer();
+        if (stopsViewer is null || stopsViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        var targetOffset = Math.Clamp(
+            stopsViewer.VerticalOffset + _routeDragAutoScrollVelocity,
+            0d,
+            stopsViewer.ScrollableHeight);
+        stopsViewer.ScrollToVerticalOffset(targetOffset);
+    }
+
+    private ScrollViewer? GetActiveRouteStopsScrollViewer()
+    {
+        var listViewer = VisualTreeUtilities.FindDescendant<ScrollViewer>(RouteStopsList);
+        if (listViewer is not null && listViewer.ScrollableHeight > 0)
+        {
+            return listViewer;
+        }
+
+        return RouteStopsScrollViewer?.ScrollableHeight > 0 ? RouteStopsScrollViewer : listViewer;
+    }
+
+    internal static double CalculateRouteDragAutoScrollDelta(
+        double pointerY,
+        double viewportHeight,
+        double scrollableHeight)
+    {
+        if (viewportHeight <= 0 || scrollableHeight <= 0)
+        {
+            return 0d;
+        }
+
+        var edgeSize = Math.Min(RouteDragAutoScrollEdgeSize, viewportHeight / 2d);
+        if (edgeSize <= 0)
+        {
+            return 0d;
+        }
+
+        if (pointerY < edgeSize)
+        {
+            var strength = Math.Clamp((edgeSize - Math.Max(0d, pointerY)) / edgeSize, 0d, 1d);
+            return -RouteDragAutoScrollMaximumStep * strength * strength;
+        }
+
+        var lowerEdgeStart = viewportHeight - edgeSize;
+        if (pointerY > lowerEdgeStart)
+        {
+            var strength = Math.Clamp((Math.Min(viewportHeight, pointerY) - lowerEdgeStart) / edgeSize, 0d, 1d);
+            return RouteDragAutoScrollMaximumStep * strength * strength;
+        }
+
+        return 0d;
+    }
+
     private void RouteStopsList_Drop(object sender, DragEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
@@ -1870,6 +1984,14 @@ public partial class KarteSectionView : UserControl
 
     private void RouteStopsList_DragLeave(object sender, DragEventArgs e)
     {
+        var position = e.GetPosition(RouteStopsList);
+        if (position.X >= 0 && position.X <= RouteStopsList.ActualWidth &&
+            position.Y >= 0 && position.Y <= RouteStopsList.ActualHeight)
+        {
+            return;
+        }
+
+        _routeDragAutoScrollVelocity = 0d;
         ClearRouteDropIndicator();
     }
 

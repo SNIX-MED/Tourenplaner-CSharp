@@ -69,6 +69,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly IOrderMutationRepository? _orderMutationRepository;
     private readonly ITourRecordStore _tourRepository;
     private readonly ITourRecordMutationStore? _tourMutationStore;
+    private readonly ITourOrderTransactionStore? _tourOrderTransactionStore;
     private readonly IEmployeeDataStore _employeeRepository;
     private readonly IVehicleDataStore _vehicleRepository;
     private readonly IAppSettingsStore _settingsRepository;
@@ -244,6 +245,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _orderMutationRepository = orderRepository as IOrderMutationRepository;
         _tourRepository = tourRepository;
         _tourMutationStore = tourRepository as ITourRecordMutationStore;
+        _tourOrderTransactionStore = tourRepository as ITourOrderTransactionStore;
         _employeeRepository = employeeRepository;
         _vehicleRepository = vehicleRepository;
         _settingsRepository = settingsRepository;
@@ -1065,7 +1067,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         order.IsAlternativeDeliveryEnabled = true;
         var geocodingResult = await ApplyDeliveryMethodRoutingAsync(order, order.Location);
-        await _orderRepository.SaveAllAsync(_allOrders);
         await ReconcileToursWithOrdersAsync(_allOrders);
         await RefreshAsync();
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, order.Id, StringComparison.OrdinalIgnoreCase));
@@ -2084,12 +2085,65 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public IReadOnlyList<GeoPoint> GetRouteGeometrySnapshot()
     {
-        return _routeGeometryPoints.ToList();
+        if (_isReturnToCompanyLegVisible || _routeGeometryPoints.Count < 2)
+        {
+            return _routeGeometryPoints.ToList();
+        }
+
+        var lastDeliveryStop = RouteStops
+            .Where(x => !IsCompanyStop(x) && !IsPauseStop(x) && HasValidCoordinate(x))
+            .LastOrDefault();
+        if (lastDeliveryStop is null)
+        {
+            return _routeGeometryPoints.ToList();
+        }
+
+        return BuildVisibleRouteGeometry(
+            _routeGeometryPoints,
+            lastDeliveryStop.Latitude,
+            lastDeliveryStop.Longitude);
     }
 
     public IReadOnlyList<OsrmRouteTrafficSegment> GetRouteTrafficSegmentSnapshot()
     {
-        return _routeTrafficSegments.ToList();
+        var visiblePointCount = GetRouteGeometrySnapshot().Count;
+        if (visiblePointCount < 2)
+        {
+            return Array.Empty<OsrmRouteTrafficSegment>();
+        }
+
+        return _routeTrafficSegments
+            .Where(x => x.StartIndex < visiblePointCount - 1)
+            .Select(x => new OsrmRouteTrafficSegment(
+                x.StartIndex,
+                Math.Min(x.EndIndex, visiblePointCount - 1),
+                x.TrafficLevel))
+            .Where(x => x.EndIndex > x.StartIndex)
+            .ToList();
+    }
+
+    internal static IReadOnlyList<GeoPoint> BuildVisibleRouteGeometry(
+        IReadOnlyList<GeoPoint> geometry,
+        double latitude,
+        double longitude)
+    {
+        var bestIndex = -1;
+        var bestDistanceSquared = double.MaxValue;
+        for (var i = 0; i < geometry.Count; i++)
+        {
+            var latitudeDelta = geometry[i].Latitude - latitude;
+            var longitudeDelta = geometry[i].Longitude - longitude;
+            var distanceSquared = latitudeDelta * latitudeDelta + longitudeDelta * longitudeDelta;
+            if (distanceSquared < bestDistanceSquared)
+            {
+                bestDistanceSquared = distanceSquared;
+                bestIndex = i;
+            }
+        }
+
+        return bestIndex < 0
+            ? geometry.ToList()
+            : geometry.Take(bestIndex + 1).ToList();
     }
 
     public string GetActiveRoutePolylineColor()
@@ -2511,7 +2565,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 SelectedOrder.AvisoStatusLabel = selectedAvisoStatus;
             }
 
-            await _orderRepository.SaveAllAsync(_allOrders);
             RebuildOrderGrid(order.Id);
             RebuildTourOverviewItems();
             OnPropertyChanged(nameof(RouteStops));
@@ -3170,8 +3223,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 tour.Stops[i].Order = i + 1;
             }
 
-            await _tourRepository.SaveAsync(tours);
-            _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
         }
 
         if (selectedDelivery is not null)
@@ -3187,7 +3238,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             order.AssignedTourId = string.Empty;
         }
         order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
-        await _orderRepository.SaveAllAsync(_allOrders);
+        await SaveToursAndOrdersAsync(tours, _allOrders);
+        if (tour is not null)
+        {
+            _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
+        }
         PublishOrderChange(selectedOrderId, selectedOrderId);
 
         var currentTourId = ResolveCurrentTourId();
@@ -3269,23 +3324,21 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 touchedTourIds.Add(tour.Id);
             }
 
-            if (toursChanged)
-            {
-                await _tourRepository.SaveAsync(tours);
-                foreach (var touchedTourId in touchedTourIds)
-                {
-                    var tourKey = touchedTourId.ToString(CultureInfo.InvariantCulture);
-                    _dataSyncService.PublishTours(_instanceId, tourKey, tourKey);
-                }
-            }
-
             foreach (var order in assignedOrders)
             {
                 order.AssignedTourId = string.Empty;
                 order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
             }
 
-            await _orderRepository.SaveAllAsync(_allOrders);
+            await SaveToursAndOrdersAsync(tours, _allOrders);
+            if (toursChanged)
+            {
+                foreach (var touchedTourId in touchedTourIds)
+                {
+                    var tourKey = touchedTourId.ToString(CultureInfo.InvariantCulture);
+                    _dataSyncService.PublishTours(_instanceId, tourKey, tourKey);
+                }
+            }
             PublishOrderChange(null, null);
         }
 
@@ -3697,6 +3750,23 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             : _tourRepository.SaveAsync(fallbackSnapshot, cancellationToken);
     }
 
+    private async Task SaveToursAndOrdersAsync(
+        IReadOnlyList<TourRecord> tours,
+        IReadOnlyList<Order> orders,
+        IReadOnlyList<TourRecord>? toursToDelete = null,
+        IReadOnlyList<Order>? ordersToDelete = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (_tourOrderTransactionStore is not null)
+        {
+            await _tourOrderTransactionStore.SaveAsync(tours, orders, toursToDelete, ordersToDelete, cancellationToken);
+            return;
+        }
+
+        await _tourRepository.SaveAsync(tours, cancellationToken);
+        await _orderRepository.SaveAllAsync(orders, cancellationToken);
+    }
+
     private async Task OpenCreateTourDialogAsync()
     {
         var hasRouteStops = RouteStops.Any(x => !IsCompanyStop(x));
@@ -3946,15 +4016,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             tours.Add(tour);
             RemoveRouteOrderStopsFromOtherTours(tours, tour.Stops, nextId);
 
-            await _tourRepository.SaveAsync(tours);
-            _dataSyncService.PublishTours(_instanceId, nextId.ToString(CultureInfo.InvariantCulture), nextId.ToString(CultureInfo.InvariantCulture));
-
             foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
             {
                 AssignDeliveriesFromTour(order, tour, nextId.ToString(CultureInfo.InvariantCulture));
             }
 
-            await _orderRepository.SaveAllAsync(_allOrders);
+            await SaveToursAndOrdersAsync(tours, _allOrders);
+            _dataSyncService.PublishTours(_instanceId, nextId.ToString(CultureInfo.InvariantCulture), nextId.ToString(CultureInfo.InvariantCulture));
             PublishOrderChange(null, null);
             await RefreshAsync();
             await FocusTourAsync(nextId);
@@ -4090,9 +4158,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             tours[index] = updated;
             RemoveRouteOrderStopsFromOtherTours(tours, updated.Stops, tourId);
 
-            await _tourRepository.SaveAsync(tours);
-            _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
-
             var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
             var retainedDeliveryIds = (updated.Stops ?? []).Select(x => x.DeliveryId)
                 .Where(x => !string.IsNullOrWhiteSpace(x)).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -4121,7 +4186,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 AssignDeliveriesFromTour(order, updated, tourKey);
             }
 
-            await _orderRepository.SaveAllAsync(_allOrders);
+            await SaveToursAndOrdersAsync(tours, _allOrders);
+            _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
             PublishOrderChange(null, null);
             await RefreshAsync();
             SetRouteChanged(false);
@@ -4164,16 +4230,19 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 }
             }
 
-            await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, allTours, cleanup);
-            _dataSyncService.PublishTours(_instanceId);
         }
 
         var assignmentsChanged = new OrderDeliveryService().SynchronizeTourAssignments(_allOrders, allTours);
-        if (assignmentsChanged)
+        if (cleanup.HasChanges || assignmentsChanged)
         {
-            await _orderRepository.SaveAllAsync(_allOrders);
-            PublishOrderChange(null, null);
-            RebuildOrderGrid(SelectedOrder?.OrderId);
+            var deletedTours = originalTours.Where(x => cleanup.DeletedTourIds.Contains(x.Id)).ToList();
+            await SaveToursAndOrdersAsync(allTours, _allOrders, deletedTours);
+            if (cleanup.HasChanges) _dataSyncService.PublishTours(_instanceId);
+            if (assignmentsChanged)
+            {
+                PublishOrderChange(null, null);
+                RebuildOrderGrid(SelectedOrder?.OrderId);
+            }
         }
 
         _savedTours.Clear();
@@ -4886,7 +4955,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _isReturnToCompanyLegVisible = !_isReturnToCompanyLegVisible;
         OnPropertyChanged(nameof(IsReturnToCompanyLegVisible));
         UpdateReturnToCompanyLegToggleState();
-        RequestRouteGeometryRebuild();
+        OnPropertyChanged(nameof(RouteGeometryPoints));
     }
 
     private static string BuildTourLookupLabel(TourRecord tour)
@@ -5518,7 +5587,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         tours.Remove(target);
-        await _tourRepository.SaveAsync(tours);
 
         var tourKey = target.Id.ToString(CultureInfo.InvariantCulture);
         foreach (var delivery in _allOrders.SelectMany(x => x.Deliveries ?? [])
@@ -5536,7 +5604,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
         }
 
-        await _orderRepository.SaveAllAsync(_allOrders);
+        await SaveToursAndOrdersAsync(tours, _allOrders, [target]);
         _dataSyncService.PublishTours(_instanceId, tourKey, null);
         PublishOrderChange(null, null);
 
@@ -5589,14 +5657,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 _allOrders,
                 confirmation == MessageBoxResult.Yes,
                 DateTimeOffset.Now);
-            await _orderRepository.SaveAllAsync(_allOrders);
-            PublishOrderChange(null, null);
             archivedOrderCount = result.ArchivedOrderCount;
             archivedPartialDeliveryCount = result.ArchivedPartialDeliveryCount;
         }
 
         target.IsArchived = true;
-        await _tourRepository.SaveAsync(tours);
+        await SaveToursAndOrdersAsync(tours, _allOrders);
+        if (impact.HasTargets) PublishOrderChange(null, null);
         _dataSyncService.PublishTours(_instanceId, tourKey, tourKey);
 
         await LoadSavedToursAsync();
@@ -6706,7 +6773,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         new OrderDeliveryService().MarkDelivered(order, delivery.Id, DateTimeOffset.Now);
-        await _orderRepository.SaveAllAsync(_allOrders);
         await ReconcileToursWithOrdersAsync(_allOrders);
         PublishOrderChange(order.Id, order.Id);
         var archivedWholeOrder = order.IsArchived;
@@ -6865,7 +6931,18 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             }
 
             _allOrders.RemoveAll(x => string.Equals(x.Id, selected.Id, StringComparison.OrdinalIgnoreCase));
-            await _orderRepository.SaveAllAsync(_allOrders);
+            try
+            {
+                await ReconcileToursWithOrdersAsync(_allOrders, [selected]);
+            }
+            catch
+            {
+                if (_allOrders.All(x => !string.Equals(x.Id, selected.Id, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _allOrders.Add(selected);
+                }
+                throw;
+            }
             await RefreshAsync();
             PublishOrderChange(selected.Id, null);
             StatusText = $"Auftrag {selected.Id} wurde gelöscht.";
@@ -6901,21 +6978,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                                   string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
         _allOrders.Add(updated);
 
-        if (_orderMutationRepository is not null)
+        IReadOnlyList<Order>? ordersToDelete = null;
+        if (!string.Equals(originalId, updated.Id, StringComparison.OrdinalIgnoreCase))
         {
-            if (!string.Equals(originalId, updated.Id, StringComparison.OrdinalIgnoreCase))
-            {
-                await _orderMutationRepository.DeleteAsync(originalId, selected.ConcurrencyToken);
-                updated.ConcurrencyToken = null;
-            }
-
-            await _orderMutationRepository.UpsertAsync(updated);
+            ordersToDelete = [selected];
+            updated.ConcurrencyToken = null;
         }
-        else
-        {
-            await _orderRepository.SaveAllAsync(_allOrders);
-        }
-        await ReconcileToursWithOrdersAsync(_allOrders);
+        await ReconcileToursWithOrdersAsync(_allOrders, ordersToDelete);
         await RefreshAsync();
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, updated.Id, StringComparison.OrdinalIgnoreCase));
         PublishOrderChange(originalId, updated.Id);
@@ -6931,27 +7000,25 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             x => AddressGeocodingService.TryResolveOrderAsync(x, _tomTomApiKey, _geocodeCachePath));
     }
 
-    private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
+    private async Task ReconcileToursWithOrdersAsync(
+        IReadOnlyList<Order> orders,
+        IReadOnlyList<Order>? ordersToDelete = null)
     {
         var allTours = (await _tourRepository.LoadAsync()).ToList();
         var originalTours = allTours.ToList();
         var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(allTours, orders);
-        if (!cleanup.HasChanges)
+        if (cleanup.HasChanges)
         {
-            return;
-        }
-
-        foreach (var changedTourId in cleanup.RescheduledTourIds)
-        {
-            var changedTour = allTours.FirstOrDefault(x => x.Id == changedTourId);
-            if (changedTour is not null)
+            foreach (var changedTourId in cleanup.RescheduledTourIds)
             {
-                _scheduleService.ApplySchedule(changedTour);
+                var changedTour = allTours.FirstOrDefault(x => x.Id == changedTourId);
+                if (changedTour is not null) _scheduleService.ApplySchedule(changedTour);
             }
         }
 
-        await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, allTours, cleanup);
-        _dataSyncService.PublishTours(_instanceId);
+        var deletedTours = originalTours.Where(x => cleanup.DeletedTourIds.Contains(x.Id)).ToList();
+        await SaveToursAndOrdersAsync(allTours, orders, deletedTours, ordersToDelete);
+        if (cleanup.HasChanges) _dataSyncService.PublishTours(_instanceId);
     }
 
     private async Task<bool> ConfirmManualArchiveForAssignedActiveTourAsync(Order existing, Order updated)
@@ -7632,7 +7699,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             SelectedOrder.AvisoStatusLabel = normalizedStatus;
         }
 
-        await _orderRepository.SaveAllAsync(_allOrders);
         await UpdateArrivalWindowFixationAsync(order, normalizedStatus, keepFixedArrivalWindow);
 
         _suppressDetailAvisoStatusSave = true;
@@ -7691,10 +7757,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         if (!changed)
         {
+            await _orderRepository.SaveAllAsync(_allOrders);
             return;
         }
 
-        await _tourRepository.SaveAsync(tours);
+        await SaveToursAndOrdersAsync(tours, _allOrders);
         _dataSyncService.PublishTours(_instanceId, order.AssignedTourId, order.AssignedTourId);
 
         if (routeStop is not null)
@@ -9071,16 +9138,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             totalDriveMinutes += leg.DurationMinutes;
             totalDistanceKm += leg.DistanceKm;
 
-            if (!isReturnToCompanyLeg || _isReturnToCompanyLegVisible)
-            {
-                previousRoutedStop.SetNextLeg(
-                    durationText: FormatDuration(leg.DurationMinutes),
-                    distanceText: $"{leg.DistanceKm:0.0} km",
-                    departureText: realisticDepart.ToString("HH:mm"),
-                    arrivalText: arrive.ToString("HH:mm"),
-                    arrivalRangeText: legRangeText,
-                    accentColorHex: routeLegIndex % 2 == 0 ? "#7BC6A4" : "#8EC6E8");
-            }
+            previousRoutedStop.SetNextLeg(
+                durationText: FormatDuration(leg.DurationMinutes),
+                distanceText: $"{leg.DistanceKm:0.0} km",
+                departureText: realisticDepart.ToString("HH:mm"),
+                arrivalText: arrive.ToString("HH:mm"),
+                arrivalRangeText: legRangeText,
+                accentColorHex: routeLegIndex % 2 == 0 ? "#7BC6A4" : "#8EC6E8");
 
             sb.AppendLine($"{BuildStopLabel(previousRoutedStop, isFrom: true)} -> {BuildStopLabel(stop, isFrom: false)}");
             sb.AppendLine($"{leg.DurationMinutes} min | {leg.DistanceKm:0.0} km");
@@ -9098,12 +9162,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 sb.AppendLine();
             }
 
-            stop.EtaText = isReturnToCompanyLeg && !_isReturnToCompanyLegVisible
-                ? string.Empty
-                : arrive.ToString("HH:mm");
-            stop.EtaRangeText = isReturnToCompanyLeg && !_isReturnToCompanyLegVisible
-                ? string.Empty
-                : legRangeText;
+            stop.EtaText = arrive.ToString("HH:mm");
+            stop.EtaRangeText = legRangeText;
             if (!IsCompanyStop(stop) && !IsPauseStop(stop))
             {
                 totalStayMinutes += Math.Max(0, stop.PlannedStayMinutes);

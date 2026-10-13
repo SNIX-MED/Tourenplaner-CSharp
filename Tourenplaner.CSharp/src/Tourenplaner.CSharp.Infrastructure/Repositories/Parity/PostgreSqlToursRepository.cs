@@ -5,7 +5,7 @@ using Tourenplaner.CSharp.Infrastructure.Services;
 
 namespace Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
-public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMutationStore
+public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMutationStore, ITourOrderTransactionStore
 {
     private readonly PostgreSqlStorageSettings _settings;
     private readonly PostgreSqlConnectionFactory _connectionFactory;
@@ -46,6 +46,8 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
         var items = (tours ?? Array.Empty<TourRecord>())
             .Where(x => x is not null)
             .Select(TourNormalizer.NormalizeTour)
+            .GroupBy(x => x.Id)
+            .Select(x => x.Last())
             .ToList();
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
@@ -71,10 +73,23 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
                     RETURNING updated_at;
                     """
                 : $"""
-                    UPDATE "{schema}"."tour_records"
-                    SET payload = CAST(@payload AS jsonb), updated_at = @updatedAt
-                    WHERE id = @id AND updated_at = @expectedUpdatedAt
-                    RETURNING updated_at;
+                    WITH current_row AS (
+                        SELECT payload, updated_at FROM "{schema}"."tour_records" WHERE id = @id
+                    ), updated_row AS (
+                        UPDATE "{schema}"."tour_records"
+                        SET payload = CAST(@payload AS jsonb), updated_at = @updatedAt
+                        WHERE id = @id
+                          AND updated_at = @expectedUpdatedAt
+                          AND (payload - 'ConcurrencyToken' - 'concurrencyToken')
+                              IS DISTINCT FROM (CAST(@payload AS jsonb) - 'ConcurrencyToken' - 'concurrencyToken')
+                        RETURNING updated_at
+                    )
+                    SELECT updated_at FROM updated_row
+                    UNION ALL
+                    SELECT updated_at FROM current_row
+                    WHERE (payload - 'ConcurrencyToken' - 'concurrencyToken')
+                          IS NOT DISTINCT FROM (CAST(@payload AS jsonb) - 'ConcurrencyToken' - 'concurrencyToken')
+                    LIMIT 1;
                     """;
             command.Parameters.AddWithValue("id", item.Id.ToString());
             command.Parameters.AddWithValue("payload", PostgreSqlRepositorySerializer.Serialize(item));
@@ -98,6 +113,88 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
         {
             tour.ConcurrencyToken = token;
         }
+    }
+
+    public async Task SaveAsync(
+        IEnumerable<TourRecord> tours,
+        IEnumerable<Order> orders,
+        IEnumerable<TourRecord>? toursToDelete = null,
+        IEnumerable<Order>? ordersToDelete = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tourItems = (tours ?? Array.Empty<TourRecord>()).Where(x => x is not null)
+            .Select(TourNormalizer.NormalizeTour).GroupBy(x => x.Id).Select(x => x.Last()).ToList();
+        var orderItems = (orders ?? Array.Empty<Order>()).Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id))
+            .GroupBy(x => x.Id.Trim(), StringComparer.OrdinalIgnoreCase).Select(x => x.Last()).ToList();
+        var deletedTours = (toursToDelete ?? Array.Empty<TourRecord>()).Where(x => x is not null)
+            .GroupBy(x => x.Id).Select(x => x.Last()).ToList();
+        var deletedOrders = (ordersToDelete ?? Array.Empty<Order>()).Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id))
+            .GroupBy(x => x.Id.Trim(), StringComparer.OrdinalIgnoreCase).Select(x => x.Last()).ToList();
+
+        await using var connection = _connectionFactory.CreateConnection(_settings);
+        await connection.OpenAsync(cancellationToken);
+        await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
+        var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        var savedTourTokens = new List<(TourRecord Tour, string Token)>();
+        var savedOrderTokens = new List<(Order Order, string Token)>();
+
+        foreach (var item in tourItems)
+        {
+            var expectedToken = ParseConcurrencyToken(item.ConcurrencyToken);
+            var nextToken = DateTimeOffset.UtcNow;
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = expectedToken is null
+                ? $"""
+                    INSERT INTO "{schema}"."tour_records" (id, payload, updated_at)
+                    VALUES (@id, CAST(@payload AS jsonb), @updatedAt)
+                    ON CONFLICT (id) DO NOTHING RETURNING updated_at;
+                    """
+                : BuildConcurrencySafeUpdateSql(schema, "tour_records");
+            command.Parameters.AddWithValue("id", item.Id.ToString());
+            command.Parameters.AddWithValue("payload", PostgreSqlRepositorySerializer.Serialize(item));
+            command.Parameters.AddWithValue("updatedAt", nextToken);
+            if (expectedToken.HasValue) command.Parameters.AddWithValue("expectedUpdatedAt", expectedToken.Value);
+            var savedAt = await command.ExecuteScalarAsync(cancellationToken);
+            if (savedAt is null) throw new ConcurrencyConflictException("Tour", item.Id.ToString());
+            savedTourTokens.Add((item, FormatConcurrencyToken(ReadTimestamp(savedAt))));
+        }
+
+        foreach (var item in orderItems)
+        {
+            var expectedToken = ParseConcurrencyToken(item.ConcurrencyToken);
+            var nextToken = DateTimeOffset.UtcNow;
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = expectedToken is null
+                ? $"""
+                    INSERT INTO "{schema}"."orders" (id, payload, updated_at)
+                    VALUES (@id, CAST(@payload AS jsonb), @updatedAt)
+                    ON CONFLICT (id) DO NOTHING RETURNING updated_at;
+                    """
+                : BuildConcurrencySafeUpdateSql(schema, "orders");
+            command.Parameters.AddWithValue("id", item.Id.Trim());
+            command.Parameters.AddWithValue("payload", PostgreSqlRepositorySerializer.Serialize(item));
+            command.Parameters.AddWithValue("updatedAt", nextToken);
+            if (expectedToken.HasValue) command.Parameters.AddWithValue("expectedUpdatedAt", expectedToken.Value);
+            var savedAt = await command.ExecuteScalarAsync(cancellationToken);
+            if (savedAt is null) throw new ConcurrencyConflictException("Auftrag", item.Id.Trim());
+            savedOrderTokens.Add((item, FormatConcurrencyToken(ReadTimestamp(savedAt))));
+        }
+
+        foreach (var item in deletedTours)
+        {
+            await DeleteInTransactionAsync(connection, transaction, schema, "tour_records", item.Id.ToString(), item.ConcurrencyToken, "Tour", cancellationToken);
+        }
+        foreach (var item in deletedOrders)
+        {
+            await DeleteInTransactionAsync(connection, transaction, schema, "orders", item.Id.Trim(), item.ConcurrencyToken, "Auftrag", cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        foreach (var (tour, token) in savedTourTokens) tour.ConcurrencyToken = token;
+        foreach (var (order, token) in savedOrderTokens) order.ConcurrencyToken = token;
     }
 
     public async Task<TourRecord?> GetByIdAsync(int tourId, CancellationToken cancellationToken = default)
@@ -127,8 +224,6 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
         var normalized = TourNormalizer.NormalizeTour(tour);
         var expectedToken = ParseConcurrencyToken(normalized.ConcurrencyToken);
         var nextToken = DateTimeOffset.UtcNow;
-        normalized.ConcurrencyToken = FormatConcurrencyToken(nextToken);
-        tour.ConcurrencyToken = normalized.ConcurrencyToken;
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
         await connection.OpenAsync(cancellationToken);
@@ -216,6 +311,49 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
 
     private static string CreateConcurrencyToken()
         => FormatConcurrencyToken(DateTimeOffset.UtcNow);
+
+    private static string BuildConcurrencySafeUpdateSql(string schema, string table)
+        => $"""
+            WITH current_row AS (
+                SELECT payload, updated_at FROM "{schema}"."{table}" WHERE id = @id
+            ), updated_row AS (
+                UPDATE "{schema}"."{table}"
+                SET payload = CAST(@payload AS jsonb), updated_at = @updatedAt
+                WHERE id = @id
+                  AND updated_at = @expectedUpdatedAt
+                  AND (payload - 'ConcurrencyToken' - 'concurrencyToken')
+                      IS DISTINCT FROM (CAST(@payload AS jsonb) - 'ConcurrencyToken' - 'concurrencyToken')
+                RETURNING updated_at
+            )
+            SELECT updated_at FROM updated_row
+            UNION ALL
+            SELECT updated_at FROM current_row
+            WHERE (payload - 'ConcurrencyToken' - 'concurrencyToken')
+                  IS NOT DISTINCT FROM (CAST(@payload AS jsonb) - 'ConcurrencyToken' - 'concurrencyToken')
+            LIMIT 1;
+            """;
+
+    private static async Task DeleteInTransactionAsync(
+        Npgsql.NpgsqlConnection connection,
+        Npgsql.NpgsqlTransaction transaction,
+        string schema,
+        string table,
+        string id,
+        string? concurrencyToken,
+        string entityName,
+        CancellationToken cancellationToken)
+    {
+        var expectedToken = ParseConcurrencyToken(concurrencyToken);
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = expectedToken is null
+            ? $"""DELETE FROM "{schema}"."{table}" WHERE id = @id;"""
+            : $"""DELETE FROM "{schema}"."{table}" WHERE id = @id AND updated_at = @expectedUpdatedAt;""";
+        command.Parameters.AddWithValue("id", id);
+        if (expectedToken.HasValue) command.Parameters.AddWithValue("expectedUpdatedAt", expectedToken.Value);
+        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (expectedToken.HasValue && affectedRows == 0) throw new ConcurrencyConflictException(entityName, id);
+    }
 
     private static string FormatConcurrencyToken(DateTimeOffset value)
         => value.ToUniversalTime().ToString("O");

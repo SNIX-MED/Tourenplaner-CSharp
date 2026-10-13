@@ -2520,9 +2520,12 @@ internal static class MapHtmlDocumentBuilder
                              return;
                            }
 
+                           // Do not connect route pins with temporary straight lines while the
+                           // routed street geometry is still loading. The view model supplies an
+                           // explicit waypoint geometry itself when a routing provider is unavailable.
                            const path = (Array.isArray(geometryPoints) && geometryPoints.length > 1)
                              ? geometryPoints.map(toMapCoordinate).filter(p => Array.isArray(p))
-                             : routeStops.map(toMapCoordinate).filter(p => Array.isArray(p));
+                             : [];
 
                            const routeKey = routeStops
                              .map(stop => {

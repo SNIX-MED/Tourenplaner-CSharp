@@ -46,6 +46,8 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
     {
         var items = (orders ?? Enumerable.Empty<Order>())
             .Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id))
+            .GroupBy(x => x.Id.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.Last())
             .ToList();
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
@@ -71,10 +73,23 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
                     RETURNING updated_at;
                     """
                 : $"""
-                    UPDATE "{schema}"."orders"
-                    SET payload = CAST(@payload AS jsonb), updated_at = @updatedAt
-                    WHERE id = @id AND updated_at = @expectedUpdatedAt
-                    RETURNING updated_at;
+                    WITH current_row AS (
+                        SELECT payload, updated_at FROM "{schema}"."orders" WHERE id = @id
+                    ), updated_row AS (
+                        UPDATE "{schema}"."orders"
+                        SET payload = CAST(@payload AS jsonb), updated_at = @updatedAt
+                        WHERE id = @id
+                          AND updated_at = @expectedUpdatedAt
+                          AND (payload - 'ConcurrencyToken' - 'concurrencyToken')
+                              IS DISTINCT FROM (CAST(@payload AS jsonb) - 'ConcurrencyToken' - 'concurrencyToken')
+                        RETURNING updated_at
+                    )
+                    SELECT updated_at FROM updated_row
+                    UNION ALL
+                    SELECT updated_at FROM current_row
+                    WHERE (payload - 'ConcurrencyToken' - 'concurrencyToken')
+                          IS NOT DISTINCT FROM (CAST(@payload AS jsonb) - 'ConcurrencyToken' - 'concurrencyToken')
+                    LIMIT 1;
                     """;
             command.Parameters.AddWithValue("id", item.Id.Trim());
             command.Parameters.AddWithValue("payload", PostgreSqlRepositorySerializer.Serialize(item));
@@ -133,7 +148,6 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
         var normalizedId = order.Id.Trim();
         var expectedToken = ParseConcurrencyToken(order.ConcurrencyToken);
         var nextToken = DateTimeOffset.UtcNow;
-        order.ConcurrencyToken = FormatConcurrencyToken(nextToken);
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
         await connection.OpenAsync(cancellationToken);

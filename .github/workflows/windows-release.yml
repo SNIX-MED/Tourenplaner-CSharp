@@ -69,10 +69,12 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Pins gleicher Lieferadressen werden auch bei geladenen Touren zuverlaessig gefaechert dargestellt
-          - Freie und eingeplante Pins verwenden eine gemeinsame, stabile Positionierung ohne Flackern oder Ueberlagerung
-          - Teillieferungen werden anhand ihrer Lieferadresse konsistent gruppiert, auch wenn gespeicherte Koordinaten leicht abweichen
-          - Lieferung 1 und Lieferung 2 bleiben auf der Karte eindeutig unterscheidbar und anklickbar
+          - SQL-Speicherung von Touren und Auftraegen gegen falsche Mehrbenutzerkonflikte und Teil-Speicherungen abgesichert
+          - Auftraege und Touren werden in PostgreSQL zuverlaessig aktualisiert und geloescht
+          - Rueckfahrtslinie zur Firma kann wieder unabhaengig von Zeit- und Distanzanzeige ein- und ausgeblendet werden
+          - Unterschiedliche Symbole zeigen den Zustand der Rueckfahrtslinie eindeutig an
+          - Keine temporaeren geraden Verbindungslinien mehr waehrend die Strassenroute geladen wird
+          - Fluessiges automatisches Scrollen beim Verschieben von Stopps an der Ober- oder Unterkante
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

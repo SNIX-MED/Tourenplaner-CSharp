@@ -10,6 +10,27 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class KarteSearchDetailsTests
 {
     [Fact]
+    public void HiddenReturnLeg_TruncatesGeometryAtLastDeliveryStop()
+    {
+        IReadOnlyList<GeoPoint> completeRoute =
+        [
+            new(47.10, 8.10),
+            new(47.20, 8.20),
+            new(47.30001, 8.30001),
+            new(47.40, 8.40),
+            new(47.50, 8.50)
+        ];
+
+        var visibleRoute = KarteSectionViewModel.BuildVisibleRouteGeometry(
+            completeRoute,
+            latitude: 47.30,
+            longitude: 8.30);
+
+        Assert.Equal(3, visibleRoute.Count);
+        Assert.Equal(completeRoute[2], visibleRoute[^1]);
+    }
+
+    [Fact]
     public async Task ClosingDetails_ClearsSearchThatOpenedTheOrder()
     {
         var viewModel = CreateViewModel();
