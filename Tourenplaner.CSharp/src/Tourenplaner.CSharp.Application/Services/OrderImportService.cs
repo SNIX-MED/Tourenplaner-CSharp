@@ -274,7 +274,7 @@ public class OrderImportService : IOrderImportService
                 Name = sqlOrder.KundeFirma,
                 ContactPerson = orderContactPerson,
                 Street = (sqlOrder.KundeStrasse ?? string.Empty).Trim(),
-                HouseNumber = ResolvePreferredContact(sqlOrder.KundeAdressNummer, sqlOrder.KundeHausnummer),
+                HouseNumber = (sqlOrder.KundeHausnummer ?? string.Empty).Trim(),
                 PostalCode = sqlOrder.KundePLZ,
                 City = sqlOrder.KundeOrt
             },
@@ -494,7 +494,6 @@ public class OrderImportService : IOrderImportService
         var hasSeparateDeliveryAddress =
             !string.IsNullOrWhiteSpace(sqlOrder.LieferStrasse) ||
             !string.IsNullOrWhiteSpace(sqlOrder.LieferHausnummer) ||
-            !string.IsNullOrWhiteSpace(sqlOrder.LieferAdressNummer) ||
             !string.IsNullOrWhiteSpace(sqlOrder.LieferPLZ) ||
             !string.IsNullOrWhiteSpace(sqlOrder.LieferOrt) ||
             !string.IsNullOrWhiteSpace(sqlOrder.LieferLand) ||
@@ -519,7 +518,7 @@ public class OrderImportService : IOrderImportService
                 Name: name,
                 ContactPerson: contactPerson,
                 Street: (sqlOrder.LieferStrasse ?? string.Empty).Trim(),
-                AddressNumber: ResolvePreferredContact(sqlOrder.LieferAdressNummer, sqlOrder.LieferHausnummer),
+                AddressNumber: (sqlOrder.LieferHausnummer ?? string.Empty).Trim(),
                 PostalCode: sqlOrder.LieferPLZ,
                 City: sqlOrder.LieferOrt);
         }
@@ -534,9 +533,7 @@ public class OrderImportService : IOrderImportService
             Name: string.IsNullOrWhiteSpace(sqlOrder.KundeFirma) ? BuildCustomerName(sqlOrder) : sqlOrder.KundeFirma,
             ContactPerson: customerContact,
             Street: (sqlOrder.KundeStrasse ?? string.Empty).Trim(),
-            AddressNumber: ResolvePreferredContact(
-                sqlOrder.LieferAdressNummer,
-                ResolvePreferredContact(sqlOrder.KundeAdressNummer, sqlOrder.KundeHausnummer)),
+            AddressNumber: (sqlOrder.KundeHausnummer ?? string.Empty).Trim(),
             PostalCode: sqlOrder.KundePLZ,
             City: sqlOrder.KundeOrt);
     }

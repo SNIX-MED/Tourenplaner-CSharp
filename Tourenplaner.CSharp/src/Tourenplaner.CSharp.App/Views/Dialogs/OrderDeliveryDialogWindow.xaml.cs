@@ -19,8 +19,10 @@ public partial class OrderDeliveryDialogWindow : Window
 
     public OrderDeliveryDialogViewModel ViewModel { get; }
     public IReadOnlyList<OrderDeliveryLine>? ResultLines { get; private set; }
-    public DateOnly? PlannedDeliveryDate { get; private set; }
-    public string Notes { get; private set; } = string.Empty;
+    public DateOnly? Delivery1PlannedDate { get; private set; }
+    public DateOnly? Delivery2PlannedDate { get; private set; }
+    public string Delivery1Notes { get; private set; } = string.Empty;
+    public string Delivery2Notes { get; private set; } = string.Empty;
 
     private void OnCancel(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
     private void OnSave(object sender, RoutedEventArgs e)
@@ -31,8 +33,10 @@ public partial class OrderDeliveryDialogWindow : Window
             return;
         }
         ResultLines = lines;
-        PlannedDeliveryDate = ViewModel.PlannedDate.HasValue ? DateOnly.FromDateTime(ViewModel.PlannedDate.Value) : null;
-        Notes = ViewModel.Notes;
+        Delivery1PlannedDate = ViewModel.Delivery1PlannedDate.HasValue ? DateOnly.FromDateTime(ViewModel.Delivery1PlannedDate.Value) : null;
+        Delivery2PlannedDate = ViewModel.Delivery2PlannedDate.HasValue ? DateOnly.FromDateTime(ViewModel.Delivery2PlannedDate.Value) : null;
+        Delivery1Notes = ViewModel.Delivery1Notes;
+        Delivery2Notes = ViewModel.Delivery2Notes;
         DialogResult = true;
         Close();
     }
@@ -48,11 +52,16 @@ public sealed class OrderDeliveryDialogViewModel : INotifyPropertyChanged
             .Where(x => !string.IsNullOrWhiteSpace(x.Name) && remaining.GetValueOrDefault(x.PositionId) > 0)
             .Select(x => new OrderDeliveryLineInput(x.PositionId, x.Name, OrderProductInfo.NormalizeQuantity(x.Quantity), remaining[x.PositionId])));
         foreach (var line in Lines) line.PropertyChanged += (_, _) => PropertyChanged?.Invoke(this, new(nameof(Summary)));
-        PlannedDate = null;
+        Delivery1PlannedDate = order.DeliveryDate?.ToDateTime(TimeOnly.MinValue);
+        Delivery2PlannedDate = order.DeliveryDate?.ToDateTime(TimeOnly.MinValue);
+        Delivery1Notes = order.Notes ?? string.Empty;
+        Delivery2Notes = order.Notes ?? string.Empty;
     }
     public ObservableCollection<OrderDeliveryLineInput> Lines { get; }
-    public DateTime? PlannedDate { get; set; }
-    public string Notes { get; set; } = string.Empty;
+    public DateTime? Delivery1PlannedDate { get; set; }
+    public DateTime? Delivery2PlannedDate { get; set; }
+    public string Delivery1Notes { get; set; } = string.Empty;
+    public string Delivery2Notes { get; set; } = string.Empty;
     public string Summary => $"Ausgewählte Menge: {Lines.Sum(x => Math.Max(0, x.Quantity))}";
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -93,7 +102,7 @@ public sealed class OrderDeliveryLineInput : INotifyPropertyChanged
         {
             if (_isSelected == value) return;
             _isSelected = value;
-            if (value && Quantity <= 0) QuantityText = "1";
+            if (value && Quantity <= 0) QuantityText = RemainingQuantity.ToString();
             if (!value) QuantityText = "0";
             PropertyChanged?.Invoke(this, new(nameof(IsSelected)));
         }

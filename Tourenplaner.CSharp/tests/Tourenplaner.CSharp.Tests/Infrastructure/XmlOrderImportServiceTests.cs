@@ -514,6 +514,61 @@ public class XmlOrderImportServiceTests
     }
 
     [Fact]
+    public void LoadOrdersFromFileDetailed_DoesNotTreatContactOrInternalAddressNumberAsStreetAddress()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var xmlPath = Path.Combine(root, "orders.xml");
+
+        try
+        {
+            File.WriteAllText(xmlPath,
+                """
+                <belege>
+                  <beleg>
+                    <ident>order-1</ident>
+                    <typ>SALES</typ>
+                    <kopf>222059</kopf>
+                    <datum>12.10.2026 00:00:00</datum>
+                    <archiv>False</archiv>
+                    <lieferperson>Philipp Winter</lieferperson>
+                    <adresskopfrechnung>VBS
+                    Guisanplatz 1
+                    3003 Bern</adresskopfrechnung>
+                    <adresskopflieferung>Logistikbasis der Armee LBA
+                    LBA Aussenstelle Emmen
+                    Philipp Winter
+                    6032 Emmen</adresskopflieferung>
+                    <standort>Logistikbasis der Armee LBA | CH-6032 Emmen | 122358</standort>
+                    <positionen>
+                      <position>
+                        <kopfid>order-1</kopfid>
+                        <artikel>PRODUKT</artikel>
+                        <menge>1</menge>
+                        <bezeichnung>Produkt</bezeichnung>
+                        <gewicht>1</gewicht>
+                      </position>
+                    </positionen>
+                  </beleg>
+                </belege>
+                """);
+
+            var result = new XmlOrderImportService().LoadOrdersFromFileDetailed(xmlPath);
+
+            var order = Assert.Single(result.Orders);
+            Assert.Equal("122358", order.LieferAdressNummer);
+            Assert.Empty(order.LieferStrasse);
+            Assert.Equal("6032", order.LieferPLZ);
+            Assert.Equal("Emmen", order.LieferOrt);
+            Assert.Contains("Philipp Winter", order.LieferKontaktperson);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void LoadOrdersFromFileDetailed_UsesNameAfterSalutationInBelegOrderAddress()
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));

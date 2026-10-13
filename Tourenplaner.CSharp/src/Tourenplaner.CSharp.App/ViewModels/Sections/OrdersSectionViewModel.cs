@@ -85,6 +85,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         AddManualOrderCommand = new AsyncCommand(AddManualOrderAsync);
         EditSelectedOrderCommand = new AsyncCommand(EditSelectedOrderAsync, () => SelectedOrder is not null);
         CreatePartialDeliveryCommand = new AsyncCommand(CreatePartialDeliveryAsync, CanCreatePartialDelivery);
+        MergePartialDeliveriesCommand = new AsyncCommand(MergePartialDeliveriesAsync, CanMergePartialDeliveries);
         ShowAssignedTourCommand = new AsyncCommand(ShowAssignedTourAsync, CanShowAssignedTour);
         CopySelectedOrderNumberCommand = new DelegateCommand(CopySelectedOrderNumber, () => SelectedOrder is not null);
         SetSelectedOrderStatusDefaultCommand = new AsyncCommand(() => SetSelectedOrderStatusAsync(Order.DefaultOrderStatus), () => SelectedOrder is not null);
@@ -127,6 +128,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     public ICommand EditSelectedOrderCommand { get; }
 
     public ICommand CreatePartialDeliveryCommand { get; }
+
+    public ICommand MergePartialDeliveriesCommand { get; }
 
     public ICommand ShowAssignedTourCommand { get; }
 
@@ -276,6 +279,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
     }
 
+    public bool SelectedOrderCanCreatePartialDelivery => CanCreatePartialDelivery();
+
+    public bool SelectedOrderCanMergePartialDeliveries => CanMergePartialDeliveries();
+
     public OrderItem? SelectedOrder
     {
         get => _selectedOrder;
@@ -285,6 +292,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             {
                 OnPropertyChanged(nameof(ToggleArchiveSelectedOrderMenuText));
                 OnPropertyChanged(nameof(SelectedOrderHasPartialDeliveries));
+                OnPropertyChanged(nameof(SelectedOrderCanCreatePartialDelivery));
+                OnPropertyChanged(nameof(SelectedOrderCanMergePartialDeliveries));
                 RaiseCommandStates();
             }
         }
@@ -340,7 +349,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         return order is not null &&
                !order.IsArchived &&
                (order.Deliveries ?? []).Count < OrderDeliveryService.MaximumDeliveryCount &&
-               _deliveryService.GetRemainingQuantities(order).Values.Any(x => x > 0);
+               (_deliveryService.CanSplitSingleDelivery(order) ||
+                _deliveryService.GetRemainingQuantities(order).Values.Any(x => x > 0));
     }
 
     private async Task CreatePartialDeliveryAsync()
@@ -354,13 +364,38 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         {
             return;
         }
+
+        OrderDelivery? previousSingleDelivery = null;
+        if (_deliveryService.CanSplitSingleDelivery(order))
+        {
+            previousSingleDelivery = order.Deliveries[0];
+            order.Deliveries = [];
+        }
         var dialog = new OrderDeliveryDialogWindow(order) { Owner = System.Windows.Application.Current?.MainWindow };
         if (dialog.ShowDialog() != true || dialog.ResultLines is null)
         {
+            if (previousSingleDelivery is not null)
+            {
+                order.Deliveries = [previousSingleDelivery];
+            }
             return;
         }
-        var delivery = _deliveryService.Create(order, dialog.ResultLines, dialog.PlannedDeliveryDate, dialog.Notes);
-        _deliveryService.EnsureRemainderDelivery(order);
+        var delivery = _deliveryService.Create(order, dialog.ResultLines, dialog.Delivery1PlannedDate, dialog.Delivery1Notes);
+        if (previousSingleDelivery is not null)
+        {
+            delivery.Id = previousSingleDelivery.Id;
+            delivery.AssignedTourId = previousSingleDelivery.AssignedTourId;
+            delivery.Status = string.IsNullOrWhiteSpace(delivery.AssignedTourId)
+                ? OrderDeliveryStatus.ReadyForPlanning
+                : OrderDeliveryStatus.Planned;
+            order.AssignedTourId = delivery.AssignedTourId;
+        }
+        var remainderDelivery = _deliveryService.EnsureRemainderDelivery(order);
+        if (remainderDelivery is not null)
+        {
+            remainderDelivery.PlannedDeliveryDate = dialog.Delivery2PlannedDate;
+            remainderDelivery.Notes = dialog.Delivery2Notes;
+        }
         _deliveryService.DistributeOrderNotesToDeliveries(order);
         if (!await SaveOrderAsync(order))
         {
@@ -369,6 +404,54 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         await RefreshFromRepositoryAsync(order.Id);
         PublishOrderChange(order.Id, order.Id);
         StatusText = $"Teillieferung {order.Id}-{delivery.SequenceNumber} wurde erstellt.";
+    }
+
+    private bool CanMergePartialDeliveries()
+    {
+        if (SelectedOrder is null)
+        {
+            return false;
+        }
+
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
+        return order is not null && _deliveryService.CanMergePartialDeliveries(order);
+    }
+
+    private async Task MergePartialDeliveriesAsync()
+    {
+        if (SelectedOrder is null)
+        {
+            return;
+        }
+
+        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, SelectedOrder.Id, StringComparison.OrdinalIgnoreCase));
+        if (order is null || !CanMergePartialDeliveries())
+        {
+            return;
+        }
+
+        var confirmation = AppMessageBox.Show(
+            System.Windows.Application.Current?.MainWindow,
+            "Soll die Teillieferung wirklich aufgehoben werden? Anschliessend wird der Auftrag wieder als eine Lieferung geplant.",
+            "Teillieferung aufheben",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _deliveryService.MergePartialDeliveries(order);
+        if (!await SaveOrderAsync(order))
+        {
+            return;
+        }
+
+        await ReconcileToursWithOrdersAsync(_allOrders);
+        await RefreshFromRepositoryAsync(order.Id);
+        PublishOrderChange(order.Id, order.Id);
+        StatusText = $"Teillieferung für Auftrag {order.Id} wurde aufgehoben.";
+        ToastNotificationService.ShowInfo(StatusText);
     }
 
     private void AddOrder()
@@ -882,6 +965,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         RaiseCanExecuteChangedIfSupported(RemoveCommand);
         RaiseCanExecuteChangedIfSupported(EditSelectedOrderCommand);
         RaiseCanExecuteChangedIfSupported(CreatePartialDeliveryCommand);
+        RaiseCanExecuteChangedIfSupported(MergePartialDeliveriesCommand);
         RaiseCanExecuteChangedIfSupported(ShowAssignedTourCommand);
         RaiseCanExecuteChangedIfSupported(CopySelectedOrderNumberCommand);
         RaiseCanExecuteChangedIfSupported(SetSelectedOrderStatusDefaultCommand);

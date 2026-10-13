@@ -633,7 +633,12 @@
                                           Command="{Binding EditSelectedOrderCommand}" />
                                 <MenuItem Header="Teillieferung erstellen"
                                           Style="{StaticResource QuickActionsMenuItemStyle}"
+                                          Visibility="{Binding SelectedOrderCanCreatePartialDelivery, Converter={StaticResource BoolToVisibilityConverter}}"
                                           Command="{Binding CreatePartialDeliveryCommand}" />
+                                <MenuItem Header="Teillieferung aufheben"
+                                          Style="{StaticResource QuickActionsMenuItemStyle}"
+                                          Visibility="{Binding SelectedOrderCanMergePartialDeliveries, Converter={StaticResource BoolToVisibilityConverter}}"
+                                          Command="{Binding MergePartialDeliveriesCommand}" />
                                 <MenuItem Header="Tour anzeigen"
                                           Style="{StaticResource QuickActionsMenuItemStyle}"
                                           Command="{Binding ShowAssignedTourCommand}" />

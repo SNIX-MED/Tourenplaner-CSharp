@@ -78,7 +78,7 @@ public static class TourOrderReferenceService
         {
             var stops = tour.Stops ?? [];
             var nextStops = stops
-                .Where(stop => !ShouldRemoveStop(stop, validOrderIds) && !ShouldRemoveCompletedDeliveryStop(stop, orderById))
+                .Where(stop => !ShouldRemoveStop(stop, validOrderIds) && !ShouldRemoveInvalidDeliveryStop(stop, orderById))
                 .ToList();
 
             var removedFromTour = stops.Count - nextStops.Count;
@@ -213,7 +213,7 @@ public static class TourOrderReferenceService
         return !string.IsNullOrWhiteSpace(stop.Auftragsnummer);
     }
 
-    private static bool ShouldRemoveCompletedDeliveryStop(
+    private static bool ShouldRemoveInvalidDeliveryStop(
         TourStopRecord? stop,
         IReadOnlyDictionary<string, Order> orderById)
     {
@@ -230,6 +230,6 @@ public static class TourOrderReferenceService
 
         var delivery = (order.Deliveries ?? []).FirstOrDefault(x =>
             string.Equals(x.Id, stop.DeliveryId.Trim(), StringComparison.OrdinalIgnoreCase));
-        return delivery?.Status is OrderDeliveryStatus.Delivered or OrderDeliveryStatus.Cancelled;
+        return delivery is null || delivery.Status is OrderDeliveryStatus.Delivered or OrderDeliveryStatus.Cancelled;
     }
 }

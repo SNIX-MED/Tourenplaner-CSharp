@@ -1,6 +1,7 @@
 ﻿using System.Windows.Controls;
 
 using System.Windows;
+using System.Windows.Input;
 using Tourenplaner.CSharp.App.Views.Dialogs;
 
 namespace Tourenplaner.CSharp.App.Views.Sections;
@@ -61,6 +62,26 @@ public partial class SettingsSectionView : UserControl
         {
             WebfleetPasswordBox.Password = viewModel.WebfleetPassword;
         }
+    }
+
+    private void OnNestedScrollViewerPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer nestedViewer || SettingsContentScrollViewer is null)
+        {
+            return;
+        }
+
+        var nestedCanScroll = e.Delta > 0
+            ? nestedViewer.VerticalOffset > 0
+            : nestedViewer.VerticalOffset < nestedViewer.ScrollableHeight;
+        if (nestedCanScroll)
+        {
+            return;
+        }
+
+        SettingsContentScrollViewer.ScrollToVerticalOffset(
+            SettingsContentScrollViewer.VerticalOffset - (e.Delta / 3d));
+        e.Handled = true;
     }
 
     private async void OnEditAdditionalMaterialGroups(object sender, RoutedEventArgs e)

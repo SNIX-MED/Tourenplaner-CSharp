@@ -363,23 +363,25 @@ public class OrderImportServiceTests
     }
 
     [Fact]
-    public async Task ImportOrdersAsync_StoresImportedAddressNumbers()
+    public async Task ImportOrdersAsync_DoesNotUseInternalAddressNumbersAsHouseNumbers()
     {
         var repository = new FakeOrderRepository([]);
         var service = new OrderImportService();
         var xmlOrder = CreateSqlOrder("A-10", "Kunde Zehn", "Frei Bordsteinkante", "Neu");
         xmlOrder.KundeAdressNummer = "100";
+        xmlOrder.KundeHausnummer = "10";
         xmlOrder.LieferFirma = "Lieferstandort";
         xmlOrder.LieferStrasse = "Lieferweg";
         xmlOrder.LieferPLZ = "9000";
         xmlOrder.LieferOrt = "St. Gallen";
         xmlOrder.LieferAdressNummer = "200";
+        xmlOrder.LieferHausnummer = "20";
 
         await service.ImportOrdersAsync([xmlOrder], repository);
 
         var stored = Assert.Single(repository.StoredOrders);
-        Assert.Equal("100", stored.OrderAddress.HouseNumber);
-        Assert.Equal("200", stored.DeliveryAddress.HouseNumber);
+        Assert.Equal("10", stored.OrderAddress.HouseNumber);
+        Assert.Equal("20", stored.DeliveryAddress.HouseNumber);
     }
 
     [Fact]

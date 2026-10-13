@@ -678,8 +678,10 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
     {
         var lines = (value ?? string.Empty).Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (lines.Length == 0) return false;
-        var parsed = ParseExportAddressBlock(lines);
-        var street = lines.Length >= 2 ? lines[^2] : string.Empty;
+        var streetCandidate = lines.Length >= 2 ? lines[^2] : string.Empty;
+        var hasStreet = streetCandidate.Any(char.IsDigit);
+        var parsed = ParseExportAddressBlock(lines, hasStreet);
+        var street = hasStreet ? streetCandidate : string.Empty;
         var postalCity = lines.Length >= 1 ? lines[^1] : string.Empty;
         var postalParts = postalCity.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (isDeliveryAddress)
@@ -698,7 +700,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         return isDeliveryAddress ? HasDeliveryAddress(order) : HasCustomerAddress(order);
     }
 
-    private static ExportAddressBlock ParseExportAddressBlock(IReadOnlyList<string> lines)
+    private static ExportAddressBlock ParseExportAddressBlock(IReadOnlyList<string> lines, bool hasStreet)
     {
         if (lines.Count >= 4 && IsSalutation(lines[0]))
         {
@@ -707,8 +709,9 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         }
 
         var name = lines.Count > 0 ? lines[0] : string.Empty;
-        var contactPerson = lines.Count > 3
-            ? string.Join(' ', lines.Skip(1).Take(lines.Count - 3))
+        var addressLineCount = hasStreet ? 2 : 1;
+        var contactPerson = lines.Count > addressLineCount + 1
+            ? string.Join(' ', lines.Skip(1).Take(lines.Count - addressLineCount - 1))
             : string.Empty;
 
         return new ExportAddressBlock(name.Trim(), contactPerson.Trim());

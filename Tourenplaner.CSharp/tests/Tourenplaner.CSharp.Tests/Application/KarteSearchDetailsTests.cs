@@ -91,6 +91,38 @@ public sealed class KarteSearchDetailsTests
         Assert.Equal(tour.TourId, viewModel.SelectedTourOverviewItem?.TourId);
     }
 
+    [Fact]
+    public async Task PartialDeliveries_UseOnlyTheirOwnProductStatusesForBadgeAndPinColor()
+    {
+        var order = CreateOrder();
+        order.Products =
+        [
+            new OrderProductInfo { PositionId = "P1", Name = "Bereites Produkt", Quantity = 1, DeliveryStatus = OrderProductInfo.InStockStatus },
+            new OrderProductInfo { PositionId = "P2", Name = "Bestelltes Produkt", Quantity = 1, DeliveryStatus = OrderProductInfo.OrderedStatus }
+        ];
+        order.Deliveries =
+        [
+            new OrderDelivery { Id = "D1", SequenceNumber = 1, Lines = [new OrderDeliveryLine { OrderProductPositionId = "P1", Quantity = 1 }] },
+            new OrderDelivery { Id = "D2", SequenceNumber = 2, Lines = [new OrderDeliveryLine { OrderProductPositionId = "P2", Quantity = 1 }] }
+        ];
+        var viewModel = CreateViewModel(new FixedOrderStore(order));
+
+        await viewModel.RefreshAsync();
+
+        var delivery1 = viewModel.ResolveOrderVisualInfo(order.Id, "D1");
+        var delivery2 = viewModel.ResolveOrderVisualInfo(order.Id, "D2");
+        Assert.Equal(Order.ReadyToDeliverStatus, delivery1.StatusLabel);
+        Assert.Equal(Order.OrderedStatus, delivery2.StatusLabel);
+        Assert.Equal(viewModel.ResolveOrderStatusColor(Order.ReadyToDeliverStatus, false), delivery1.StatusColorHex);
+        Assert.Equal(viewModel.ResolveOrderStatusColor(Order.OrderedStatus, false), delivery2.StatusColorHex);
+        Assert.NotEqual(delivery1.StatusColorHex, delivery2.StatusColorHex);
+
+        viewModel.SelectedOrder = viewModel.MapOrders.Single(x => x.DeliveryId == "D1");
+        Assert.Equal(Order.ReadyToDeliverStatus, viewModel.DetailOrderStatus);
+        viewModel.SelectedOrder = viewModel.MapOrders.Single(x => x.DeliveryId == "D2");
+        Assert.Equal(Order.OrderedStatus, viewModel.DetailOrderStatus);
+    }
+
     private static KarteSectionViewModel CreateViewModel(
         IOrderRepository? orderRepository = null,
         ITourRecordStore? tourRepository = null) => new(
@@ -111,6 +143,15 @@ public sealed class KarteSearchDetailsTests
 
         public Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<Order>>(_orders);
+
+        public Task SaveAllAsync(IEnumerable<Order> orders, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class FixedOrderStore(Order order) : IOrderRepository
+    {
+        public Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Order>>([order]);
 
         public Task SaveAllAsync(IEnumerable<Order> orders, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;

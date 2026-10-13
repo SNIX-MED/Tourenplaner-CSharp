@@ -45,6 +45,80 @@ public sealed class OrderDeliveryServiceTests
     }
 
     [Fact]
+    public void MergePartialDeliveries_CreatesOneCompletePlannedDelivery()
+    {
+        var order = NewOrder(5);
+        order.Notes = "Beim Kunden anmelden";
+        order.Deliveries =
+        [
+            new OrderDelivery { Id = "D1", SequenceNumber = 1, Lines = [new() { OrderProductPositionId = "P-1", Quantity = 2 }] },
+            new OrderDelivery { Id = "D2", SequenceNumber = 2, Status = OrderDeliveryStatus.Planned, AssignedTourId = "42", Notes = "Lieferung 2/2: Beim Kunden anmelden", Lines = [new() { OrderProductPositionId = "P-1", Quantity = 3 }] }
+        ];
+
+        var merged = _service.MergePartialDeliveries(order);
+
+        Assert.Same(merged, Assert.Single(order.Deliveries));
+        Assert.Equal("D2", merged.Id);
+        Assert.Equal(1, merged.SequenceNumber);
+        Assert.Equal(5, Assert.Single(merged.Lines).Quantity);
+        Assert.Equal("42", merged.AssignedTourId);
+        Assert.Equal(OrderDeliveryStatus.Planned, merged.Status);
+        Assert.Equal("Beim Kunden anmelden", order.Notes);
+        Assert.Empty(merged.Notes);
+    }
+
+    [Fact]
+    public void MergePartialDeliveries_RejectsDeliveredPart()
+    {
+        var order = NewOrder(2);
+        order.Deliveries =
+        [
+            new OrderDelivery { Id = "D1", SequenceNumber = 1, Status = OrderDeliveryStatus.Delivered },
+            new OrderDelivery { Id = "D2", SequenceNumber = 2 }
+        ];
+
+        Assert.False(_service.CanMergePartialDeliveries(order));
+        Assert.Throws<InvalidOperationException>(() => _service.MergePartialDeliveries(order));
+    }
+
+    [Fact]
+    public void CanSplitSingleDelivery_AllowsMergedCompleteDelivery()
+    {
+        var order = NewOrder(5);
+        order.Deliveries =
+        [
+            new OrderDelivery
+            {
+                Id = "D1",
+                SequenceNumber = 1,
+                Status = OrderDeliveryStatus.Planned,
+                AssignedTourId = "42",
+                Lines = [new() { OrderProductPositionId = "P-1", Quantity = 5 }]
+            }
+        ];
+
+        Assert.True(_service.CanSplitSingleDelivery(order));
+    }
+
+    [Fact]
+    public void CanSplitSingleDelivery_RejectsDeliveredDelivery()
+    {
+        var order = NewOrder(5);
+        order.Deliveries =
+        [
+            new OrderDelivery
+            {
+                Id = "D1",
+                SequenceNumber = 1,
+                Status = OrderDeliveryStatus.Delivered,
+                Lines = [new() { OrderProductPositionId = "P-1", Quantity = 5 }]
+            }
+        ];
+
+        Assert.False(_service.CanSplitSingleDelivery(order));
+    }
+
+    [Fact]
     public void Normalize_MigratesLegacyTourAssignment()
     {
         var order = NewOrder(3);
@@ -65,6 +139,30 @@ public sealed class OrderDeliveryServiceTests
         var delivery = _service.Create(order, [new() { OrderProductPositionId = order.Products[0].PositionId, Quantity = 4 }], null);
 
         Assert.Equal(10, _service.ResolveWeightKg(order, delivery));
+    }
+
+    [Fact]
+    public void ResolveProducts_ReturnsOnlyProductsContainedInDelivery()
+    {
+        var order = NewOrder(1);
+        order.Products.Add(new OrderProductInfo
+        {
+            PositionId = "P-2",
+            Name = "Produkt 2",
+            Quantity = 1,
+            DeliveryStatus = OrderProductInfo.OrderedStatus
+        });
+        order.Products[0].DeliveryStatus = OrderProductInfo.InStockStatus;
+        var delivery = new OrderDelivery
+        {
+            Id = "D1",
+            Lines = [new OrderDeliveryLine { OrderProductPositionId = "P-1", Quantity = 1 }]
+        };
+
+        var products = _service.ResolveProducts(order, delivery);
+
+        Assert.Equal(Order.ReadyToDeliverStatus, Order.ResolveOrderStatusFromProducts(products));
+        Assert.DoesNotContain(products, x => x.PositionId == "P-2");
     }
 
     [Fact]

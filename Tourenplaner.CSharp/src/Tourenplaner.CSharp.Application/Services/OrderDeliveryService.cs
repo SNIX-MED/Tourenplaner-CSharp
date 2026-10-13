@@ -89,6 +89,29 @@ public sealed class OrderDeliveryService
             StringComparer.OrdinalIgnoreCase);
     }
 
+    public bool CanSplitSingleDelivery(Order order)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        Normalize(order);
+        if (order.IsArchived || order.Deliveries.Count != 1)
+        {
+            return false;
+        }
+
+        var delivery = order.Deliveries[0];
+        if (delivery.Status is OrderDeliveryStatus.Delivered or OrderDeliveryStatus.Cancelled)
+        {
+            return false;
+        }
+
+        var allocated = (delivery.Lines ?? [])
+            .GroupBy(x => x.OrderProductPositionId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.Sum(y => Math.Max(0, y.Quantity)), StringComparer.OrdinalIgnoreCase);
+        return order.Products
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .All(x => allocated.GetValueOrDefault(x.PositionId) == Math.Max(0, OrderProductInfo.NormalizeQuantity(x.Quantity)));
+    }
+
     public OrderDelivery Create(Order order, IEnumerable<OrderDeliveryLine> lines, DateOnly? plannedDate, string? notes = null)
     {
         Normalize(order);
@@ -142,6 +165,46 @@ public sealed class OrderDeliveryService
         }
         delivery.Status = OrderDeliveryStatus.Cancelled;
         delivery.AssignedTourId = null;
+    }
+
+    public bool CanMergePartialDeliveries(Order order)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        Normalize(order);
+        return !order.IsArchived &&
+               order.Deliveries.Count >= 2 &&
+               order.Deliveries.All(x => x.Status != OrderDeliveryStatus.Delivered);
+    }
+
+    public OrderDelivery MergePartialDeliveries(Order order)
+    {
+        if (!CanMergePartialDeliveries(order))
+        {
+            throw new InvalidOperationException("Teillieferungen können nur aufgehoben werden, solange noch keine Lieferung erledigt wurde.");
+        }
+
+        var retained = order.Deliveries
+            .OrderByDescending(x => !string.IsNullOrWhiteSpace(x.AssignedTourId))
+            .ThenBy(x => x.SequenceNumber)
+            .First();
+        retained.SequenceNumber = 1;
+        retained.Lines = order.Products
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .Select(x => new OrderDeliveryLine
+            {
+                OrderProductPositionId = x.PositionId,
+                Quantity = Math.Max(0, OrderProductInfo.NormalizeQuantity(x.Quantity))
+            })
+            .Where(x => x.Quantity > 0)
+            .ToList();
+        retained.DeliveredAt = null;
+        retained.Status = string.IsNullOrWhiteSpace(retained.AssignedTourId)
+            ? OrderDeliveryStatus.ReadyForPlanning
+            : OrderDeliveryStatus.Planned;
+        order.Deliveries = [retained];
+        order.AssignedTourId = retained.AssignedTourId;
+        DistributeOrderNotesToDeliveries(order);
+        return retained;
     }
 
     public OrderDelivery? EnsureRemainderDelivery(Order order)
@@ -263,6 +326,20 @@ public sealed class OrderDeliveryService
             products.TryGetValue(line.OrderProductPositionId, out var product)
                 ? Math.Max(0d, product.UnitWeightKg) * Math.Max(0, line.Quantity)
                 : 0d);
+    }
+
+    public IReadOnlyList<OrderProductInfo> ResolveProducts(Order order, OrderDelivery delivery)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+        ArgumentNullException.ThrowIfNull(delivery);
+
+        var includedPositionIds = (delivery.Lines ?? [])
+            .Where(x => x.Quantity > 0 && !string.IsNullOrWhiteSpace(x.OrderProductPositionId))
+            .Select(x => x.OrderProductPositionId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return (order.Products ?? [])
+            .Where(x => includedPositionIds.Contains(x.PositionId))
+            .ToList();
     }
 
     public bool TryValidate(Order order, out string error)

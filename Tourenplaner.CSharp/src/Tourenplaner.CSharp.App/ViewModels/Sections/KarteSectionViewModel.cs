@@ -1711,8 +1711,22 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         ? "⚠ Manueller Pin – Adresse geändert"
         : "📍 Pin manuell gesetzt";
     public string DetailOrderNumber => SelectedOrder?.OrderId ?? "n/a";
-    public string DetailOrderStatus => ResolveEffectiveOrderStatus(FindSelectedOrderModel());
-    public string DetailOrderStatusColor => ResolveOrderStatusColor(FindSelectedOrderModel(), isAssigned: false);
+    public string DetailOrderStatus
+    {
+        get
+        {
+            var order = FindSelectedOrderModel();
+            return ResolveEffectiveOrderStatus(order, order is null ? null : FindSelectedDelivery(order));
+        }
+    }
+    public string DetailOrderStatusColor
+    {
+        get
+        {
+            var order = FindSelectedOrderModel();
+            return ResolveOrderStatusColor(order, order is null ? null : FindSelectedDelivery(order), isAssigned: false);
+        }
+    }
     public string DetailOrderStatusBadgeBackgroundColor => CreateOrderStatusBackground(FindSelectedOrderModel(), DetailOrderStatusColor);
     public string DetailAvisoStatus => NormalizeAvisoStatus(FindSelectedOrderModel()?.AvisoStatus);
     public bool CanEditDetailAvisoStatus
@@ -2050,14 +2064,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 string.Equals(x.DeliveryId, delivery.Id, StringComparison.OrdinalIgnoreCase));
         return new MapOrderVisualInfo(
             DeliveryLabel: NormalizeDeliveryType(order.DeliveryType),
-            StatusLabel: ResolveEffectiveOrderStatus(order),
+            StatusLabel: ResolveEffectiveOrderStatus(order, delivery),
             IsAssigned: isAssigned,
             AvisoStatusLabel: NormalizeAvisoStatus(order.AvisoStatus),
-            HasPendingPreparation: HasPendingPreparationProduct(order.Products),
+            HasPendingPreparation: HasPendingPreparationProduct(ResolveStatusProducts(order, delivery)),
             IstVorauszahlung: order.IstVorauszahlung,
             IsLocationManuallySet: order.IsLocationManuallySet,
             ManualLocationRequiresReview: order.ManualLocationRequiresReview,
-            StatusColorHex: ResolveOrderStatusColor(order, isAssigned));
+            StatusColorHex: ResolveOrderStatusColor(order, delivery, isAssigned));
     }
 
     public MapOrderOverlapAddress ResolveOrderOverlapAddress(string? orderId)
@@ -7165,25 +7179,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private void EnsureDetailProductSelection(bool raiseDetailItemsChanged = true)
     {
-        var order = FindSelectedOrderModel();
-        var products = order?.Products ?? [];
-        var hasSelectableProduct = false;
-
-        for (var index = 0; index < products.Count; index++)
+        var selectableProductIndices = DetailProductItems
+            .Select(x => x.ProductIndex)
+            .ToHashSet();
+        _selectedDetailProductIndices.RemoveWhere(index => !selectableProductIndices.Contains(index));
+        var hasSelectableProduct = selectableProductIndices.Count > 0;
+        if (hasSelectableProduct && _selectedDetailProductIndices.Count == 0)
         {
-            var product = products[index];
-            if (product is null || string.IsNullOrWhiteSpace(product.Name))
-            {
-                continue;
-            }
-
-            hasSelectableProduct = true;
-            if (_selectedDetailProductIndices.Count == 0)
-            {
-                _selectedDetailProductIndices.Add(index);
-            }
-
-            break;
+            _selectedDetailProductIndices.Add(selectableProductIndices.Min());
         }
 
         if (!hasSelectableProduct)
@@ -9358,11 +9361,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             Latitude = order.Location?.Latitude ?? double.NaN,
             Longitude = order.Location?.Longitude ?? double.NaN,
             DeliveryLabel = NormalizeDeliveryType(order.DeliveryType),
-            StatusLabel = ResolveEffectiveOrderStatus(order),
-            StatusColorHex = ResolveOrderStatusColor(order, isAssigned),
+            StatusLabel = ResolveEffectiveOrderStatus(order, delivery),
+            StatusColorHex = ResolveOrderStatusColor(order, delivery, isAssigned),
             AvisoStatusLabel = NormalizeAvisoStatus(order.AvisoStatus),
             TourStatusLabel = ResolveTourStatus(order, delivery),
-            HasPendingPreparation = HasPendingPreparationProduct(order.Products),
+            HasPendingPreparation = HasPendingPreparationProduct(ResolveStatusProducts(order, delivery)),
             IstVorauszahlung = order.IstVorauszahlung,
             IsDimmed = isDimmed,
             IsBatchSelected = _selectedBatchOrderIds.Contains(order.Id),
@@ -9782,15 +9785,31 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     }
 
     private static string ResolveEffectiveOrderStatus(Order? order)
+        => ResolveEffectiveOrderStatus(order, null);
+
+    private static string ResolveEffectiveOrderStatus(Order? order, OrderDelivery? delivery)
     {
         if (order is null)
         {
             return Order.DefaultOrderStatus;
         }
 
-        return (order.Products ?? []).Count > 0
-            ? Order.ResolveOrderStatusFromProducts(order.Products)
+        var products = ResolveStatusProducts(order, delivery);
+        if (delivery is not null)
+        {
+            return Order.ResolveOrderStatusFromProducts(products);
+        }
+
+        return products.Count > 0
+            ? Order.ResolveOrderStatusFromProducts(products)
             : NormalizeOrderStatus(order.OrderStatus);
+    }
+
+    private static IReadOnlyList<OrderProductInfo> ResolveStatusProducts(Order order, OrderDelivery? delivery)
+    {
+        return delivery is null
+            ? order.Products ?? []
+            : new OrderDeliveryService().ResolveProducts(order, delivery);
     }
 
     private static string NormalizeDeliveryType(string? deliveryType)
@@ -9869,13 +9888,17 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     }
 
     public string ResolveOrderStatusColor(Order? order, bool isAssigned)
+        => ResolveOrderStatusColor(order, null, isAssigned);
+
+    private string ResolveOrderStatusColor(Order? order, OrderDelivery? delivery, bool isAssigned)
     {
         if (order is null)
         {
             return ResolveOrderStatusColor((string?)null, isAssigned);
         }
 
-        if ((order.Products ?? []).Any(product =>
+        var products = ResolveStatusProducts(order, delivery);
+        if (products.Any(product =>
                 product is not null &&
                 !string.IsNullOrWhiteSpace(product.Name) &&
                 string.Equals(
@@ -9886,10 +9909,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return _statusColorNotSpecified;
         }
 
-        var normalizedStatus = ResolveEffectiveOrderStatus(order);
+        var normalizedStatus = ResolveEffectiveOrderStatus(order, delivery);
         if (string.Equals(normalizedStatus, Order.PartiallyPendingPreparationStatus, StringComparison.OrdinalIgnoreCase))
         {
-            var baseStatus = Order.ResolvePartiallyPendingPreparationBaseStatus(order.Products);
+            var baseStatus = Order.ResolvePartiallyPendingPreparationBaseStatus(products);
             return ResolveOrderStatusColor(baseStatus, isAssigned);
         }
 
