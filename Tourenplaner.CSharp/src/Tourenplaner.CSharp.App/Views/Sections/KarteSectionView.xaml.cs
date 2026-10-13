@@ -123,10 +123,10 @@ public partial class KarteSectionView : UserControl
                 _size.Height);
             drawingContext.DrawRoundedRectangle(
                 new ImageBrush(_snapshot) { Stretch = Stretch.Fill },
-                new Pen(new SolidColorBrush(Color.FromRgb(142, 198, 232)), 1.5d),
+                null,
                 rect,
-                14d,
-                14d);
+                10d,
+                10d);
         }
     }
 
@@ -1841,7 +1841,7 @@ public partial class KarteSectionView : UserControl
         _routeGridDragStart = null;
         _routeGridDragItem = null;
         StartRouteDragAutoScroll();
-        StartRouteDragVisual(_routeDragSourceContainer);
+        StartRouteDragVisual(_routeDragSourceContainer, dragItem.IsPauseBlock);
         try
         {
             DragDrop.DoDragDrop(RouteStopsList, new DataObject(typeof(RouteDragPayload), dragItem), DragDropEffects.Move);
@@ -1851,7 +1851,17 @@ public partial class KarteSectionView : UserControl
             StopRouteDragAutoScroll();
             StopRouteDragVisual();
             ClearRouteDropIndicator();
+            Mouse.SetCursor(Cursors.Arrow);
         }
+    }
+
+    private void RouteStopsList_GiveFeedback(object sender, GiveFeedbackEventArgs e)
+    {
+        Mouse.SetCursor((e.Effects & DragDropEffects.Move) == DragDropEffects.Move
+            ? Cursors.Hand
+            : Cursors.Arrow);
+        e.UseDefaultCursors = false;
+        e.Handled = true;
     }
 
     private void RouteStopsList_DragOver(object sender, DragEventArgs e)
@@ -1932,19 +1942,27 @@ public partial class KarteSectionView : UserControl
             stopsViewer.ScrollableHeight);
     }
 
-    private void StartRouteDragVisual(ListBoxItem? sourceContainer)
+    private void StartRouteDragVisual(ListBoxItem? sourceContainer, bool isPauseBlock)
     {
         StopRouteDragVisual();
-        if (sourceContainer is null || sourceContainer.ActualWidth <= 0 || sourceContainer.ActualHeight <= 0)
+        if (sourceContainer is null)
         {
             return;
         }
 
-        var dpi = VisualTreeHelper.GetDpi(sourceContainer);
-        var pixelWidth = Math.Max(1, (int)Math.Ceiling(sourceContainer.ActualWidth * dpi.DpiScaleX));
-        var pixelHeight = Math.Max(1, (int)Math.Ceiling(sourceContainer.ActualHeight * dpi.DpiScaleY));
+        var previewElement = FindDescendantByTag(
+            sourceContainer,
+            isPauseBlock ? "RouteLegSurface" : "RouteStopCardSurface") ?? sourceContainer;
+        if (previewElement.ActualWidth <= 0 || previewElement.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        var dpi = VisualTreeHelper.GetDpi(previewElement);
+        var pixelWidth = Math.Max(1, (int)Math.Ceiling(previewElement.ActualWidth * dpi.DpiScaleX));
+        var pixelHeight = Math.Max(1, (int)Math.Ceiling(previewElement.ActualHeight * dpi.DpiScaleY));
         var snapshot = new RenderTargetBitmap(pixelWidth, pixelHeight, dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
-        snapshot.Render(sourceContainer);
+        snapshot.Render(previewElement);
         snapshot.Freeze();
 
         var adornedElement = (UIElement?)RouteStopsScrollViewer ?? RouteStopsList;
@@ -1960,7 +1978,7 @@ public partial class KarteSectionView : UserControl
         _routeDragAdorner = new RouteDragAdorner(
             adornedElement,
             snapshot,
-            new Size(sourceContainer.ActualWidth, sourceContainer.ActualHeight));
+            new Size(previewElement.ActualWidth, previewElement.ActualHeight));
         _routeDragAdornerLayer.Add(_routeDragAdorner);
         _routeDragAdorner.UpdatePosition(Mouse.GetPosition(adornedElement));
     }
@@ -1991,6 +2009,27 @@ public partial class KarteSectionView : UserControl
         _routeDragAdornerLayer = null;
         _routeDragSourceContainer = null;
         _routeDragSourceOriginalOpacity = 1d;
+    }
+
+    private static FrameworkElement? FindDescendantByTag(DependencyObject parent, string tag)
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(parent);
+        for (var index = 0; index < childCount; index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is FrameworkElement element && string.Equals(element.Tag as string, tag, StringComparison.Ordinal))
+            {
+                return element;
+            }
+
+            var match = FindDescendantByTag(child, tag);
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     private void StartRouteDragAutoScroll()
@@ -2129,8 +2168,20 @@ public partial class KarteSectionView : UserControl
 
     private static bool GetInsertAfter(ListBoxItem targetItem, DragEventArgs e)
     {
-        var position = e.GetPosition(targetItem);
-        return position.Y > targetItem.ActualHeight / 2d;
+        var stopCard = FindDescendantByTag(targetItem, "RouteStopCardSurface");
+        if (stopCard?.IsVisible != true)
+        {
+            stopCard = FindDescendantByTag(targetItem, "RoutePauseCardSurface");
+        }
+
+        if (stopCard?.IsVisible == true && stopCard.ActualHeight > 0d)
+        {
+            var position = e.GetPosition(stopCard);
+            return position.Y > stopCard.ActualHeight / 2d;
+        }
+
+        var fallbackPosition = e.GetPosition(targetItem);
+        return fallbackPosition.Y > targetItem.ActualHeight / 2d;
     }
 
     private static bool IsNoOpRouteStopDrop(

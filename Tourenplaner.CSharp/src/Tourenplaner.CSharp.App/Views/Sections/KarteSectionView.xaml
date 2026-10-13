@@ -1180,6 +1180,7 @@
                                              DragOver="RouteStopsList_DragOver"
                                              DragLeave="RouteStopsList_DragLeave"
                                              Drop="RouteStopsList_Drop"
+                                             GiveFeedback="RouteStopsList_GiveFeedback"
                                              AllowDrop="True"
                                              Style="{StaticResource RouteStopsListStyle}"
                                              ItemContainerStyle="{StaticResource RouteStopListItemStyle}">
@@ -1215,7 +1216,8 @@
                                                                        Text="Stopp hier einfügen" />
                                                         </StackPanel>
                                                     </Border>
-                                                    <Border CornerRadius="14"
+                                                    <Border Tag="RouteStopCardSurface"
+                                                            CornerRadius="14"
                                                             BorderThickness="1"
                                                             Margin="0,0,0,8"
                                                             MouseLeftButtonDown="OnRouteStopMouseLeftButtonDown"
@@ -1608,7 +1610,8 @@
                                                         </Grid>
                                                     </Border>
 
-                                                    <Border Margin="16,-2,16,6"
+                                                    <Border Tag="RoutePauseCardSurface"
+                                                            Margin="16,-2,16,6"
                                                             Padding="8,4"
                                                             CornerRadius="10"
                                                             BorderThickness="1"
