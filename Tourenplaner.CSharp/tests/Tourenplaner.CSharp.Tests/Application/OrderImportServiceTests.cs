@@ -183,6 +183,47 @@ public class OrderImportServiceTests
     }
 
     [Fact]
+    public async Task PreviewImportAsync_WhenOnlyStreetChanges_ListsOnlyStreetAddressFields()
+    {
+        var existing = CreateOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        var imported = CreateSqlOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        imported.KundeStrasse = "Neue Strasse";
+        var repository = new FakeOrderRepository([existing]);
+
+        var preview = await new OrderImportService().PreviewImportAsync([imported], repository);
+
+        var item = Assert.Single(preview.Items);
+        Assert.Equal(ImportPreviewAction.Update, item.Action);
+        Assert.Equal(
+        [
+            "Auftragsadresse Strasse: Musterstrasse -> Neue Strasse",
+            "Lieferadresse Strasse: Musterstrasse -> Neue Strasse"
+        ],
+            item.Changes.Where(change => change.Contains("adresse", StringComparison.Ordinal)).ToArray());
+    }
+
+    [Fact]
+    public async Task PreviewImportAsync_WhenOnlyDeliveryNameChanges_ListsOnlyDeliveryName()
+    {
+        var existing = CreateOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        var imported = CreateSqlOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        imported.LieferFirma = "Neuer Liefername";
+        imported.LieferStrasse = "Musterstrasse";
+        imported.LieferHausnummer = "1";
+        imported.LieferPLZ = "8000";
+        imported.LieferOrt = "Zuerich";
+        var repository = new FakeOrderRepository([existing]);
+
+        var preview = await new OrderImportService().PreviewImportAsync([imported], repository);
+
+        var item = Assert.Single(preview.Items);
+        Assert.Equal(ImportPreviewAction.Update, item.Action);
+        Assert.Equal(
+            ["Lieferadresse Name: Kunde -> Neuer Liefername"],
+            item.Changes.Where(change => change.Contains("adresse", StringComparison.Ordinal)).ToArray());
+    }
+
+    [Fact]
     public async Task ImportOrdersAsync_AppliesDeliveryTimeProductStatus_AndPreservesProductMetadata()
     {
         var existingChangedOrder = CreateOrder("A-1", "Kunde Eins", "Frei Bordsteinkante", "Hinweis alt");
@@ -642,14 +683,16 @@ public class OrderImportServiceTests
             OrderAddress = new OrderAddressInfo
             {
                 Name = customerName,
-                Street = "Musterstrasse 1",
+                Street = "Musterstrasse",
+                HouseNumber = "1",
                 PostalCode = "8000",
                 City = "Zuerich"
             },
             DeliveryAddress = new DeliveryAddressInfo
             {
                 Name = customerName,
-                Street = "Musterstrasse 1",
+                Street = "Musterstrasse",
+                HouseNumber = "1",
                 PostalCode = "8000",
                 City = "Zuerich"
             },

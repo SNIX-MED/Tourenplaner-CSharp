@@ -429,11 +429,11 @@ public class OrderImportService : IOrderImportService
         {
             changes.Add("Evtl. Selbstabholung -> zurückgesetzt");
         }
-        AddChange(changes, "Auftragsadresse", FormatAddress(existingOrder.OrderAddress), FormatAddress(importedOrder.OrderAddress));
+        AddOrderAddressChanges(changes, existingOrder.OrderAddress, importedOrder.OrderAddress);
         var manualLocationAddressChanged = HasManualLocationAddressChanged(existingOrder, importedOrder);
         if (!existingOrder.IsLocationManuallySet || manualLocationAddressChanged)
         {
-            AddChange(changes, "Lieferadresse", FormatDeliveryAddress(existingOrder.DeliveryAddress), FormatDeliveryAddress(importedOrder.DeliveryAddress));
+            AddDeliveryAddressChanges(changes, existingOrder.DeliveryAddress, importedOrder.DeliveryAddress);
         }
         if (manualLocationAddressChanged)
         {
@@ -462,6 +462,34 @@ public class OrderImportService : IOrderImportService
         }
 
         changes.Add($"{label}: {DisplayValue(normalizedOld)} -> {DisplayValue(normalizedNew)}");
+    }
+
+    private static void AddOrderAddressChanges(
+        List<string> changes,
+        OrderAddressInfo? existingAddress,
+        OrderAddressInfo? importedAddress)
+    {
+        AddChange(changes, "Auftragsadresse Name", existingAddress?.Name, importedAddress?.Name);
+        AddChange(changes, "Auftragsadresse Kontaktperson", existingAddress?.ContactPerson, importedAddress?.ContactPerson);
+        AddChange(changes, "Auftragsadresse Zusatz", existingAddress?.Additional, importedAddress?.Additional);
+        AddChange(changes, "Auftragsadresse Strasse", existingAddress?.Street, importedAddress?.Street);
+        AddChange(changes, "Auftragsadresse Hausnummer", existingAddress?.HouseNumber, importedAddress?.HouseNumber);
+        AddChange(changes, "Auftragsadresse PLZ", existingAddress?.PostalCode, importedAddress?.PostalCode);
+        AddChange(changes, "Auftragsadresse Ort", existingAddress?.City, importedAddress?.City);
+    }
+
+    private static void AddDeliveryAddressChanges(
+        List<string> changes,
+        DeliveryAddressInfo? existingAddress,
+        DeliveryAddressInfo? importedAddress)
+    {
+        AddChange(changes, "Lieferadresse Name", existingAddress?.Name, importedAddress?.Name);
+        AddChange(changes, "Lieferadresse Kontaktperson", existingAddress?.ContactPerson, importedAddress?.ContactPerson);
+        AddChange(changes, "Lieferadresse Zusatz", existingAddress?.Additional, importedAddress?.Additional);
+        AddChange(changes, "Lieferadresse Strasse", existingAddress?.Street, importedAddress?.Street);
+        AddChange(changes, "Lieferadresse Hausnummer", existingAddress?.HouseNumber, importedAddress?.HouseNumber);
+        AddChange(changes, "Lieferadresse PLZ", existingAddress?.PostalCode, importedAddress?.PostalCode);
+        AddChange(changes, "Lieferadresse Ort", existingAddress?.City, importedAddress?.City);
     }
 
     private static void AddProductChange(
