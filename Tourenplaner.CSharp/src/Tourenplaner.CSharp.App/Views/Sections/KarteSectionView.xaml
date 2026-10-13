@@ -1186,6 +1186,35 @@
                                         <ListBox.ItemTemplate>
                                             <DataTemplate>
                                                 <StackPanel Margin="0,0,0,0">
+                                                    <Border Height="50"
+                                                            Margin="8,0,8,8"
+                                                            CornerRadius="12"
+                                                            BorderThickness="2"
+                                                            BorderBrush="{DynamicResource Brush.Accent}"
+                                                            Background="#EAF5FF">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsDropTargetBefore}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <StackPanel Orientation="Horizontal"
+                                                                    HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center">
+                                                            <TextBlock Margin="0,0,7,0"
+                                                                       FontFamily="Segoe MDL2 Assets"
+                                                                       FontSize="15"
+                                                                       Foreground="{DynamicResource Brush.Accent}"
+                                                                       Text="&#xE74A;" />
+                                                            <TextBlock FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource Brush.Accent}"
+                                                                       Text="Stopp hier einfügen" />
+                                                        </StackPanel>
+                                                    </Border>
                                                     <Border CornerRadius="14"
                                                             BorderThickness="1"
                                                             Margin="0,0,0,8"
@@ -1835,6 +1864,35 @@
                                                                 </Border>
                                                             </StackPanel>
                                                         </Grid>
+                                                    </Border>
+                                                    <Border Height="50"
+                                                            Margin="8,-2,8,8"
+                                                            CornerRadius="12"
+                                                            BorderThickness="2"
+                                                            BorderBrush="{DynamicResource Brush.Accent}"
+                                                            Background="#EAF5FF">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsDropTargetAfter}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <StackPanel Orientation="Horizontal"
+                                                                    HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center">
+                                                            <TextBlock Margin="0,0,7,0"
+                                                                       FontFamily="Segoe MDL2 Assets"
+                                                                       FontSize="15"
+                                                                       Foreground="{DynamicResource Brush.Accent}"
+                                                                       Text="&#xE74A;" />
+                                                            <TextBlock FontWeight="SemiBold"
+                                                                       Foreground="{DynamicResource Brush.Accent}"
+                                                                       Text="Stopp hier einfügen" />
+                                                        </StackPanel>
                                                     </Border>
                                                 </StackPanel>
                                             </DataTemplate>
