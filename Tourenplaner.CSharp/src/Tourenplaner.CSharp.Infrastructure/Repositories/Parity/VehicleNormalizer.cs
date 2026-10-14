@@ -59,7 +59,7 @@ internal static class VehicleNormalizer
 
     public static VehicleDataRecord NormalizePayload(VehicleDataRecord payload)
     {
-        var normalized = new VehicleDataRecord();
+        var normalized = new VehicleDataRecord { ConcurrencyToken = payload.ConcurrencyToken };
         var vehicleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var vehicleNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var vehiclePlates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

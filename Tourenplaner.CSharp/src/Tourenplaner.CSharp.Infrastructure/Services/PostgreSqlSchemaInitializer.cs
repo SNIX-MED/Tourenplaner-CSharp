@@ -138,6 +138,70 @@ public sealed class PostgreSqlSchemaInitializer
             END;
             $history$;
 
+            CREATE OR REPLACE FUNCTION "{schema}"."notify_app_data_change"()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $sync$
+            DECLARE
+                app_name text := current_setting('application_name', true);
+                client_id text;
+                data_kinds integer;
+            BEGIN
+                IF app_name NOT LIKE 'GAWELA|%' THEN RETURN NULL; END IF;
+                client_id := split_part(app_name, '|', 2);
+                IF client_id = '' THEN RETURN NULL; END IF;
+
+                data_kinds := CASE TG_TABLE_NAME
+                    WHEN 'orders' THEN 1
+                    WHEN 'tour_records' THEN 2
+                    WHEN 'employees' THEN 8
+                    WHEN 'calendar_manual_entries' THEN 32
+                    WHEN 'singletons' THEN CASE
+                        WHEN (CASE WHEN TG_OP = 'DELETE' THEN OLD.key ELSE NEW.key END) = 'vehicle_data' THEN 4
+                        ELSE 16
+                    END
+                    ELSE 0
+                END;
+                IF data_kinds = 0 THEN RETURN NULL; END IF;
+
+                PERFORM pg_notify(
+                    'tourenplaner_app_data_sync',
+                    json_build_object(
+                        'SourceId', client_id,
+                        'Kinds', data_kinds,
+                        'PreviousId', NULL,
+                        'CurrentId', NULL,
+                        'ClientInstanceId', client_id)::text);
+                RETURN NULL;
+            END;
+            $sync$;
+
+            CREATE OR REPLACE FUNCTION "{schema}"."enforce_collaboration_lock"()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $lock_check$
+            DECLARE
+                app_name text := current_setting('application_name', true);
+                lock_session text := split_part(app_name, '|', 4);
+                target_kind text := CASE TG_TABLE_NAME WHEN 'orders' THEN 'order' ELSE 'tour' END;
+                target_id text := CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END;
+                lock_owner text;
+            BEGIN
+                SELECT user_name INTO lock_owner
+                FROM "{schema}"."collaboration_locks"
+                WHERE resource_kind = target_kind
+                  AND resource_id = lower(trim(target_id))
+                  AND expires_at > now()
+                  AND session_id <> lock_session
+                LIMIT 1;
+                IF lock_owner IS NOT NULL THEN
+                    RAISE EXCEPTION 'Datensatz % % ist durch % gesperrt.', target_kind, target_id, lock_owner
+                        USING ERRCODE = '40001';
+                END IF;
+                IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+            END;
+            $lock_check$;
+
             DO $triggers$
             BEGIN
                 IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'orders_change_history' AND tgrelid = '"{schema}"."orders"'::regclass AND NOT tgisinternal) THEN
@@ -166,6 +230,37 @@ public sealed class PostgreSqlSchemaInitializer
                 END IF;
             END
             $triggers$;
+
+            DO $sync_triggers$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'orders_app_data_sync' AND tgrelid = '"{schema}"."orders"'::regclass AND NOT tgisinternal) THEN
+                    CREATE TRIGGER orders_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{schema}"."orders" FOR EACH STATEMENT EXECUTE FUNCTION "{schema}"."notify_app_data_change"();
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tour_records_app_data_sync' AND tgrelid = '"{schema}"."tour_records"'::regclass AND NOT tgisinternal) THEN
+                    CREATE TRIGGER tour_records_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{schema}"."tour_records" FOR EACH STATEMENT EXECUTE FUNCTION "{schema}"."notify_app_data_change"();
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'employees_app_data_sync' AND tgrelid = '"{schema}"."employees"'::regclass AND NOT tgisinternal) THEN
+                    CREATE TRIGGER employees_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{schema}"."employees" FOR EACH STATEMENT EXECUTE FUNCTION "{schema}"."notify_app_data_change"();
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'calendar_entries_app_data_sync' AND tgrelid = '"{schema}"."calendar_manual_entries"'::regclass AND NOT tgisinternal) THEN
+                    CREATE TRIGGER calendar_entries_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{schema}"."calendar_manual_entries" FOR EACH STATEMENT EXECUTE FUNCTION "{schema}"."notify_app_data_change"();
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'singletons_app_data_sync' AND tgrelid = '"{schema}"."singletons"'::regclass AND NOT tgisinternal) THEN
+                    CREATE TRIGGER singletons_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{schema}"."singletons" FOR EACH ROW EXECUTE FUNCTION "{schema}"."notify_app_data_change"();
+                END IF;
+            END
+            $sync_triggers$;
+
+            DO $lock_triggers$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'orders_collaboration_lock' AND tgrelid = '"{schema}"."orders"'::regclass AND NOT tgisinternal) THEN
+                    CREATE TRIGGER orders_collaboration_lock BEFORE UPDATE OR DELETE ON "{schema}"."orders" FOR EACH ROW EXECUTE FUNCTION "{schema}"."enforce_collaboration_lock"();
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tour_records_collaboration_lock' AND tgrelid = '"{schema}"."tour_records"'::regclass AND NOT tgisinternal) THEN
+                    CREATE TRIGGER tour_records_collaboration_lock BEFORE UPDATE OR DELETE ON "{schema}"."tour_records" FOR EACH ROW EXECUTE FUNCTION "{schema}"."enforce_collaboration_lock"();
+                END IF;
+            END
+            $lock_triggers$;
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
     }

@@ -13,6 +13,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
     private readonly ITourRecordStore _tourRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly List<Vehicle> _vehicles = new();
+    private string? _concurrencyToken;
     private readonly List<TrailerRecord> _trailers = new();
     private readonly List<VehicleCombinationRecord> _combinations = new();
     private readonly Guid _instanceId = Guid.NewGuid();
@@ -415,6 +416,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
     public async Task RefreshAsync()
     {
         var payload = await _repository.LoadAsync();
+        _concurrencyToken = payload.ConcurrencyToken;
         _vehicles.Clear();
         _vehicles.AddRange(payload.Vehicles);
         _trailers.Clear();
@@ -429,6 +431,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
     {
         await _repository.SaveAsync(new VehicleDataRecord
         {
+            ConcurrencyToken = _concurrencyToken,
             Vehicles = _vehicles.ToList(),
             Trailers = _trailers.ToList(),
             VehicleCombinations = _combinations.ToList()

@@ -99,7 +99,12 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
                 command.Parameters.AddWithValue("expectedUpdatedAt", expectedToken.Value);
             }
 
-            var savedAt = await command.ExecuteScalarAsync(cancellationToken);
+            object? savedAt;
+            try { savedAt = await command.ExecuteScalarAsync(cancellationToken); }
+            catch (NpgsqlException ex) when (ex.SqlState == "40001")
+            {
+                throw new ConcurrencyConflictException("Auftrag", item.Id.Trim());
+            }
             if (savedAt is null)
             {
                 throw new ConcurrencyConflictException("Auftrag", item.Id.Trim());
@@ -187,7 +192,12 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
         updateCommand.Parameters.AddWithValue("payload", PostgreSqlRepositorySerializer.Serialize(order));
         updateCommand.Parameters.AddWithValue("updatedAt", nextToken);
         updateCommand.Parameters.AddWithValue("expectedUpdatedAt", expectedToken.Value);
-        var updatedAt = await updateCommand.ExecuteScalarAsync(cancellationToken);
+        object? updatedAt;
+        try { updatedAt = await updateCommand.ExecuteScalarAsync(cancellationToken); }
+        catch (NpgsqlException ex) when (ex.SqlState == "40001")
+        {
+            throw new ConcurrencyConflictException("Auftrag", normalizedId);
+        }
         if (updatedAt is null)
         {
             throw new ConcurrencyConflictException("Auftrag", normalizedId);
@@ -216,14 +226,23 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
         {
             command.CommandText = $"""DELETE FROM "{schema}"."orders" WHERE id = @id;""";
             command.Parameters.AddWithValue("id", normalizedId);
-            await command.ExecuteNonQueryAsync(cancellationToken);
+            try { await command.ExecuteNonQueryAsync(cancellationToken); }
+            catch (NpgsqlException ex) when (ex.SqlState == "40001")
+            {
+                throw new ConcurrencyConflictException("Auftrag", normalizedId);
+            }
             return;
         }
 
         command.CommandText = $"""DELETE FROM "{schema}"."orders" WHERE id = @id AND updated_at = @expectedUpdatedAt;""";
         command.Parameters.AddWithValue("id", normalizedId);
         command.Parameters.AddWithValue("expectedUpdatedAt", expectedToken.Value);
-        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken);
+        int affectedRows;
+        try { affectedRows = await command.ExecuteNonQueryAsync(cancellationToken); }
+        catch (NpgsqlException ex) when (ex.SqlState == "40001")
+        {
+            throw new ConcurrencyConflictException("Auftrag", normalizedId);
+        }
         if (affectedRows == 0)
         {
             throw new ConcurrencyConflictException("Auftrag", normalizedId);

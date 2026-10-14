@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Windows;
 using System.Windows.Input;
@@ -93,6 +94,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly List<WebfleetTrackPoint> _webfleetTrackPoints = new();
     private readonly List<WebfleetPauseMarker> _webfleetPauseMarkers = new();
     private CollaborationResourceLease? _loadedTourLease;
+    private readonly Dictionary<string, CollaborationResourceLease> _loadedTourOrderLeases = new(StringComparer.OrdinalIgnoreCase);
     private int _loadedTourLeaseId;
     private int _webfleetVehicleRevision;
     private int _webfleetTrackRevision;
@@ -3305,6 +3307,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         if (assignedOrders.Count > 0)
         {
             var tours = (await _tourRepository.LoadAsync()).ToList();
+            var originalTours = CloneItems(tours);
+            var originalOrders = CloneItems(_allOrders);
             var selectedOrderIdSet = new HashSet<string>(selectedOrderIds, StringComparer.OrdinalIgnoreCase);
             var toursChanged = false;
             foreach (var tour in tours)
@@ -3334,7 +3338,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
             }
 
-            await SaveToursAndOrdersAsync(tours, _allOrders);
+            await SaveChangedToursAndOrdersAsync(originalTours, tours, originalOrders, _allOrders);
             if (toursChanged)
             {
                 foreach (var touchedTourId in touchedTourIds)
@@ -3733,6 +3737,16 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 StatusText = $"Startzeit für {BuildTourLookupLabel(tour)} gespeichert.";
             }
         }
+        catch (ConcurrencyConflictException conflict)
+        {
+            StatusText = "Tour wurde wegen eines Mehrbenutzer-Konflikts nicht gespeichert.";
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Die Tour wurde nicht gespeichert. Die Daten werden neu geladen.\n\n{conflict.Message}",
+                "Mehrbenutzer-Konflikt",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            await RefreshAsync();
+        }
         catch (IOException ioEx)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
@@ -3769,6 +3783,48 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         await _tourRepository.SaveAsync(tours, cancellationToken);
         await _orderRepository.SaveAllAsync(orders, cancellationToken);
+    }
+
+    private Task SaveChangedToursAndOrdersAsync(
+        IReadOnlyList<TourRecord> originalTours,
+        IReadOnlyList<TourRecord> currentTours,
+        IReadOnlyList<Order> originalOrders,
+        IReadOnlyList<Order> currentOrders,
+        CancellationToken cancellationToken = default)
+    {
+        return _tourOrderTransactionStore is not null
+            ? SaveToursAndOrdersAsync(
+                SelectChangedItems(originalTours, currentTours, x => x.Id.ToString(CultureInfo.InvariantCulture)),
+                SelectChangedItems(originalOrders, currentOrders, x => x.Id),
+                cancellationToken: cancellationToken)
+            : SaveToursAndOrdersAsync(currentTours, currentOrders, cancellationToken: cancellationToken);
+    }
+
+    private static List<T> CloneItems<T>(IEnumerable<T> items)
+        => JsonSerializer.Deserialize<List<T>>(JsonSerializer.Serialize(items ?? [])) ?? [];
+
+    private static IReadOnlyList<T> SelectChangedItems<T>(
+        IEnumerable<T> originalItems,
+        IEnumerable<T> currentItems,
+        Func<T, string> keySelector)
+    {
+        var originals = (originalItems ?? []).ToDictionary(keySelector, StringComparer.OrdinalIgnoreCase);
+        return (currentItems ?? [])
+            .Where(item => !originals.TryGetValue(keySelector(item), out var original) || !AreEquivalentWithoutConcurrencyToken(original, item))
+            .ToList();
+    }
+
+    private static bool AreEquivalentWithoutConcurrencyToken<T>(T left, T right)
+    {
+        static string Serialize(T value)
+        {
+            var node = JsonSerializer.SerializeToNode(value) as JsonObject;
+            node?.Remove("ConcurrencyToken");
+            node?.Remove("concurrencyToken");
+            return node?.ToJsonString() ?? string.Empty;
+        }
+
+        return string.Equals(Serialize(left), Serialize(right), StringComparison.Ordinal);
     }
 
     private async Task OpenCreateTourDialogAsync()
@@ -3957,9 +4013,15 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         IReadOnlyList<string> employeeIds,
         IReadOnlyList<TourAdditionalMaterial> additionalMaterials)
     {
+        var wasCommitted = false;
         try
         {
             if (!RouteStops.Any(x => !IsCompanyStop(x)))
+            {
+                return;
+            }
+
+            if (!await EnsureLoadedTourOrderLeasesAsync(RouteStops.Where(IsOrderStop).Select(x => x.OrderId)))
             {
                 return;
             }
@@ -3984,6 +4046,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             }
 
             var tours = (await _tourRepository.LoadAsync()).ToList();
+            var originalTours = CloneItems(tours);
+            var originalOrders = CloneItems(_allOrders);
             var nextId = _mapRouteService.DetermineNextTourId(tours);
             var tour = _mapRouteService.BuildTour(
                 ToMapRouteStops(),
@@ -4025,7 +4089,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 AssignDeliveriesFromTour(order, tour, nextId.ToString(CultureInfo.InvariantCulture));
             }
 
-            await SaveToursAndOrdersAsync(tours, _allOrders);
+            await SaveChangedToursAndOrdersAsync(originalTours, tours, originalOrders, _allOrders);
+            wasCommitted = true;
             _dataSyncService.PublishTours(_instanceId, nextId.ToString(CultureInfo.InvariantCulture), nextId.ToString(CultureInfo.InvariantCulture));
             PublishOrderChange(null, null);
             await RefreshAsync();
@@ -4034,6 +4099,20 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             ClearDraftRouteStopRemovalUndoHistory();
             StatusText = "Route gespeichert und auf Karte geladen.";
             ToastNotificationService.ShowInfo($"Neue Tour {nextId} wurde erstellt.");
+        }
+        catch (ConcurrencyConflictException conflict)
+        {
+            StatusText = wasCommitted
+                ? "Tour wurde gespeichert; die anschliessende Aktualisierung ist fehlgeschlagen."
+                : "Tour wurde wegen eines Mehrbenutzer-Konflikts nicht gespeichert.";
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                wasCommitted
+                    ? $"Die Tour wurde erfolgreich gespeichert. Beim anschliessenden Aktualisieren trat ein Konflikt auf. Die Daten werden neu geladen.\n\n{conflict.Message}"
+                    : $"Die Tour wurde nicht gespeichert. Die Daten werden neu geladen.\n\n{conflict.Message}",
+                "Mehrbenutzer-Konflikt",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            await RefreshAsync();
         }
         catch (IOException ioEx)
         {
@@ -4058,12 +4137,20 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         IReadOnlyList<string> employeeIds,
         IReadOnlyList<TourAdditionalMaterial> additionalMaterials)
     {
+        var wasCommitted = false;
         try
         {
             var hasDraftRouteStops = RouteStops.Any(x => !IsCompanyStop(x));
             var isOverviewEdit = !hasDraftRouteStops && _activeTourId <= 0 && _selectedTourOverviewId == tourId;
 
+            if (hasDraftRouteStops && !await EnsureLoadedTourOrderLeasesAsync(RouteStops.Where(IsOrderStop).Select(x => x.OrderId)))
+            {
+                return;
+            }
+
             var tours = (await _tourRepository.LoadAsync()).ToList();
+            var originalTours = CloneItems(tours);
+            var originalOrders = CloneItems(_allOrders);
             var index = tours.FindIndex(x => x.Id == tourId);
             if (index < 0)
             {
@@ -4190,7 +4277,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 AssignDeliveriesFromTour(order, updated, tourKey);
             }
 
-            await SaveToursAndOrdersAsync(tours, _allOrders);
+            await SaveChangedToursAndOrdersAsync(originalTours, tours, originalOrders, _allOrders);
+            wasCommitted = true;
             _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
             PublishOrderChange(null, null);
             await RefreshAsync();
@@ -4206,6 +4294,20 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 await FocusTourAsync(tourId);
                 StatusText = "Tour aktualisiert und auf Karte geladen.";
             }
+        }
+        catch (ConcurrencyConflictException conflict)
+        {
+            StatusText = wasCommitted
+                ? "Tour wurde gespeichert; die anschliessende Aktualisierung ist fehlgeschlagen."
+                : "Tour wurde wegen eines Mehrbenutzer-Konflikts nicht gespeichert.";
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                wasCommitted
+                    ? $"Die Tour wurde erfolgreich gespeichert. Beim anschliessenden Aktualisieren trat ein Konflikt auf. Die Daten werden neu geladen.\n\n{conflict.Message}"
+                    : $"Die Tour wurde nicht gespeichert. Die Daten werden neu geladen.\n\n{conflict.Message}",
+                "Mehrbenutzer-Konflikt",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            await RefreshAsync();
         }
         catch (IOException ioEx)
         {
@@ -4440,9 +4542,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         if (targetTourId <= 0)
         {
-            _loadedTourLease?.Dispose();
-            _loadedTourLease = null;
-            _loadedTourLeaseId = 0;
+            ReleaseLoadedTourLeases();
             ClearRoute();
             StatusText = "Tour verlassen.";
             RaiseCommandStates();
@@ -4472,7 +4572,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        _loadedTourLease?.Dispose();
+        ReleaseLoadedTourLeases();
         _loadedTourLease = lockAttempt.Lease;
         _loadedTourLeaseId = targetTourId;
 
@@ -4496,7 +4596,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 return;
             }
 
-            _loadedTourLease?.Dispose();
+            ReleaseLoadedTourLeases();
             _loadedTourLease = lockAttempt.Lease;
             _loadedTourLeaseId = tourId;
         }
@@ -4510,9 +4610,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         if (tour is null)
         {
-            _loadedTourLease?.Dispose();
-            _loadedTourLease = null;
-            _loadedTourLeaseId = 0;
+            ReleaseLoadedTourLeases();
+            return;
+        }
+
+        if (!await EnsureLoadedTourOrderLeasesAsync(ExtractNonCompanyTourOrderIds(tour)))
+        {
+            ReleaseLoadedTourLeases();
             return;
         }
 
@@ -4549,6 +4653,48 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         StatusText = "Tour auf Karte geladen.";
         RaiseCommandStates();
         UpdateRouteSummary();
+    }
+
+    private async Task<bool> EnsureLoadedTourOrderLeasesAsync(IEnumerable<string> orderIds)
+    {
+        var acquiredNow = new List<string>();
+        foreach (var orderId in (orderIds ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+        {
+            if (_loadedTourOrderLeases.ContainsKey(orderId)) continue;
+            var attempt = await CollaborationSessionService.TryAcquireResourceAsync("order", orderId);
+            if (attempt.Lease is null)
+            {
+                foreach (var acquiredId in acquiredNow)
+                {
+                    _loadedTourOrderLeases[acquiredId].Dispose();
+                    _loadedTourOrderLeases.Remove(acquiredId);
+                }
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                    $"Auftrag {orderId} wird aktuell von {attempt.Result.LockedByUserName} bearbeitet. Die Tour kann deshalb nicht bearbeitet oder gespeichert werden.",
+                    "Auftrag gesperrt",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return false;
+            }
+            _loadedTourOrderLeases[orderId] = attempt.Lease;
+            acquiredNow.Add(orderId);
+        }
+        if (acquiredNow.Count > 0)
+        {
+            var currentOrders = DeduplicateOrders(await _orderRepository.GetAllAsync());
+            _allOrders.Clear();
+            _allOrders.AddRange(currentOrders);
+        }
+        return true;
+    }
+
+    private void ReleaseLoadedTourLeases()
+    {
+        foreach (var lease in _loadedTourOrderLeases.Values) lease.Dispose();
+        _loadedTourOrderLeases.Clear();
+        _loadedTourLease?.Dispose();
+        _loadedTourLease = null;
+        _loadedTourLeaseId = 0;
     }
 
     private void PushDraftRouteStopRemovalSnapshot(RouteStopItem routeStop)
@@ -5555,9 +5701,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         ClearRoute();
-        _loadedTourLease?.Dispose();
-        _loadedTourLease = null;
-        _loadedTourLeaseId = 0;
+        ReleaseLoadedTourLeases();
         StatusText = "Tour verlassen.";
         ToastNotificationService.ShowInfo("Tour wurde verlassen.");
     }

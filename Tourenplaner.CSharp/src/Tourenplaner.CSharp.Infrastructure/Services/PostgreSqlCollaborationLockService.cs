@@ -11,7 +11,7 @@ public sealed class PostgreSqlCollaborationLockService : ICollaborationLockServi
     private readonly PostgreSqlStorageSettings _settings;
     private readonly PostgreSqlConnectionFactory _connectionFactory = new();
     private readonly PostgreSqlSchemaInitializer _schemaInitializer = new();
-    private readonly string _sessionId = Guid.NewGuid().ToString("N");
+    private readonly string _sessionId = PostgreSqlClientContext.LockSessionId;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<(string Kind, string Id), string> _heldLocks = new();
     private readonly PeriodicTimer _heartbeatTimer = new(HeartbeatInterval);
@@ -135,10 +135,11 @@ public sealed class PostgreSqlCollaborationLockService : ICollaborationLockServi
 
     private async Task RunHeartbeatAsync(CancellationToken cancellationToken)
     {
-        try
+        while (!cancellationToken.IsCancellationRequested)
         {
-            while (await _heartbeatTimer.WaitForNextTickAsync(cancellationToken))
+            try
             {
+                if (!await _heartbeatTimer.WaitForNextTickAsync(cancellationToken)) break;
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
@@ -161,9 +162,13 @@ public sealed class PostgreSqlCollaborationLockService : ICollaborationLockServi
                     _gate.Release();
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
+            catch
+            {
+                try { await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken); }
+                catch (OperationCanceledException) { break; }
+            }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch { }
     }
 
     public async ValueTask DisposeAsync()

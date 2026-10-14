@@ -46,6 +46,7 @@ public sealed class StorageRepositoryFactory
             string.IsNullOrWhiteSpace(existingPostgreSqlSettings.CompanyName) &&
             string.IsNullOrWhiteSpace(existingPostgreSqlSettings.CurrentUserName))
         {
+            bootstrapSettings.ConcurrencyToken = existingPostgreSqlSettings.ConcurrencyToken;
             await postgreSqlAppSettingsStore.SaveAsync(bootstrapSettings, cancellationToken);
         }
 

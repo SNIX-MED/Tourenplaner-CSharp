@@ -89,12 +89,20 @@ public sealed class AppDataSyncService
         {
             UpdateStatus("Lokale Änderung gespeichert.", false, null, timestamp);
         }
-        else
+        else if (_bridge?.RequiresExplicitBroadcast == true)
         {
             UpdateStatus("Lokale Änderung wird synchronisiert.", _isRemoteSyncConnected, null, timestamp);
         }
+        else
+        {
+            UpdateStatus("Lokale Änderung gespeichert und synchronisiert.", _isRemoteSyncConnected, null, timestamp);
+        }
         PublishCore(normalized);
-        _ = _bridge?.BroadcastAsync(normalized);
+        if (_bridge?.RequiresExplicitBroadcast == true)
+        {
+            _bridge.BroadcastAsync(normalized).Forget(ex =>
+                UpdateStatus("Synchronisationsmeldung fehlgeschlagen.", false, ex.Message, DateTime.UtcNow));
+        }
     }
 
     private void PublishRemote(AppDataChangedEventArgs args)

@@ -26,6 +26,8 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
     public event EventHandler<AppDataChangedEventArgs>? RemoteDataChanged;
     public event EventHandler<AppDataSyncBridgeStatusChangedEventArgs>? StatusChanged;
 
+    public bool RequiresExplicitBroadcast => false;
+
     public async Task BroadcastAsync(AppDataChangedEventArgs args, CancellationToken cancellationToken = default)
     {
         var payload = JsonSerializer.Serialize(new AppDataSyncPayload(

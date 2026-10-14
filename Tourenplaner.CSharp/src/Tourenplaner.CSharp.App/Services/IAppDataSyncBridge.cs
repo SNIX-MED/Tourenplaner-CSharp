@@ -2,6 +2,8 @@
 
 public interface IAppDataSyncBridge
 {
+    bool RequiresExplicitBroadcast => true;
+
     event EventHandler<AppDataChangedEventArgs>? RemoteDataChanged;
     event EventHandler<AppDataSyncBridgeStatusChangedEventArgs>? StatusChanged;
 

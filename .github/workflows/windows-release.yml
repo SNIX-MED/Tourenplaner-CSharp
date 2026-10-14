@@ -69,12 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - SQL-Speicherung von Touren und Auftraegen gegen falsche Mehrbenutzerkonflikte und Teil-Speicherungen abgesichert
-          - Auftraege und Touren werden in PostgreSQL zuverlaessig aktualisiert und geloescht
-          - Rueckfahrtslinie zur Firma kann wieder unabhaengig von Zeit- und Distanzanzeige ein- und ausgeblendet werden
-          - Unterschiedliche Symbole zeigen den Zustand der Rueckfahrtslinie eindeutig an
-          - Keine temporaeren geraden Verbindungslinien mehr waehrend die Strassenroute geladen wird
-          - Fluessiges automatisches Scrollen beim Verschieben von Stopps an der Ober- oder Unterkante
+          - Robuste Mehrbenutzer-Konflikterkennung fuer PostgreSQL-Speicherungen und Kollaborationssperren
+          - Touren sperren zugehoerige Auftraege automatisch gegen gleichzeitige Fremdbearbeitung
+          - Vermeidung redundanter Synchronisierungs-Broadcasts bei transaktionaler DB-Speicherung
+          - Automatisches Neuladen und informative Konflikthinweise bei konkurrierenden Aenderungen
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

@@ -2,6 +2,8 @@
 
 public sealed class AppSettings
 {
+    public string? ConcurrencyToken { get; set; }
+
     private const string LegacyDefaultStatusColorNotSpecified = "#A3A3A3";
     private const string LegacyDefaultStatusColorOrdered = "#0EA5E9";
     private const int LegacyDefaultStayMinutesFreiBordsteinkante = 10;

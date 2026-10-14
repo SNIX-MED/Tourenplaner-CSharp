@@ -148,6 +148,87 @@ public sealed class PostgreSqlUndoRedoIntegrationTests
     }
 
     [Fact]
+    public async Task CollaborationLock_BlocksOtherDatabaseSessionButAllowsOwner()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("TOURENPLANER_POSTGRES_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString)) return;
+        var settings = CreateSettings(connectionString, $"history_test_locks_{Guid.NewGuid():N}");
+        var initialized = false;
+        PostgreSqlClientContext.Configure(Guid.NewGuid(), "Owner");
+        await using var locks = new PostgreSqlCollaborationLockService(settings);
+        try
+        {
+            var repository = new PostgreSqlOrderRepository(settings);
+            var order = new Order { Id = "LOCKED-1", CustomerName = "Before" };
+            await repository.UpsertAsync(order);
+            initialized = true;
+            var acquired = await locks.TryAcquireAsync("order", order.Id, "Owner");
+            Assert.True(acquired.Acquired);
+
+            var builder = new NpgsqlConnectionStringBuilder(connectionString)
+            {
+                ApplicationName = $"GAWELA|{Guid.NewGuid():N}|Other|other123"
+            };
+            await using var otherConnection = new NpgsqlConnection(builder.ConnectionString);
+            await otherConnection.OpenAsync();
+            await using var blockedCommand = otherConnection.CreateCommand();
+            blockedCommand.CommandText = $"""UPDATE "{settings.Schema}"."orders" SET updated_at = timezone('utc', now()) WHERE id = @id;""";
+            blockedCommand.Parameters.AddWithValue("id", order.Id);
+            var exception = await Assert.ThrowsAsync<PostgresException>(() => blockedCommand.ExecuteNonQueryAsync());
+            Assert.Equal("40001", exception.SqlState);
+
+            order.CustomerName = "Owner update";
+            await repository.UpsertAsync(order);
+            Assert.Equal("Owner update", (await repository.GetByIdAsync(order.Id))?.CustomerName);
+        }
+        finally
+        {
+            if (initialized) await DropIsolatedSchemaAsync(settings);
+        }
+    }
+
+    [Fact]
+    public async Task SingletonStores_RejectStaleSettingsAndVehicleUpdates()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("TOURENPLANER_POSTGRES_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString)) return;
+        var settings = CreateSettings(connectionString, $"history_test_singletons_{Guid.NewGuid():N}");
+        var initialized = false;
+        try
+        {
+            var settingsStore = new PostgreSqlAppSettingsRepository(settings);
+            var vehicleStore = new PostgreSqlVehicleDataRepository(settings);
+            var initialSettings = await settingsStore.LoadAsync();
+            initialSettings.CompanyName = "Initial";
+            await settingsStore.SaveAsync(initialSettings);
+            initialized = true;
+
+            var staleSettings = await settingsStore.LoadAsync();
+            var freshSettings = await settingsStore.LoadAsync();
+            freshSettings.CompanyName = "Fresh";
+            await settingsStore.SaveAsync(freshSettings);
+            staleSettings.CompanyName = "Stale";
+            await Assert.ThrowsAsync<ConcurrencyConflictException>(() => settingsStore.SaveAsync(staleSettings));
+            Assert.Equal("Fresh", (await settingsStore.LoadAsync()).CompanyName);
+
+            var initialVehicles = await vehicleStore.LoadAsync();
+            initialVehicles.Vehicles.Add(new Vehicle { Id = "V1", Name = "Initial" });
+            await vehicleStore.SaveAsync(initialVehicles);
+            var staleVehicles = await vehicleStore.LoadAsync();
+            var freshVehicles = await vehicleStore.LoadAsync();
+            freshVehicles.Vehicles[0].Name = "Fresh";
+            await vehicleStore.SaveAsync(freshVehicles);
+            staleVehicles.Vehicles[0].Name = "Stale";
+            await Assert.ThrowsAsync<ConcurrencyConflictException>(() => vehicleStore.SaveAsync(staleVehicles));
+            Assert.Equal("Fresh", (await vehicleStore.LoadAsync()).Vehicles.Single().Name);
+        }
+        finally
+        {
+            if (initialized) await DropIsolatedSchemaAsync(settings);
+        }
+    }
+
+    [Fact]
     public async Task RealPostgreSql_TracksUndoesRedoesAndCleansUpInIsolatedSchema()
     {
         var connectionString = Environment.GetEnvironmentVariable("TOURENPLANER_POSTGRES_TEST_CONNECTION");

@@ -1,4 +1,5 @@
-﻿using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Application.Common;
+using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Services;
 
@@ -11,10 +12,7 @@ public sealed class PostgreSqlVehicleDataRepository : IVehicleDataStore
     private readonly PostgreSqlConnectionFactory _connectionFactory;
     private readonly PostgreSqlSchemaInitializer _schemaInitializer;
 
-    public PostgreSqlVehicleDataRepository(
-        PostgreSqlStorageSettings settings,
-        PostgreSqlConnectionFactory? connectionFactory = null,
-        PostgreSqlSchemaInitializer? schemaInitializer = null)
+    public PostgreSqlVehicleDataRepository(PostgreSqlStorageSettings settings, PostgreSqlConnectionFactory? connectionFactory = null, PostgreSqlSchemaInitializer? schemaInitializer = null)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _connectionFactory = connectionFactory ?? new PostgreSqlConnectionFactory();
@@ -26,33 +24,38 @@ public sealed class PostgreSqlVehicleDataRepository : IVehicleDataStore
         await using var connection = _connectionFactory.CreateConnection(_settings);
         await connection.OpenAsync(cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
-
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         await using var command = connection.CreateCommand();
-        command.CommandText = $"""SELECT payload::text FROM "{schema}"."singletons" WHERE key = @key;""";
+        command.CommandText = $"""SELECT payload::text, updated_at FROM "{schema}"."singletons" WHERE key = @key;""";
         command.Parameters.AddWithValue("key", VehicleDataKey);
-        var payload = await command.ExecuteScalarAsync(cancellationToken) as string;
-        return VehicleNormalizer.NormalizePayload(PostgreSqlRepositorySerializer.Deserialize(payload ?? string.Empty, () => new VehicleDataRecord()));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return new VehicleDataRecord();
+        var result = VehicleNormalizer.NormalizePayload(PostgreSqlRepositorySerializer.Deserialize(reader.GetString(0), () => new VehicleDataRecord()));
+        result.ConcurrencyToken = reader.GetFieldValue<DateTimeOffset>(1).ToUniversalTime().ToString("O");
+        return result;
     }
 
     public async Task SaveAsync(VehicleDataRecord payload, CancellationToken cancellationToken = default)
     {
-        var normalized = VehicleNormalizer.NormalizePayload(payload ?? new VehicleDataRecord());
-
+        ArgumentNullException.ThrowIfNull(payload);
+        var normalized = VehicleNormalizer.NormalizePayload(payload);
         await using var connection = _connectionFactory.CreateConnection(_settings);
         await connection.OpenAsync(cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
-
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
+        var expected = ParseToken(normalized.ConcurrencyToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = $"""
-            INSERT INTO "{schema}"."singletons" (key, payload, updated_at)
-            VALUES (@key, CAST(@payload AS jsonb), timezone('utc', now()))
-            ON CONFLICT (key)
-            DO UPDATE SET payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at;
-            """;
+        command.CommandText = expected is null
+            ? $"""INSERT INTO "{schema}"."singletons" (key, payload, updated_at) VALUES (@key, CAST(@payload AS jsonb), timezone('utc', now())) ON CONFLICT (key) DO NOTHING RETURNING updated_at;"""
+            : $"""UPDATE "{schema}"."singletons" SET payload = CAST(@payload AS jsonb), updated_at = timezone('utc', now()) WHERE key = @key AND updated_at = @expectedUpdatedAt RETURNING updated_at;""";
         command.Parameters.AddWithValue("key", VehicleDataKey);
         command.Parameters.AddWithValue("payload", PostgreSqlRepositorySerializer.Serialize(normalized));
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        if (expected.HasValue) command.Parameters.AddWithValue("expectedUpdatedAt", expected.Value);
+        var savedAt = await command.ExecuteScalarAsync(cancellationToken);
+        if (savedAt is null) throw new ConcurrencyConflictException("Fahrzeugdaten", VehicleDataKey);
+        payload.ConcurrencyToken = ReadTimestamp(savedAt).ToUniversalTime().ToString("O");
     }
+
+    private static DateTimeOffset? ParseToken(string? token) => string.IsNullOrWhiteSpace(token) ? null : DateTimeOffset.Parse(token.Trim());
+    private static DateTimeOffset ReadTimestamp(object value) => value is DateTimeOffset dto ? dto : new DateTimeOffset(((DateTime)value).ToUniversalTime(), TimeSpan.Zero);
 }

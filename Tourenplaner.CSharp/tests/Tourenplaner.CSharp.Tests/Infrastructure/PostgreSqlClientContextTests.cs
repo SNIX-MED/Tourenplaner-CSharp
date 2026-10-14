@@ -15,5 +15,6 @@ public sealed class PostgreSqlClientContextTests
         Assert.StartsWith("GAWELA|d6ff7622f62048ddb3847241691ebc38|", result, StringComparison.Ordinal);
         Assert.DoesNotContain("|mit|", result, StringComparison.Ordinal);
         Assert.True(result.Length <= 64);
+        Assert.Equal(PostgreSqlClientContext.LockSessionId, result.Split('|')[3]);
     }
 }
