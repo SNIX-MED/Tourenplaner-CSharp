@@ -56,7 +56,7 @@ public sealed partial class KarteSectionViewModel
             ? filteredList.Where(o => !MatchesSearchQuery(o, query)).ToList()
             : new List<Order>();
 
-        MapOrders.Clear();
+        var nextMapOrders = new List<MapOrderItem>();
         foreach (var order in matching
                      .OrderBy(o => o.ScheduledDate)
                      .ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
@@ -74,17 +74,19 @@ public sealed partial class KarteSectionViewModel
                     ((IncludeOpenOrders && string.IsNullOrWhiteSpace(order.AssignedTourId)) ||
                      (IncludePlannedOrders && !string.IsNullOrWhiteSpace(order.AssignedTourId))))
                 {
-                    MapOrders.Add(BuildMapOrderItem(order));
+                    nextMapOrders.Add(BuildMapOrderItem(order));
                 }
             }
             else
             {
                 foreach (var delivery in deliveries)
                 {
-                    MapOrders.Add(BuildMapOrderItem(order, delivery));
+                    nextMapOrders.Add(BuildMapOrderItem(order, delivery));
                 }
             }
         }
+
+        MapOrders.ReplaceAll(nextMapOrders);
 
         _dimmedMapOrders.Clear();
         if (_mapSearchDimNonMatchingPins && hasSearch)

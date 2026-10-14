@@ -20,7 +20,7 @@ public sealed class MapHtmlDocumentBuilderTests
     }
 
     [Fact]
-    public void NearbyPins_AreNotGroupedByScreenDistance()
+    public void AddressFanOut_DoesNotUseRemovedLegacyClusterImplementation()
     {
         var html = MapHtmlDocumentBuilder.Build(null, true, true, null, false, true, true, false, false, true, true, 1d, 0);
 
@@ -78,6 +78,40 @@ public sealed class MapHtmlDocumentBuilderTests
             ": routeStops.map(toMapCoordinate).filter(p => Array.isArray(p));",
             html,
             StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0, "speed-limit-badge hidden", "<span></span>")]
+    [InlineData(80, "speed-limit-badge ", "<span>80</span>")]
+    public void SpeedLimitBadge_CanBeUpdatedWithoutReloadingMapDocument(
+        int maxSpeedKmh,
+        string expectedBadgeMarkup,
+        string expectedValueMarkup)
+    {
+        var html = MapHtmlDocumentBuilder.Build(null, true, true, null, false, true, true, false, false, true, true, 1d, maxSpeedKmh);
+
+        Assert.Contains(expectedBadgeMarkup, html, StringComparison.Ordinal);
+        Assert.Contains(expectedValueMarkup, html, StringComparison.Ordinal);
+        Assert.Contains("window.gawelaSetSpeedLimit = function(maxSpeedKmh)", html, StringComparison.Ordinal);
+        Assert.Contains("badge.classList.toggle('hidden', speed <= 0)", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NearbyPins_AreClusteredByScreenDistanceAndSpiderfiedAtHighZoom()
+    {
+        var html = MapHtmlDocumentBuilder.Build(null, true, true, null, false, true, true, false, false, true, true, 1d, 0);
+
+        Assert.Contains("const applyScreenCollisionLayout = markers =>", html, StringComparison.Ordinal);
+        Assert.Contains("const collisionDistance = Math.max(16, Math.min(23, 18 * markerScale))", html, StringComparison.Ordinal);
+        Assert.Contains("__screenClusterCount = group.length", html, StringComparison.Ordinal);
+        Assert.Contains("currentZoom) && currentZoom >= 15.5", html, StringComparison.Ordinal);
+        Assert.Contains("if (group.length === 2)", html, StringComparison.Ordinal);
+        Assert.Contains("hoveredOverlapGroupKey === screenGroupKey", html, StringComparison.Ordinal);
+        Assert.Contains("? Math.max(12, 14 * markerScale)", html, StringComparison.Ordinal);
+        Assert.Contains("result[entry.index].__overlapGroupKey = screenGroupKey", html, StringComparison.Ordinal);
+        Assert.Contains("const zoomToScreenCluster = marker =>", html, StringComparison.Ordinal);
+        Assert.Contains("gawela-pin-cluster-badge", html, StringComparison.Ordinal);
+        Assert.Contains("map.on('zoomend', scheduleMarkerFanOutRecompute)", html, StringComparison.Ordinal);
     }
 
     [Theory]

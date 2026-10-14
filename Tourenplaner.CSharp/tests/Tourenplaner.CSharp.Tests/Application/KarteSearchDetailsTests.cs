@@ -9,6 +9,23 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class KarteSearchDetailsTests
 {
+    [Theory]
+    [InlineData(900, true, 0)]
+    [InlineData(900, false, 900)]
+    [InlineData(20, false, 100)]
+    [InlineData(15000, false, 10000)]
+    public void RouteRecalculationDebounce_ImmediateUserActionsBypassDelay(
+        int configuredDebounceMs,
+        bool calculateImmediately,
+        int expectedDebounceMs)
+    {
+        var result = KarteSectionViewModel.ResolveRouteRecalculationDebounceMs(
+            configuredDebounceMs,
+            calculateImmediately);
+
+        Assert.Equal(expectedDebounceMs, result);
+    }
+
     [Fact]
     public void PartiallyReadyAndInTransit_UseDistinctPinAndLegendColors()
     {

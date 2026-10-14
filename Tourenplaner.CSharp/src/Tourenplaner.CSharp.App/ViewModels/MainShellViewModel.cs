@@ -91,14 +91,6 @@ public sealed partial class MainShellViewModel : ObservableObject
             repositories.DataRootPath,
             dataSyncService);
         _mapSection = map;
-        var start = new StartSectionViewModel(
-            repositories.TourRecordStore,
-            repositories.CalendarManualEntryStore,
-            repositories.AppSettingsStore,
-            "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Banner.png",
-            () => NavigateToMapAsync(map),
-            dataSyncService);
-        _startSection = start;
         var tours = new ToursSectionViewModel(
             repositories.TourRecordStore,
             repositories.OrderRepository,
@@ -154,6 +146,24 @@ public sealed partial class MainShellViewModel : ObservableObject
         };
         var employees = new EmployeesSectionViewModel(repositories.EmployeeDataStore, repositories.TourRecordStore, repositories.AppSettingsStore, dataSyncService);
         var vehicles = new VehiclesSectionViewModel(repositories.VehicleDataStore, repositories.TourRecordStore, dataSyncService);
+        var start = new StartSectionViewModel(
+            repositories.TourRecordStore,
+            repositories.OrderRepository,
+            repositories.EmployeeDataStore,
+            repositories.VehicleDataStore,
+            repositories.CalendarManualEntryStore,
+            repositories.AppSettingsStore,
+            "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Banner.png",
+            () => NavigateToMapAsync(map),
+            () => NavigateToSectionAsync(tours),
+            () => NavigateToSectionAsync(calendar),
+            () => NavigateToSectionAsync(orders),
+            tourId => NavigateToTourAsync(tours, tourId),
+            () => NavigateToSectionAsync(employees),
+            () => NavigateToSectionAsync(vehicles),
+            (orderId, orderType) => NavigateToOrderAsync(orders, nonMapOrders, orderId, orderType),
+            dataSyncService);
+        _startSection = start;
 
         var settings = new SettingsSectionViewModel(
             repositories.AppSettingsStore,
@@ -345,6 +355,7 @@ public sealed partial class MainShellViewModel : ObservableObject
     public bool IsSpediteurSectionActive => CurrentSection is SpediteurSectionViewModel;
 
     public bool IsTopBarSectionControlsVisible =>
+        CurrentSection is StartSectionViewModel ||
         IsMapSectionActive ||
         IsToursSectionActive ||
         CurrentSection is KalenderSectionViewModel ||
@@ -399,6 +410,29 @@ public sealed partial class MainShellViewModel : ObservableObject
     {
         SelectNavigationItemForSection(mapSection);
         await mapSection.RefreshAsync();
+    }
+
+    private Task NavigateToSectionAsync(object section)
+    {
+        SelectNavigationItemForSection(section);
+        return Task.CompletedTask;
+    }
+
+    private async Task NavigateToOrderAsync(
+        OrdersSectionViewModel ordersSection,
+        NonMapOrdersSectionViewModel nonMapOrdersSection,
+        string orderId,
+        OrderType orderType)
+    {
+        if (orderType == OrderType.NonMap)
+        {
+            await nonMapOrdersSection.FocusOrderAsync(orderId, isArchived: false);
+            SelectNavigationItemForSection(nonMapOrdersSection);
+            return;
+        }
+
+        await ordersSection.FocusOrderAsync(orderId, isArchived: false);
+        SelectNavigationItemForSection(ordersSection);
     }
 
     private void OpenSettings()

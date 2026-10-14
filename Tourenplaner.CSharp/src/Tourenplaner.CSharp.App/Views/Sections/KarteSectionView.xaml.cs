@@ -1,6 +1,7 @@
 ﻿using System.Collections.Specialized;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -40,6 +41,7 @@ public partial class KarteSectionView : UserControl
         DetailsToggle = 1 << 7,
         PlannedTourOverlayHighlight = 1 << 8,
         TemporarySearchPin = 1 << 9,
+        SpeedLimitBadge = 1 << 10,
         RouteWithoutAutoCenter = 1 << 11
     }
 
@@ -73,6 +75,8 @@ public partial class KarteSectionView : UserControl
     private int _mapRefreshRevision;
     private bool _isMapRefreshLoopRunning;
     private MapRefreshOperation _pendingMapRefresh;
+    private int _consecutiveMapRefreshFailures;
+    private bool _mapRecoveryInProgress;
     private CancellationTokenSource? _pinInfoCardScaleThrottleCts;
     private double _pendingPinInfoCardScale = 1.0d;
     private double _lastAppliedPinInfoCardScale = double.NaN;
@@ -342,9 +346,12 @@ public partial class KarteSectionView : UserControl
         {
             QueueMapRefresh(MapRefreshOperation.DetailsToggle, UiRefreshDebounceMilliseconds);
         }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.CurrentRouteAppliedMaxSpeedKmh))
+        {
+            QueueMapRefresh(MapRefreshOperation.SpeedLimitBadge, UiRefreshDebounceMilliseconds);
+        }
         else if (e.PropertyName == nameof(KarteSectionViewModel.TomTomApiKey) ||
-                 e.PropertyName == nameof(KarteSectionViewModel.TomTomEnableTileCache) ||
-                 e.PropertyName == nameof(KarteSectionViewModel.CurrentRouteAppliedMaxSpeedKmh))
+                 e.PropertyName == nameof(KarteSectionViewModel.TomTomEnableTileCache))
         {
             _ = ReloadMapDocumentAsync();
         }
@@ -413,13 +420,8 @@ public partial class KarteSectionView : UserControl
                 }
 
                 _pendingMapRefresh = MapRefreshOperation.None;
-                await ExecuteMapRefreshAsync(operation);
+                await ExecuteMapRefreshWithRetryAsync(operation);
             }
-        }
-        catch
-        {
-            MapWebView.Visibility = Visibility.Collapsed;
-            MapFallbackNotice.Visibility = Visibility.Visible;
         }
         finally
         {
@@ -431,11 +433,49 @@ public partial class KarteSectionView : UserControl
         }
     }
 
+    private async Task ExecuteMapRefreshWithRetryAsync(MapRefreshOperation operation)
+    {
+        try
+        {
+            await ExecuteMapRefreshAsync(operation);
+            _consecutiveMapRefreshFailures = 0;
+        }
+        catch (Exception firstError)
+        {
+            // A transient WebView/JavaScript timing failure must not hide an otherwise
+            // usable map. Retry the idempotent update once before escalating.
+            await Task.Delay(100);
+            try
+            {
+                await ExecuteMapRefreshAsync(operation);
+                _consecutiveMapRefreshFailures = 0;
+            }
+            catch (Exception retryError)
+            {
+                _consecutiveMapRefreshFailures++;
+                Debug.WriteLine($"Map refresh failed ({operation}): {firstError.Message}; retry: {retryError.Message}");
+
+                // Recreate the document only after repeated failures. Keep the current
+                // map visible while WebView navigation performs the recovery.
+                if (_consecutiveMapRefreshFailures >= 3 && !_mapRecoveryInProgress)
+                {
+                    _mapRecoveryInProgress = true;
+                    await ReloadMapDocumentAsync();
+                }
+            }
+        }
+    }
+
     private async Task ExecuteMapRefreshAsync(MapRefreshOperation operation)
     {
         if ((operation & MapRefreshOperation.DetailsToggle) != 0)
         {
             await ApplyDetailsToggleStateAsync();
+        }
+
+        if ((operation & MapRefreshOperation.SpeedLimitBadge) != 0)
+        {
+            await ApplySpeedLimitBadgeAsync();
         }
 
         if ((operation & MapRefreshOperation.Markers) != 0)
@@ -815,6 +855,7 @@ public partial class KarteSectionView : UserControl
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
+        _mapRecoveryInProgress = false;
         if (!e.IsSuccess || MapWebView.CoreWebView2 is null)
         {
             _mapScriptReady = false;
@@ -841,6 +882,7 @@ public partial class KarteSectionView : UserControl
 
             if (_mapScriptReady)
             {
+                _consecutiveMapRefreshFailures = 0;
                 MapFallbackNotice.Visibility = Visibility.Collapsed;
                 QueueMapRefresh(
                     MapRefreshOperation.Markers |
@@ -987,6 +1029,17 @@ public partial class KarteSectionView : UserControl
         await ApplyPinInfoCardScaleAsync();
         await ApplyPinInfoCardZoomBehaviorAsync();
         await ApplyTemporarySearchPinAsync();
+    }
+
+    private async Task ApplySpeedLimitBadgeAsync()
+    {
+        if (!_mapReady || !_mapScriptReady || MapWebView.CoreWebView2 is null || DataContext is not KarteSectionViewModel vm)
+        {
+            return;
+        }
+
+        await MapWebView.CoreWebView2.ExecuteScriptAsync(
+            $"if (typeof window.gawelaSetSpeedLimit === 'function') window.gawelaSetSpeedLimit({vm.CurrentRouteAppliedMaxSpeedKmh});");
     }
 
     private async Task PushRouteToMapAsync(bool allowAutoCenter = true)

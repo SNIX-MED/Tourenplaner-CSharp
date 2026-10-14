@@ -203,6 +203,26 @@
                                 Content="{Binding CurrentSection}"
                                 Visibility="{Binding IsTopBarSectionControlsVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                     <ContentControl.Resources>
+                    <DataTemplate DataType="{x:Type sections:StartSectionViewModel}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource Brush.TextMuted}"
+                                       Text="{Binding TodayText}" />
+                            <Button Grid.Column="1"
+                                    Height="40"
+                                    MinWidth="170"
+                                    Margin="12,0,8,0"
+                                    Style="{StaticResource SuccessButtonStyle}"
+                                    Command="{Binding NewTourPlanCommand}"
+                                    Content="Neue Tour planen" />
+                        </Grid>
+                    </DataTemplate>
                     <DataTemplate DataType="{x:Type sections:KarteSectionViewModel}">
                         <Grid x:Name="MapTopBarControlsRoot">
                             <Grid.ColumnDefinitions>

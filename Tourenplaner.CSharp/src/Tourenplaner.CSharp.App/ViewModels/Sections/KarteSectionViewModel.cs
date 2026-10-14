@@ -309,11 +309,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _ = RefreshAsync();
     }
 
-    public ObservableCollection<MapOrderItem> MapOrders { get; } = new();
+    public ObservableRangeCollection<MapOrderItem> MapOrders { get; } = new();
 
     public ObservableCollection<MapSearchSuggestionItem> SearchSuggestions { get; } = new();
 
-    public ObservableCollection<RouteStopItem> RouteStops { get; } = new();
+    public ObservableRangeCollection<RouteStopItem> RouteStops { get; } = new();
 
     public ObservableCollection<SavedTourLookupItem> SavedTours { get; } = new();
     public ObservableCollection<SavedTourOverviewItem> TourOverviewItems { get; } = new();
@@ -1072,7 +1072,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         order.IsAlternativeDeliveryEnabled = true;
         var geocodingResult = await ApplyDeliveryMethodRoutingAsync(order, order.Location);
         await ReconcileToursWithOrdersAsync(_allOrders);
-        await RefreshAsync();
+        await RefreshAfterLocalMutationAsync(preferredOrderId: order.Id);
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, order.Id, StringComparison.OrdinalIgnoreCase));
         if (SelectedOrder is not null)
         {
@@ -1506,6 +1506,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private async Task RefreshCoreAsync()
     {
+        var previousTomTomApiKey = _tomTomApiKey;
+        var previousTomTomEnableTileCache = _tomTomEnableTileCache;
         var settingsTask = _settingsRepository.LoadAsync();
         var ordersTask = _orderRepository.GetAllAsync();
         var vehiclesTask = _vehicleRepository.LoadAsync();
@@ -1622,7 +1624,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             _tomTomUseDepartAtTraffic = true;
             _tomTomAvoidFerries = true;
         }
-        OnPropertyChanged(nameof(TomTomApiKey));
+        if (!string.Equals(previousTomTomApiKey, _tomTomApiKey, StringComparison.Ordinal))
+        {
+            OnPropertyChanged(nameof(TomTomApiKey));
+        }
         OnPropertyChanged(nameof(TomTomShowTrafficFlow));
         OnPropertyChanged(nameof(TomTomShowTrafficIncidents));
         OnPropertyChanged(nameof(TomTomShowRoadLabels));
@@ -1638,7 +1643,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(TomTomVehicleWithTrailerMaxSpeedKmh));
         OnPropertyChanged(nameof(CurrentRouteAppliedMaxSpeedKmh));
         OnPropertyChanged(nameof(HasCurrentRouteAppliedMaxSpeed));
-        OnPropertyChanged(nameof(TomTomEnableTileCache));
+        if (previousTomTomEnableTileCache != _tomTomEnableTileCache)
+        {
+            OnPropertyChanged(nameof(TomTomEnableTileCache));
+        }
         OnPropertyChanged(nameof(MapPinInfoCardShowName));
         OnPropertyChanged(nameof(MapPinInfoCardShowOrderNumber));
         OnPropertyChanged(nameof(MapPinInfoCardShowStreet));
@@ -1705,6 +1713,18 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         RefreshOrderFilterOptions();
         RebuildOrderGrid();
         await LoadSavedToursAsync();
+        RebuildPlannedTourRouteOverlays();
+        RequestRouteGeometryRebuild();
+        UpdateRouteSummary();
+    }
+
+    private async Task RefreshAfterLocalMutationAsync(int? preferredTourId = null, string? preferredOrderId = null)
+    {
+        // Successful local writes have already updated _allOrders. Only reload tours,
+        // then rebuild the derived UI state instead of reloading every repository and
+        // repeating settings/geocoding work through RefreshAsync().
+        RebuildOrderGrid(preferredOrderId ?? SelectedOrder?.OrderId);
+        await LoadSavedToursAsync(preferredTourId);
         RebuildPlannedTourRouteOverlays();
         RequestRouteGeometryRebuild();
         UpdateRouteSummary();
@@ -2414,7 +2434,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         insertIndex = Math.Max(0, Math.Min(insertIndex, RouteStops.Count));
         RouteStops.Insert(insertIndex, source);
         SelectedRouteStop = source;
-        RebuildPositions();
+        RebuildPositions(calculateRouteImmediately: true);
         MarkRouteChanged();
         return true;
     }
@@ -2468,7 +2488,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         SelectedRouteStop = target;
-        RebuildPositions();
+        RebuildPositions(calculateRouteImmediately: true);
         MarkRouteChanged();
         return true;
     }
@@ -2476,7 +2496,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public void SwapRouteStops(string sourceOrderId, string targetOrderId)
     {
         var swapped = _mapRouteService.SwapStops(ToMapRouteStops(), sourceOrderId, targetOrderId);
-        ApplyRouteStops(swapped, sourceOrderId);
+        ApplyRouteStops(swapped, sourceOrderId, calculateRouteImmediately: true);
     }
 
     public void UpdateRouteStopCoordinates(string orderId, double lat, double lon)
@@ -2489,7 +2509,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         match.Latitude = lat;
         match.Longitude = lon;
-        RebuildPositions();
+        RebuildPositions(calculateRouteImmediately: true);
         MarkRouteChanged();
     }
 
@@ -2729,7 +2749,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         RouteStops.Insert(endIndex, manualStop);
         SelectedRouteStop = manualStop;
-        RebuildPositions();
+        RebuildPositions(calculateRouteImmediately: true);
         MarkRouteChanged();
         StatusText = $"Stopp \"{manualStop.Customer}\" mit {manualStop.PlannedStayMinutes} min hinzugefügt.";
     }
@@ -2870,7 +2890,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
-        RebuildPositions();
+        RebuildPositions(calculateRouteImmediately: true);
         RebuildOrderGrid();
         MarkRouteChanged();
     }
@@ -2895,7 +2915,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         // A route only selected in the overview is not loaded for editing. Clear that
         // selection before adding, otherwise saving would overwrite the selected tour
         // with a route containing only the newly added stop.
-        ClearRoute();
+        // AddSelectedOrderToRoute rebuilds the locally cached order grid after the
+        // new draft route has been created. Avoid rebuilding it once here as well.
+        ClearRoute(rebuildOrderGrid: false);
         AddSelectedOrderToRoute();
     }
 
@@ -3068,7 +3090,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         if (added > 0)
         {
-            RebuildPositions();
+            RebuildPositions(calculateRouteImmediately: true);
             RebuildOrderGrid();
             MarkRouteChanged();
         }
@@ -3147,7 +3169,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         RouteStops.Remove(SelectedRouteStop);
         SelectedRouteStop = RouteStops.FirstOrDefault(x => !IsCompanyStop(x));
-        RebuildPositions();
+        RebuildPositions(calculateRouteImmediately: true);
         RebuildOrderGrid();
         MarkRouteChanged();
     }
@@ -3160,7 +3182,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         var snapshot = _draftRouteStopRemovalUndoStack.Pop();
-        ApplyRouteStops(snapshot.RouteStops, snapshot.SelectedOrderId, markRouteChanged: false);
+        ApplyRouteStops(
+            snapshot.RouteStops,
+            snapshot.SelectedOrderId,
+            markRouteChanged: false,
+            calculateRouteImmediately: true);
         RebuildOrderGrid(snapshot.SelectedOrderId);
         SetRouteChanged(snapshot.HadUnsavedRouteChanges);
         StatusText = $"Stopp {snapshot.SelectedOrderId} wurde wiederhergestellt.";
@@ -3191,7 +3217,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             var draftOrderId = order.Id;
             RemoveDraftRouteStop(draftOrderId, SelectedOrder?.DeliveryId);
 
-            RebuildPositions();
+            RebuildPositions(calculateRouteImmediately: true);
             RebuildOrderGrid(draftOrderId);
             MarkRouteChanged();
             if (_selectedBatchOrderIds.Remove(draftOrderId))
@@ -3252,7 +3278,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         PublishOrderChange(selectedOrderId, selectedOrderId);
 
         var currentTourId = ResolveCurrentTourId();
-        await RefreshAsync();
+        await RefreshAfterLocalMutationAsync(currentTourId, selectedOrderId);
         if (tour is not null && currentTourId == tour.Id)
         {
             await FocusTourAsync(tour.Id);
@@ -3294,7 +3320,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         if (removedFromDraftRoute > 0)
         {
-            RebuildPositions();
+            RebuildPositions(calculateRouteImmediately: true);
             MarkRouteChanged();
         }
 
@@ -3353,7 +3379,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         if (removedFromDraftRoute > 0 || assignedOrders.Count > 0)
         {
             var currentTourId = ResolveCurrentTourId();
-            await RefreshAsync();
+            await RefreshAfterLocalMutationAsync(currentTourId);
             if (currentTourId > 0 && touchedTourIds.Contains(currentTourId))
             {
                 await FocusTourAsync(currentTourId);
@@ -3402,7 +3428,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         var moved = _mapRouteService.MoveStop(ToMapRouteStops(), SelectedRouteStop.OrderId, delta);
-        ApplyRouteStops(moved, SelectedRouteStop.OrderId);
+        ApplyRouteStops(moved, SelectedRouteStop.OrderId, calculateRouteImmediately: true);
     }
 
     private bool CanMoveSelectedStop(int delta)
@@ -3442,21 +3468,17 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return;
         }
 
+        var optimizationStopwatch = Stopwatch.StartNew();
         var optimized = await OptimizeMovableStopsByTravelTimeAsync(start, movableStops, end);
+        optimizationStopwatch.Stop();
 
-        RouteStops.Clear();
-        RouteStops.Add(start);
+        RouteStops.ReplaceAll([start, .. optimized, end]);
 
-        foreach (var stop in optimized)
-        {
-            RouteStops.Add(stop);
-        }
-
-        RouteStops.Add(end);
-
-        RebuildPositions();
+        RebuildPositions(calculateRouteImmediately: true);
         MarkRouteChanged();
-        StatusText = "Route optimiert (minimale Fahrzeit).";
+        var optimizationMs = (int)Math.Round(optimizationStopwatch.Elapsed.TotalMilliseconds);
+        StatusText = $"Route optimiert (minimale Fahrzeit, Optimierung: {optimizationMs} ms).";
+        Debug.WriteLine($"Route optimization: total={optimizationMs}ms, movableStops={movableStops.Count}");
     }
 
     private async Task SaveRouteAsTourAsync()
@@ -3603,7 +3625,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         await dispatch.DispatchAsync(tour, vehicle!, webfleet, webfleetClient);
         await _tourRepository.SaveAsync(tours);
         StatusText = tour.WebfleetDispatch.LastMessage;
-        await RefreshAsync();
+        await RefreshAfterLocalMutationAsync(tour.Id);
     }
 
     private async Task ToggleWebfleetVehiclesAsync()
@@ -4093,7 +4115,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             wasCommitted = true;
             _dataSyncService.PublishTours(_instanceId, nextId.ToString(CultureInfo.InvariantCulture), nextId.ToString(CultureInfo.InvariantCulture));
             PublishOrderChange(null, null);
-            await RefreshAsync();
+            await RefreshAfterLocalMutationAsync(nextId);
             await FocusTourAsync(nextId);
             SetRouteChanged(false);
             ClearDraftRouteStopRemovalUndoHistory();
@@ -4281,7 +4303,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             wasCommitted = true;
             _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
             PublishOrderChange(null, null);
-            await RefreshAsync();
+            await RefreshAfterLocalMutationAsync(tourId);
             SetRouteChanged(false);
             ClearDraftRouteStopRemovalUndoHistory();
             if (isOverviewEdit)
@@ -4787,21 +4809,20 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 })
                 .ToList();
 
-            RouteStops.Clear();
+            var nextStops = new List<RouteStopItem>();
             if (start is not null)
             {
-                RouteStops.Add(start);
+                nextStops.Add(start);
             }
 
-            foreach (var item in middle)
-            {
-                RouteStops.Add(item);
-            }
+            nextStops.AddRange(middle);
 
             if (end is not null)
             {
-                RouteStops.Add(end);
+                nextStops.Add(end);
             }
+
+            RouteStops.ReplaceAll(nextStops);
 
             RebuildPositions();
             RebuildOrderGrid();
@@ -5524,7 +5545,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             .ToList();
     }
 
-    private void ApplyRouteStops(IReadOnlyList<MapRouteStop> routeStops, string? selectedOrderId = null, bool markRouteChanged = true)
+    private void ApplyRouteStops(
+        IReadOnlyList<MapRouteStop> routeStops,
+        string? selectedOrderId = null,
+        bool markRouteChanged = true,
+        bool calculateRouteImmediately = false)
     {
         _suppressRouteChangeTracking = true;
         try
@@ -5532,15 +5557,15 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             var start = RouteStops.FirstOrDefault(x => IsCompanyStop(x) && string.Equals(x.OrderId, CompanyStartStopId, StringComparison.OrdinalIgnoreCase));
             var end = RouteStops.FirstOrDefault(x => IsCompanyStop(x) && string.Equals(x.OrderId, CompanyEndStopId, StringComparison.OrdinalIgnoreCase));
 
-            RouteStops.Clear();
+            var nextStops = new List<RouteStopItem>();
             if (start is not null)
             {
-                RouteStops.Add(start);
+                nextStops.Add(start);
             }
 
             foreach (var stop in routeStops)
             {
-                RouteStops.Add(new RouteStopItem
+                nextStops.Add(new RouteStopItem
                 {
                     Position = stop.Position,
                     OrderId = stop.OrderId ?? string.Empty,
@@ -5566,10 +5591,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
             if (end is not null)
             {
-                RouteStops.Add(end);
+                nextStops.Add(end);
             }
 
-            RebuildPositions();
+            RouteStops.ReplaceAll(nextStops);
+
+            RebuildPositions(calculateRouteImmediately);
             if (!string.IsNullOrWhiteSpace(selectedOrderId))
             {
                 SelectRouteStopByOrderId(selectedOrderId);
@@ -5587,6 +5614,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     }
 
     private void ClearRoute()
+    {
+        ClearRoute(rebuildOrderGrid: true);
+    }
+
+    private void ClearRoute(bool rebuildOrderGrid)
     {
         ClearDraftRouteStopRemovalUndoHistory();
         _activeTourId = 0;
@@ -5620,7 +5652,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         SelectedTourOverviewItem = null;
 
         RebuildPositions();
-        RebuildOrderGrid();
+        if (rebuildOrderGrid)
+        {
+            RebuildOrderGrid();
+        }
         SetRouteChanged(false);
         UpdateRouteSummary();
         RebuildPlannedTourRouteOverlays();
@@ -5653,29 +5688,30 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private void ResetRouteToCompanyAnchors()
     {
-        RouteStops.Clear();
-        RouteStops.Add(new RouteStopItem
-        {
-            Position = 1,
-            OrderId = CompanyStartStopId,
-            Customer = string.Empty,
-            Address = _companyName,
-            Latitude = _companyLocation?.Latitude ?? double.NaN,
-            Longitude = _companyLocation?.Longitude ?? double.NaN,
-            IsCompanyAnchor = true,
-            PlannedStayMinutes = 0
-        });
-        RouteStops.Add(new RouteStopItem
-        {
-            Position = 2,
-            OrderId = CompanyEndStopId,
-            Customer = string.Empty,
-            Address = _companyName,
-            Latitude = _companyLocation?.Latitude ?? double.NaN,
-            Longitude = _companyLocation?.Longitude ?? double.NaN,
-            IsCompanyAnchor = true,
-            PlannedStayMinutes = 0
-        });
+        RouteStops.ReplaceAll([
+            new RouteStopItem
+            {
+                Position = 1,
+                OrderId = CompanyStartStopId,
+                Customer = string.Empty,
+                Address = _companyName,
+                Latitude = _companyLocation?.Latitude ?? double.NaN,
+                Longitude = _companyLocation?.Longitude ?? double.NaN,
+                IsCompanyAnchor = true,
+                PlannedStayMinutes = 0
+            },
+            new RouteStopItem
+            {
+                Position = 2,
+                OrderId = CompanyEndStopId,
+                Customer = string.Empty,
+                Address = _companyName,
+                Latitude = _companyLocation?.Latitude ?? double.NaN,
+                Longitude = _companyLocation?.Longitude ?? double.NaN,
+                IsCompanyAnchor = true,
+                PlannedStayMinutes = 0
+            }
+        ]);
     }
 
     private void LeaveSelectedTour()
@@ -5757,7 +5793,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _dataSyncService.PublishTours(_instanceId, tourKey, null);
         PublishOrderChange(null, null);
 
-        await RefreshAsync();
+        await RefreshAfterLocalMutationAsync();
         ClearRoute();
 
         StatusText = $"Tour {tourLabel} wurde gelöscht.";
@@ -5836,7 +5872,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         ToastNotificationService.ShowInfo($"Tour {tourLabel} wurde archiviert.{orderInfo}");
     }
 
-    private void RebuildPositions()
+    private void RebuildPositions(bool calculateRouteImmediately = false)
     {
         EnsureCompanyAnchorOrdering();
         var displayIndex = 0;
@@ -5859,7 +5895,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         UpdateDriveTimePlaceholderState();
         UpdateRouteSummary();
         RebuildPlannedTourRouteOverlays();
-        RequestRouteGeometryRebuild();
+        RequestRouteGeometryRebuild(calculateRouteImmediately);
         UpdateStatus();
         RaiseCommandStates();
         NotifyRoutePanelVisibilityChanged();
@@ -6925,7 +6961,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         await ReconcileToursWithOrdersAsync(_allOrders);
         PublishOrderChange(order.Id, order.Id);
         var archivedWholeOrder = order.IsArchived;
-        await RefreshAsync();
+        await RefreshAfterLocalMutationAsync(preferredOrderId: order.Id);
         StatusText = archivedWholeOrder
             ? $"Lieferung {delivery.SequenceNumber} und Auftrag {order.Id} wurden archiviert."
             : $"Lieferung {delivery.SequenceNumber} wurde archiviert.";
@@ -7092,7 +7128,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 }
                 throw;
             }
-            await RefreshAsync();
+            await RefreshAfterLocalMutationAsync();
             PublishOrderChange(selected.Id, null);
             StatusText = $"Auftrag {selected.Id} wurde gelöscht.";
             return;
@@ -7134,7 +7170,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             updated.ConcurrencyToken = null;
         }
         await ReconcileToursWithOrdersAsync(_allOrders, ordersToDelete);
-        await RefreshAsync();
+        await RefreshAfterLocalMutationAsync(preferredOrderId: updated.Id);
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, updated.Id, StringComparison.OrdinalIgnoreCase));
         PublishOrderChange(originalId, updated.Id);
         OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
@@ -8347,10 +8383,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private void EnsureCompanyAnchors()
     {
         var movable = RouteStops.Where(x => !IsCompanyStop(x)).ToList();
-        RouteStops.Clear();
+        var nextStops = new List<RouteStopItem>();
 
         var position = 1;
-        RouteStops.Add(new RouteStopItem
+        nextStops.Add(new RouteStopItem
         {
             Position = position++,
             OrderId = CompanyStartStopId,
@@ -8366,10 +8402,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         {
             stop.Position = position++;
             stop.IsCompanyAnchor = false;
-            RouteStops.Add(stop);
+            nextStops.Add(stop);
         }
 
-        RouteStops.Add(new RouteStopItem
+        nextStops.Add(new RouteStopItem
         {
             Position = position,
             OrderId = CompanyEndStopId,
@@ -8380,6 +8416,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             IsCompanyAnchor = true,
             PlannedStayMinutes = 0
         });
+        RouteStops.ReplaceAll(nextStops);
     }
 
     private void EnsureCompanyAnchorOrdering()
@@ -8395,14 +8432,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             .Where(x => !IsCompanyStop(x))
             .ToList();
 
-        RouteStops.Clear();
-        RouteStops.Add(start);
-        foreach (var stop in middle)
-        {
-            RouteStops.Add(stop);
-        }
-
-        RouteStops.Add(end);
+        RouteStops.ReplaceAll([start, .. middle, end]);
     }
 
     private static bool IsCompanyStop(RouteStopItem stop)
@@ -8865,35 +8895,62 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         };
     }
 
-    private void RequestRouteGeometryRebuild()
+    private void RequestRouteGeometryRebuild(bool calculateImmediately = false)
     {
         _routeRebuildDebounceCts?.Cancel();
         _routeRebuildDebounceCts?.Dispose();
         _routeRebuildDebounceCts = new CancellationTokenSource();
-        RequestRouteGeometryRebuildAsync(_routeRebuildDebounceCts.Token).Forget(ex =>
+        var requestStartedTimestamp = Stopwatch.GetTimestamp();
+        RequestRouteGeometryRebuildAsync(
+                _routeRebuildDebounceCts.Token,
+                calculateImmediately,
+                requestStartedTimestamp)
+            .Forget(ex =>
             Debug.WriteLine($"Route geometry rebuild failed: {ex.Message}"));
     }
 
-    private async Task RequestRouteGeometryRebuildAsync(CancellationToken token)
+    private async Task RequestRouteGeometryRebuildAsync(
+        CancellationToken token,
+        bool calculateImmediately,
+        long requestStartedTimestamp)
     {
-        var debounceMs = Math.Clamp(_tomTomRouteRecalcDebounceMs, 100, 10000);
-        await Task.Delay(debounceMs, token);
+        var debounceMs = ResolveRouteRecalculationDebounceMs(
+            _tomTomRouteRecalcDebounceMs,
+            calculateImmediately);
+        if (debounceMs > 0)
+        {
+            await Task.Delay(debounceMs, token);
+        }
         if (token.IsCancellationRequested)
         {
             return;
         }
 
         // Intentionally stay on UI context because we touch bindable state.
-        await RebuildRouteGeometryAsync(token);
+        await RebuildRouteGeometryAsync(token, requestStartedTimestamp, debounceMs);
     }
 
-    private async Task RebuildRouteGeometryAsync(CancellationToken cancellationToken = default)
+    internal static int ResolveRouteRecalculationDebounceMs(int configuredDebounceMs, bool calculateImmediately)
     {
+        return calculateImmediately ? 0 : Math.Clamp(configuredDebounceMs, 100, 10000);
+    }
+
+    private async Task RebuildRouteGeometryAsync(
+        CancellationToken cancellationToken = default,
+        long requestStartedTimestamp = 0,
+        int configuredDebounceMs = 0)
+    {
+        if (requestStartedTimestamp == 0)
+        {
+            requestStartedTimestamp = Stopwatch.GetTimestamp();
+        }
+
         Interlocked.Increment(ref _routeGeometryInFlightCount);
         IsRouteCalculating = true;
         var revision = Interlocked.Increment(ref _routeGeometryRevision);
         try
         {
+            var providerStopwatch = Stopwatch.StartNew();
             var validStops = RouteStops
                 .Where(x => !IsPauseStop(x))
                 .Where(x => !double.IsNaN(x.Latitude) && !double.IsNaN(x.Longitude))
@@ -8984,12 +9041,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             {
                 routingSource = "Noch nicht berechnet";
             }
+            providerStopwatch.Stop();
 
             if (revision != _routeGeometryRevision)
             {
                 return;
             }
 
+            var applyStopwatch = Stopwatch.StartNew();
             _routeGeometryPoints.Clear();
             _routeGeometryPoints.AddRange(geometry);
             _routeLegs.Clear();
@@ -8999,9 +9058,18 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             _timedStops.Clear();
             _timedStops.AddRange(validStops);
             var routeVehicle = ResolvePrimaryAssignedVehicle();
-            RoutingProviderStatusText = $"Routing: {routingSource} | Masse: {(_tomTomUseVehicleDimensions ? "an" : "aus")} | Gewicht: {(_tomTomUseVehicleWeightRestrictions ? "an" : "aus")} | Traffic-Segmente: {_routeTrafficSegments.Count}";
             OnPropertyChanged(nameof(RouteGeometryPoints));
             RefreshDriveTimesFromCurrentRoute();
+            applyStopwatch.Stop();
+
+            var totalMs = (int)Math.Round(Stopwatch.GetElapsedTime(requestStartedTimestamp).TotalMilliseconds);
+            var providerMs = (int)Math.Round(providerStopwatch.Elapsed.TotalMilliseconds);
+            var applyMs = (int)Math.Round(applyStopwatch.Elapsed.TotalMilliseconds);
+            RoutingProviderStatusText =
+                $"Routing: {routingSource} | Zeit: {totalMs} ms (Warten: {configuredDebounceMs} ms, API/Cache: {providerMs} ms, Verarbeitung: {applyMs} ms) | " +
+                $"Masse: {(_tomTomUseVehicleDimensions ? "an" : "aus")} | Gewicht: {(_tomTomUseVehicleWeightRestrictions ? "an" : "aus")} | Traffic-Segmente: {_routeTrafficSegments.Count}";
+            Debug.WriteLine(
+                $"Route calculation [{routingSource}]: total={totalMs}ms, debounce={configuredDebounceMs}ms, provider/cache={providerMs}ms, apply={applyMs}ms, waypoints={waypoints.Count}");
         }
         finally
         {

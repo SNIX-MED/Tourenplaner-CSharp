@@ -67,6 +67,7 @@ internal static class MapHtmlDocumentBuilder
                   .gawela-pin-badge-aviso-full { background: #16a34a; color: #ffffff; }
                   .gawela-pin-badge-assigned { background: #64748b; color: #ffffff; }
                   .gawela-pin-prepayment-badge { position: absolute; left: -4px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%; background: #111827; border: 2px solid #ffffff; color: #ffffff; font-size: 9px; font-weight: 800; line-height: 14px; text-align: center; box-shadow: 0 1px 4px rgba(15,23,42,.34); z-index: 3; pointer-events: none; }
+                  .gawela-pin-cluster-badge { position: absolute; right: -11px; top: -11px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #172554; border: 2px solid #ffffff; color: #ffffff; font: 800 11px/1 Segoe UI,sans-serif; box-shadow: 0 1px 5px rgba(15,23,42,.45); z-index: 6; pointer-events: none; }
                   .gawela-pin-dimmed { opacity: .35; }
                    .gawela-company-marker { width: 22px; height: 22px; border-radius: 50%; background: #0f766e; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; }
                    .gawela-company-marker svg { width: 12px; height: 12px; fill: #ffffff; display: block; }
@@ -923,6 +924,118 @@ internal static class MapHtmlDocumentBuilder
                               });
                          };
 
+                         const applyScreenCollisionLayout = markers => {
+                           if (!Array.isArray(markers) || markers.length < 2) return markers || [];
+                           const candidates = markers
+                             .map((marker, index) => ({ marker, index }))
+                             .filter(entry => entry.marker && Number.isFinite(Number(entry.marker.displayLat)) && Number.isFinite(Number(entry.marker.displayLon)))
+                             .map(entry => ({
+                               ...entry,
+                               point: map.project([Number(entry.marker.displayLon), Number(entry.marker.displayLat)])
+                             }));
+                           if (candidates.length < 2) return markers;
+
+                           const parent = candidates.map((_, index) => index);
+                           const find = index => {
+                             while (parent[index] !== index) {
+                               parent[index] = parent[parent[index]];
+                               index = parent[index];
+                             }
+                             return index;
+                           };
+                           const unite = (left, right) => {
+                             const leftRoot = find(left);
+                             const rightRoot = find(right);
+                             if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot;
+                           };
+                           const collisionDistance = Math.max(16, Math.min(23, 18 * markerScale));
+                           const collisionDistanceSq = collisionDistance * collisionDistance;
+                           for (let left = 0; left < candidates.length; left++) {
+                             for (let right = left + 1; right < candidates.length; right++) {
+                               const dx = candidates[left].point.x - candidates[right].point.x;
+                               const dy = candidates[left].point.y - candidates[right].point.y;
+                               if ((dx * dx) + (dy * dy) <= collisionDistanceSq) unite(left, right);
+                             }
+                           }
+
+                           const groups = new Map();
+                           candidates.forEach((entry, index) => {
+                             const root = find(index);
+                             if (!groups.has(root)) groups.set(root, []);
+                             groups.get(root).push(entry);
+                           });
+
+                           const result = markers.map(marker => ({
+                             ...marker,
+                             __screenClusterCount: 0,
+                             __screenClusterHidden: false,
+                             __screenClusterMembers: null
+                           }));
+                           const currentZoom = Number(map.getZoom());
+                           const spiderfy = Number.isFinite(currentZoom) && currentZoom >= 15.5;
+                           groups.forEach(group => {
+                             if (!Array.isArray(group) || group.length < 2) return;
+                             const members = group.map(entry => ({
+                               id: entry.marker.id,
+                               layer: entry.marker.__gawelaMarkerLayer,
+                               lat: Number(entry.marker.lat),
+                               lon: Number(entry.marker.lon)
+                             }));
+                             const screenGroupKey = `screen:${members
+                               .map(member => `${member.layer || 'marker'}:${member.id || ''}`)
+                               .sort()
+                               .join('|')}`;
+                             const centerX = group.reduce((sum, entry) => sum + entry.point.x, 0) / group.length;
+                             const centerY = group.reduce((sum, entry) => sum + entry.point.y, 0) / group.length;
+                             if (spiderfy) {
+                               const radius = Math.max(22, Math.min(48, (group.length * 18 * markerScale) / Math.PI));
+                               group.forEach((entry, memberIndex) => {
+                                 const angle = -(Math.PI / 2) + (((Math.PI * 2) / group.length) * memberIndex);
+                                 const displaced = map.unproject([
+                                   centerX + (Math.cos(angle) * radius),
+                                   centerY + (Math.sin(angle) * radius)
+                                 ]);
+                                 result[entry.index].displayLat = displaced.lat;
+                                 result[entry.index].displayLon = displaced.lng;
+                               });
+                               return;
+                             }
+
+                             if (group.length === 2) {
+                               const isExpanded = hoveredOverlapGroupKey === screenGroupKey;
+                               const radius = isExpanded
+                                 ? Math.max(12, 14 * markerScale)
+                                 : Math.max(4, 5 * markerScale);
+                               group.forEach((entry, memberIndex) => {
+                                 const angle = memberIndex === 0 ? Math.PI : 0;
+                                 const displaced = map.unproject([
+                                   centerX + (Math.cos(angle) * radius),
+                                   centerY
+                                 ]);
+                                 result[entry.index].displayLat = displaced.lat;
+                                 result[entry.index].displayLon = displaced.lng;
+                                 result[entry.index].__overlapGroupKey = screenGroupKey;
+                               });
+                               return;
+                             }
+
+                             const representative = [...group].sort((left, right) => {
+                               const leftRoute = left.marker.__gawelaMarkerLayer === 'route' ? 1 : 0;
+                               const rightRoute = right.marker.__gawelaMarkerLayer === 'route' ? 1 : 0;
+                               return rightRoute - leftRoute || left.index - right.index;
+                             })[0];
+                             const center = map.unproject([centerX, centerY]);
+                             result[representative.index].displayLat = center.lat;
+                             result[representative.index].displayLon = center.lng;
+                             result[representative.index].__screenClusterCount = group.length;
+                             result[representative.index].__screenClusterMembers = members;
+                             group.forEach(entry => {
+                               if (entry.index !== representative.index) result[entry.index].__screenClusterHidden = true;
+                             });
+                           });
+                           return result;
+                         };
+
                           const resolveVisibleMarkerFanOut = () => {
                            const originalMarkers = window.__gawelaLastMarkers || [];
                            const routeStops = window.__gawelaLastRoutePayload?.routeStops || [];
@@ -933,7 +1046,8 @@ internal static class MapHtmlDocumentBuilder
                              ...originalMarkers.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'order', __gawelaLayerIndex: index })),
                              ...routeStops.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'route', __gawelaLayerIndex: index }))
                            ];
-                            return spreadOverlappingMarkers(combinedMarkers, hoveredOverlapGroupKey, false);
+                            return applyScreenCollisionLayout(
+                              spreadOverlappingMarkers(combinedMarkers, hoveredOverlapGroupKey, false));
                          };
 
                           const resolveVisibleMarkersForLayer = layer => resolveVisibleMarkerFanOut()
@@ -952,10 +1066,11 @@ internal static class MapHtmlDocumentBuilder
                                return;
                              }
 
-                              const markerElement = marker.getElement();
+                             const markerElement = marker.getElement();
                              if (!marker.__gawelaDragging) {
                                marker.setLngLat([markerData.displayLon, markerData.displayLat]);
                              }
+                             updateMarkerScreenClusterState(marker, markerData, isRouteMarker);
                              if (!isRouteMarker) return;
                              const position = marker.getLngLat();
                              routeStopHitTargets.push({ id: markerData.id, lat: position.lat, lon: position.lng });
@@ -969,6 +1084,56 @@ internal static class MapHtmlDocumentBuilder
                              markerFanOutRafScheduled = false;
                              recomputeVisibleMarkerFanOut();
                            });
+                         };
+
+                         const updateMarkerScreenClusterState = (marker, markerData, isRouteMarker) => {
+                           if (!marker || typeof marker.getElement !== 'function') return;
+                           const markerElement = marker.getElement();
+                           if (!markerElement) return;
+                           const hidden = markerData && markerData.__screenClusterHidden === true;
+                           const count = markerData ? Number(markerData.__screenClusterCount) : 0;
+                           markerElement.style.display = hidden ? 'none' : '';
+                           markerElement.style.pointerEvents = hidden ? 'none' : 'auto';
+                           marker.__gawelaScreenClusterMembers = count > 1 && Array.isArray(markerData.__screenClusterMembers)
+                             ? markerData.__screenClusterMembers
+                             : null;
+                           markerElement.dataset.overlapGroupKey = markerData && markerData.__overlapGroupKey
+                             ? String(markerData.__overlapGroupKey)
+                             : '';
+                           let badge = markerElement.querySelector('.gawela-pin-cluster-badge');
+                           if (count > 1 && !hidden) {
+                             if (!badge) {
+                               badge = document.createElement('div');
+                               badge.className = 'gawela-pin-cluster-badge';
+                               markerElement.appendChild(badge);
+                             }
+                             badge.textContent = String(count);
+                             markerElement.setAttribute('aria-label', `${count} Aufträge an dieser Kartenposition`);
+                           } else if (badge) {
+                             badge.remove();
+                             markerElement.removeAttribute('aria-label');
+                           }
+                           if (isRouteMarker && typeof marker.setDraggable === 'function') {
+                             marker.setDraggable(!hidden && count <= 1);
+                           }
+                         };
+
+                         const zoomToScreenCluster = marker => {
+                           const members = marker && Array.isArray(marker.__gawelaScreenClusterMembers)
+                             ? marker.__gawelaScreenClusterMembers
+                             : [];
+                           if (members.length < 2) return false;
+                           const bounds = new ttSdk.LngLatBounds();
+                           let validCount = 0;
+                           members.forEach(member => {
+                             if (!member || !Number.isFinite(member.lat) || !Number.isFinite(member.lon)) return;
+                             bounds.extend([member.lon, member.lat]);
+                             validCount++;
+                           });
+                           if (validCount < 2) return false;
+                           const nextZoom = Math.min(15.5, Math.max(Number(map.getZoom()) + 2, 12));
+                           map.fitBounds(bounds, { padding: 80, maxZoom: nextZoom, duration: 420 });
+                           return true;
                          };
 
                          const selectRouteStopNearPoint = (point) => {
@@ -2162,11 +2327,13 @@ internal static class MapHtmlDocumentBuilder
                               markerEl.dataset.overlapGroupKey = overlapGroupKey;
                               markerEl.style.cursor = 'pointer';
                               markerEl.style.pointerEvents = 'auto';
+                              updateMarkerScreenClusterState(marker, m, false);
                               applyMarkerStackOrder(marker, 40, 'gawela-order-marker-layer');
                               markerEl.addEventListener('mouseenter', () => {
                                 clearOverlapHoverReset();
-                                if (overlapGroupKey) {
-                                  setHoveredOverlapGroupKey(overlapGroupKey);
+                                const currentOverlapGroupKey = markerEl.dataset.overlapGroupKey || '';
+                                if (currentOverlapGroupKey) {
+                                  setHoveredOverlapGroupKey(currentOverlapGroupKey);
                                 }
                                 map.getCanvas().style.cursor = 'pointer';
                               });
@@ -2182,6 +2349,7 @@ internal static class MapHtmlDocumentBuilder
                              });
                              markerEl.addEventListener('click', (evt) => {
                                evt.stopPropagation();
+                               if (zoomToScreenCluster(marker)) return;
                                if (window.chrome && window.chrome.webview && m.id) {
                                  stickyPopupOrderId = String(m.id);
                                  popup.addTo(map);
@@ -2593,11 +2761,12 @@ internal static class MapHtmlDocumentBuilder
                             const markerEl = marker.getElement();
                              markerEl.style.cursor = 'pointer';
                              markerEl.style.pointerEvents = 'auto';
+                             updateMarkerScreenClusterState(marker, stop, true);
                              applyMarkerStackOrder(marker, 45, 'gawela-route-marker-layer');
                              markerEl.dataset.overlapGroupKey = stop.__overlapGroupKey;
                              markerEl.addEventListener('mouseenter', () => {
                                clearOverlapHoverReset();
-                               setHoveredOverlapGroupKey(stop.__overlapGroupKey);
+                               setHoveredOverlapGroupKey(markerEl.dataset.overlapGroupKey || '');
                                map.getCanvas().style.cursor = 'pointer';
                              });
                              markerEl.addEventListener('mouseleave', () => {
@@ -2632,6 +2801,8 @@ internal static class MapHtmlDocumentBuilder
                                 draggedDuringInteraction = false;
                                 return;
                               }
+
+                              if (zoomToScreenCluster(marker)) return;
 
                              if (window.chrome && window.chrome.webview && stop.id) {
                                 stickyPopupOrderId = String(stop.id);
@@ -2927,6 +3098,15 @@ internal static class MapHtmlDocumentBuilder
                            detailsToggleEl.classList.toggle('visible', visible);
                            detailsToggleEl.setAttribute('aria-hidden', visible ? 'false' : 'true');
                            detailsToggleEl.textContent = resolveDetailsToggleGlyph(glyph);
+                         };
+                         window.gawelaSetSpeedLimit = function(maxSpeedKmh) {
+                           const badge = document.getElementById('speedLimitBadge');
+                           if (!badge) return;
+                           const parsed = Number(maxSpeedKmh);
+                           const speed = Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 0;
+                           badge.classList.toggle('hidden', speed <= 0);
+                           const value = badge.querySelector('span');
+                           if (value) value.textContent = speed > 0 ? String(speed) : '';
                          };
                          window.gawelaMapReady = true;
                        } catch (err) {
