@@ -779,22 +779,12 @@ internal static class MapHtmlDocumentBuilder
 
                          const normalizeOverlapAddressPart = (value) => (value || '').toString().trim().toLowerCase();
 
-                         const buildOverlapCoordinateKey = (lat, lon) => {
-                           if (!Number.isFinite(lat) || !Number.isFinite(lon)) return '';
-                           return `${Number(lat).toFixed(6)}|${Number(lon).toFixed(6)}`;
-                         };
-
                          const buildOverlapGroupKey = (marker) => {
                            if (!marker || typeof marker !== 'object') return '';
                            const street = normalizeOverlapAddressPart(marker.street);
                            const postalCodeCity = normalizeOverlapAddressPart(marker.postalCodeCity);
                            if (street && postalCodeCity) {
                              return `addr:${street}|${postalCodeCity}`;
-                           }
-
-                           const coordinateKey = buildOverlapCoordinateKey(marker.lat, marker.lon);
-                           if (coordinateKey) {
-                             return `coord:${coordinateKey}`;
                            }
 
                            return '';
@@ -933,7 +923,7 @@ internal static class MapHtmlDocumentBuilder
                               });
                          };
 
-                         const resolveVisibleMarkerFanOut = () => {
+                          const resolveVisibleMarkerFanOut = () => {
                            const originalMarkers = window.__gawelaLastMarkers || [];
                            const routeStops = window.__gawelaLastRoutePayload?.routeStops || [];
                            // Free pins and planned route stops at the same address form one
@@ -943,15 +933,15 @@ internal static class MapHtmlDocumentBuilder
                              ...originalMarkers.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'order', __gawelaLayerIndex: index })),
                              ...routeStops.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'route', __gawelaLayerIndex: index }))
                            ];
-                           return spreadOverlappingMarkers(combinedMarkers, hoveredOverlapGroupKey, false);
+                            return spreadOverlappingMarkers(combinedMarkers, hoveredOverlapGroupKey, false);
                          };
 
-                         const resolveVisibleMarkersForLayer = layer => resolveVisibleMarkerFanOut()
+                          const resolveVisibleMarkersForLayer = layer => resolveVisibleMarkerFanOut()
                            .filter(marker => marker.__gawelaMarkerLayer === layer)
                            .sort((left, right) => left.__gawelaLayerIndex - right.__gawelaLayerIndex);
 
                          const recomputeVisibleMarkerFanOut = () => {
-                           const resolvedMarkers = resolveVisibleMarkerFanOut();
+                            const resolvedMarkers = resolveVisibleMarkerFanOut();
                            routeStopHitTargets = [];
                            resolvedMarkers.forEach(markerData => {
                              const isRouteMarker = markerData.__gawelaMarkerLayer === 'route';
@@ -962,6 +952,7 @@ internal static class MapHtmlDocumentBuilder
                                return;
                              }
 
+                              const markerElement = marker.getElement();
                              if (!marker.__gawelaDragging) {
                                marker.setLngLat([markerData.displayLon, markerData.displayLat]);
                              }
@@ -2121,9 +2112,10 @@ internal static class MapHtmlDocumentBuilder
                           }
                           });
                          map.on('zoom', schedulePopupScaleRecompute);
-                         map.on('zoom', scheduleMarkerFanOutRecompute);
                          map.on('zoomend', schedulePopupScaleRecompute);
                          map.on('zoomend', scheduleMarkerFanOutRecompute);
+                         map.on('moveend', scheduleMarkerFanOutRecompute);
+                         map.on('resize', scheduleMarkerFanOutRecompute);
                          map.on('load', schedulePopupScaleRecompute);
                          map.on('load', scheduleMarkerFanOutRecompute);
                          map.getContainer().addEventListener('pointermove', handleOverlapPointerMove, true);
@@ -2582,7 +2574,7 @@ internal static class MapHtmlDocumentBuilder
 
                            resolveVisibleMarkersForLayer('route').forEach(stop => {
                              if (!stop || typeof stop.lat !== 'number' || typeof stop.lon !== 'number') return;
-                             if (stop.id) {
+                              if (stop.id) {
                                routeStopHitTargets.push({
                                  id: stop.id,
                                  lat: stop.displayLat,

@@ -123,6 +123,7 @@ public sealed class SettingsValidator
         ValidateHexColor(settings.StatusColorNotSpecified, "StatusColorNotSpecified", errors);
         ValidateHexColor(settings.StatusColorOrdered, "StatusColorOrdered", errors);
         ValidateHexColor(settings.StatusColorOnTheWay, "StatusColorOnTheWay", errors);
+        ValidateHexColor(settings.StatusColorPartiallyReady, "StatusColorPartiallyReady", errors);
         ValidateHexColor(settings.StatusColorPendingPreparation, "StatusColorPendingPreparation", errors);
         ValidateHexColor(settings.StatusColorInStock, "StatusColorInStock", errors);
         ValidateHexColor(settings.StatusColorPlanned, "StatusColorPlanned", errors);

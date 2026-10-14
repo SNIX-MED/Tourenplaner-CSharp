@@ -3,13 +3,15 @@
 public sealed class AppSettings
 {
     private const string LegacyDefaultStatusColorNotSpecified = "#A3A3A3";
+    private const string LegacyDefaultStatusColorOrdered = "#0EA5E9";
     private const int LegacyDefaultStayMinutesFreiBordsteinkante = 10;
 
     public const string TomTomApiKeyEnvironmentVariableName = "TOURENPLANER_TOMTOM_API_KEY";
     public const string DefaultAvisoEmailSubjectTemplate = "Lieferung von Auftrag X";
     public const string DefaultStatusColorNotSpecified = "#FFFFFF";
-    public const string DefaultStatusColorOrdered = "#0EA5E9";
+    public const string DefaultStatusColorOrdered = "#EC4899";
     public const string DefaultStatusColorOnTheWay = "#F59E0B";
+    public const string DefaultStatusColorPartiallyReady = "#8B5CF6";
     public const string DefaultStatusColorPendingPreparation = "#F97316";
     public const string DefaultStatusColorInStock = "#16A34A";
     public const string DefaultStatusColorPlanned = "#64748B";
@@ -46,6 +48,7 @@ public sealed class AppSettings
     public string StatusColorNotSpecified { get; set; } = DefaultStatusColorNotSpecified;
     public string StatusColorOrdered { get; set; } = DefaultStatusColorOrdered;
     public string StatusColorOnTheWay { get; set; } = DefaultStatusColorOnTheWay;
+    public string StatusColorPartiallyReady { get; set; } = DefaultStatusColorPartiallyReady;
     public string StatusColorPendingPreparation { get; set; } = DefaultStatusColorPendingPreparation;
     public string StatusColorInStock { get; set; } = DefaultStatusColorInStock;
     public string StatusColorPlanned { get; set; } = DefaultStatusColorPlanned;
@@ -140,6 +143,7 @@ public sealed class AppSettings
             StatusColorNotSpecified = StatusColorNotSpecified,
             StatusColorOrdered = StatusColorOrdered,
             StatusColorOnTheWay = StatusColorOnTheWay,
+            StatusColorPartiallyReady = StatusColorPartiallyReady,
             StatusColorPendingPreparation = StatusColorPendingPreparation,
             StatusColorInStock = StatusColorInStock,
             StatusColorPlanned = StatusColorPlanned,
@@ -264,6 +268,7 @@ public sealed class AppSettings
     private static UserAppPreference NormalizeUserPreference(UserAppPreference preference)
     {
         preference.StatusColorNotSpecified = NormalizeNotSpecifiedStatusColor(preference.StatusColorNotSpecified);
+        preference.StatusColorOrdered = NormalizeOrderedStatusColor(preference.StatusColorOrdered);
         return NormalizeTrafficBufferProfile(preference);
     }
 
@@ -274,6 +279,18 @@ public sealed class AppSettings
             string.Equals(normalized, LegacyDefaultStatusColorNotSpecified, StringComparison.OrdinalIgnoreCase))
         {
             return DefaultStatusColorNotSpecified;
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizeOrderedStatusColor(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized) ||
+            string.Equals(normalized, LegacyDefaultStatusColorOrdered, StringComparison.OrdinalIgnoreCase))
+        {
+            return DefaultStatusColorOrdered;
         }
 
         return normalized;
@@ -333,6 +350,7 @@ public sealed class UserAppPreference
     public string StatusColorNotSpecified { get; set; } = AppSettings.DefaultStatusColorNotSpecified;
     public string StatusColorOrdered { get; set; } = AppSettings.DefaultStatusColorOrdered;
     public string StatusColorOnTheWay { get; set; } = AppSettings.DefaultStatusColorOnTheWay;
+    public string StatusColorPartiallyReady { get; set; } = AppSettings.DefaultStatusColorPartiallyReady;
     public string StatusColorPendingPreparation { get; set; } = AppSettings.DefaultStatusColorPendingPreparation;
     public string StatusColorInStock { get; set; } = AppSettings.DefaultStatusColorInStock;
     public string StatusColorPlanned { get; set; } = AppSettings.DefaultStatusColorPlanned;
@@ -381,6 +399,7 @@ public sealed class UserAppPreference
             StatusColorNotSpecified = StatusColorNotSpecified,
             StatusColorOrdered = StatusColorOrdered,
             StatusColorOnTheWay = StatusColorOnTheWay,
+            StatusColorPartiallyReady = StatusColorPartiallyReady,
             StatusColorPendingPreparation = StatusColorPendingPreparation,
             StatusColorInStock = StatusColorInStock,
             StatusColorPlanned = StatusColorPlanned,

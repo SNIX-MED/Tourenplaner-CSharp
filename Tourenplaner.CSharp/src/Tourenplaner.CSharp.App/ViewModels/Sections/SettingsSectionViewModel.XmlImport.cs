@@ -717,7 +717,7 @@ public sealed partial class SettingsSectionViewModel
         }
 
         var tours = (await LoadToursForXmlImportAsync()).ToList();
-        var originalTours = tours.ToList();
+        var originalTours = TourReconciliationPersistenceService.CreateSnapshot(tours);
         var reconciliation = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
         if (reconciliation.HasChanges)
         {

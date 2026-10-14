@@ -820,7 +820,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var loadedTours = await _tourRepository.LoadAsync();
-        var originalTours = loadedTours.ToList();
+        var originalTours = TourReconciliationPersistenceService.CreateSnapshot(loadedTours);
         _loadedTours.Clear();
         _loadedTours.AddRange(loadedTours
             .GroupBy(tour => tour.Id)
@@ -1568,7 +1568,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
     {
-        var originalTours = _loadedTours.ToList();
+        var originalTours = TourReconciliationPersistenceService.CreateSnapshot(_loadedTours);
         var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(_loadedTours, orders);
         if (!cleanup.HasChanges)
         {

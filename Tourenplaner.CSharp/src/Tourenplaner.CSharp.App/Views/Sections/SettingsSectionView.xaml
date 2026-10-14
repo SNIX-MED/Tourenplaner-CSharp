@@ -1323,8 +1323,20 @@
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <Border Grid.Column="0" Height="28" CornerRadius="8" Background="{Binding StatusColorOnTheWay}" />
-                                                <TextBlock Grid.Column="1" Margin="8,0,6,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Unterwegs / Teilweise bereit" TextWrapping="Wrap" />
+                                                <TextBlock Grid.Column="1" Margin="8,0,6,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Unterwegs" TextWrapping="Wrap" />
                                                 <Button Grid.Column="2" Style="{StaticResource ColorPreviewIconButtonStyle}" Content="&#xE70F;" Command="{Binding PickStatusColorOnTheWayCommand}" />
+                                            </Grid>
+                                        </Border>
+                                        <Border Style="{StaticResource StatusColorInlineCardStyle}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="46" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Height="28" CornerRadius="8" Background="{Binding StatusColorPartiallyReady}" />
+                                                <TextBlock Grid.Column="1" Margin="8,0,6,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="Teilweise bereit" TextWrapping="Wrap" />
+                                                <Button Grid.Column="2" Style="{StaticResource ColorPreviewIconButtonStyle}" Content="&#xE70F;" Command="{Binding PickStatusColorPartiallyReadyCommand}" />
                                             </Grid>
                                         </Border>
                                         <Border Style="{StaticResource StatusColorInlineCardStyle}">

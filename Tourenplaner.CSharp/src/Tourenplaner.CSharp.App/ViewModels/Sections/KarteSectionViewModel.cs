@@ -132,6 +132,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private string _statusColorNotSpecified = AppSettings.DefaultStatusColorNotSpecified;
     private string _statusColorOrdered = AppSettings.DefaultStatusColorOrdered;
     private string _statusColorOnTheWay = AppSettings.DefaultStatusColorOnTheWay;
+    private string _statusColorPartiallyReady = AppSettings.DefaultStatusColorPartiallyReady;
     private string _statusColorPendingPreparation = AppSettings.DefaultStatusColorPendingPreparation;
     private string _statusColorInStock = AppSettings.DefaultStatusColorInStock;
     private string _statusColorPlanned = AppSettings.DefaultStatusColorPlanned;
@@ -541,6 +542,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public string LegendStatusColorNotSpecified => _statusColorNotSpecified;
     public string LegendStatusColorOrdered => _statusColorOrdered;
     public string LegendStatusColorOnTheWay => _statusColorOnTheWay;
+    public string LegendStatusColorPartiallyReady => _statusColorPartiallyReady;
     public string LegendStatusColorPendingPreparation => _statusColorPendingPreparation;
     public string LegendStatusColorInStock => _statusColorInStock;
     public string LegendStatusColorPlanned => _statusColorPlanned;
@@ -1521,6 +1523,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _statusColorNotSpecified = NormalizeStatusColor(userPreference.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
         _statusColorOrdered = NormalizeStatusColor(userPreference.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
         _statusColorOnTheWay = NormalizeStatusColor(userPreference.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+        _statusColorPartiallyReady = NormalizeStatusColor(userPreference.StatusColorPartiallyReady, AppSettings.DefaultStatusColorPartiallyReady);
         _statusColorPendingPreparation = NormalizeStatusColor(userPreference.StatusColorPendingPreparation, AppSettings.DefaultStatusColorPendingPreparation);
         _statusColorInStock = NormalizeStatusColor(userPreference.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         _statusColorPlanned = NormalizeStatusColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
@@ -2831,6 +2834,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(LegendStatusColorNotSpecified));
         OnPropertyChanged(nameof(LegendStatusColorOrdered));
         OnPropertyChanged(nameof(LegendStatusColorOnTheWay));
+        OnPropertyChanged(nameof(LegendStatusColorPartiallyReady));
         OnPropertyChanged(nameof(LegendStatusColorPendingPreparation));
         OnPropertyChanged(nameof(LegendStatusColorInStock));
         OnPropertyChanged(nameof(LegendStatusColorPlanned));
@@ -4217,7 +4221,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private async Task LoadSavedToursAsync(int? preferredTourId = null)
     {
         var allTours = (await _tourRepository.LoadAsync()).ToList();
-        var originalTours = allTours.ToList();
+        var originalTours = TourReconciliationPersistenceService.CreateSnapshot(allTours);
         var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(allTours, _allOrders);
         if (cleanup.HasChanges)
         {
@@ -4232,17 +4236,18 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         }
 
+        var originalOrders = OrderMaintenancePersistenceService.CreateSnapshot(_allOrders);
         var assignmentsChanged = new OrderDeliveryService().SynchronizeTourAssignments(_allOrders, allTours);
-        if (cleanup.HasChanges || assignmentsChanged)
+        if (cleanup.HasChanges)
         {
-            var deletedTours = originalTours.Where(x => cleanup.DeletedTourIds.Contains(x.Id)).ToList();
-            await SaveToursAndOrdersAsync(allTours, _allOrders, deletedTours);
-            if (cleanup.HasChanges) _dataSyncService.PublishTours(_instanceId);
-            if (assignmentsChanged)
-            {
-                PublishOrderChange(null, null);
-                RebuildOrderGrid(SelectedOrder?.OrderId);
-            }
+            await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, allTours, cleanup);
+            _dataSyncService.PublishTours(_instanceId);
+        }
+        if (assignmentsChanged)
+        {
+            await OrderMaintenancePersistenceService.SaveChangesAsync(_orderRepository, originalOrders, _allOrders);
+            PublishOrderChange(null, null);
+            RebuildOrderGrid(SelectedOrder?.OrderId);
         }
 
         _savedTours.Clear();
@@ -7005,7 +7010,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         IReadOnlyList<Order>? ordersToDelete = null)
     {
         var allTours = (await _tourRepository.LoadAsync()).ToList();
-        var originalTours = allTours.ToList();
+        var originalTours = TourReconciliationPersistenceService.CreateSnapshot(allTours);
         var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(allTours, orders);
         if (cleanup.HasChanges)
         {
@@ -8004,6 +8009,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             var nextStatusColorNotSpecified = NormalizeStatusColor(userPreference.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
             var nextStatusColorOrdered = NormalizeStatusColor(userPreference.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
             var nextStatusColorOnTheWay = NormalizeStatusColor(userPreference.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+            var nextStatusColorPartiallyReady = NormalizeStatusColor(userPreference.StatusColorPartiallyReady, AppSettings.DefaultStatusColorPartiallyReady);
             var nextStatusColorPendingPreparation = NormalizeStatusColor(userPreference.StatusColorPendingPreparation, AppSettings.DefaultStatusColorPendingPreparation);
             var nextStatusColorInStock = NormalizeStatusColor(userPreference.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
             var nextStatusColorPlanned = NormalizeStatusColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
@@ -8069,6 +8075,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             if (_statusColorNotSpecified != nextStatusColorNotSpecified ||
                 _statusColorOrdered != nextStatusColorOrdered ||
                 _statusColorOnTheWay != nextStatusColorOnTheWay ||
+                _statusColorPartiallyReady != nextStatusColorPartiallyReady ||
                 _statusColorPendingPreparation != nextStatusColorPendingPreparation ||
                 _statusColorInStock != nextStatusColorInStock ||
                 _statusColorPlanned != nextStatusColorPlanned)
@@ -8076,6 +8083,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 _statusColorNotSpecified = nextStatusColorNotSpecified;
                 _statusColorOrdered = nextStatusColorOrdered;
                 _statusColorOnTheWay = nextStatusColorOnTheWay;
+                _statusColorPartiallyReady = nextStatusColorPartiallyReady;
                 _statusColorPendingPreparation = nextStatusColorPendingPreparation;
                 _statusColorInStock = nextStatusColorInStock;
                 _statusColorPlanned = nextStatusColorPlanned;
@@ -9933,10 +9941,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             return _statusColorPendingPreparation;
         }
 
-        if (string.Equals(normalized, Order.InTransitStatus, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(normalized, Order.PartiallyReadyStatus, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(normalized, Order.InTransitStatus, StringComparison.OrdinalIgnoreCase))
         {
             return _statusColorOnTheWay;
+        }
+
+        if (string.Equals(normalized, Order.PartiallyReadyStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return _statusColorPartiallyReady;
         }
 
         if (string.Equals(normalized, Order.ReadyToDeliverStatus, StringComparison.OrdinalIgnoreCase))

@@ -780,7 +780,7 @@
                                         <StackPanel Grid.Row="5"
                                                     Margin="0,6,0,0"
                                                     Orientation="Horizontal">
-                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorOnTheWay}" Stroke="White" StrokeThickness="2" />
+                                            <Ellipse Width="18" Height="18" Fill="{Binding LegendStatusColorPartiallyReady}" Stroke="White" StrokeThickness="2" />
                                             <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" Text="Teilweise bereit" />
                                         </StackPanel>
                                     </Grid>
@@ -2234,7 +2234,6 @@
                                     <ColumnDefinition Width="40" />
                                     <ColumnDefinition Width="40" />
                                     <ColumnDefinition Width="40" />
-                                    <ColumnDefinition Width="40" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox Grid.Row="0"
                                          Grid.Column="0"
@@ -2299,19 +2298,6 @@
                                         Grid.Column="3"
                                         Margin="0,0,6,0"
                                         Style="{StaticResource DetailsHeaderToggleButtonStyle}"
-                                        Command="{Binding ArchiveSelectedDeliveryCommand}"
-                                        ToolTip="Ausgewählte Teillieferung als geliefert archivieren">
-                                    <TextBlock Text="✓"
-                                               FontSize="16"
-                                               FontWeight="Bold"
-                                               Foreground="{DynamicResource Brush.Success}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Button>
-                                <Button Grid.Row="0"
-                                        Grid.Column="4"
-                                        Margin="0,0,6,0"
-                                        Style="{StaticResource DetailsHeaderToggleButtonStyle}"
                                         Command="{Binding CloseDetailsCommand}">
                                     <TextBlock Text="X"
                                                FontSize="14"
@@ -2321,7 +2307,7 @@
                                                VerticalAlignment="Center" />
                                 </Button>
                                 <Button Grid.Row="0"
-                                        Grid.Column="5"
+                                        Grid.Column="4"
                                         Style="{StaticResource DetailsHeaderToggleButtonStyle}"
                                         Command="{Binding ToggleDetailsPanelCommand}">
                                     <Grid Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -2339,7 +2325,7 @@
 
                                 <Border Grid.Row="1"
                                         Grid.Column="1"
-                                        Grid.ColumnSpan="5"
+                                        Grid.ColumnSpan="4"
                                         MinHeight="38"
                                         Margin="0,6,0,0"
                                         VerticalAlignment="Top"

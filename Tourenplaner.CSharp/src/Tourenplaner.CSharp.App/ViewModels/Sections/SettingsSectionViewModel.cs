@@ -60,6 +60,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private string _statusColorNotSpecified = AppSettings.DefaultStatusColorNotSpecified;
     private string _statusColorOrdered = AppSettings.DefaultStatusColorOrdered;
     private string _statusColorOnTheWay = AppSettings.DefaultStatusColorOnTheWay;
+    private string _statusColorPartiallyReady = AppSettings.DefaultStatusColorPartiallyReady;
     private string _statusColorPendingPreparation = AppSettings.DefaultStatusColorPendingPreparation;
     private string _statusColorInStock = AppSettings.DefaultStatusColorInStock;
     private string _statusColorPlanned = AppSettings.DefaultStatusColorPlanned;
@@ -229,11 +230,17 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             AppSettings.DefaultStatusColorOrdered,
             value => StatusColorOrdered = value);
         PickStatusColorOnTheWayCommand = CreateColorPickerCommand(
-            "Unterwegs / Teilweise bereit",
-            "Statusfarbe für laufende oder teilweise bereite Aufträge.",
+            "Unterwegs",
+            "Statusfarbe für unterwegs befindliche Aufträge.",
             () => StatusColorOnTheWay,
             AppSettings.DefaultStatusColorOnTheWay,
             value => StatusColorOnTheWay = value);
+        PickStatusColorPartiallyReadyCommand = CreateColorPickerCommand(
+            "Teilweise bereit",
+            "Statusfarbe für teilweise bereite Aufträge.",
+            () => StatusColorPartiallyReady,
+            AppSettings.DefaultStatusColorPartiallyReady,
+            value => StatusColorPartiallyReady = value);
         PickStatusColorPendingPreparationCommand = CreateColorPickerCommand(
             "Zu richten / Teilweise zu richten",
             "Statusfarbe für zu richtende oder teilweise zu richtende Aufträge.",
@@ -339,6 +346,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     public ICommand PickStatusColorOrderedCommand { get; }
 
     public ICommand PickStatusColorOnTheWayCommand { get; }
+
+    public ICommand PickStatusColorPartiallyReadyCommand { get; }
 
     public ICommand PickStatusColorPendingPreparationCommand { get; }
 
@@ -609,6 +618,12 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _statusColorOnTheWay;
         set => SetColorProperty(ref _statusColorOnTheWay, value, AppSettings.DefaultStatusColorOnTheWay);
+    }
+
+    public string StatusColorPartiallyReady
+    {
+        get => _statusColorPartiallyReady;
+        set => SetColorProperty(ref _statusColorPartiallyReady, value, AppSettings.DefaultStatusColorPartiallyReady);
     }
 
     public string StatusColorPendingPreparation
@@ -1285,6 +1300,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             nameof(StatusColorNotSpecified) or
             nameof(StatusColorOrdered) or
             nameof(StatusColorOnTheWay) or
+            nameof(StatusColorPartiallyReady) or
             nameof(StatusColorPendingPreparation) or
             nameof(StatusColorInStock) or
             nameof(StatusColorPlanned) or
@@ -1671,6 +1687,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         StatusColorNotSpecified = AppSettings.DefaultStatusColorNotSpecified;
         StatusColorOrdered = AppSettings.DefaultStatusColorOrdered;
         StatusColorOnTheWay = AppSettings.DefaultStatusColorOnTheWay;
+        StatusColorPartiallyReady = AppSettings.DefaultStatusColorPartiallyReady;
         StatusColorPendingPreparation = AppSettings.DefaultStatusColorPendingPreparation;
         StatusColorInStock = AppSettings.DefaultStatusColorInStock;
         StatusColorPlanned = AppSettings.DefaultStatusColorPlanned;
@@ -1768,6 +1785,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         userPreference.StatusColorNotSpecified = NormalizeHexColor(StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
         userPreference.StatusColorOrdered = NormalizeHexColor(StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
         userPreference.StatusColorOnTheWay = NormalizeHexColor(StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+        userPreference.StatusColorPartiallyReady = NormalizeHexColor(StatusColorPartiallyReady, AppSettings.DefaultStatusColorPartiallyReady);
         userPreference.StatusColorPendingPreparation = NormalizeHexColor(StatusColorPendingPreparation, AppSettings.DefaultStatusColorPendingPreparation);
         userPreference.StatusColorInStock = NormalizeHexColor(StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         userPreference.StatusColorPlanned = NormalizeHexColor(StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);
@@ -1872,6 +1890,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         StatusColorNotSpecified = NormalizeHexColor(userPreference.StatusColorNotSpecified, AppSettings.DefaultStatusColorNotSpecified);
         StatusColorOrdered = NormalizeHexColor(userPreference.StatusColorOrdered, AppSettings.DefaultStatusColorOrdered);
         StatusColorOnTheWay = NormalizeHexColor(userPreference.StatusColorOnTheWay, AppSettings.DefaultStatusColorOnTheWay);
+        StatusColorPartiallyReady = NormalizeHexColor(userPreference.StatusColorPartiallyReady, AppSettings.DefaultStatusColorPartiallyReady);
         StatusColorPendingPreparation = NormalizeHexColor(userPreference.StatusColorPendingPreparation, AppSettings.DefaultStatusColorPendingPreparation);
         StatusColorInStock = NormalizeHexColor(userPreference.StatusColorInStock, AppSettings.DefaultStatusColorInStock);
         StatusColorPlanned = NormalizeHexColor(userPreference.StatusColorPlanned, AppSettings.DefaultStatusColorPlanned);

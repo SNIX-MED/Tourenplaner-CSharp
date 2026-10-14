@@ -739,7 +739,7 @@ public sealed partial class MainShellViewModel : ObservableObject
     private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
     {
         var tours = (await _tourRepository.LoadAsync()).ToList();
-        var originalTours = tours.ToList();
+        var originalTours = TourReconciliationPersistenceService.CreateSnapshot(tours);
         var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
         if (!cleanup.HasChanges)
         {

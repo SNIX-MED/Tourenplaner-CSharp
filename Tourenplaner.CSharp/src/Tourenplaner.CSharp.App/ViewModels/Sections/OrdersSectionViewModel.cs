@@ -1018,6 +1018,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     {
         _allOrders.Clear();
         _allOrders.AddRange(await _repository.GetAllAsync());
+        var originalOrders = OrderMaintenancePersistenceService.CreateSnapshot(_allOrders);
         var deliveriesChanged = false;
         foreach (var order in _allOrders)
         {
@@ -1027,7 +1028,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         }
         if (deliveriesChanged || OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders))
         {
-            await _repository.SaveAllAsync(_allOrders);
+            await OrderMaintenancePersistenceService.SaveChangesAsync(_repository, originalOrders, _allOrders);
         }
 
         UpdateFilterOptions();
@@ -1362,7 +1363,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
     {
         var tours = (await _tourRepository.LoadAsync()).ToList();
-        var originalTours = tours.ToList();
+        var originalTours = TourReconciliationPersistenceService.CreateSnapshot(tours);
         var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
         if (!cleanup.HasChanges)
         {

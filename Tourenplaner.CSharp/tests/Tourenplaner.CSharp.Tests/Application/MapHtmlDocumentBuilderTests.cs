@@ -20,6 +20,20 @@ public sealed class MapHtmlDocumentBuilderTests
     }
 
     [Fact]
+    public void NearbyPins_AreNotGroupedByScreenDistance()
+    {
+        var html = MapHtmlDocumentBuilder.Build(null, true, true, null, false, true, true, false, false, true, true, 1d, 0);
+
+        Assert.DoesNotContain("groupMarkersByScreenCollision", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("gawela-marker-cluster", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("collisionClusterMarkers", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("buildOverlapCoordinateKey", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("return `coord:${coordinateKey}`", html, StringComparison.Ordinal);
+        Assert.Contains("const groups = groupOverlappingMarkers(markers)", html, StringComparison.Ordinal);
+        Assert.Contains("const key = buildOverlapGroupKey(marker)", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RouteRendering_CanExplicitlySuppressAutomaticCentering()
     {
         var html = MapHtmlDocumentBuilder.Build(

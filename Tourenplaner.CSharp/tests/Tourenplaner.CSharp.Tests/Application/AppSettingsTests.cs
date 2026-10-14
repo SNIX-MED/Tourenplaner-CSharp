@@ -100,6 +100,46 @@ public class AppSettingsTests
         Assert.Equal("#FFFFFF", resolved.StatusColorNotSpecified);
     }
 
+    [Fact]
+    public void UserPreference_LegacyJsonDefaultsPartiallyReadyToDistinctViolet()
+    {
+        var preference = JsonSerializer.Deserialize<UserAppPreference>("{}");
+
+        Assert.NotNull(preference);
+        Assert.Equal(AppSettings.DefaultStatusColorPartiallyReady, preference.StatusColorPartiallyReady);
+        Assert.Equal("#8B5CF6", preference.StatusColorPartiallyReady);
+        Assert.NotEqual(preference.StatusColorOnTheWay, preference.StatusColorPartiallyReady);
+    }
+
+    [Fact]
+    public void ResolveUserPreference_MigratesLegacyOrderedStatusColorToPink()
+    {
+        var settings = new AppSettings();
+        settings.SetUserPreference("tester", new UserAppPreference
+        {
+            StatusColorOrdered = "#0EA5E9"
+        });
+
+        var resolved = settings.ResolveUserPreference("tester");
+
+        Assert.Equal(AppSettings.DefaultStatusColorOrdered, resolved.StatusColorOrdered);
+        Assert.Equal("#EC4899", resolved.StatusColorOrdered);
+    }
+
+    [Fact]
+    public void ResolveUserPreference_KeepsCustomOrderedStatusColor()
+    {
+        var settings = new AppSettings();
+        settings.SetUserPreference("tester", new UserAppPreference
+        {
+            StatusColorOrdered = "#BE185D"
+        });
+
+        var resolved = settings.ResolveUserPreference("tester");
+
+        Assert.Equal("#BE185D", resolved.StatusColorOrdered);
+    }
+
     [Theory]
     [InlineData(DeliveryMethodExtensions.FreiBordsteinkante, 10)]
     [InlineData(DeliveryMethodExtensions.MitVerteilung, 20)]

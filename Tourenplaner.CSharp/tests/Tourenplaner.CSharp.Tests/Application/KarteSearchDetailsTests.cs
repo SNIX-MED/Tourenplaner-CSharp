@@ -10,6 +10,38 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class KarteSearchDetailsTests
 {
     [Fact]
+    public void PartiallyReadyAndInTransit_UseDistinctPinAndLegendColors()
+    {
+        var viewModel = CreateViewModel();
+
+        var inTransitColor = viewModel.ResolveOrderStatusColor(Order.InTransitStatus, false);
+        var partiallyReadyColor = viewModel.ResolveOrderStatusColor(Order.PartiallyReadyStatus, false);
+
+        Assert.Equal(AppSettings.DefaultStatusColorOnTheWay, inTransitColor);
+        Assert.Equal(AppSettings.DefaultStatusColorPartiallyReady, partiallyReadyColor);
+        Assert.NotEqual(inTransitColor, partiallyReadyColor);
+        Assert.Equal(partiallyReadyColor, viewModel.LegendStatusColorPartiallyReady);
+    }
+
+    [Fact]
+    public void OrderedStatus_UsesPinkForPinLegendAndProductBackground()
+    {
+        var viewModel = CreateViewModel();
+
+        var orderedColor = viewModel.ResolveOrderStatusColor(Order.OrderedStatus, false);
+        ProductStatusVisualService.Configure(
+            AppSettings.DefaultStatusColorNotSpecified,
+            orderedColor,
+            AppSettings.DefaultStatusColorOnTheWay,
+            AppSettings.DefaultStatusColorInStock);
+
+        Assert.Equal("#EC4899", orderedColor);
+        Assert.Equal(orderedColor, viewModel.LegendStatusColorOrdered);
+        Assert.Equal("#EC4899", ProductStatusVisualService.ResolveBorderColor(OrderProductInfo.OrderedStatus));
+        Assert.Equal("#33EC4899", ProductStatusVisualService.ResolveBackgroundColor(OrderProductInfo.OrderedStatus));
+    }
+
+    [Fact]
     public void HiddenReturnLeg_TruncatesGeometryAtLastDeliveryStop()
     {
         IReadOnlyList<GeoPoint> completeRoute =
