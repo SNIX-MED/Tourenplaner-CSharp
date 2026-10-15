@@ -871,9 +871,17 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
 
     private static string ReadDeliveryPeriod(XElement parent, string name)
     {
-        // Some exports use Lieferdatum2, others lieferdatum2. Preserve the free text.
-        return (parent.Elements().FirstOrDefault(element =>
-            string.Equals(element.Name.LocalName, name, StringComparison.OrdinalIgnoreCase))?.Value ?? string.Empty).Trim();
+        // Preserve free text and explicit mappings; ERP exports also use zus_liefertermin2.
+        var element = parent.Elements().FirstOrDefault(element =>
+            string.Equals(element.Name.LocalName, name, StringComparison.OrdinalIgnoreCase));
+        if (element is null && string.Equals(name, XmlImportMappingSettings.DefaultOrderDeliveryPeriod,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            element = parent.Elements().FirstOrDefault(element =>
+                string.Equals(element.Name.LocalName, "zus_liefertermin2", StringComparison.OrdinalIgnoreCase));
+        }
+
+        return (element?.Value ?? string.Empty).Trim();
     }
 
     private static DateTime? ReadNullableDate(XElement parent, string name)

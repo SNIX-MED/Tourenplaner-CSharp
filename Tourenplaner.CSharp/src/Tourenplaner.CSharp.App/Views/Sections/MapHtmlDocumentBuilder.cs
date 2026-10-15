@@ -788,6 +788,11 @@ internal static class MapHtmlDocumentBuilder
                              return `addr:${street}|${postalCodeCity}`;
                            }
 
+                           // Manual tour stops have coordinates but no associated order address.
+                           // Keep them in the layout and fan out coincident stops as well.
+                           if (Number.isFinite(marker.lat) && Number.isFinite(marker.lon)) {
+                             return `coord:${marker.lat}|${marker.lon}`;
+                           }
                            return '';
                          };
 

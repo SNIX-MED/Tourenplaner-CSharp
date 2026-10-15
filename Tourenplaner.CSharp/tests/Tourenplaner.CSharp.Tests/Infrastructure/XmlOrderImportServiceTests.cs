@@ -8,6 +8,7 @@ public class XmlOrderImportServiceTests
     [Theory]
     [InlineData("belege", "beleg", "kopf", "datum", "Lieferdatum2", null)]
     [InlineData("belege", "beleg", "kopf", "datum", "lieferdatum2", null)]
+    [InlineData("belege", "beleg", "kopf", "datum", "zus_liefertermin2", null)]
     [InlineData("NewDataSet", "WW_Kopf", "AuftragNr", "Datum", "Lieferdatum2", null)]
     [InlineData("belege", "beleg", "kopf", "datum", "zeitraum", "zeitraum")]
     public void LoadOrdersFromFile_ReadsDeliveryPeriodAsFreeText(string root, string record, string numberField,

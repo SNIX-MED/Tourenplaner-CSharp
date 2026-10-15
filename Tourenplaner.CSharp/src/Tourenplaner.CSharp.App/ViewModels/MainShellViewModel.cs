@@ -161,7 +161,7 @@ public sealed partial class MainShellViewModel : ObservableObject
             tourId => NavigateToTourAsync(tours, tourId),
             () => NavigateToSectionAsync(employees),
             () => NavigateToSectionAsync(vehicles),
-            (orderId, orderType) => NavigateToOrderAsync(orders, nonMapOrders, orderId, orderType),
+            (orderId, _) => NavigateToMapOrderAsync(map, orderId),
             dataSyncService);
         _startSection = start;
 
@@ -418,21 +418,10 @@ public sealed partial class MainShellViewModel : ObservableObject
         return Task.CompletedTask;
     }
 
-    private async Task NavigateToOrderAsync(
-        OrdersSectionViewModel ordersSection,
-        NonMapOrdersSectionViewModel nonMapOrdersSection,
-        string orderId,
-        OrderType orderType)
+    private async Task NavigateToMapOrderAsync(KarteSectionViewModel mapSection, string orderId)
     {
-        if (orderType == OrderType.NonMap)
-        {
-            await nonMapOrdersSection.FocusOrderAsync(orderId, isArchived: false);
-            SelectNavigationItemForSection(nonMapOrdersSection);
-            return;
-        }
-
-        await ordersSection.FocusOrderAsync(orderId, isArchived: false);
-        SelectNavigationItemForSection(ordersSection);
+        await NavigateToMapAsync(mapSection);
+        mapSection.SelectOrderDetailsByOrderId(orderId);
     }
 
     private void OpenSettings()
