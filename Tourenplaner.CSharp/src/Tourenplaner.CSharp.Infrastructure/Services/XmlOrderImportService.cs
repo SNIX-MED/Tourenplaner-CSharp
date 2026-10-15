@@ -114,6 +114,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                     Archiviert = ReadBool(orderElement, effectiveMapping.OrderArchived),
                     Gesperrt = ReadBool(orderElement, effectiveMapping.OrderLocked),
                     Lieferdatum = ReadNullableDate(orderElement, effectiveMapping.OrderDeliveryDate),
+                    Lieferdatum2 = ReadDeliveryPeriod(orderElement, effectiveMapping.OrderDeliveryPeriod),
                     LieferungKannFrueherErfolgen = ReadBool(orderElement, effectiveMapping.OrderDeliveryCanOccurEarlier),
                     Lieferzeit = ReadString(orderElement, effectiveMapping.OrderDeliveryTime),
                     KundeKontaktperson = ReadString(orderElement, effectiveMapping.OrderContactPerson),
@@ -323,6 +324,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         OrderDate = "datum",
         OrderDeliveryCondition = "versandart",
         OrderDeliveryDate = "lieferdatum",
+        OrderDeliveryPeriod = sourceMapping.OrderDeliveryPeriod,
         OrderDeliveryCanOccurEarlier = "lieferdatumfrüher",
         OrderDeliveryTime = sourceMapping.OrderDeliveryTime,
         OrderPaymentTerms = "zahlkondition",
@@ -383,6 +385,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         OrderDeliveryContactPerson = sourceMapping.OrderDeliveryContactPerson,
         OrderDeliveryCondition = XmlImportMappingSettings.LegacyOrderDeliveryCondition,
         OrderDeliveryDate = XmlImportMappingSettings.LegacyOrderDeliveryDate,
+        OrderDeliveryPeriod = sourceMapping.OrderDeliveryPeriod,
         OrderDeliveryCanOccurEarlier = XmlImportMappingSettings.LegacyOrderDeliveryCanOccurEarlier,
         OrderDeliveryTime = sourceMapping.OrderDeliveryTime,
         OrderPaymentTerms = sourceMapping.OrderPaymentTerms,
@@ -864,6 +867,13 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         }
 
         return false;
+    }
+
+    private static string ReadDeliveryPeriod(XElement parent, string name)
+    {
+        // Some exports use Lieferdatum2, others lieferdatum2. Preserve the free text.
+        return (parent.Elements().FirstOrDefault(element =>
+            string.Equals(element.Name.LocalName, name, StringComparison.OrdinalIgnoreCase))?.Value ?? string.Empty).Trim();
     }
 
     private static DateTime? ReadNullableDate(XElement parent, string name)

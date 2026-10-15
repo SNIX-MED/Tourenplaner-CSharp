@@ -1320,6 +1320,7 @@ internal static class MapHtmlDocumentBuilder
                            const notes = m && m.notes ? String(m.notes).trim() : '';
                            const totalWeightKgText = m && m.totalWeightKgText ? String(m.totalWeightKgText).trim() : '';
                            const deliveryDate = m && m.deliveryDate ? String(m.deliveryDate).trim() : '';
+                           const deliveryPeriod = m && m.deliveryPeriod ? String(m.deliveryPeriod).trim() : '';
                            const deliveryCanOccurEarlier = !!(m && m.deliveryCanOccurEarlier);
                            const isAlternativeLiefertour = !!(m && m.isAlternativeLiefertour);
                            const products = Array.isArray(m && m.products)
@@ -1373,6 +1374,10 @@ internal static class MapHtmlDocumentBuilder
 
                            if (deliveryDate.length > 0) {
                              sections.push(`<section class='gawela-info-card-section'><div><p class='gawela-info-card-label'>Lieferdatum</p><p class='gawela-info-card-line'>${escapeHtml(deliveryDate)}${deliveryCanOccurEarlier ? ' · früher möglich' : ''}</p></div></section>`);
+                           }
+
+                           if (deliveryPeriod.length > 0) {
+                             sections.push(`<section class='gawela-info-card-section'><div><p class='gawela-info-card-label'>Lieferzeitraum</p><p class='gawela-info-card-line'>${escapeHtml(deliveryPeriod)}</p></div></section>`);
                            }
 
                            return `<div class='gawela-info-card'><header class='gawela-info-card-header'><div class='gawela-info-card-heading'><h4 class='gawela-info-card-name'>${escapeHtml(cardName)}</h4>${headerNotes}</div>${headerBadge}</header>${sections.join('')}</div><div class='gawela-info-card-tail-wrap'><div class='gawela-info-card-tail'></div></div>`;

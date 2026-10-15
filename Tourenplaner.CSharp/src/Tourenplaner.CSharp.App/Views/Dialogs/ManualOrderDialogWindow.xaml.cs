@@ -336,6 +336,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private string _orderNumber = string.Empty;
     private string _orderDateText = DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
     private string _deliveryDateText = string.Empty;
+    private string _deliveryPeriod = string.Empty;
     private bool _deliveryCanOccurEarlier;
     private string _orderAddressName = string.Empty;
     private string _orderAddressContactPerson = string.Empty;
@@ -542,6 +543,12 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     public bool CanEditDeliveryCanOccurEarlier =>
         IsEditingEnabled && !string.IsNullOrWhiteSpace(DeliveryDateText);
+
+    public string DeliveryPeriod
+    {
+        get => _deliveryPeriod;
+        set => SetProperty(ref _deliveryPeriod, value);
+    }
 
     public bool DeliveryCanOccurEarlier
     {
@@ -824,6 +831,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Id = id,
             ScheduledDate = DateOnly.FromDateTime(parsedOrderDate),
             DeliveryDate = deliveryDate,
+            DeliveryPeriod = (DeliveryPeriod ?? string.Empty).Trim(),
             DeliveryCanOccurEarlier = deliveryDate.HasValue && DeliveryCanOccurEarlier,
             Type = DeliveryMethodExtensions.ResolveOrderType(SelectedDeliveryType),
             CustomerName = deliveryName,
@@ -966,6 +974,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         OrderNumber = existingOrder.Id;
         OrderDateText = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         DeliveryDateText = FormatNullableDeliveryDate(existingOrder.DeliveryDate);
+        DeliveryPeriod = existingOrder.DeliveryPeriod;
         DeliveryCanOccurEarlier = !string.IsNullOrWhiteSpace(DeliveryDateText) && existingOrder.DeliveryCanOccurEarlier;
         OrderAddressName = existingOrder.OrderAddress?.Name ?? string.Empty;
         OrderAddressContactPerson = existingOrder.OrderAddress?.ContactPerson ?? string.Empty;

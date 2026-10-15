@@ -1455,6 +1455,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(DetailPhone));
                 OnPropertyChanged(nameof(DetailDeliveryType));
                 OnPropertyChanged(nameof(DetailDeliveryDate));
+                OnPropertyChanged(nameof(DetailDeliveryPeriod));
                 OnPropertyChanged(nameof(DetailDeliveryCanOccurEarlier));
                 OnPropertyChanged(nameof(DetailNotes));
                 OnPropertyChanged(nameof(HasDetailNotes));
@@ -1816,6 +1817,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
     }
     public bool DetailDeliveryCanOccurEarlier => FindSelectedOrderModel()?.DeliveryCanOccurEarlier == true;
+    public string DetailDeliveryPeriod => FindSelectedOrderModel()?.DeliveryPeriod ?? string.Empty;
     public string DetailNotes
     {
         get
@@ -9631,6 +9633,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 ? OrderDeliveryDateDisplayService.BuildDisplayText(order, _savedTours)
                 : delivery.PlannedDeliveryDate?.ToString("dd.MM.yyyy", CultureInfo.CurrentCulture) ?? string.Empty,
             DeliveryCanOccurEarlier = order.DeliveryCanOccurEarlier,
+            DeliveryPeriod = order.DeliveryPeriod,
             IsAlternativeLiefertour = order.IsAlternativeDeliveryEnabled &&
                                        string.Equals(
                                            DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType),
@@ -10385,6 +10388,7 @@ public sealed class MapOrderItem
     public string TotalWeightKgText { get; set; } = string.Empty;
     public string ScheduledDate { get; set; } = string.Empty;
     public string DeliveryDate { get; set; } = string.Empty;
+    public string DeliveryPeriod { get; set; } = string.Empty;
     public bool DeliveryCanOccurEarlier { get; set; }
     public bool IsAlternativeLiefertour { get; set; }
     public string AssignedTourId { get; set; } = string.Empty;

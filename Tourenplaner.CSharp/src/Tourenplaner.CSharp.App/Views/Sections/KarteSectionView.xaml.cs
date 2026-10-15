@@ -955,6 +955,7 @@ public partial class KarteSectionView : UserControl
             products = x.ProductLines,
             totalWeightKgText = x.TotalWeightKgText,
             deliveryDate = x.DeliveryDate,
+            deliveryPeriod = x.DeliveryPeriod,
             deliveryCanOccurEarlier = x.DeliveryCanOccurEarlier,
             isAlternativeLiefertour = x.IsAlternativeLiefertour,
             showName = vm.MapPinInfoCardShowName,

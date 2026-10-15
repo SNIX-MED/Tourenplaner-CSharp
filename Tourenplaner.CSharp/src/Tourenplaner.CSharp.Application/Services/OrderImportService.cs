@@ -267,6 +267,7 @@ public class OrderImportService : IOrderImportService
             Address = $"{auftragsAdresse}, {sqlOrder.KundePLZ} {sqlOrder.KundeOrt}".Trim(' ', ','),
             ScheduledDate = DateOnly.FromDateTime(sqlOrder.AuftragsDatum),
             DeliveryDate = NormalizeDeliveryDate(sqlOrder.Lieferdatum),
+            DeliveryPeriod = (sqlOrder.Lieferdatum2 ?? string.Empty).Trim(),
             DeliveryCanOccurEarlier = sqlOrder.LieferungKannFrueherErfolgen,
             Type = isMapOrder ? OrderType.Map : OrderType.NonMap,
             OrderAddress = new OrderAddressInfo
@@ -380,6 +381,7 @@ public class OrderImportService : IOrderImportService
         existingOrder.Address = importedOrder.Address;
         existingOrder.ScheduledDate = importedOrder.ScheduledDate;
         existingOrder.DeliveryDate = importedOrder.DeliveryDate;
+        existingOrder.DeliveryPeriod = importedOrder.DeliveryPeriod;
         existingOrder.DeliveryCanOccurEarlier = importedOrder.DeliveryCanOccurEarlier;
         existingOrder.Type = importedOrder.Type;
         existingOrder.OrderAddress = importedOrder.OrderAddress;
@@ -419,6 +421,9 @@ public class OrderImportService : IOrderImportService
 
         AddChange(changes, "Kunde", existingOrder.CustomerName, importedOrder.CustomerName);
         AddChange(changes, "Termin", FormatDate(existingOrder.ScheduledDate), FormatDate(importedOrder.ScheduledDate));
+        AddChange(changes, "Lieferdatum", existingOrder.DeliveryDate?.ToString("dd.MM.yyyy"), importedOrder.DeliveryDate?.ToString("dd.MM.yyyy"));
+        AddChange(changes, "Lieferzeitraum", existingOrder.DeliveryPeriod, importedOrder.DeliveryPeriod);
+        AddChange(changes, "Lieferung kann früher erfolgen", FormatBool(existingOrder.DeliveryCanOccurEarlier), FormatBool(importedOrder.DeliveryCanOccurEarlier));
         AddChange(changes, "Typ", FormatOrderType(existingOrder.Type), FormatOrderType(importedOrder.Type));
         AddChange(changes, "Lieferart", existingOrder.DeliveryType, importedOrder.DeliveryType);
         if (existingOrder.IsAlternativeDeliveryEnabled && !importedOrder.IsAlternativeDeliveryEnabled)

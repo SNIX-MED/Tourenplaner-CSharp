@@ -6,6 +6,23 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class ManualOrderDialogViewModelTests
 {
     [Fact]
+    public void DeliveryPeriod_LoadsAndSavesFreeTextWithoutDeliveryDate()
+    {
+        var source = CreateOrder();
+        source.DeliveryPeriod = "KW 43–44";
+        var viewModel = new ManualOrderDialogViewModel(source);
+        Assert.Equal("KW 43–44", viewModel.DeliveryPeriod);
+        Assert.True(viewModel.TryBuildOrder(out var unchanged, out var error), error);
+        Assert.Equal("KW 43–44", unchanged!.DeliveryPeriod);
+
+        viewModel.DeliveryPeriod = "  Ende Oktober  ";
+        viewModel.DeliveryDateText = string.Empty;
+        Assert.True(viewModel.TryBuildOrder(out var edited, out error), error);
+        Assert.Equal("Ende Oktober", edited!.DeliveryPeriod);
+        Assert.Null(edited.DeliveryDate);
+    }
+
+    [Fact]
     public void Constructor_TreatsMinValueDeliveryDateAsEmpty()
     {
         var order = CreateOrder();

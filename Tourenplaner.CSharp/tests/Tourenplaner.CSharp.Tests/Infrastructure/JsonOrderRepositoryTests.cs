@@ -25,6 +25,7 @@ public class JsonOrderRepositoryTests
                     Address = "Bahnhofstrasse 1",
                     Type = OrderType.Map,
                     ScheduledDate = new DateOnly(2026, 3, 21),
+                    DeliveryPeriod = "KW 43–44",
                     Location = new GeoPoint(47.0, 8.0),
                     IstVorauszahlung = true,
                     IsAlternativeDeliveryEnabled = true,
@@ -53,6 +54,7 @@ public class JsonOrderRepositoryTests
             Assert.Equal(2, loaded.Count);
             Assert.Contains(loaded, o => o.Id == "O-001" && o.Location is not null);
             Assert.Contains(loaded, o => o.Id == "O-001" && o.IstVorauszahlung);
+            Assert.Contains(loaded, o => o.Id == "O-001" && o.DeliveryPeriod == "KW 43–44");
             Assert.Contains(loaded, o => o.Id == "O-001" && o.IsAlternativeDeliveryEnabled);
             Assert.Contains(loaded, o => o.Id == "O-001" && o.Products.Single().ExpectedDelivery == "Mitte Oktober");
             Assert.Contains(loaded, o => o.Id == "O-002" && o.Type == OrderType.NonMap);

@@ -30,6 +30,7 @@ public sealed class Order
     public string Address { get; set; } = string.Empty;
     public DateOnly ScheduledDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public DateOnly? DeliveryDate { get; set; }
+    public string DeliveryPeriod { get; set; } = string.Empty;
     public bool DeliveryCanOccurEarlier { get; set; }
     public OrderType Type { get; set; } = OrderType.Map;
     public GeoPoint? Location { get; set; }

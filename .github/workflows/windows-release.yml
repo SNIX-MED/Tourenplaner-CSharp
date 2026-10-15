@@ -69,10 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Robuste Mehrbenutzer-Konflikterkennung fuer PostgreSQL-Speicherungen und Kollaborationssperren
-          - Touren sperren zugehoerige Auftraege automatisch gegen gleichzeitige Fremdbearbeitung
-          - Vermeidung redundanter Synchronisierungs-Broadcasts bei transaktionaler DB-Speicherung
-          - Automatisches Neuladen und informative Konflikthinweise bei konkurrierenden Aenderungen
+          - XML-Import erkennt und speichert reine Aenderungen am Lieferdatum
+          - Lieferzeitraum aus Lieferdatum2 in Auftragsbearbeitung, Karten und Details
+          - Erkennung von Datumsbereichen, Kalenderwochen und offenen Lieferzeitraeumen mit chronologischer Anzeige auf der Startseite
+          - PostgreSQL-Speicherfehler durch Zugriff auf das nicht vorhandene Triggerfeld key behoben
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

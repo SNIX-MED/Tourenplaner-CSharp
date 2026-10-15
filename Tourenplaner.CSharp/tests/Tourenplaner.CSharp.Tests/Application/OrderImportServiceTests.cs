@@ -475,6 +475,93 @@ public class OrderImportServiceTests
         Assert.True(stored.IstVorauszahlungBezahlt);
     }
 
+    [Theory]
+    [InlineData(null, 19)]
+    [InlineData(18, 19)]
+    [InlineData(19, null)]
+    [InlineData(19, 19)]
+    public async Task XmlReimport_WhenOnlyDeliveryDateChanges_UpdatesPreviewAndStoredOrder(int? existingDay, int? importedDay)
+    {
+        var existing = CreateOrder("221878", "Kunde", "Frei Bordsteinkante", "Notiz");
+        existing.DeliveryDate = existingDay.HasValue ? new DateOnly(2026, 10, existingDay.Value) : null;
+        var imported = CreateSqlOrder("221878", "Kunde", "Frei Bordsteinkante", "Notiz");
+        imported.Lieferdatum = importedDay.HasValue ? new DateTime(2026, 10, importedDay.Value) : null;
+        var repository = new FakeOrderRepository([existing]);
+        var service = new OrderImportService();
+        var changed = existingDay != importedDay;
+
+        var preview = await service.PreviewImportAsync([imported], repository);
+        var item = Assert.Single(preview.Items);
+        Assert.Equal(changed ? ImportPreviewAction.Update : ImportPreviewAction.Unchanged, item.Action);
+        if (changed)
+            Assert.StartsWith("Lieferdatum:", Assert.Single(item.Changes));
+        else
+            Assert.Empty(item.Changes);
+
+        var result = await service.ImportOrdersAsync([imported], repository);
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(changed ? 1 : 0, result.UpdatedOrders);
+        Assert.Equal(changed ? 1 : 0, repository.SaveAllCalls);
+        Assert.Equal(importedDay.HasValue ? new DateOnly(2026, 10, importedDay.Value) : (DateOnly?)null,
+            Assert.Single(repository.StoredOrders).DeliveryDate);
+    }
+
+    [Theory]
+    [InlineData("", "KW 43–44")]
+    [InlineData("KW 43–44", "Ende Oktober")]
+    [InlineData("Ende Oktober", "")]
+    [InlineData("KW 43–44", "KW 43–44")]
+    public async Task XmlReimport_WhenOnlyDeliveryPeriodChanges_UpdatesPreviewAndStoredOrder(string existingValue, string importedValue)
+    {
+        var existing = CreateOrder("221878", "Kunde", "Frei Bordsteinkante", "Notiz");
+        existing.DeliveryPeriod = existingValue;
+        var imported = CreateSqlOrder("221878", "Kunde", "Frei Bordsteinkante", "Notiz");
+        imported.Lieferdatum2 = importedValue;
+        var repository = new FakeOrderRepository([existing]);
+        var service = new OrderImportService();
+        var changed = existingValue != importedValue;
+
+        var preview = await service.PreviewImportAsync([imported], repository);
+        var item = Assert.Single(preview.Items);
+        Assert.Equal(changed ? ImportPreviewAction.Update : ImportPreviewAction.Unchanged, item.Action);
+        if (changed)
+            Assert.StartsWith("Lieferzeitraum:", Assert.Single(item.Changes));
+        else
+            Assert.Empty(item.Changes);
+
+        var result = await service.ImportOrdersAsync([imported], repository);
+        Assert.Empty(result.Errors);
+        Assert.Equal(changed ? 1 : 0, result.UpdatedOrders);
+        Assert.Equal(changed ? 1 : 0, repository.SaveAllCalls);
+        Assert.Equal(importedValue, Assert.Single(repository.StoredOrders).DeliveryPeriod);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task XmlReimport_WhenOnlyEarlierDeliveryFlagChanges_UpdatesPreviewAndStoredOrder(bool existingValue, bool importedValue)
+    {
+        var existing = CreateOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        existing.DeliveryCanOccurEarlier = existingValue;
+        var imported = CreateSqlOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz");
+        imported.LieferungKannFrueherErfolgen = importedValue;
+        var repository = new FakeOrderRepository([existing]);
+        var service = new OrderImportService();
+
+        var preview = await service.PreviewImportAsync([imported], repository);
+        var item = Assert.Single(preview.Items);
+        Assert.Equal(ImportPreviewAction.Update, item.Action);
+        Assert.StartsWith("Lieferung kann früher erfolgen:", Assert.Single(item.Changes));
+
+        var result = await service.ImportOrdersAsync([imported], repository);
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(1, result.UpdatedOrders);
+        Assert.Equal(1, repository.SaveAllCalls);
+        Assert.Equal(importedValue, Assert.Single(repository.StoredOrders).DeliveryCanOccurEarlier);
+    }
+
     [Fact]
     public async Task ImportOrdersAsync_ClearsDeliveryDateWhenXmlHasNoExplicitDeliveryDate()
     {
@@ -765,6 +852,8 @@ public class OrderImportServiceTests
             Address = order.Address,
             ScheduledDate = order.ScheduledDate,
             DeliveryDate = order.DeliveryDate,
+            DeliveryPeriod = order.DeliveryPeriod,
+            DeliveryCanOccurEarlier = order.DeliveryCanOccurEarlier,
             Type = order.Type,
             Location = order.Location is null ? null : new GeoPoint(order.Location.Latitude, order.Location.Longitude),
             IsLocationManuallySet = order.IsLocationManuallySet,

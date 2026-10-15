@@ -2264,6 +2264,13 @@
                                     <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
                                                Text="{Binding DetailDeliveryDate}"
                                                TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,8,0,0"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Brush.TextMuted}"
+                                               Text="Lieferzeitraum:" />
+                                    <TextBlock Foreground="{DynamicResource Brush.TextMuted}"
+                                               Text="{Binding DetailDeliveryPeriod}"
+                                               TextWrapping="Wrap" />
                                     <TextBlock Margin="0,4,0,0"
                                                Foreground="{DynamicResource Brush.TextMuted}"
                                                Text="Lieferung kann auch früher erfolgen"

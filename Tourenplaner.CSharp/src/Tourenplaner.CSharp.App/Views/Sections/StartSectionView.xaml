@@ -35,7 +35,11 @@
    <Button Margin="0,0,0,7" Style="{StaticResource FullWidthCardButtonStyle}" Command="{Binding OpenCommand}">
     <Border HorizontalAlignment="Stretch" Padding="11,9" CornerRadius="9" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <Border Width="34" Height="34" CornerRadius="9" Background="#E0F2FE"><TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Segoe Fluent Icons" Foreground="#0284C7" Text="&#xE787;"/></Border>
-     <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center"><TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding TitleText}" TextTrimming="CharacterEllipsis"/><TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding Address}" TextTrimming="CharacterEllipsis"/><StackPanel Margin="0,4,0,0" Orientation="Horizontal"><TextBlock FontSize="10" FontWeight="SemiBold" Foreground="#0284C7" Text="{Binding DateText}"/><TextBlock Margin="7,0,0,0" FontSize="9" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding AssignmentText}"/></StackPanel></StackPanel>
+     <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center"><TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding TitleText}" TextTrimming="CharacterEllipsis"/><TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding Address}" TextTrimming="CharacterEllipsis"/><StackPanel Margin="0,4,0,0" Orientation="Horizontal"><TextBlock FontSize="10" FontWeight="SemiBold" Foreground="#0284C7" Text="{Binding DateText}"/><TextBlock Margin="7,0,0,0" FontSize="9" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding AssignmentText}"/></StackPanel>
+      <TextBlock Margin="0,4,0,0" FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding DeliveryPeriod, StringFormat=Lieferzeitraum: {0}}" TextWrapping="Wrap">
+       <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding HasDeliveryPeriod}" Value="False"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+      </TextBlock>
+     </StackPanel>
      <TextBlock Grid.Column="2" VerticalAlignment="Center" FontFamily="Segoe Fluent Icons" Text="&#xE76C;"/>
     </Grid></Border>
    </Button>

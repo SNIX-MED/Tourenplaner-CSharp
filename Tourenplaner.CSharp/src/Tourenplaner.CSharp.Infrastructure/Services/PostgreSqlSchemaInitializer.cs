@@ -116,11 +116,11 @@ public sealed class PostgreSqlSchemaInitializer
                     IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
                 END IF;
 
-                IF TG_ARGV[0] = 'key' THEN
-                    entity_key := CASE WHEN TG_OP = 'DELETE' THEN OLD.key ELSE NEW.key END;
-                ELSE
-                    entity_key := CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END;
-                END IF;
+                -- Shared across tables with either id or key. Resolve the trigger
+                -- argument through JSON rather than binding a nonexistent record field.
+                entity_key := CASE WHEN TG_OP = 'DELETE'
+                    THEN to_jsonb(OLD) ->> TG_ARGV[0]
+                    ELSE to_jsonb(NEW) ->> TG_ARGV[0] END;
 
                 INSERT INTO "{schema}"."change_history" (
                     transaction_id, client_instance, user_name, table_name, entity_id, operation, history_action,
@@ -151,17 +151,24 @@ public sealed class PostgreSqlSchemaInitializer
                 client_id := split_part(app_name, '|', 2);
                 IF client_id = '' THEN RETURN NULL; END IF;
 
-                data_kinds := CASE TG_TABLE_NAME
+                -- Only singletons has a key column and a row-level sync trigger.
+                -- Keep row access outside the statement-level trigger expression.
+                IF TG_TABLE_NAME = 'singletons' THEN
+                    data_kinds := CASE
+                        WHEN (CASE WHEN TG_OP = 'DELETE'
+                            THEN to_jsonb(OLD) ->> 'key'
+                            ELSE to_jsonb(NEW) ->> 'key' END) = 'vehicle_data' THEN 4
+                        ELSE 16
+                    END;
+                ELSE
+                    data_kinds := CASE TG_TABLE_NAME
                     WHEN 'orders' THEN 1
                     WHEN 'tour_records' THEN 2
                     WHEN 'employees' THEN 8
                     WHEN 'calendar_manual_entries' THEN 32
-                    WHEN 'singletons' THEN CASE
-                        WHEN (CASE WHEN TG_OP = 'DELETE' THEN OLD.key ELSE NEW.key END) = 'vehicle_data' THEN 4
-                        ELSE 16
-                    END
                     ELSE 0
-                END;
+                    END;
+                END IF;
                 IF data_kinds = 0 THEN RETURN NULL; END IF;
 
                 PERFORM pg_notify(

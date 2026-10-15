@@ -2099,7 +2099,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             new XmlImportMappingFieldViewModel("Vorauszahlungsstatus", XmlImportMappingSettings.DefaultOrderPrepaymentStatus, XmlImportMappingSettings.DefaultOrderPrepaymentStatus),
             new XmlImportMappingFieldViewModel("Archiviert", XmlImportMappingSettings.DefaultOrderArchived, XmlImportMappingSettings.DefaultOrderArchived),
             new XmlImportMappingFieldViewModel("Gesperrt", XmlImportMappingSettings.DefaultOrderLocked, XmlImportMappingSettings.DefaultOrderLocked),
-            new XmlImportMappingFieldViewModel("Notiz", XmlImportMappingSettings.DefaultOrderNote, XmlImportMappingSettings.DefaultOrderNote)
+            new XmlImportMappingFieldViewModel("Notiz", XmlImportMappingSettings.DefaultOrderNote, XmlImportMappingSettings.DefaultOrderNote),
+            new XmlImportMappingFieldViewModel("Lieferzeitraum", XmlImportMappingSettings.DefaultOrderDeliveryPeriod, XmlImportMappingSettings.DefaultOrderDeliveryPeriod)
         ];
     }
 
@@ -2195,6 +2196,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             OrderArchived = XmlImportOrderFields[15].XmlName,
             OrderLocked = XmlImportOrderFields[16].XmlName,
             OrderNote = XmlImportOrderFields[17].XmlName,
+            OrderDeliveryPeriod = XmlImportOrderFields[18].XmlName,
             ProductOrderId = XmlImportProductFields[0].XmlName,
             ProductArticleNumber = XmlImportProductFields[1].XmlName,
             ProductDescription = XmlImportProductFields[2].XmlName,
@@ -2248,6 +2250,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             XmlImportOrderFields[15].XmlName = effective.OrderArchived;
             XmlImportOrderFields[16].XmlName = effective.OrderLocked;
             XmlImportOrderFields[17].XmlName = effective.OrderNote;
+            XmlImportOrderFields[18].XmlName = effective.OrderDeliveryPeriod;
 
             XmlImportProductFields[0].XmlName = effective.ProductOrderId;
             XmlImportProductFields[1].XmlName = effective.ProductArticleNumber;

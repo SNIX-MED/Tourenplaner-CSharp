@@ -6,6 +6,7 @@ using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
+using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
@@ -499,33 +500,53 @@ public sealed class StartSectionViewModel : SectionViewModelBase
 
     private void BuildFixedDateOrders(IReadOnlyList<Order> orders, DateTime today)
     {
-        var todayDate = DateOnly.FromDateTime(today);
-        foreach (var order in orders
-                     .Where(x => !x.IsArchived &&
-                                 x.DeliveryDate.HasValue &&
-                                 x.DeliveryDate.Value != DateOnly.MinValue &&
-                                 !x.DeliveryCanOccurEarlier &&
-                                 x.DeliveryDate.Value >= todayDate)
-                     .OrderBy(x => x.DeliveryDate)
-                     .ThenBy(x => x.CustomerName, StringComparer.OrdinalIgnoreCase))
-        {
-            var deliveryDate = order.DeliveryDate!.Value;
-            FixedDateOrders.Add(new StartFixedDateOrderItem
-            {
-                CustomerName = string.IsNullOrWhiteSpace(order.CustomerName) ? $"Auftrag {order.Id}" : order.CustomerName.Trim(),
-                OrderNumber = order.Id,
-                Address = order.Address?.Trim() ?? string.Empty,
-                DateText = deliveryDate == todayDate ? "Heute" : deliveryDate.ToString("ddd, dd.MM.yyyy", UiCulture),
-                IsToday = deliveryDate == todayDate,
-                AssignmentText = string.IsNullOrWhiteSpace(order.AssignedTourId) ? "Noch nicht eingeplant" : "Tour zugeteilt",
-                OpenCommand = new AsyncCommand(() => OpenOrderAsync(order.Id, order.Type))
-            });
-        }
+        FixedDateOrders.Clear();
+        foreach (var item in CreateFixedDateItems(orders, DateOnly.FromDateTime(today), OpenOrderAsync))
+            FixedDateOrders.Add(item);
 
         OnPropertyChanged(nameof(HasFixedDateOrders));
         FixedDateSummary = FixedDateOrders.Count == 0
             ? "Keine anstehenden Fixtermine"
-            : $"{FixedDateOrders.Count} {(FixedDateOrders.Count == 1 ? "fester Liefertermin" : "feste Liefertermine")}";
+            : $"{FixedDateOrders.Count} {(FixedDateOrders.Count == 1 ? "Liefertermin / Zeitraum" : "Liefertermine / Zeiträume")}";
+    }
+
+    internal static IReadOnlyList<StartFixedDateOrderItem> CreateFixedDateItems(
+        IReadOnlyList<Order> orders, DateOnly today, Func<string, OrderType, Task>? openOrderAsync = null)
+    {
+        DeliveryPeriod? ResolveWindow(Order order)
+        {
+            if (order.IsArchived) return null;
+            // Keep the existing fixed-date rules; a period must not override a concrete date.
+            if (order.DeliveryDate is { } date && date != DateOnly.MinValue)
+                return !order.DeliveryCanOccurEarlier ? new DeliveryPeriod(date, date) : null;
+            return DeliveryPeriodParser.Parse(order.DeliveryPeriod, today);
+        }
+
+        string FormatWindow(DeliveryPeriod window)
+        {
+            if (window.Start is null) return $"Bis {window.End:dd.MM.yyyy}";
+            if (window.End is null) return $"Ab {window.Start:dd.MM.yyyy}";
+            if (window.Start == window.End)
+                return window.Start == today ? "Heute" : window.Start.Value.ToString("ddd, dd.MM.yyyy", UiCulture);
+            return $"{window.Start:dd.MM.yyyy} – {window.End:dd.MM.yyyy}";
+        }
+
+        return orders.Select(order => (Order: order, Window: ResolveWindow(order)))
+            .Where(x => x.Window is not null && (x.Window.End is null || x.Window.End >= today))
+            .OrderBy(x => x.Window!.Start ?? x.Window.End)
+            .ThenBy(x => x.Order.CustomerName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.Order.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new StartFixedDateOrderItem
+            {
+                CustomerName = string.IsNullOrWhiteSpace(x.Order.CustomerName) ? $"Auftrag {x.Order.Id}" : x.Order.CustomerName.Trim(),
+                OrderNumber = x.Order.Id,
+                Address = x.Order.Address?.Trim() ?? string.Empty,
+                DateText = FormatWindow(x.Window!),
+                DeliveryPeriod = x.Order.DeliveryPeriod,
+                IsToday = (x.Window!.Start is null || x.Window.Start <= today) && (x.Window.End is null || x.Window.End >= today),
+                AssignmentText = string.IsNullOrWhiteSpace(x.Order.AssignedTourId) ? "Noch nicht eingeplant" : "Tour zugeteilt",
+                OpenCommand = new AsyncCommand(() => openOrderAsync?.Invoke(x.Order.Id, x.Order.Type) ?? Task.CompletedTask)
+            }).ToList();
     }
 
     private Task OpenOrderAsync(string orderId, OrderType orderType) =>
@@ -844,6 +865,8 @@ public sealed class StartResourceAbsenceItem
 
 public sealed class StartFixedDateOrderItem
 {
+    public string DeliveryPeriod { get; set; } = string.Empty;
+    public bool HasDeliveryPeriod => !string.IsNullOrWhiteSpace(DeliveryPeriod);
     public string CustomerName { get; set; } = string.Empty;
     public string OrderNumber { get; set; } = string.Empty;
     public string TitleText => string.IsNullOrWhiteSpace(OrderNumber)

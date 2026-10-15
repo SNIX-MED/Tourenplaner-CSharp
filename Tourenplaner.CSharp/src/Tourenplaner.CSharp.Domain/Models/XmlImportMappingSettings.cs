@@ -72,6 +72,7 @@ public sealed class XmlImportMappingSettings
     public const string DefaultOrderDeliveryContactPerson = "lieferperson";
     public const string DefaultOrderDeliveryCondition = "versandart";
     public const string DefaultOrderDeliveryDate = "lieferdatum";
+    public const string DefaultOrderDeliveryPeriod = "Lieferdatum2";
     public const string DefaultOrderDeliveryCanOccurEarlier = "lieferdatumfrüher";
     public const string DefaultOrderDeliveryTime = "zus_lieferzeit";
     public const string DefaultOrderPaymentTerms = "zahlkondition";
@@ -131,6 +132,7 @@ public sealed class XmlImportMappingSettings
     public string OrderDeliveryContactPerson { get; set; } = DefaultOrderDeliveryContactPerson;
     public string OrderDeliveryCondition { get; set; } = DefaultOrderDeliveryCondition;
     public string OrderDeliveryDate { get; set; } = DefaultOrderDeliveryDate;
+    public string OrderDeliveryPeriod { get; set; } = DefaultOrderDeliveryPeriod;
     public string OrderDeliveryCanOccurEarlier { get; set; } = DefaultOrderDeliveryCanOccurEarlier;
     public string OrderDeliveryTime { get; set; } = DefaultOrderDeliveryTime;
     public string OrderPaymentTerms { get; set; } = DefaultOrderPaymentTerms;
@@ -197,6 +199,7 @@ public sealed class XmlImportMappingSettings
             OrderDeliveryContactPerson = Normalize(OrderDeliveryContactPerson, DefaultOrderDeliveryContactPerson),
             OrderDeliveryCondition = Normalize(OrderDeliveryCondition, DefaultOrderDeliveryCondition),
             OrderDeliveryDate = Normalize(OrderDeliveryDate, DefaultOrderDeliveryDate),
+            OrderDeliveryPeriod = Normalize(OrderDeliveryPeriod, DefaultOrderDeliveryPeriod),
             OrderDeliveryCanOccurEarlier = Normalize(OrderDeliveryCanOccurEarlier, DefaultOrderDeliveryCanOccurEarlier),
             OrderDeliveryTime = Normalize(OrderDeliveryTime, DefaultOrderDeliveryTime),
             OrderPaymentTerms = Normalize(OrderPaymentTerms, DefaultOrderPaymentTerms),

@@ -193,6 +193,26 @@ public sealed class KarteSearchDetailsTests
         Assert.Equal(Order.OrderedStatus, viewModel.DetailOrderStatus);
     }
 
+    [Fact]
+    public async Task DeliveryPeriod_IsAvailableOnMapCardAndSelectedOrderDetails()
+    {
+        var order = CreateOrder();
+        order.DeliveryPeriod = "KW 43–44";
+        var viewModel = CreateViewModel(new FixedOrderStore(order));
+        await viewModel.RefreshAsync();
+
+        var marker = Assert.Single(viewModel.MapOrders);
+        Assert.Equal("KW 43–44", marker.DeliveryPeriod);
+        var notifications = new List<string?>();
+        viewModel.PropertyChanged += (_, args) => notifications.Add(args.PropertyName);
+        viewModel.SelectedOrder = marker;
+        Assert.Equal("KW 43–44", viewModel.DetailDeliveryPeriod);
+        Assert.Contains(nameof(viewModel.DetailDeliveryPeriod), notifications);
+
+        viewModel.SelectedOrder = null;
+        Assert.Equal(string.Empty, viewModel.DetailDeliveryPeriod);
+    }
+
     private static KarteSectionViewModel CreateViewModel(
         IOrderRepository? orderRepository = null,
         ITourRecordStore? tourRepository = null) => new(

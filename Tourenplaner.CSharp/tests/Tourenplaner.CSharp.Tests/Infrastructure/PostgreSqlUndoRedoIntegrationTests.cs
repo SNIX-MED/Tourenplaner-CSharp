@@ -11,6 +11,87 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 public sealed class PostgreSqlUndoRedoIntegrationTests
 {
     [Fact]
+    public async Task SharedTriggers_HandleIdAndKeyTablesOnTheSameConnection()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("TOURENPLANER_POSTGRES_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString)) return;
+        var settings = CreateSettings(connectionString, $"history_test_trigger_shapes_{Guid.NewGuid():N}");
+        var initialized = false;
+        try
+        {
+            await using var connection = new PostgreSqlConnectionFactory().CreateConnection(settings);
+            await connection.OpenAsync();
+            var initializer = new PostgreSqlSchemaInitializer();
+            await initializer.EnsureSchemaAsync(connection, settings);
+            initialized = true;
+            // Existing installations also need CREATE OR REPLACE to repair their functions.
+            await initializer.EnsureSchemaAsync(connection, settings);
+
+            var notifications = new List<int>();
+            connection.Notification += (_, args) =>
+            {
+                using var payload = System.Text.Json.JsonDocument.Parse(args.Payload);
+                notifications.Add(payload.RootElement.GetProperty("Kinds").GetInt32());
+            };
+            await using (var listen = connection.CreateCommand())
+            {
+                listen.CommandText = "LISTEN tourenplaner_app_data_sync;";
+                await listen.ExecuteNonQueryAsync();
+            }
+
+            (string Table, string Column, string Key)[] entities =
+            [
+                ("orders", "id", "ORDER-1"),
+                ("tour_records", "id", "101"),
+                ("employees", "id", "EMPLOYEE-1"),
+                ("vehicles", "id", "VEHICLE-1"),
+                ("calendar_manual_entries", "id", "CALENDAR-1"),
+                ("singletons", "key", "app_settings"),
+                ("singletons", "key", "vehicle_data")
+            ];
+            // Exercise both record shapes repeatedly, including DELETE's OLD record.
+            foreach (var entity in entities.Concat(entities.Reverse()))
+            {
+                foreach (var sql in new[]
+                {
+                    $"""INSERT INTO "{settings.Schema}"."{entity.Table}" ({entity.Column}, payload) VALUES (@key, jsonb_build_object('value', 1));""",
+                    $"""UPDATE "{settings.Schema}"."{entity.Table}" SET payload = jsonb_build_object('value', 2) WHERE {entity.Column} = @key;""",
+                    $"""DELETE FROM "{settings.Schema}"."{entity.Table}" WHERE {entity.Column} = @key;"""
+                })
+                {
+                    await using var command = connection.CreateCommand();
+                    command.CommandText = sql;
+                    command.Parameters.AddWithValue("key", entity.Key);
+                    Assert.Equal(1, await command.ExecuteNonQueryAsync());
+                }
+            }
+
+            await using (var history = connection.CreateCommand())
+            {
+                history.CommandText = $"""SELECT table_name, entity_id, operation, count(*) FROM "{settings.Schema}"."change_history" GROUP BY table_name, entity_id, operation;""";
+                await using var reader = await history.ExecuteReaderAsync();
+                var groups = 0;
+                while (await reader.ReadAsync())
+                {
+                    Assert.Contains(entities, entity => entity.Table == reader.GetString(0) && entity.Key == reader.GetString(1));
+                    Assert.Contains(reader.GetString(2), new[] { "I", "U", "D" });
+                    Assert.Equal(2L, reader.GetInt64(3));
+                    groups++;
+                }
+                Assert.Equal(21, groups);
+            }
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            while (!new[] { 1, 2, 4, 8, 16, 32 }.All(notifications.Contains))
+                await connection.WaitAsync(timeout.Token);
+        }
+        finally
+        {
+            if (initialized) await DropIsolatedSchemaAsync(settings);
+        }
+    }
+
+    [Fact]
     public async Task SaveAll_IgnoresUnchangedStaleOrderAndConsolidatesDuplicateIds()
     {
         var connectionString = Environment.GetEnvironmentVariable("TOURENPLANER_POSTGRES_TEST_CONNECTION");

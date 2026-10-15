@@ -242,6 +242,11 @@
                                                         AllowClear="True"
                                                         IsReadOnly="{Binding IsEditingEnabled, Converter={StaticResource InverseBooleanConverter}}"
                                                         SelectedDateText="{Binding DeliveryDateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Text="Lieferzeitraum" />
+                        <TextBox Margin="0,4,10,0"
+                                 IsReadOnly="{Binding IsEditingEnabled, Converter={StaticResource InverseBooleanConverter}}"
+                                 Text="{Binding DeliveryPeriod, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Zum Beispiel: ab 31.10.2026, ab KW 51, KW 3 bis KW 6, 19.–23.10.2026 oder Ende Oktober. Ohne Jahr gilt das aktuelle Jahr; Kalenderwochen laufen von Montag bis Sonntag." />
                         <CheckBox Margin="0,8,0,0"
                                   Content="Lieferung kann auch früher erfolgen"
                                   IsEnabled="{Binding CanEditDeliveryCanOccurEarlier}"

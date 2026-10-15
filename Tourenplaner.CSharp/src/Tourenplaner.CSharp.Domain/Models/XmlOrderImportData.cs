@@ -37,6 +37,7 @@ public class XmlOrderImportData
     public decimal NettoTotal { get; set; }
     public decimal BruttoTotal { get; set; }
     public DateTime? Lieferdatum { get; set; }
+    public string Lieferdatum2 { get; set; } = string.Empty;
     public bool LieferungKannFrueherErfolgen { get; set; }
     public string Lieferzeit { get; set; } = string.Empty;
     public string Notiz { get; set; } = string.Empty;

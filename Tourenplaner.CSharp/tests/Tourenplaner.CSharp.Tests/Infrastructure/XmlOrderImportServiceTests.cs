@@ -5,6 +5,36 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 
 public class XmlOrderImportServiceTests
 {
+    [Theory]
+    [InlineData("belege", "beleg", "kopf", "datum", "Lieferdatum2", null)]
+    [InlineData("belege", "beleg", "kopf", "datum", "lieferdatum2", null)]
+    [InlineData("NewDataSet", "WW_Kopf", "AuftragNr", "Datum", "Lieferdatum2", null)]
+    [InlineData("belege", "beleg", "kopf", "datum", "zeitraum", "zeitraum")]
+    public void LoadOrdersFromFile_ReadsDeliveryPeriodAsFreeText(string root, string record, string numberField,
+        string dateField, string periodField, string? configuredField)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"tourenplaner-period-{Guid.NewGuid():N}.xml");
+        File.WriteAllText(path, $"""
+            <{root}><{record}>
+              <{numberField}>221878</{numberField}>
+              <{dateField}>17.08.2026 00:00:00</{dateField}>
+              <{periodField}> KW 43–44 &amp; nach Absprache </{periodField}>
+            </{record}></{root}>
+            """);
+        try
+        {
+            var mapping = new XmlImportMappingSettings();
+            if (configuredField is not null)
+                mapping.OrderDeliveryPeriod = configuredField;
+            var order = Assert.Single(new XmlOrderImportService().LoadOrdersFromFileDetailed(path, mapping).Orders);
+            Assert.Equal("KW 43–44 & nach Absprache", order.Lieferdatum2);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void LoadOrdersFromFile_InterpretsDottedDatesAsDayMonthYear()
     {
