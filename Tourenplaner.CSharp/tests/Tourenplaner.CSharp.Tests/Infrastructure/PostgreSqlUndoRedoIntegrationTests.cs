@@ -8,8 +8,48 @@ using Tourenplaner.CSharp.Infrastructure.Services;
 
 namespace Tourenplaner.CSharp.Tests.Infrastructure;
 
+[Collection("PostgreSql client context")]
 public sealed class PostgreSqlUndoRedoIntegrationTests
 {
+    [Fact]
+    public async Task ProductStatusEdit_PersistsAcrossRepositoriesAndNotifiesAnotherConnection()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("TOURENPLANER_POSTGRES_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString)) return;
+        var settings = CreateSettings(connectionString, $"history_test_status_{Guid.NewGuid():N}");
+        PostgreSqlClientContext.Configure(Guid.NewGuid(), "Status Test");
+        var initialized = false;
+        try
+        {
+            var repository = new PostgreSqlOrderRepository(settings);
+            var original = new Order { Id = "221972", Products = [new OrderProductInfo { PositionId = "P1", Name = "Produkt", Quantity = 1, DeliveryStatus = OrderProductInfo.InTransitStatus }] };
+            await repository.UpsertAsync(original);
+            initialized = true;
+            await using var listener = new PostgreSqlConnectionFactory().CreateConnection(settings);
+            await listener.OpenAsync();
+            var notified = false;
+            listener.Notification += (_, args) => notified |= args.Payload.Contains("\"Kinds\" : 1", StringComparison.Ordinal);
+            await using (var command = listener.CreateCommand())
+            {
+                command.CommandText = "LISTEN tourenplaner_app_data_sync;";
+                await command.ExecuteNonQueryAsync();
+            }
+            var candidate = OrderEditPersistenceService.CreateCandidate(original);
+            candidate.Products[0].DeliveryStatus = OrderProductInfo.InStockStatus;
+            await OrderEditPersistenceService.SaveAsync(repository, [original, new Order { Id = "STALE-UNRELATED" }], candidate);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            while (!notified) await listener.WaitAsync(timeout.Token);
+            var secondPc = new PostgreSqlOrderRepository(settings);
+            Assert.Equal(OrderProductInfo.InStockStatus, (await secondPc.GetByIdAsync(original.Id))!.Products[0].DeliveryStatus);
+            Assert.Equal(OrderProductInfo.InStockStatus, Assert.Single(await new PostgreSqlOrderRepository(settings).GetAllAsync()).Products[0].DeliveryStatus);
+            Assert.Equal(OrderProductInfo.InTransitStatus, original.Products[0].DeliveryStatus);
+        }
+        finally
+        {
+            if (initialized) await DropIsolatedSchemaAsync(settings);
+        }
+    }
+
     [Fact]
     public async Task SharedTriggers_HandleIdAndKeyTablesOnTheSameConnection()
     {
@@ -228,23 +268,38 @@ public sealed class PostgreSqlUndoRedoIntegrationTests
         }
     }
 
-    [Fact]
-    public async Task CollaborationLock_BlocksOtherDatabaseSessionButAllowsOwner()
+    [Theory]
+    [InlineData("Owner")]
+    [InlineData("Ein sehr langer Benutzername")]
+    [InlineData("Müller Verkauf Büro")]
+    public async Task CollaborationLock_BlocksOtherDatabaseSessionButAllowsOwner(string userName)
     {
         var connectionString = Environment.GetEnvironmentVariable("TOURENPLANER_POSTGRES_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connectionString)) return;
         var settings = CreateSettings(connectionString, $"history_test_locks_{Guid.NewGuid():N}");
         var initialized = false;
-        PostgreSqlClientContext.Configure(Guid.NewGuid(), "Owner");
+        PostgreSqlClientContext.Configure(Guid.NewGuid(), userName);
         await using var locks = new PostgreSqlCollaborationLockService(settings);
         try
         {
             var repository = new PostgreSqlOrderRepository(settings);
+            var tourRepository = new PostgreSqlToursRepository(settings);
             var order = new Order { Id = "LOCKED-1", CustomerName = "Before" };
             await repository.UpsertAsync(order);
             initialized = true;
-            var acquired = await locks.TryAcquireAsync("order", order.Id, "Owner");
+            var tour = new TourRecord { Id = 101, Name = "Before" };
+            await tourRepository.UpsertAsync(tour);
+            var acquired = await locks.TryAcquireAsync("order", order.Id, userName);
             Assert.True(acquired.Acquired);
+            Assert.True((await locks.TryAcquireAsync("tour", "101", userName)).Acquired);
+
+            await using (var ownerConnection = new PostgreSqlConnectionFactory().CreateConnection(settings))
+            {
+                await ownerConnection.OpenAsync();
+                await using var sessionCommand = ownerConnection.CreateCommand();
+                sessionCommand.CommandText = "SELECT split_part(current_setting('application_name'), '|', 4);";
+                Assert.Equal(PostgreSqlClientContext.LockSessionId, await sessionCommand.ExecuteScalarAsync());
+            }
 
             var builder = new NpgsqlConnectionStringBuilder(connectionString)
             {
@@ -259,8 +314,14 @@ public sealed class PostgreSqlUndoRedoIntegrationTests
             Assert.Equal("40001", exception.SqlState);
 
             order.CustomerName = "Owner update";
-            await repository.UpsertAsync(order);
+            tour.Name = "Owner update";
+            await ((ITourOrderTransactionStore)tourRepository).SaveAsync([tour], [order]);
             Assert.Equal("Owner update", (await repository.GetByIdAsync(order.Id))?.CustomerName);
+            Assert.Equal("Owner update", (await tourRepository.GetByIdAsync(tour.Id))?.Name);
+            // The post-save assignment refresh must also be allowed with our own lease.
+            order.Notes = "Post-save maintenance";
+            await repository.UpsertAsync(order);
+            Assert.Equal("Post-save maintenance", (await repository.GetByIdAsync(order.Id))?.Notes);
         }
         finally
         {

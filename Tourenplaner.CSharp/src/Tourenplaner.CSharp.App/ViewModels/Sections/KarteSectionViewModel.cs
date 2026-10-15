@@ -1344,7 +1344,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 return;
             }
 
-            _ = UpdateSelectedOrderStatusAsync(value);
+            _ = RunDetailSaveAsync(() => UpdateSelectedOrderStatusAsync(value));
         }
     }
 
@@ -1363,7 +1363,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 return;
             }
 
-            _ = UpdateSelectedAvisoStatusAsync(value);
+            _ = RunDetailSaveAsync(() => UpdateSelectedAvisoStatusAsync(value));
         }
     }
 
@@ -1702,13 +1702,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _allOrders.Clear();
         _allOrders.AddRange(loadedOrders);
 
+        var beforeMaintenance = OrderMaintenancePersistenceService.CreateSnapshot(_allOrders);
         var statusSynchronized = SyncDerivedOrderStatuses(_allOrders);
         var deliveriesSynchronized = SynchronizePartialDeliveries(_allOrders);
         var suspiciousLocationsCleared = AddressGeocodingService.ClearSuspiciousSharedOrderLocations(_allOrders) > 0;
         var locationBackfilled = await BackfillMissingLocationsAsync();
         if (statusSynchronized || deliveriesSynchronized || suspiciousLocationsCleared || locationBackfilled)
         {
-            await _orderRepository.SaveAllAsync(_allOrders);
+            await OrderMaintenancePersistenceService.SaveChangesAsync(_orderRepository, beforeMaintenance, _allOrders);
         }
 
         RefreshOrderFilterOptions();
@@ -1787,7 +1788,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 return;
             }
 
-            _ = ApplySelectedDetailProductStatusAsync(normalized);
+            _ = RunDetailSaveAsync(() => ApplySelectedDetailProductStatusAsync(normalized));
         }
     }
     public bool HasSelectedDetailProducts => _selectedDetailProductIndices.Count > 0;
@@ -7244,7 +7245,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public async Task EditDetailProductAsync(DetailProductItem? detailItem)
     {
-        var order = FindSelectedOrderModel();
+        var selected = FindSelectedOrderModel();
+        var order = selected is null ? null : OrderEditPersistenceService.CreateCandidate(selected);
         if (order is null || detailItem is null)
         {
             return;
@@ -7269,7 +7271,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         products[productIndex] = dialog.Result.ToOrderProductInfo();
         order.OrderStatus = Order.ResolveOrderStatusFromProducts(products);
-        await _orderRepository.SaveAllAsync(_allOrders);
+        await SaveOrderCandidateAsync(order);
         RebuildOrderGrid(order.Id);
         OnPropertyChanged(nameof(DetailProducts));
         OnPropertyChanged(nameof(DetailProductItems));
@@ -7283,7 +7285,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public async Task SaveDetailManualTotalWeightAsync(string? value, string? info)
     {
-        var order = FindSelectedOrderModel();
+        var selected = FindSelectedOrderModel();
+        var order = selected is null ? null : OrderEditPersistenceService.CreateCandidate(selected);
         if (order is null)
         {
             return;
@@ -7317,14 +7320,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         order.ManualTotalWeightKg = manualWeight;
         order.ManualTotalWeightInfo = normalizedInfo;
-        if (_orderMutationRepository is not null)
-        {
-            await _orderMutationRepository.UpsertAsync(order);
-        }
-        else
-        {
-            await _orderRepository.SaveAllAsync(_allOrders);
-        }
+        await SaveOrderCandidateAsync(order);
 
         RebuildOrderGrid(order.Id);
         RebuildTourOverviewItems();
@@ -7529,7 +7525,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private async Task ApplySelectedDetailProductStatusAsync(string statusToApply)
     {
-        var order = FindSelectedOrderModel();
+        var selected = FindSelectedOrderModel();
+        var order = selected is null ? null : OrderEditPersistenceService.CreateCandidate(selected);
         if (order is null)
         {
             return;
@@ -7567,7 +7564,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         var selectedProductIndices = _selectedDetailProductIndices.OrderBy(x => x).ToList();
         order.OrderStatus = Order.ResolveOrderStatusFromProducts(products);
-        await _orderRepository.SaveAllAsync(_allOrders);
+        await SaveOrderCandidateAsync(order);
         RebuildOrderGrid(order.Id);
         RestoreDetailProductSelection(selectedProductIndices, products, raiseDetailItemsChanged: false);
         OnPropertyChanged(nameof(DetailProducts));
@@ -7744,7 +7741,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private async Task UpdateSelectedOrderStatusAsync(string? nextStatus)
     {
-        var order = FindSelectedOrderModel();
+        var selected = FindSelectedOrderModel();
+        var order = selected is null ? null : OrderEditPersistenceService.CreateCandidate(selected);
         if (order is null)
         {
             return;
@@ -7757,7 +7755,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             if (!string.Equals(currentStatus, derivedStatus, StringComparison.OrdinalIgnoreCase))
             {
                 order.OrderStatus = derivedStatus;
-                await _orderRepository.SaveAllAsync(_allOrders);
+                await SaveOrderCandidateAsync(order);
                 RebuildOrderGrid(order.Id);
                 OnPropertyChanged(nameof(RouteStops));
                 OnPropertyChanged(nameof(DetailOrderStatus));
@@ -7787,7 +7785,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         order.OrderStatus = normalizedStatus;
-        await _orderRepository.SaveAllAsync(_allOrders);
+        await SaveOrderCandidateAsync(order);
 
         _suppressDetailStatusSave = true;
         try
@@ -7806,6 +7804,46 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(DetailOrderStatusColor));
         OnPropertyChanged(nameof(DetailOrderStatusBadgeBackgroundColor));
         StatusText = $"Status für Auftrag {order.Id} gespeichert.";
+        PublishOrderChange(order.Id, order.Id);
+    }
+
+    private async Task SaveOrderCandidateAsync(Order candidate)
+    {
+        await OrderEditPersistenceService.SaveAsync(_orderRepository, _allOrders, candidate);
+        ReplaceCommittedOrder(candidate);
+    }
+
+    private void ReplaceCommittedOrder(Order candidate)
+    {
+        var index = _allOrders.FindIndex(x => string.Equals(x.Id, candidate.Id, StringComparison.OrdinalIgnoreCase));
+        if (index >= 0) _allOrders[index] = candidate;
+        else _allOrders.Add(candidate);
+    }
+
+    private async Task RunDetailSaveAsync(Func<Task> save)
+    {
+        var markerId = SelectedOrder?.MarkerId;
+        await _orderRefreshGate.WaitAsync();
+        try
+        {
+            if (!string.Equals(markerId, SelectedOrder?.MarkerId, StringComparison.OrdinalIgnoreCase)) return;
+            await save();
+        }
+        catch (Exception ex)
+        {
+            // Property setters cannot await. Always observe failures and restore the
+            // committed state instead of leaving an unsaved status visible as success.
+            var reloadError = string.Empty;
+            try { await RefreshCoreAsync(); }
+            catch (Exception reload) { reloadError = $"\n\nNeuladen ebenfalls fehlgeschlagen: {reload.Message}"; }
+            StatusText = "Änderung wurde nicht gespeichert.";
+            AppMessageBox.Show($"Die Änderung wurde nicht gespeichert.\n\n{ex.Message}{reloadError}",
+                "Speichern fehlgeschlagen", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _orderRefreshGate.Release();
+        }
     }
 
     private static bool SyncDerivedOrderStatuses(IEnumerable<Order> orders)
@@ -7843,7 +7881,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     private async Task UpdateSelectedAvisoStatusAsync(string? nextStatus)
     {
-        var order = FindSelectedOrderModel();
+        var selected = FindSelectedOrderModel();
+        var order = selected is null ? null : OrderEditPersistenceService.CreateCandidate(selected);
         if (order is null)
         {
             return;
@@ -7918,7 +7957,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             : ((string Start, string End)?)null;
 
         var tours = (await _tourRepository.LoadAsync()).ToList();
-        var changed = false;
+        var changedTours = new List<TourRecord>();
         foreach (var tour in tours)
         {
             var stop = (tour.Stops ?? []).FirstOrDefault(candidate =>
@@ -7939,16 +7978,21 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 _scheduleService.ApplySchedule(tour);
             }
 
-            changed = true;
+            changedTours.Add(tour);
         }
 
-        if (!changed)
+        if (changedTours.Count == 0)
         {
-            await _orderRepository.SaveAllAsync(_allOrders);
+            await SaveOrderCandidateAsync(order);
             return;
         }
 
-        await SaveToursAndOrdersAsync(tours, _allOrders);
+        await SaveToursAndOrdersAsync(
+            _tourOrderTransactionStore is null ? tours : changedTours,
+            _tourOrderTransactionStore is null
+                ? _allOrders.Where(x => !string.Equals(x.Id, order.Id, StringComparison.OrdinalIgnoreCase)).Append(order).ToList()
+                : [order]);
+        ReplaceCommittedOrder(order);
         _dataSyncService.PublishTours(_instanceId, order.AssignedTourId, order.AssignedTourId);
 
         if (routeStop is not null)
@@ -8014,9 +8058,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         var loadedOrders = DeduplicateOrders(await _orderRepository.GetAllAsync());
         _allOrders.Clear();
         _allOrders.AddRange(loadedOrders);
-        if (SyncDerivedOrderStatuses(_allOrders) || SynchronizePartialDeliveries(_allOrders))
+        var beforeMaintenance = OrderMaintenancePersistenceService.CreateSnapshot(_allOrders);
+        var statusChanged = SyncDerivedOrderStatuses(_allOrders);
+        var deliveriesChanged = SynchronizePartialDeliveries(_allOrders);
+        if (statusChanged || deliveriesChanged)
         {
-            await _orderRepository.SaveAllAsync(_allOrders);
+            await OrderMaintenancePersistenceService.SaveChangesAsync(_orderRepository, beforeMaintenance, _allOrders);
             PublishOrderChange(preferredSelectedOrderId, preferredSelectedOrderId);
         }
 

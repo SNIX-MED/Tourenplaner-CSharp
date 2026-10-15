@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Tourenplaner.CSharp.Infrastructure.Services;
 
 public static class PostgreSqlClientContext
@@ -33,6 +35,18 @@ public static class PostgreSqlClientContext
         var normalized = string.Concat((value ?? string.Empty)
             .Trim()
             .Where(character => character != '|'));
-        return normalized.Length <= 15 ? normalized : normalized[..15];
+        // PostgreSQL truncates application_name at 63 bytes, not 64 characters.
+        // "GAWELA|" + client GUID + two separators + session ID occupy 49 ASCII
+        // bytes. Reserve the full session suffix so our own locks stay recognizable.
+        const int userNameByteBudget = 63 - (7 + 32 + 1 + 1 + 8);
+        var result = new StringBuilder();
+        var byteCount = 0;
+        foreach (var rune in normalized.EnumerateRunes())
+        {
+            if (byteCount + rune.Utf8SequenceLength > userNameByteBudget) break;
+            result.Append(rune.ToString());
+            byteCount += rune.Utf8SequenceLength;
+        }
+        return result.ToString();
     }
 }

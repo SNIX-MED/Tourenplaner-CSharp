@@ -104,14 +104,27 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
         try
         {
             await connection.OpenAsync(cancellationToken);
-            RaiseStatus(isConnected: true, "PostgreSQL-Sync verbunden.", null);
             await using var command = connection.CreateCommand();
             command.CommandText = $"""LISTEN "{ChannelName}";""";
             await command.ExecuteNonQueryAsync(cancellationToken);
 
+            RaiseStatus(isConnected: true, "PostgreSQL-Sync verbunden.", null);
+            // LISTEN only delivers subsequent commits. Reload after every connection,
+            // including reconnects, to catch changes committed while this PC was offline.
+            RemoteDataChanged?.Invoke(this, new AppDataChangedEventArgs(Guid.Empty,
+                AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Vehicles |
+                AppDataKind.Employees | AppDataKind.Settings | AppDataKind.CalendarEntries,
+                ClientInstanceId: Guid.Empty));
+
             while (!cancellationToken.IsCancellationRequested)
             {
-                await connection.WaitAsync(cancellationToken);
+                if (!await connection.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken))
+                {
+                    await using var heartbeat = connection.CreateCommand();
+                    heartbeat.CommandText = "SELECT 1;";
+                    heartbeat.CommandTimeout = 10;
+                    await heartbeat.ExecuteScalarAsync(cancellationToken);
+                }
             }
         }
         finally

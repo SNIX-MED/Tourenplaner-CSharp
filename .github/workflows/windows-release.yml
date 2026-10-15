@@ -69,10 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - XML-Import erkennt und speichert reine Aenderungen am Lieferdatum
-          - Lieferzeitraum aus Lieferdatum2 in Auftragsbearbeitung, Karten und Details
-          - Erkennung von Datumsbereichen, Kalenderwochen und offenen Lieferzeitraeumen mit chronologischer Anzeige auf der Startseite
-          - PostgreSQL-Speicherfehler durch Zugriff auf das nicht vorhandene Triggerfeld key behoben
+          - Gezieltes Speichern von Produktstatus und Auftragsdetails mit sichtbarer Fehlerbehandlung
+          - Robuster PostgreSQL-Sync mit Nachladen nach Wiederverbindung
+          - Eigene Kollaborationssperren bei langen Benutzernamen korrekt erkennen
+          - Einheitliche Konfliktpruefung fuer Einstellungen und Schutz vor unbemerktem lokalen Dateibetrieb
+          - Programm startet immer maximiert
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

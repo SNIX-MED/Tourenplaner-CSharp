@@ -21,6 +21,12 @@ public sealed class StorageRepositoryFactory
         var bootstrapSettingsStore = new JsonAppSettingsRepository(settingsBootstrapPath);
         var bootstrapSettings = await bootstrapSettingsStore.LoadAsync(cancellationToken);
 
+        if (!forceLocalStorageForSession && bootstrapSettings.StorageMode == AppStorageMode.PostgreSql &&
+            bootstrapSettings.PostgreSqlStorage?.IsConfigured() != true)
+        {
+            throw new InvalidOperationException("PostgreSQL ist als Speicher gewählt, aber die Verbindungseinstellungen sind unvollständig. Es wird nicht automatisch auf lokale Dateien gewechselt.");
+        }
+
         var usePostgreSql = !forceLocalStorageForSession &&
                             bootstrapSettings.StorageMode == AppStorageMode.PostgreSql &&
                             bootstrapSettings.PostgreSqlStorage is not null &&

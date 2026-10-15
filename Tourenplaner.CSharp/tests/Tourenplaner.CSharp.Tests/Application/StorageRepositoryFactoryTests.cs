@@ -7,6 +7,26 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class StorageRepositoryFactoryTests
 {
     [Fact]
+    public async Task CreateAsync_IncompleteSqlConfigurationDoesNotSilentlyUseLocalFiles()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-storage-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var settingsPath = Path.Combine(root, "settings.json");
+            await File.WriteAllTextAsync(settingsPath, JsonSerializer.Serialize(new AppSettings
+            {
+                StorageMode = AppStorageMode.PostgreSql,
+                PostgreSqlStorage = new PostgreSqlStorageSettings { Host = string.Empty, Database = string.Empty, Username = string.Empty }
+            }));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => new StorageRepositoryFactory().CreateAsync(
+                root, settingsPath, Path.Combine(root, "orders.json"), Path.Combine(root, "tours.json"),
+                Path.Combine(root, "employees.json"), Path.Combine(root, "vehicles.json"), Path.Combine(root, "calendar.json")));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public async Task CreateAsync_ForcedLocalSession_PreservesConfiguredPostgreSqlMode()
     {
         var dataRoot = Path.Combine(Path.GetTempPath(), "tourenplaner-storage-factory-tests", Guid.NewGuid().ToString("N"));
