@@ -6133,7 +6133,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private int ResolveSavedTourTotalWeightKg(TourRecord tour)
     {
         var orderIds = (tour.Stops ?? [])
-            .Where(IsCustomerTourStop)
+            .Where(stop => IsCustomerTourStop(stop) && !IsManualTourStop(stop))
             .Select(ExtractTourStopOrderId)
             .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
             .Select(orderId => orderId.Trim())
@@ -8592,7 +8592,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         var orderIds = (tour.Stops ?? [])
-            .Where(IsCustomerTourStop)
+            .Where(stop => IsCustomerTourStop(stop) && !IsManualTourStop(stop))
             .Select(ExtractTourStopOrderId)
             .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
             .Select(orderId => orderId.Trim())
@@ -8605,7 +8605,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         if (avisoStates.Count > 0 && avisoStates.All(status => string.Equals(status, "Bestätigt", StringComparison.OrdinalIgnoreCase)))
         {
-            return ("Bestätigt", "#DCFCE7", "#15803D", "\uE73E");
+            return ("Geplant", "#DCFCE7", "#15803D", "\uE73E");
         }
 
         if (avisoStates.Count > 0 &&

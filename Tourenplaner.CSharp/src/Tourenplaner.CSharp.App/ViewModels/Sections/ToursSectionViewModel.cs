@@ -17,8 +17,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 {
     private const string PauseStopKind = "pause";
     private const string PauseStopIdPrefix = "pause:";
+    private const string ManualStopKind = "manual";
+    private const string ManualStopIdPrefix = "manual:";
     private const int DefaultPauseMinutes = 15;
-    private const int EtaRangeWarningThresholdMinutes = 20;
     private static readonly CultureInfo UiCulture = CultureInfo.GetCultureInfo("de-CH");
     private readonly ITourRecordStore _tourRepository;
     private readonly IOrderRepository _orderRepository;
@@ -2935,7 +2936,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var avisoStates = (tour.Stops ?? [])
-            .Where(IsCustomerStop)
+            .Where(stop => IsCustomerStop(stop) && !IsManualStop(stop))
             .Select(ExtractOrderIdFromStop)
             .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
             .Select(orderId => orderId.Trim())
@@ -2946,7 +2947,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         if (avisoStates.Count > 0 && avisoStates.All(status => string.Equals(status, "Bestätigt", StringComparison.OrdinalIgnoreCase)))
         {
-            return ("Bestätigt", "#DCFCE7", "#15803D", "\uE73E");
+            return ("Geplant", "#DCFCE7", "#15803D", "\uE73E");
         }
 
         if (avisoStates.Count > 0 &&
@@ -3749,23 +3750,6 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         {
             var scheduleEntry = schedulePreview.Stops[i];
             var stop = orderedStops[i];
-            if (!IsCompanyStop(stop) && !IsPauseStop(stop))
-            {
-                var optimisticArrival = scheduleEntry.OptimisticArrival ?? scheduleEntry.Arrival;
-                var pessimisticArrival = scheduleEntry.PessimisticArrival ?? scheduleEntry.Arrival;
-                var etaSpreadMinutes = Math.Max(0, (int)Math.Round((pessimisticArrival - optimisticArrival).TotalMinutes));
-                if (stop.IsArrivalWindowFixed && etaSpreadMinutes >= EtaRangeWarningThresholdMinutes)
-                {
-                    var etaStopLabel = string.IsNullOrWhiteSpace(stop.Auftragsnummer)
-                        ? stop.Name
-                        : $"{stop.Name} ({stop.Auftragsnummer})";
-                    warnings.Add(new TourPlanningWarningItem(
-                        Title: "ETA-Spanne",
-                        Message: $"{etaStopLabel}: ETA-Fenster {optimisticArrival:HH:mm} - {pessimisticArrival:HH:mm} (Spanne {etaSpreadMinutes} min).",
-                        Suggestion: "Mehr Puffer einplanen, Startzeit vorziehen oder Tour kompakter planen."));
-                }
-            }
-
             if (!scheduleEntry.HasConflict)
             {
                 continue;
@@ -4121,6 +4105,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private static bool IsCustomerStop(TourStopRecord stop)
     {
         return !IsCompanyStop(stop) && !IsPauseStop(stop);
+    }
+
+    private static bool IsManualStop(TourStopRecord stop)
+    {
+        var stopKind = (stop.StopKind ?? string.Empty).Trim();
+        var id = (stop.Id ?? string.Empty).Trim();
+        return string.Equals(stopKind, ManualStopKind, StringComparison.OrdinalIgnoreCase) ||
+               id.StartsWith(ManualStopIdPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     private static TourStopRecord CreatePauseStop(int serviceMinutes)

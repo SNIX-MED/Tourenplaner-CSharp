@@ -687,12 +687,12 @@
                             TextOptions.TextFormattingMode="Display"
                             TextOptions.TextRenderingMode="ClearType"
                             RenderOptions.ClearTypeHint="Enabled">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
-                            <ListBox x:Name="SelectedTourStopsGrid"
+                        <ListBox x:Name="SelectedTourStopsGrid"
                                      ItemsSource="{Binding SelectedTourStops}"
                                      SelectedItem="{Binding SelectedTourStop, Mode=TwoWay}"
                                      AllowDrop="True"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      ContextMenuOpening="OnSelectedTourStopContextMenuOpening"
                                      PreviewMouseLeftButtonDown="SelectedTourStopsGrid_PreviewMouseLeftButtonDown"
                                      PreviewMouseRightButtonDown="SelectedTourStopsGrid_PreviewMouseRightButtonDown"
@@ -1055,8 +1055,7 @@
                                         </Border>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
-                            </ListBox>
-                        </ScrollViewer>
+                        </ListBox>
                     </Border>
 
                     <Grid Grid.Row="2" Margin="0,10,0,0">
