@@ -10,7 +10,8 @@
         Background="{DynamicResource Brush.WindowBackground}">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-        <Style x:Key="ResourceOptionStyle" TargetType="ComboBoxItem">
+        <Style x:Key="ResourceOptionStyle" TargetType="ComboBoxItem"
+               BasedOn="{StaticResource {x:Type ComboBoxItem}}">
             <Setter Property="IsEnabled" Value="{Binding IsAvailable}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsAvailable}" Value="False">

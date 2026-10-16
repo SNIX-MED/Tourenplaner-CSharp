@@ -41,7 +41,7 @@ public sealed class OrderMaintenancePersistenceServiceTests
     }
 
     [Fact]
-    public async Task SaveChangesAsync_RethrowsDivergentConcurrentChange()
+    public async Task SaveChangesAsync_LoadsDivergentConcurrentChangeWithoutAbortingRefresh()
     {
         var before = new Order { Id = "2", CustomerName = "Vorher", ConcurrencyToken = "old" };
         var desired = new Order { Id = "2", CustomerName = "Unsere Änderung", ConcurrencyToken = "old" };
@@ -51,8 +51,22 @@ public sealed class OrderMaintenancePersistenceServiceTests
             CurrentOrder = new Order { Id = "2", CustomerName = "Fremde Änderung", ConcurrencyToken = "new" }
         };
 
-        await Assert.ThrowsAsync<ConcurrencyConflictException>(() =>
-            OrderMaintenancePersistenceService.SaveChangesAsync(repository, [before], [desired]));
+        await OrderMaintenancePersistenceService.SaveChangesAsync(repository, [before], [desired]);
+        Assert.Equal(repository.CurrentOrder.CustomerName, desired.CustomerName);
+        Assert.Equal("new", desired.ConcurrencyToken);
+        Assert.Single(repository.UpsertedOrderIds);
+    }
+
+    [Fact]
+    public async Task SaveChangesAsync_RemovesConcurrentlyDeletedOrderAndContinues()
+    {
+        var before = new Order { Id = "2", CustomerName = "Before" };
+        var desired = new Order { Id = "2", CustomerName = "Maintenance" };
+        var orders = new List<Order> { desired };
+        var repository = new RecordingOrderRepository { ConflictOnUpsert = true };
+        await OrderMaintenancePersistenceService.SaveChangesAsync(repository, [before], orders);
+        Assert.Empty(orders);
+        Assert.Single(repository.UpsertedOrderIds);
     }
 
     private sealed class RecordingOrderRepository : IOrderRepository, IOrderMutationRepository

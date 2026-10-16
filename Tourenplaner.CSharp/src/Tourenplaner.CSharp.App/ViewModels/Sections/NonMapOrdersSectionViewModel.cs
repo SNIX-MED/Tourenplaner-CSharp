@@ -1363,6 +1363,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
                 SequenceNumber = d.SequenceNumber,
                 Status = d.Status,
                 PlannedDeliveryDate = d.PlannedDeliveryDate,
+                IsPlannedDeliveryDateExplicit = d.IsPlannedDeliveryDateExplicit,
                 DeliveredAt = d.DeliveredAt,
                 AssignedTourId = d.AssignedTourId,
                 Notes = d.Notes,

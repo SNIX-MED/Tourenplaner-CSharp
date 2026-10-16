@@ -90,7 +90,7 @@ public sealed class XmlImportMappingSettings
     public const string DefaultProductPositionCode = "poscode";
     public const string DefaultExcludedProductArticleNumbers = "";
     public const string DefaultExcludedProductDescriptions = "Zwischentotal;Zwischensumme;Subtotal;Textblock;Textblöcke;Rabatt";
-    public const string DefaultExcludedProductPositionCodes = "RAB;ZWI;TXT";
+    public const string DefaultExcludedProductPositionCodes = "RAB;ZWI;TXT;NS";
 
     public const string DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers = "FRACHT-O-VERT;FRACHT-O-VERT-alt";
     public const string DefaultDeliveryTypeMitVerteilungArticleNumbers = "FRACHT-M-VERT;FRACHT-M-VERT-Pneu";
@@ -216,7 +216,10 @@ public sealed class XmlImportMappingSettings
             ProductPositionCode = Normalize(ProductPositionCode, DefaultProductPositionCode),
             ExcludedProductArticleNumbers = Normalize(ExcludedProductArticleNumbers, DefaultExcludedProductArticleNumbers),
             ExcludedProductDescriptions = Normalize(ExcludedProductDescriptions, DefaultExcludedProductDescriptions),
-            ExcludedProductPositionCodes = Normalize(ExcludedProductPositionCodes, DefaultExcludedProductPositionCodes),
+            ExcludedProductPositionCodes = string.Join(";",
+                Normalize(ExcludedProductPositionCodes, DefaultExcludedProductPositionCodes)
+                    .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Append("NS").Distinct(StringComparer.OrdinalIgnoreCase)),
             DeliveryTypeFreiBordsteinkanteArticleNumbers = Normalize(DeliveryTypeFreiBordsteinkanteArticleNumbers, DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers),
             DeliveryTypeMitVerteilungArticleNumbers = Normalize(DeliveryTypeMitVerteilungArticleNumbers, DefaultDeliveryTypeMitVerteilungArticleNumbers),
             DeliveryTypeMitVerteilungMontageArticleNumbers = Normalize(DeliveryTypeMitVerteilungMontageArticleNumbers, DefaultDeliveryTypeMitVerteilungMontageArticleNumbers),

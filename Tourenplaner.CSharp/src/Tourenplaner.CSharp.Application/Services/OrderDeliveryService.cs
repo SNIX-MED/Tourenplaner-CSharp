@@ -30,6 +30,16 @@ public sealed class OrderDeliveryService
         foreach (var delivery in order.Deliveries)
         {
             delivery.Lines ??= [];
+            // Older versions used the order date as a fabricated delivery date.
+            // New explicit dates carry provenance so an intentional same-day date survives.
+            if (!delivery.IsPlannedDeliveryDateExplicit &&
+                (!order.DeliveryDate.HasValue || order.DeliveryDate == DateOnly.MinValue) &&
+                order.ScheduledDate != DateOnly.MinValue &&
+                delivery.PlannedDeliveryDate == order.ScheduledDate)
+            {
+                delivery.PlannedDeliveryDate = null;
+                changed = true;
+            }
             if (string.Equals(delivery.Notes?.Trim(), "Automatisch erzeugte Restlieferung", StringComparison.Ordinal))
             {
                 delivery.Notes = string.Empty;
@@ -56,7 +66,7 @@ public sealed class OrderDeliveryService
                 Id = Guid.NewGuid().ToString("N"),
                 SequenceNumber = 1,
                 Status = OrderDeliveryStatus.Planned,
-                PlannedDeliveryDate = order.DeliveryDate ?? order.ScheduledDate,
+                PlannedDeliveryDate = order.DeliveryDate is { } date && date != DateOnly.MinValue ? date : null,
                 AssignedTourId = order.AssignedTourId,
                 Lines = order.Products
                     .Where(x => !string.IsNullOrWhiteSpace(x.Name))
@@ -149,6 +159,7 @@ public sealed class OrderDeliveryService
             SequenceNumber = order.Deliveries.Select(x => x.SequenceNumber).DefaultIfEmpty(0).Max() + 1,
             Status = OrderDeliveryStatus.ReadyForPlanning,
             PlannedDeliveryDate = plannedDate,
+            IsPlannedDeliveryDateExplicit = plannedDate.HasValue && plannedDate != DateOnly.MinValue,
             Notes = (notes ?? string.Empty).Trim(),
             Lines = requested
         };
@@ -613,6 +624,7 @@ public sealed class OrderDeliveryService
         SequenceNumber = source.SequenceNumber,
         Status = source.Status,
         PlannedDeliveryDate = source.PlannedDeliveryDate,
+        IsPlannedDeliveryDateExplicit = source.IsPlannedDeliveryDateExplicit,
         DeliveredAt = source.DeliveredAt,
         AssignedTourId = source.AssignedTourId,
         Notes = source.Notes,

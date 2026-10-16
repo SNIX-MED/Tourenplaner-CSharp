@@ -1,4 +1,4 @@
-<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.SettingsSectionView"
+﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.SettingsSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:Tourenplaner.CSharp.App.Converters"
@@ -2277,7 +2277,7 @@
                                                     <Border Grid.Row="2" Grid.ColumnSpan="2" Style="{StaticResource CompactXmlMappingCardStyle}">
                                                         <StackPanel>
                                                             <TextBlock Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Produktausschlüsse" />
-                                                            <TextBlock Margin="0,4,0,8" Foreground="{DynamicResource Brush.TextMuted}" Text="Mehrere Werte mit Semikolon trennen. Artikelnummern werden exakt verglichen, Bezeichnungen als Teiltext." TextWrapping="Wrap" />
+                                                            <TextBlock Margin="0,4,0,8" Foreground="{DynamicResource Brush.TextMuted}" Text="Mehrere Werte mit Semikolon trennen. Artikelnummern und Positionscodes werden exakt verglichen, Bezeichnungen als Teiltext. Standardcodes: RAB;ZWI;TXT;NS. NS wird immer ausgeschlossen, auch bei bestehenden Einstellungen." TextWrapping="Wrap" />
                                                             <ItemsControl ItemTemplate="{StaticResource XmlImportMappingFieldTemplate}" ItemsSource="{Binding XmlImportProductExclusionFields}" />
                                                         </StackPanel>
                                                     </Border>

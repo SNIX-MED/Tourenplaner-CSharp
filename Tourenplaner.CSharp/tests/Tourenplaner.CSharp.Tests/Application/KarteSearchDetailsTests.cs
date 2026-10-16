@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.Application.Abstractions;
@@ -9,6 +9,85 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class KarteSearchDetailsTests
 {
+    [Fact]
+    public async Task RefreshReloadsTourAfterMaintenanceConflictInsteadOfReportingFailedSave()
+    {
+        var store = new ConflictingMaintenanceTourStore();
+        var vm = CreateViewModel(tourRepository: store);
+        await vm.RefreshAsync();
+        Assert.True(store.LoadCount >= 2);
+        Assert.Contains(vm.SavedTours, x => x.TourId == 21 && x.Label.Contains("Aktueller Serverstand"));
+        Assert.True(store.WriteAttempts > 0);
+        Assert.True(store.LoadCount >= store.WriteAttempts * 2);
+    }
+
+    private sealed class ConflictingMaintenanceTourStore : ITourRecordStore, ITourRecordMutationStore
+    {
+        public int LoadCount { get; private set; }
+        public int WriteAttempts { get; private set; }
+        private static TourRecord Current() => new()
+        {
+            Id = 21, Name = "Aktueller Serverstand", Date = DateTime.Today.ToString("dd.MM.yyyy"),
+            Stops = [new() { Id = "missing-order", Auftragsnummer = "missing-order", Order = 1 }]
+        };
+        public Task<IReadOnlyList<TourRecord>> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            LoadCount++;
+            return Task.FromResult<IReadOnlyList<TourRecord>>([Current()]);
+        }
+        public Task<TourRecord?> GetByIdAsync(int id, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TourRecord?>(Current());
+        public Task SaveAsync(IEnumerable<TourRecord> tours, CancellationToken cancellationToken = default) => throw new InvalidOperationException();
+        public Task UpsertAsync(TourRecord tour, CancellationToken cancellationToken = default) => Conflict();
+        public Task DeleteAsync(int id, string? concurrencyToken = null, CancellationToken cancellationToken = default) => Conflict();
+        private Task Conflict()
+        {
+            WriteAttempts++;
+            return Task.FromException(new Tourenplaner.CSharp.Application.Common.ConcurrencyConflictException("Tour", "21"));
+        }
+    }
+
+    [Fact]
+    public void SwitchingTourImmediatelyReplacesGeometryAndClearsItWhenNoSavedPathExists()
+    {
+        var vm = CreateViewModel();
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var apply = typeof(KarteSectionViewModel).GetMethod("ShowSavedTourGeometryImmediately", flags)!;
+        apply.Invoke(vm, [new TourRecord { RouteGeometryPoints = [new GeoPoint(47, 8), new GeoPoint(48, 9)] }]);
+        Assert.Equal(2, vm.RouteGeometryPoints.Count);
+        apply.Invoke(vm, [new TourRecord { RouteGeometryPoints = [new GeoPoint(46, 7), new GeoPoint(45, 6)] }]);
+        Assert.Equal(46, vm.RouteGeometryPoints[0].Latitude);
+        Assert.Equal(7, vm.RouteGeometryPoints[0].Longitude);
+        apply.Invoke(vm, [new TourRecord()]);
+        Assert.Empty(vm.RouteGeometryPoints);
+    }
+
+    [Fact]
+    public void LoadedTourDoesNotKeepPreviousOverviewRouteOverlay()
+    {
+        var vm = CreateViewModel();
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var type = typeof(KarteSectionViewModel);
+        var tours = (List<TourRecord>)type.GetField("_savedTours", flags)!.GetValue(vm)!;
+        tours.Add(new TourRecord
+        {
+            Id = 1, Name = "Vorherige Tour",
+            RouteGeometryPoints = [new GeoPoint(47, 8), new GeoPoint(48, 9)]
+        });
+        type.GetField("_selectedTourOverviewId", flags)!.SetValue(vm, 1);
+        var rebuild = type.GetMethod("RebuildPlannedTourRouteOverlays", flags)!;
+        rebuild.Invoke(vm, null);
+        Assert.Single(vm.GetPlannedTourRouteOverlaySnapshot());
+
+        type.GetField("_activeTourId", flags)!.SetValue(vm, 2);
+        rebuild.Invoke(vm, null);
+        Assert.Empty(vm.GetPlannedTourRouteOverlaySnapshot());
+
+        type.GetField("_isAllPlannedToursVisible", flags)!.SetValue(vm, true);
+        rebuild.Invoke(vm, null);
+        Assert.Single(vm.GetPlannedTourRouteOverlaySnapshot());
+    }
+
     [Theory]
     [InlineData(900, true, 0)]
     [InlineData(900, false, 900)]

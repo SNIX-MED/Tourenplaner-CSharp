@@ -563,19 +563,16 @@ public sealed class SelectableEmployee : ObservableObject
     }
 }
 
-public sealed record TourLookupOption(string Id, string Label, IReadOnlyList<ResourceUnavailabilityPeriod>? UnavailabilityPeriods = null) : INotifyPropertyChanged
+public sealed class TourLookupOption(string id, string label, IReadOnlyList<ResourceUnavailabilityPeriod>? unavailabilityPeriods = null) : ObservableObject
 {
+    public string Id { get; } = id;
+    public string Label { get; } = label;
+    public IReadOnlyList<ResourceUnavailabilityPeriod>? UnavailabilityPeriods { get; } = unavailabilityPeriods;
     private bool _isAvailable = true;
-    public event PropertyChangedEventHandler? PropertyChanged;
     public bool IsAvailable
     {
         get => _isAvailable;
-        set
-        {
-            if (_isAvailable == value) return;
-            _isAvailable = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsAvailable)));
-        }
+        set => SetProperty(ref _isAvailable, value);
     }
 
     public override string ToString()

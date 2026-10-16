@@ -310,6 +310,7 @@ public sealed class OrderDelivery
     public int SequenceNumber { get; set; }
     public OrderDeliveryStatus Status { get; set; } = OrderDeliveryStatus.Draft;
     public DateOnly? PlannedDeliveryDate { get; set; }
+    public bool IsPlannedDeliveryDateExplicit { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
     public string? AssignedTourId { get; set; }
     public List<OrderDeliveryLine> Lines { get; set; } = new();

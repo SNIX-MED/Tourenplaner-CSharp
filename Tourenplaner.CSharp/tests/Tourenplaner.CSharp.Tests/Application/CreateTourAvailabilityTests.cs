@@ -6,6 +6,51 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class CreateTourAvailabilityTests
 {
     [Fact]
+    public void WpfDropdownCanSwitchVehiclesAfterAvailabilityBindingsChange()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var first = new TourLookupOption("first", "Erstes Fahrzeug");
+                var second = new TourLookupOption("second", "Zweites Fahrzeug");
+                var dropdown = new System.Windows.Controls.ComboBox { ItemsSource = new[] { first, second } };
+                dropdown.SelectedItem = first;
+                first.PropertyChanged += (_, _) => { };
+                second.PropertyChanged += (_, _) => { };
+                second.IsAvailable = false;
+                second.IsAvailable = true;
+                dropdown.SelectedItem = second;
+                Assert.Same(second, dropdown.SelectedItem);
+                dropdown.SelectedItem = first;
+                Assert.Same(first, dropdown.SelectedItem);
+            }
+            catch (Exception ex) { failure = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(10)), "WPF-Auswahlprüfung wurde nicht beendet.");
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
+    public void ResourceIdentityStaysStableWhenBindingsSubscribeAndAvailabilityChanges()
+    {
+        var option = new TourLookupOption("vehicle", "Fahrzeug");
+        var indexedOptions = new HashSet<TourLookupOption> { option };
+        var originalHash = option.GetHashCode();
+        var changes = new List<string?>();
+        option.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+        Assert.Equal(originalHash, option.GetHashCode());
+        Assert.Contains(option, indexedOptions);
+        option.IsAvailable = false;
+        Assert.Equal(originalHash, option.GetHashCode());
+        Assert.Contains(option, indexedOptions);
+        Assert.Contains(nameof(option.IsAvailable), changes);
+    }
+
+    [Fact]
     public void ChangingDateRestoresResourcesAfterAbsenceAndClearsUnavailableAssignments()
     {
         var today = DateTime.Today;

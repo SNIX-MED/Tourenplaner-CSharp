@@ -8,6 +8,57 @@ public sealed class OrderDeliveryServiceTests
     private readonly OrderDeliveryService _service = new();
 
     [Fact]
+    public void Normalize_DoesNotUseOrderDateForLegacyTourAssignment()
+    {
+        var order = NewOrder(1);
+        order.ScheduledDate = new DateOnly(2026, 9, 17);
+        order.AssignedTourId = "42";
+
+        _service.Normalize(order);
+
+        Assert.Null(Assert.Single(order.Deliveries).PlannedDeliveryDate);
+        Assert.Equal("42", order.Deliveries[0].AssignedTourId);
+        Assert.Equal(1, order.Deliveries[0].Lines[0].Quantity);
+    }
+
+    [Theory]
+    [InlineData(false, false, true, true)]
+    [InlineData(false, true, true, false)]
+    [InlineData(true, false, true, false)]
+    [InlineData(false, false, false, false)]
+    public void Normalize_RepairsOnlySuspectedLegacyDates(bool hasOrderDate, bool explicitDate, bool sameAsOrderDate, bool shouldClear)
+    {
+        var order = NewOrder(1);
+        order.ScheduledDate = new DateOnly(2026, 9, 17);
+        order.DeliveryDate = hasOrderDate ? new DateOnly(2026, 10, 20) : null;
+        var plannedDate = sameAsOrderDate ? order.ScheduledDate : new DateOnly(2026, 10, 21);
+        order.Deliveries = [new()
+        {
+            Id = "D1", SequenceNumber = 1, PlannedDeliveryDate = plannedDate,
+            IsPlannedDeliveryDateExplicit = explicitDate,
+            Lines = [new() { OrderProductPositionId = "P-1", Quantity = 1 }]
+        }];
+
+        Assert.Equal(shouldClear, _service.Normalize(order));
+        Assert.Equal(shouldClear ? (DateOnly?)null : plannedDate, order.Deliveries[0].PlannedDeliveryDate);
+        Assert.False(_service.Normalize(order));
+    }
+
+    [Fact]
+    public void ExplicitDateEqualToOrderDateSurvivesPersistenceAndNormalization()
+    {
+        var order = NewOrder(1);
+        order.ScheduledDate = new DateOnly(2026, 9, 17);
+        _service.Create(order, [new() { OrderProductPositionId = "P-1", Quantity = 1 }], order.ScheduledDate);
+        var stored = System.Text.Json.JsonSerializer.Deserialize<Order>(System.Text.Json.JsonSerializer.Serialize(order))!;
+
+        _service.Normalize(stored);
+
+        Assert.Equal(order.ScheduledDate, stored.Deliveries[0].PlannedDeliveryDate);
+        Assert.True(stored.Deliveries[0].IsPlannedDeliveryDateExplicit);
+    }
+
+    [Fact]
     public void Create_SplitsOnePositionAcrossSeveralDeliveries()
     {
         var order = NewOrder(10);

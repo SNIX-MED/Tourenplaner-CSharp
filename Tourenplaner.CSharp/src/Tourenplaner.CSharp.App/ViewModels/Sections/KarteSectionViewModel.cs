@@ -1815,8 +1815,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         {
             var order = FindSelectedOrderModel();
             var delivery = order is null ? null : FindSelectedDelivery(order);
-            return delivery?.PlannedDeliveryDate?.ToString("dd.MM.yyyy", CultureInfo.CurrentCulture)
-                   ?? (delivery is null ? OrderDeliveryDateDisplayService.BuildDisplayText(order, _savedTours) : string.Empty);
+            return OrderDeliveryDateDisplayService.BuildDisplayText(order, _savedTours, delivery);
         }
     }
     public bool DetailDeliveryCanOccurEarlier => FindSelectedOrderModel()?.DeliveryCanOccurEarlier == true;
@@ -4364,13 +4363,24 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         }
 
-        var originalOrders = OrderMaintenancePersistenceService.CreateSnapshot(_allOrders);
-        var assignmentsChanged = new OrderDeliveryService().SynchronizeTourAssignments(_allOrders, allTours);
         if (cleanup.HasChanges)
         {
-            await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, allTours, cleanup);
-            _dataSyncService.PublishTours(_instanceId);
+            try
+            {
+                await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, allTours, cleanup);
+                _dataSyncService.PublishTours(_instanceId);
+            }
+            catch (ConcurrencyConflictException conflict)
+            {
+                // Reconciliation during refresh is maintenance, not the user's save.
+                // Another refresh may already have updated this tour in the same app.
+                // Never retry stale cleanup or derive assignments from its discarded result.
+                Debug.WriteLine($"Tour reconciliation deferred after conflict: {conflict.Message}");
+                allTours = (await _tourRepository.LoadAsync()).ToList();
+            }
         }
+        var originalOrders = OrderMaintenancePersistenceService.CreateSnapshot(_allOrders);
+        var assignmentsChanged = new OrderDeliveryService().SynchronizeTourAssignments(_allOrders, allTours);
         if (assignmentsChanged)
         {
             await OrderMaintenancePersistenceService.SaveChangesAsync(_orderRepository, originalOrders, _allOrders);
@@ -4647,6 +4657,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         _activeTourId = tour.Id;
+        SetHoveredTourOverviewId(0);
+        RebuildPlannedTourRouteOverlays();
         OnPropertyChanged(nameof(LoadedTourId));
         _currentRouteVehicleId = (tour.VehicleId ?? string.Empty).Trim();
         _currentRouteTrailerId = (tour.TrailerId ?? string.Empty).Trim();
@@ -4673,7 +4685,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
 
         ApplyTourStopsToRoute(tour);
-        RequestRouteGeometryRebuild();
+        ShowSavedTourGeometryImmediately(tour);
+        RequestRouteGeometryRebuild(calculateImmediately: true);
         SetRouteChanged(false);
         ClearDraftRouteStopRemovalUndoHistory();
         StatusText = "Tour auf Karte geladen.";
@@ -6014,10 +6027,24 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         RouteVisualRevision++;
     }
 
+    private void ShowSavedTourGeometryImmediately(TourRecord tour)
+    {
+        _routeRebuildDebounceCts?.Cancel();
+        Interlocked.Increment(ref _routeGeometryRevision);
+        _routeGeometryPoints.Clear();
+        _routeGeometryPoints.AddRange((tour.RouteGeometryPoints ?? [])
+            .Where(point => point.Latitude is >= -90 and <= 90 && point.Longitude is >= -180 and <= 180)
+            .Select(point => new GeoPoint(point.Latitude, point.Longitude)));
+        _routeLegs.Clear();
+        _routeTrafficSegments.Clear();
+        _timedStops.Clear();
+        OnPropertyChanged(nameof(RouteGeometryPoints));
+    }
+
     private void RebuildPlannedTourRouteOverlays()
     {
         _plannedTourRouteOverlays.Clear();
-        if (IsAllPlannedToursVisible || _selectedTourOverviewId > 0)
+        if (IsAllPlannedToursVisible || (ShowTourOverviewPanel && _selectedTourOverviewId > 0))
         {
             foreach (var tour in _savedTours.Where(x =>
                          !x.IsArchived &&
@@ -9094,7 +9121,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             }
             providerStopwatch.Stop();
 
-            if (revision != _routeGeometryRevision)
+            if (cancellationToken.IsCancellationRequested || revision != _routeGeometryRevision)
             {
                 return;
             }
@@ -9678,9 +9705,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             ProductLines = delivery is null ? BuildProductLineItems(order.Products) : BuildDeliveryProductLines(order, delivery),
             TotalWeightKgText = totalWeightKg.ToString("0.##", CultureInfo.CurrentCulture),
             ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
-            DeliveryDate = delivery is null
-                ? OrderDeliveryDateDisplayService.BuildDisplayText(order, _savedTours)
-                : delivery.PlannedDeliveryDate?.ToString("dd.MM.yyyy", CultureInfo.CurrentCulture) ?? string.Empty,
+            DeliveryDate = OrderDeliveryDateDisplayService.BuildDisplayText(order, _savedTours, delivery),
             DeliveryCanOccurEarlier = order.DeliveryCanOccurEarlier,
             DeliveryPeriod = order.DeliveryPeriod,
             IsAlternativeLiefertour = order.IsAlternativeDeliveryEnabled &&

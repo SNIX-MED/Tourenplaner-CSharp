@@ -6,6 +6,39 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 public class XmlOrderImportServiceTests
 {
     [Theory]
+    [InlineData("RAB;ZWI;TXT", "poscode", "NS")]
+    [InlineData("CUSTOM", "poscode", " ns ")]
+    [InlineData("RAB;ZWI;TXT;NS", "positionstyp", "NS")]
+    public void ImportExcludesNsWithExistingAndCustomSettings(string exclusions, string field, string code)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"tourenplaner-ns-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(path, $"""
+                <belege><beleg><ident>order-1</ident><kopf>A-1</kopf><datum>16.10.2026</datum><versandart>Post</versandart>
+                <positionen>
+                <position><kopfid>order-1</kopfid><{field}>{code}</{field}><artikel>NOT-A-PRODUCT</artikel><bezeichnung>Nicht importieren</bezeichnung><menge>1</menge></position>
+                <position><kopfid>order-1</kopfid><{field}>ART</{field}><artikel>PRODUCT</artikel><bezeichnung>Produkt</bezeichnung><menge>2</menge><gewicht>3</gewicht></position>
+                </positionen></beleg></belege>
+                """);
+            var mapping = XmlImportMappingSettings.CreateDefault();
+            mapping.ExcludedProductPositionCodes = exclusions;
+            mapping.ProductPositionCode = field;
+            var result = new XmlOrderImportService().LoadOrdersFromFileDetailed(path, mapping);
+            Assert.Empty(result.Errors);
+            var product = Assert.Single(Assert.Single(result.Orders).Produkte);
+            Assert.Equal("PRODUCT", product.ArtikelNummer);
+            Assert.Equal(1, product.PosNummer);
+            Assert.DoesNotContain(result.Warnings, x => x.Contains("Gewicht"));
+            var effective = mapping.WithDefaults();
+            Assert.Contains("NS", effective.ExcludedProductPositionCodes.Split(';'), StringComparer.OrdinalIgnoreCase);
+            Assert.Equal(effective.ExcludedProductPositionCodes, effective.WithDefaults().ExcludedProductPositionCodes);
+            Assert.Contains(exclusions.Split(';')[0], effective.ExcludedProductPositionCodes);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
     [InlineData("Herr", "", "", "")]
     [InlineData("Frau", "", "", "")]
     [InlineData("Herr", "Erika Muster", "", "Erika Muster")]

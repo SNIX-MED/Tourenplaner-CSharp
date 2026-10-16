@@ -252,13 +252,17 @@ public sealed class StartSectionViewModel : SectionViewModelBase
                 nextEntryDay ??= date;
             }
 
+            var resourceLines = BuildResourceCalendarLines(employees, vehicleData, DateOnly.FromDateTime(date));
+            var summaryLines = resourceLines.Concat(
+                toursForDay.Count + manualForDay.Count > 0 || resourceLines.Count == 0
+                    ? BuildStartSummaryLines(toursForDay, manualForDay) : []).ToList();
             var card = new UpcomingDayCardItem
             {
                 Date = date,
                 DateText = date.ToString("dd.MM.yyyy", UiCulture),
                 TourCountText = $"{toursForDay.Count} Tour(en), {manualForDay.Count} manuell",
-                SummaryLines = BuildStartSummaryLines(toursForDay, manualForDay),
-                SummaryText = BuildStartCardSummary(toursForDay, manualForDay),
+                SummaryLines = summaryLines,
+                SummaryText = string.Join(" | ", summaryLines.Select(x => x.Text)),
                 IsToday = date == DateTime.Today
             };
 
@@ -634,93 +638,52 @@ public sealed class StartSectionViewModel : SectionViewModelBase
             .ToList();
     }
 
-    private static string BuildStartCardSummary(
+    internal static IReadOnlyList<UpcomingDaySummaryLine> BuildStartSummaryLines(
         IReadOnlyList<TourRecord> toursForDay,
         IReadOnlyList<CalendarManualEntry> manualForDay)
     {
-        var lines = BuildStartSummaryLines(toursForDay, manualForDay);
-        return string.Join(" | ", lines.Select(x => x.Text));
-    }
-
-    private static IReadOnlyList<UpcomingDaySummaryLine> BuildStartSummaryLines(
-        IReadOnlyList<TourRecord> toursForDay,
-        IReadOnlyList<CalendarManualEntry> manualForDay)
-    {
-        var tourSummaries = toursForDay
-            .OrderBy(t => ParseStartTimeMinutes(t.StartTime))
-            .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(BuildTourSummary)
-            .ToList();
-
-        var manualSummaries = manualForDay
-            .Select(x =>
-            {
-                var hasTime = TryNormalizeManualTime(x.Time, out var normalizedTime);
-                return new
-                {
-                    Text = BuildManualSummary(x),
-                    Sort = hasTime ? ParseStartTimeMinutes(normalizedTime) : int.MaxValue,
-                    Color = NormalizeHexColor(x.ColorHex, "#7DD3FC")
-                };
-            })
-            .OrderBy(x => x.Sort)
-            .ThenBy(x => x.Text, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (tourSummaries.Count == 0 && manualSummaries.Count == 0)
+        var entries = new List<(int Sort, bool IsManual, UpcomingDaySummaryLine Line)>();
+        foreach (var tour in toursForDay)
+            entries.Add((ParseStartTimeMinutes(tour.StartTime), false,
+                new UpcomingDaySummaryLine { Text = BuildTourSummary(tour) }));
+        foreach (var manual in manualForDay)
         {
-            return
-            [
+            var hasTime = TryNormalizeManualTime(manual.Time, out var time);
+            entries.Add((hasTime ? ParseStartTimeMinutes(time) : int.MaxValue, true,
                 new UpcomingDaySummaryLine
                 {
-                    Text = "Keine Eintraege.",
-                    ShowManualDot = false
-                }
-            ];
+                    Text = BuildManualSummary(manual), ShowManualDot = true,
+                    DotColor = NormalizeHexColor(manual.ColorHex, "#7DD3FC")
+                }));
         }
-
-        var lines = new List<UpcomingDaySummaryLine>();
-        if (tourSummaries.Count > 0)
-        {
-            lines.Add(new UpcomingDaySummaryLine
-            {
-                Text = tourSummaries[0],
-                ShowManualDot = false
-            });
-        }
-
-        if (manualSummaries.Count > 0)
-        {
-            lines.Add(new UpcomingDaySummaryLine
-            {
-                Text = manualSummaries[0].Text,
-                ShowManualDot = true,
-                DotColor = manualSummaries[0].Color
-            });
-        }
-
-        if (lines.Count == 0 && tourSummaries.Count > 1)
-        {
-            lines.Add(new UpcomingDaySummaryLine
-            {
-                Text = tourSummaries[1],
-                ShowManualDot = false
-            });
-        }
-
-        if (lines.Count == 0)
-        {
-            lines.Add(new UpcomingDaySummaryLine
-            {
-                Text = manualSummaries[0].Text,
-                ShowManualDot = true,
-                DotColor = manualSummaries[0].Color
-            });
-        }
-
-        return lines.Take(2).ToList();
+        return entries.Count == 0
+            ? [new UpcomingDaySummaryLine { Text = "Keine Eintraege." }]
+            : entries.OrderBy(x => x.Sort).ThenBy(x => x.IsManual)
+                .ThenBy(x => x.Line.Text, StringComparer.OrdinalIgnoreCase).Select(x => x.Line).ToList();
     }
 
+    internal static IReadOnlyList<UpcomingDaySummaryLine> BuildResourceCalendarLines(
+        IReadOnlyList<Employee> employees, VehicleDataRecord vehicleData, DateOnly date)
+    {
+        var lines = new List<UpcomingDaySummaryLine>();
+        void Add(IEnumerable<ResourceUnavailabilityPeriod> periods, string title, string color)
+        {
+            foreach (var period in periods)
+            {
+                var start = ResourceAvailabilityService.ParseDate(period.StartDate);
+                var end = ResourceAvailabilityService.ParseDate(period.EndDate);
+                if (!start.HasValue || !end.HasValue || date < start.Value || date > end.Value) continue;
+                var note = string.IsNullOrWhiteSpace(period.Note) ? string.Empty : $" · {period.Note.Trim()}";
+                var time = date == start.Value && !string.IsNullOrWhiteSpace(period.StartTime)
+                    ? period.StartTime.Trim() : "ganztägig";
+                lines.Add(new UpcomingDaySummaryLine { Text = $"{time} {title}{note}", ShowManualDot = true, DotColor = color });
+            }
+        }
+        foreach (var employee in employees) Add(employee.UnavailabilityPeriods, $"Abwesend: {employee.DisplayName}", "#DC2626");
+        foreach (var vehicle in vehicleData.Vehicles) Add(vehicle.UnavailabilityPeriods, $"Ausfall: {vehicle.Name}", "#F97316");
+        foreach (var trailer in vehicleData.Trailers) Add(trailer.UnavailabilityPeriods, $"Ausfall: {trailer.Name}", "#F97316");
+        return lines;
+    }
     private static int ParseStartTimeMinutes(string? raw)
     {
         var value = NormalizeStartTime(raw);

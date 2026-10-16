@@ -36,7 +36,7 @@ internal static class OrderMaintenancePersistenceService
         await PersistenceGate.WaitAsync(cancellationToken);
         try
         {
-            foreach (var order in currentOrders.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)))
+            foreach (var order in currentOrders.Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id)).ToList())
             {
                 if (originalById.TryGetValue(order.Id.Trim(), out var original) && AreEquivalent(original, order))
                 {
@@ -50,12 +50,20 @@ internal static class OrderMaintenancePersistenceService
                 catch (ConcurrencyConflictException)
                 {
                     var current = await mutationRepository.GetByIdAsync(order.Id, cancellationToken);
-                    if (current is null || !AreEquivalent(current, order))
+                    if (current is null)
                     {
-                        throw;
+                        // A concurrently deleted order must not be recreated by maintenance.
+                        if (currentOrders is ICollection<Order> mutableOrders && !mutableOrders.IsReadOnly)
+                            mutableOrders.Remove(order);
+                        else
+                            order.IsArchived = true;
+                        continue;
                     }
-
-                    order.ConcurrencyToken = current.ConcurrencyToken;
+                    // Maintenance is best effort. Keep the latest server state instead
+                    // of overwriting a concurrent edit or aborting the map refresh.
+                    foreach (var property in typeof(Order).GetProperties()
+                                 .Where(p => p.CanRead && p.SetMethod?.IsPublic == true))
+                        property.SetValue(order, property.GetValue(current));
                 }
             }
         }

@@ -394,6 +394,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         if (remainderDelivery is not null)
         {
             remainderDelivery.PlannedDeliveryDate = dialog.Delivery2PlannedDate;
+            remainderDelivery.IsPlannedDeliveryDateExplicit = dialog.Delivery2PlannedDate.HasValue;
             remainderDelivery.Notes = dialog.Delivery2Notes;
         }
         _deliveryService.DistributeOrderNotesToDeliveries(order);
@@ -1575,6 +1576,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 SequenceNumber = d.SequenceNumber,
                 Status = d.Status,
                 PlannedDeliveryDate = d.PlannedDeliveryDate,
+                IsPlannedDeliveryDateExplicit = d.IsPlannedDeliveryDateExplicit,
                 DeliveredAt = d.DeliveredAt,
                 AssignedTourId = d.AssignedTourId,
                 Notes = d.Notes,

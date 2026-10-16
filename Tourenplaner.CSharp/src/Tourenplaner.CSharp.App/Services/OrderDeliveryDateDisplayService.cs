@@ -5,11 +5,16 @@ namespace Tourenplaner.CSharp.App.Services;
 
 public static class OrderDeliveryDateDisplayService
 {
-    public static string BuildDisplayText(Order? order, IEnumerable<TourRecord> tours)
+    public static string BuildDisplayText(Order? order, IEnumerable<TourRecord> tours, OrderDelivery? delivery = null)
     {
         if (order is null)
         {
             return string.Empty;
+        }
+
+        if (delivery?.PlannedDeliveryDate is { } deliveryDate && deliveryDate != DateOnly.MinValue)
+        {
+            return FormatDate(deliveryDate);
         }
 
         if (order.DeliveryDate.HasValue && order.DeliveryDate.Value != DateOnly.MinValue)
@@ -17,7 +22,7 @@ public static class OrderDeliveryDateDisplayService
             return FormatDate(order.DeliveryDate.Value);
         }
 
-        var assignedTourDate = ResolveAssignedTourDate(order, tours);
+        var assignedTourDate = ResolveAssignedTourDate(delivery is null ? order.AssignedTourId : delivery.AssignedTourId, tours);
         if (!assignedTourDate.HasValue)
         {
             return string.Empty;
@@ -26,9 +31,9 @@ public static class OrderDeliveryDateDisplayService
         return $"{FormatDate(assignedTourDate.Value)} \u00B7 {ResolvePlanningSuffix(order.AvisoStatus)}";
     }
 
-    private static DateOnly? ResolveAssignedTourDate(Order order, IEnumerable<TourRecord> tours)
+    private static DateOnly? ResolveAssignedTourDate(string? tourId, IEnumerable<TourRecord> tours)
     {
-        var assignedTourId = (order.AssignedTourId ?? string.Empty).Trim();
+        var assignedTourId = (tourId ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(assignedTourId))
         {
             return null;
