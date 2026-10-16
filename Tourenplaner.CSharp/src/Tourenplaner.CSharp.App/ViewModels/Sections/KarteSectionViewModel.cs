@@ -9695,7 +9695,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             OrderId = order.Id,
             DeliveryId = delivery?.Id ?? string.Empty,
             DeliverySequenceNumber = delivery?.SequenceNumber,
-            Customer = delivery is null
+            Customer = delivery is null || order.Deliveries.Count <= 1
                 ? NormalizeUiText(order.CustomerName)
                 : $"{NormalizeUiText(order.CustomerName)} · Lieferung Teil {delivery.SequenceNumber}",
             Address = NormalizeUiText(order.Address),

@@ -10,6 +10,37 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class KarteSearchDetailsTests
 {
     [Fact]
+    public async Task SingleDeliveryPinDoesNotClaimToBePartialDelivery()
+    {
+        var order = CreateOrder();
+        order.Products = [new() { PositionId = "P1", Name = "Produkt", Quantity = 1 }];
+        order.Deliveries = [new() { Id = "D1", SequenceNumber = 1,
+            Lines = [new() { OrderProductPositionId = "P1", Quantity = 1 }] }];
+        var vm = CreateViewModel(new FixedOrderStore(order));
+        await vm.RefreshAsync();
+        var pin = Assert.Single(vm.MapOrders);
+        Assert.Equal(order.CustomerName, pin.Customer);
+        Assert.Equal("D1", pin.DeliveryId);
+    }
+
+    [Fact]
+    public async Task RemainingPartialDeliveryKeepsItsPartLabelAfterFirstDeliveryIsCompleted()
+    {
+        var order = CreateOrder();
+        order.Products = [new() { PositionId = "P1", Name = "Produkt", Quantity = 2 }];
+        order.Deliveries =
+        [
+            new() { Id = "D1", SequenceNumber = 1, Status = OrderDeliveryStatus.Delivered,
+                Lines = [new() { OrderProductPositionId = "P1", Quantity = 1 }] },
+            new() { Id = "D2", SequenceNumber = 2,
+                Lines = [new() { OrderProductPositionId = "P1", Quantity = 1 }] }
+        ];
+        var vm = CreateViewModel(new FixedOrderStore(order));
+        await vm.RefreshAsync();
+        Assert.Contains("Lieferung Teil 2", vm.MapOrders.Single(x => x.DeliveryId == "D2").Customer);
+    }
+
+    [Fact]
     public async Task RefreshReloadsTourAfterMaintenanceConflictInsteadOfReportingFailedSave()
     {
         var store = new ConflictingMaintenanceTourStore();
