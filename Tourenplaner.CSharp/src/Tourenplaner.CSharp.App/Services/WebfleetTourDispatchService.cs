@@ -19,7 +19,7 @@ public sealed class WebfleetTourDispatchService
         foreach (var stop in tour.Stops.Where(IsDispatchableStop))
         {
             if (stop.Lat is null || (stop.Lon ?? stop.Lng) is null) errors.Add($"Stopp {stop.Order}: Koordinaten fehlen.");
-            if (string.IsNullOrWhiteSpace(stop.Auftragsnummer)) errors.Add($"Stopp {stop.Order}: Auftragsnummer fehlt.");
+            if (!IsManualStop(stop) && string.IsNullOrWhiteSpace(stop.Auftragsnummer)) errors.Add($"Stopp {stop.Order}: Auftragsnummer fehlt.");
         }
         return errors;
     }
@@ -100,7 +100,7 @@ public sealed class WebfleetTourDispatchService
     {
         var items = stops.Select((stop, dispatchPosition) =>
         {
-            var sourceOrder = IsCompanyEndStop(stop) ? "ENDE" : stop.Auftragsnummer ?? string.Empty;
+            var sourceOrder = IsManualStop(stop) ? "MANUELL" : stop.Auftragsnummer ?? string.Empty;
             var orderId = BuildOrderId(tour.Id, dispatchPosition + 1, sourceOrder);
             var arrivalWindow = BuildWebfleetArrivalWindow(tour, stop);
             return new SynchronizationItem(stop, new WebfleetDestinationOrderRequest(
@@ -213,6 +213,10 @@ public sealed class WebfleetTourDispatchService
         !IsCompanyStartStop(stop) &&
         !IsCompanyEndStop(stop) &&
         !string.Equals(stop.StopKind, "pause", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsManualStop(TourStopRecord stop) =>
+        string.Equals(stop.StopKind?.Trim(), "manual", StringComparison.OrdinalIgnoreCase) ||
+        (stop.Id ?? string.Empty).Trim().StartsWith("manual:", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsCompanyStartStop(TourStopRecord stop) =>
         string.Equals(stop.Id, "__company_start__", StringComparison.OrdinalIgnoreCase) ||

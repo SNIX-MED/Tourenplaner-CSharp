@@ -8,6 +8,38 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class WebfleetTourDispatchServiceTests
 {
     [Theory]
+    [InlineData("manual", "stop-1")]
+    [InlineData("", "manual:123")]
+    [InlineData(" MANUAL ", "stop-1")]
+    public void Validate_ManualStopNeedsCoordinatesButNoOrderNumber(string kind, string id)
+    {
+        var stop = new TourStopRecord { Id = id, StopKind = kind, Order = 2, Lat = 47.58, Lon = 9.06 };
+        var tour = new TourRecord { Stops = [stop] };
+        var vehicle = new Vehicle { WebfleetObjectUid = "object-uid" };
+        var service = new WebfleetTourDispatchService();
+
+        Assert.Empty(service.Validate(tour, vehicle));
+        var method = typeof(WebfleetTourDispatchService).GetMethod("IsDispatchableStop", BindingFlags.NonPublic | BindingFlags.Static)!;
+        Assert.True(Assert.IsType<bool>(method.Invoke(null, [stop])));
+
+        stop.Lat = null;
+        Assert.Equal("Stopp 2: Koordinaten fehlen.", Assert.Single(service.Validate(tour, vehicle)));
+    }
+
+    [Fact]
+    public void Validate_CustomerStopStillRequiresOrderNumber()
+    {
+        var tour = new TourRecord
+        {
+            Stops = [new TourStopRecord { Id = "order-1", Order = 1, Lat = 47.58, Lon = 9.06 }]
+        };
+
+        var errors = new WebfleetTourDispatchService().Validate(tour, new Vehicle { WebfleetObjectUid = "object-uid" });
+
+        Assert.Equal("Stopp 1: Auftragsnummer fehlt.", Assert.Single(errors));
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void IsChanged_CorrectsWrongTourDayEvenWithoutArrivalTime(bool hasArrival)

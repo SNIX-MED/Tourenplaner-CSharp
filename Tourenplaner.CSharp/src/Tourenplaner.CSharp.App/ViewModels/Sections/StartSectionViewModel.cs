@@ -419,21 +419,20 @@ public sealed class StartSectionViewModel : SectionViewModelBase
     private void BuildResourceAvailability(IReadOnlyList<Employee> employees, VehicleDataRecord vehicleData, DateTime today)
     {
         var from = DateOnly.FromDateTime(today);
-        var to = from.AddDays(PreviewDayCount - 1);
         foreach (var employee in employees.Where(x => x.Active))
         {
-            AddResourcePeriods(EmployeeAbsences, employee.DisplayName, employee.UnavailabilityPeriods, from, to, OpenEmployeesCommand, "#DC2626");
+            AddResourcePeriods(EmployeeAbsences, employee.DisplayName, employee.UnavailabilityPeriods, from, OpenEmployeesCommand, "#DC2626");
         }
 
         foreach (var vehicle in vehicleData.Vehicles.Where(x => x.Active))
         {
             var name = string.IsNullOrWhiteSpace(vehicle.LicensePlate) ? vehicle.Name : $"{vehicle.Name} · {vehicle.LicensePlate}";
-            AddResourcePeriods(VehicleOutages, name, vehicle.UnavailabilityPeriods, from, to, OpenVehiclesCommand, "#F97316");
+            AddResourcePeriods(VehicleOutages, name, vehicle.UnavailabilityPeriods, from, OpenVehiclesCommand, "#F97316");
         }
 
         foreach (var trailer in vehicleData.Trailers.Where(x => x.Active))
         {
-            AddResourcePeriods(VehicleOutages, trailer.Name, trailer.UnavailabilityPeriods, from, to, OpenVehiclesCommand, "#F97316");
+            AddResourcePeriods(VehicleOutages, trailer.Name, trailer.UnavailabilityPeriods, from, OpenVehiclesCommand, "#F97316");
         }
 
         SortResourceItems(EmployeeAbsences);
@@ -442,17 +441,16 @@ public sealed class StartSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(HasVehicleOutages));
         OnPropertyChanged(nameof(EmployeeAbsenceCountText));
         OnPropertyChanged(nameof(VehicleOutageCountText));
-        ResourceSummary = $"Nächste 7 Tage · {EmployeeAbsences.Count} Abwesenheiten · {VehicleOutages.Count} Fahrzeugausfälle";
+        ResourceSummary = $"Laufend und geplant · {EmployeeAbsences.Count} Abwesenheiten · {VehicleOutages.Count} Fahrzeugausfälle";
     }
 
     private static string FormatOutageCount(int count) => count == 1 ? "1 Ausfall" : $"{count} Ausfälle";
 
-    private static void AddResourcePeriods(
+    internal static void AddResourcePeriods(
         ICollection<StartResourceAbsenceItem> target,
         string resourceName,
         IEnumerable<ResourceUnavailabilityPeriod>? periods,
         DateOnly from,
-        DateOnly to,
         ICommand openCommand,
         string accentBrush)
     {
@@ -463,17 +461,16 @@ public sealed class StartSectionViewModel : SectionViewModelBase
             if (!start.HasValue || !end.HasValue) continue;
             var periodStart = start.Value <= end.Value ? start.Value : end.Value;
             var periodEnd = start.Value <= end.Value ? end.Value : start.Value;
-            if (periodEnd < from || periodStart > to) continue;
+            if (periodEnd < from) continue;
 
             var visibleStart = periodStart < from ? from : periodStart;
-            var visibleEnd = periodEnd > to ? to : periodEnd;
             target.Add(new StartResourceAbsenceItem
             {
                 ResourceName = string.IsNullOrWhiteSpace(resourceName) ? "Ohne Bezeichnung" : resourceName.Trim(),
                 PeriodText = BuildResourcePeriodText(periodStart, periodEnd, period.StartTime, period.EndTime, from),
                 Note = (period.Note ?? string.Empty).Trim(),
                 SortDate = visibleStart,
-                IsToday = visibleStart <= from && visibleEnd >= from,
+                IsToday = periodStart <= from && periodEnd >= from,
                 AccentBrush = accentBrush,
                 OpenCommand = openCommand
             });

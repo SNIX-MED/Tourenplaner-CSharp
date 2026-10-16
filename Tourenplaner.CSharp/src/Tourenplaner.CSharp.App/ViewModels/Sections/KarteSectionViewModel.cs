@@ -178,6 +178,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private bool _suppressFilterRefresh;
     private bool _isUpdatingFilterOptions;
     private bool _hasUnsavedRouteChanges;
+    public override bool HasUnsavedChanges => _hasUnsavedRouteChanges;
     private bool _arePinInfoCardsVisible;
     private bool _isMapFilterPanelVisible;
     private bool _isMapLegendPanelVisible;
@@ -1451,6 +1452,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(DetailManualTotalWeightKgText));
                 OnPropertyChanged(nameof(DetailManualTotalWeightInfoText));
                 OnPropertyChanged(nameof(DetailEffectiveTotalWeightText));
+                OnPropertyChanged(nameof(DetailProductsTotalWeightText));
                 OnPropertyChanged(nameof(DetailEmail));
                 OnPropertyChanged(nameof(DetailPhone));
                 OnPropertyChanged(nameof(DetailDeliveryType));
@@ -1831,6 +1833,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public bool HasDetailNotes => !string.IsNullOrWhiteSpace(DetailNotes);
     public string DetailManualTotalWeightKgText => FindSelectedOrderModel()?.ManualTotalWeightKg?.ToString("0.##", CultureInfo.CurrentCulture) ?? string.Empty;
     public string DetailManualTotalWeightInfoText => FindSelectedOrderModel()?.ManualTotalWeightInfo ?? string.Empty;
+    public string DetailProductsTotalWeightText => FindSelectedOrderModel() is { } order
+        ? $"Gesamtgewicht aller Produkte: {order.Products.Sum(OrderProductFormatter.ResolveTotalWeightKg).ToString("0.##", CultureInfo.CurrentCulture)} kg"
+        : "Gesamtgewicht aller Produkte: 0 kg";
     public string DetailEffectiveTotalWeightText => FindSelectedOrderModel() is { } order
         ? $"Verwendetes Gesamtgewicht: {ResolveSelectedDeliveryWeight(order).ToString("0.##", CultureInfo.CurrentCulture)} kg"
         : string.Empty;
@@ -3981,14 +3986,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         var employeeTask = _employeeRepository.LoadAsync();
         var vehicleTask = _vehicleRepository.LoadAsync();
         await Task.WhenAll(employeeTask, vehicleTask);
-        var selectedDate = ResourceAvailabilityService.ParseDate(routeDate);
 
         var employees = (await employeeTask)
-            .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
+            .Where(x => x.Active)
             .OrderByDescending(x => x.IsFavorite)
             .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(x => new TourEmployeeOption(x.Id, x.DisplayName, x.IsFavorite))
+            .Select(x => new TourEmployeeOption(x.Id, x.DisplayName, x.IsFavorite, x.UnavailabilityPeriods))
             .ToList();
         _employeeLabelsById.Clear();
         foreach (var employee in employees)
@@ -4001,16 +4004,14 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         var vehicleData = await vehicleTask;
         var vehicles = vehicleData.Vehicles
-            .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
+            .Where(x => x.Active)
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
+            .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]", x.UnavailabilityPeriods))
             .ToList();
         var trailers = vehicleData.Trailers
-            .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
+            .Where(x => x.Active)
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
+            .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]", x.UnavailabilityPeriods))
             .ToList();
 
         return (employees, vehicles, trailers);
@@ -7327,6 +7328,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         OnPropertyChanged(nameof(DetailManualTotalWeightKgText));
         OnPropertyChanged(nameof(DetailManualTotalWeightInfoText));
         OnPropertyChanged(nameof(DetailEffectiveTotalWeightText));
+        OnPropertyChanged(nameof(DetailProductsTotalWeightText));
         OnPropertyChanged(nameof(RouteStops));
         RefreshRouteVisualsAfterOrderMutation();
         PublishOrderChange(order.Id, order.Id);

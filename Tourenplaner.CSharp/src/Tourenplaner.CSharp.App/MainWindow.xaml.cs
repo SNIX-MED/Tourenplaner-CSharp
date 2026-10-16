@@ -10,6 +10,19 @@ namespace Tourenplaner.CSharp.App;
 
 public partial class MainWindow : Window
 {
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        base.OnClosing(e);
+        if (e.Cancel || DataContext is not MainShellViewModel shell) return;
+        var sections = shell.NavigationItems.Select(x => x.Section)
+            .OfType<ViewModels.Sections.SectionViewModelBase>()
+            .Where(x => x.HasUnsavedChanges).Select(x => x.Title).Distinct().ToList();
+        if (Services.UnsavedChangesGuard.HasOpenUnsavedEditors) sections.Add("Offene Bearbeitungsfenster");
+        if (sections.Count == 0) return;
+        e.Cancel = !Services.UnsavedChangesGuard.ConfirmDiscard(this,
+            $"Es gibt ungespeicherte Änderungen in: {string.Join(", ", sections)}.\n\nDas Programm trotzdem schliessen? Die ungespeicherten Änderungen gehen verloren.");
+    }
+
     public MainWindow()
     {
         InitializeComponent();

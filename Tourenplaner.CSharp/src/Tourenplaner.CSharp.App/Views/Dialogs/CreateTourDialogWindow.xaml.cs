@@ -49,6 +49,14 @@ public partial class CreateTourDialogWindow : Window
             additionalMaterialGroups,
             selectedAdditionalMaterials);
         DataContext = ViewModel;
+        UnsavedChangesGuard.Attach(this,
+            () => UnsavedChangesGuard.Capture(ViewModel, new
+            {
+                Vehicle = ViewModel.SelectedVehicle?.Id, Trailer = ViewModel.SelectedTrailer?.Id,
+                SecondaryVehicle = ViewModel.SelectedSecondaryVehicle?.Id, SecondaryTrailer = ViewModel.SelectedSecondaryTrailer?.Id,
+                Employees = ViewModel.Employees.Where(x => x.IsSelected).Select(x => x.Id).ToArray(),
+                Materials = ViewModel.AdditionalMaterialOptions.Where(x => x.IsSelected).Select(x => x.CreateSnapshot()).ToArray()
+            }), () => DialogResult == true);
         ShowOpenOnMapButton = showOpenOnMapButton;
         OpenOnMapButton.Visibility = showOpenOnMapButton ? Visibility.Visible : Visibility.Collapsed;
         if (editTourId is > 0)
@@ -88,7 +96,6 @@ public partial class CreateTourDialogWindow : Window
     private void OnCancelClicked(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-        Close();
     }
 
     private void OnCreateClicked(object sender, RoutedEventArgs e)
@@ -101,14 +108,12 @@ public partial class CreateTourDialogWindow : Window
 
         Result = result;
         DialogResult = true;
-        Close();
     }
 
     private void OnOpenOnMapClicked(object sender, RoutedEventArgs e)
     {
         OpenOnMapRequested = true;
         DialogResult = false;
-        Close();
     }
 }
 
@@ -171,14 +176,16 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             ? normalizedStartMinute
             : NormalizeMinuteToFiveStep(normalizedStartMinute);
 
-        VehicleOptions = new List<TourLookupOption> { new(string.Empty, "Bitte wählen") };
-        VehicleOptions.AddRange(vehicleOptions ?? []);
+        _allVehicles = new List<TourLookupOption> { new(string.Empty, "Bitte wählen") };
+        _allVehicles.AddRange(vehicleOptions ?? []);
+        foreach (var option in _allVehicles) option.IsAvailable = IsAvailable(option.UnavailabilityPeriods);
         var normalizedVehicleId = (selectedVehicleId ?? string.Empty).Trim();
         SelectedVehicle = VehicleOptions.FirstOrDefault(x =>
             string.Equals(x.Id, normalizedVehicleId, StringComparison.OrdinalIgnoreCase)) ?? VehicleOptions.FirstOrDefault();
 
-        TrailerOptions = new List<TourLookupOption> { new(string.Empty, "Kein Anhänger") };
-        TrailerOptions.AddRange(trailerOptions ?? []);
+        _allTrailers = new List<TourLookupOption> { new(string.Empty, "Kein Anhänger") };
+        _allTrailers.AddRange(trailerOptions ?? []);
+        foreach (var option in _allTrailers) option.IsAvailable = IsAvailable(option.UnavailabilityPeriods);
         var normalizedTrailerId = (selectedTrailerId ?? string.Empty).Trim();
         SelectedTrailer = TrailerOptions.FirstOrDefault(x =>
             string.Equals(x.Id, normalizedTrailerId, StringComparison.OrdinalIgnoreCase)) ?? TrailerOptions.FirstOrDefault();
@@ -191,11 +198,12 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         UseSecondaryVehicle = !string.IsNullOrWhiteSpace(normalizedSecondaryVehicleId) ||
                               !string.IsNullOrWhiteSpace(normalizedSecondaryTrailerId);
 
-        Employees = (employeeOptions ?? [])
-            .Select(x => new SelectableEmployee(x.Id, x.Label, x.IsFavorite))
+        _allEmployees = (employeeOptions ?? [])
+            .Select(x => new SelectableEmployee(x.Id, x.Label, x.IsFavorite, x.UnavailabilityPeriods))
             .OrderByDescending(x => x.IsFavorite)
             .ThenBy(x => x.Label, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
+        foreach (var employee in _allEmployees) employee.IsAvailable = IsAvailable(employee.UnavailabilityPeriods);
         if (selectedEmployeeIds is not null)
         {
             ApplySelectedEmployees(selectedEmployeeIds);
@@ -207,7 +215,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        foreach (var employee in Employees)
+        foreach (var employee in _allEmployees)
         {
             employee.PropertyChanged += OnEmployeePropertyChanged;
         }
@@ -237,11 +245,14 @@ public sealed class CreateTourDialogViewModel : ObservableObject
 
     public IReadOnlyList<string> MinuteOptions { get; }
 
-    public List<TourLookupOption> VehicleOptions { get; }
+    private readonly List<TourLookupOption> _allVehicles;
+    private readonly List<TourLookupOption> _allTrailers;
+    private readonly List<SelectableEmployee> _allEmployees;
+    public List<TourLookupOption> VehicleOptions => _allVehicles;
 
-    public List<TourLookupOption> TrailerOptions { get; }
+    public List<TourLookupOption> TrailerOptions => _allTrailers;
 
-    public List<SelectableEmployee> Employees { get; }
+    public List<SelectableEmployee> Employees => _allEmployees;
 
     public IReadOnlyList<string> SingleEmployeeWarningDeliveryTypes { get; }
     public List<SelectableAdditionalMaterial> AdditionalMaterialOptions { get; }
@@ -257,6 +268,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
                 return;
             }
 
+            RefreshAvailability();
             if (_isNameAutoManaged)
             {
                 SetNameFromDate(value);
@@ -289,13 +301,42 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     public string SelectedHour
     {
         get => _selectedHour;
-        set => SetProperty(ref _selectedHour, value);
+        set { if (SetProperty(ref _selectedHour, value)) RefreshAvailability(); }
     }
 
     public string SelectedMinute
     {
         get => _selectedMinute;
-        set => SetProperty(ref _selectedMinute, value);
+        set { if (SetProperty(ref _selectedMinute, value)) RefreshAvailability(); }
+    }
+
+    private bool IsAvailable(IEnumerable<ResourceUnavailabilityPeriod>? periods)
+    {
+        var date = ResourceAvailabilityService.ParseDate(DateText);
+        return !date.HasValue || !ResourceAvailabilityService.IsUnavailableAt(periods, date.Value, $"{SelectedHour}:{SelectedMinute}");
+    }
+
+    private void RefreshAvailability()
+    {
+        if (_allEmployees is null) return;
+        foreach (var option in _allVehicles.Concat(_allTrailers)) option.IsAvailable = IsAvailable(option.UnavailabilityPeriods);
+        foreach (var employee in _allEmployees)
+        {
+            employee.IsAvailable = IsAvailable(employee.UnavailabilityPeriods);
+            if (!employee.IsAvailable) employee.IsSelected = false;
+        }
+        var vehicle = SelectedVehicle;
+        var trailer = SelectedTrailer;
+        var secondaryVehicle = SelectedSecondaryVehicle;
+        var secondaryTrailer = SelectedSecondaryTrailer;
+        OnPropertyChanged(nameof(VehicleOptions));
+        OnPropertyChanged(nameof(TrailerOptions));
+        OnPropertyChanged(nameof(Employees));
+        SelectedVehicle = VehicleOptions.FirstOrDefault(x => x.Id == vehicle?.Id && x.IsAvailable) ?? VehicleOptions.First();
+        SelectedTrailer = TrailerOptions.FirstOrDefault(x => x.Id == trailer?.Id && x.IsAvailable) ?? TrailerOptions.First();
+        SelectedSecondaryVehicle = VehicleOptions.FirstOrDefault(x => x.Id == secondaryVehicle?.Id && x.IsAvailable) ?? VehicleOptions.First();
+        SelectedSecondaryTrailer = TrailerOptions.FirstOrDefault(x => x.Id == secondaryTrailer?.Id && x.IsAvailable) ?? TrailerOptions.First();
+        RefreshEmployeesSummary();
     }
 
     private static string NormalizeMinuteToFiveStep(string? rawMinute)
@@ -355,7 +396,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     public void ApplySelectedEmployees(IReadOnlyList<string> selectedIds)
     {
         var selectedSet = new HashSet<string>(selectedIds ?? [], StringComparer.OrdinalIgnoreCase);
-        foreach (var employee in Employees)
+        foreach (var employee in _allEmployees)
         {
             employee.IsSelected = selectedSet.Contains(employee.Id);
         }
@@ -401,6 +442,14 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             string.Equals(primaryVehicleId, secondaryVehicleId, StringComparison.OrdinalIgnoreCase))
         {
             error = "Das zweite Fahrzeug muss sich vom ersten Fahrzeug unterscheiden.";
+            return false;
+        }
+
+        if (SelectedVehicle?.IsAvailable == false || SelectedTrailer?.IsAvailable == false ||
+            (UseSecondaryVehicle && (SelectedSecondaryVehicle?.IsAvailable == false || SelectedSecondaryTrailer?.IsAvailable == false)) ||
+            Employees.Any(x => x.IsSelected && !x.IsAvailable))
+        {
+            error = "Eine ausgewählte Ressource ist zum Tourdatum und zur Startzeit nicht verfügbar. Bitte die Zuweisung anpassen.";
             return false;
         }
 
@@ -487,17 +536,25 @@ public sealed class CreateTourDialogViewModel : ObservableObject
 public sealed class SelectableEmployee : ObservableObject
 {
     private bool _isSelected;
+    private bool _isAvailable = true;
+    public bool IsAvailable
+    {
+        get => _isAvailable;
+        set => SetProperty(ref _isAvailable, value);
+    }
 
-    public SelectableEmployee(string id, string label, bool isFavorite = false)
+    public SelectableEmployee(string id, string label, bool isFavorite = false, IReadOnlyList<ResourceUnavailabilityPeriod>? unavailabilityPeriods = null)
     {
         Id = id;
         Label = label;
         IsFavorite = isFavorite;
+        UnavailabilityPeriods = unavailabilityPeriods;
     }
 
     public string Id { get; }
     public string Label { get; }
     public bool IsFavorite { get; }
+    public IReadOnlyList<ResourceUnavailabilityPeriod>? UnavailabilityPeriods { get; }
 
     public bool IsSelected
     {
@@ -506,14 +563,27 @@ public sealed class SelectableEmployee : ObservableObject
     }
 }
 
-public sealed record TourLookupOption(string Id, string Label)
+public sealed record TourLookupOption(string Id, string Label, IReadOnlyList<ResourceUnavailabilityPeriod>? UnavailabilityPeriods = null) : INotifyPropertyChanged
 {
+    private bool _isAvailable = true;
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public bool IsAvailable
+    {
+        get => _isAvailable;
+        set
+        {
+            if (_isAvailable == value) return;
+            _isAvailable = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsAvailable)));
+        }
+    }
+
     public override string ToString()
     {
         return Label;
     }
 }
-public sealed record TourEmployeeOption(string Id, string Label, bool IsFavorite);
+public sealed record TourEmployeeOption(string Id, string Label, bool IsFavorite, IReadOnlyList<ResourceUnavailabilityPeriod>? UnavailabilityPeriods = null);
 public sealed record CreateTourDialogResult(
     string RouteName,
     string RouteDate,

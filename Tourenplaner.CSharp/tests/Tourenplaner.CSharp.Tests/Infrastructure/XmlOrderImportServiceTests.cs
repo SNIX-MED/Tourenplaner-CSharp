@@ -6,6 +6,36 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 public class XmlOrderImportServiceTests
 {
     [Theory]
+    [InlineData("Herr", "", "", "")]
+    [InlineData("Frau", "", "", "")]
+    [InlineData("Herr", "Erika Muster", "", "Erika Muster")]
+    [InlineData("Herr", "", "<lieferperson>Erika Muster</lieferperson>", "Erika Muster")]
+    public void PrivateDeliveryAddressKeepsOnlyAdditionalContact(string salutation, string extraLine, string contactElement, string expectedContact)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"tourenplaner-private-address-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(path, $"""
+                <belege><beleg>
+                <ident>order-1</ident><kopf>A-1</kopf><datum>17.09.2026 00:00:00</datum>
+                <adresszeile>Max Muster | Testweg 1 | CH-3150 Schwarzenburg | 123</adresszeile>
+                {contactElement}
+                <adresskopflieferung>{salutation}
+                Max Muster
+                {extraLine}
+                Testweg 1
+                3150 Schwarzenburg</adresskopflieferung>
+                </beleg></belege>
+                """);
+            var order = Assert.Single(new XmlOrderImportService().LoadOrdersFromFileDetailed(path).Orders);
+            Assert.Equal("Max Muster", order.LieferFirma);
+            Assert.Equal(expectedContact, order.LieferKontaktperson);
+            Assert.Equal("Testweg 1", order.LieferStrasse);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Theory]
     [InlineData("belege", "beleg", "kopf", "datum", "Lieferdatum2", null)]
     [InlineData("belege", "beleg", "kopf", "datum", "lieferdatum2", null)]
     [InlineData("belege", "beleg", "kopf", "datum", "zus_liefertermin2", null)]
@@ -626,7 +656,7 @@ public class XmlOrderImportServiceTests
             var order = Assert.Single(new XmlOrderImportService().LoadOrdersFromFileDetailed(xmlPath).Orders);
 
             Assert.Equal("Mike Saint", order.KundeFirma);
-            Assert.Equal("Mike Saint", order.KundeKontaktperson);
+            Assert.Empty(order.KundeKontaktperson);
             Assert.Equal("Ara-Strasse 6", order.KundeStrasse);
             Assert.Equal("8274", order.KundePLZ);
             Assert.Equal("Taegerwilen", order.KundeOrt);

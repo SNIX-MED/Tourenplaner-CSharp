@@ -15,6 +15,7 @@ public partial class OrderProductDialogWindow : Window
         InitializeComponent();
         ViewModel = new OrderProductDialogViewModel(existingProduct);
         DataContext = ViewModel;
+        UnsavedChangesGuard.Attach(this, () => UnsavedChangesGuard.Capture(ViewModel), () => DialogResult == true);
     }
 
     public OrderProductDialogViewModel ViewModel { get; }
@@ -24,7 +25,6 @@ public partial class OrderProductDialogWindow : Window
     private void OnCancelClicked(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-        Close();
     }
 
     private void OnSaveClicked(object sender, RoutedEventArgs e)
@@ -37,7 +37,6 @@ public partial class OrderProductDialogWindow : Window
 
         Result = result;
         DialogResult = true;
-        Close();
     }
 
     private void OnUnitWeightPreviewTextInput(object sender, TextCompositionEventArgs e)

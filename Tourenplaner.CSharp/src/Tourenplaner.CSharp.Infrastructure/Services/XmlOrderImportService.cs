@@ -708,7 +708,9 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         if (lines.Count >= 4 && IsSalutation(lines[0]))
         {
             var nameAfterSalutation = lines[1].Trim();
-            return new ExportAddressBlock(nameAfterSalutation, nameAfterSalutation);
+            var addressLines = hasStreet ? 2 : 1;
+            var additionalContact = string.Join(' ', lines.Skip(2).Take(Math.Max(0, lines.Count - addressLines - 2)));
+            return new ExportAddressBlock(nameAfterSalutation, additionalContact);
         }
 
         var name = lines.Count > 0 ? lines[0] : string.Empty;

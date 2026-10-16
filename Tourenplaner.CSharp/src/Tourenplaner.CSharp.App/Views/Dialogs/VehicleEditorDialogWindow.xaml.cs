@@ -15,6 +15,9 @@ public partial class VehicleEditorDialogWindow : Window
         InitializeComponent();
         ViewModel = new VehicleEditorDialogViewModel(seed);
         DataContext = ViewModel;
+        UnsavedChangesGuard.Attach(this,
+            () => UnsavedChangesGuard.Capture(ViewModel, ViewModel.UnavailabilityItems.Select(x => UnsavedChangesGuard.Capture(x)).ToArray()),
+            () => DialogResult == true || DeleteRequested);
     }
 
     public VehicleEditorDialogViewModel ViewModel { get; }
@@ -36,14 +39,12 @@ public partial class VehicleEditorDialogWindow : Window
     private void OnCancelClicked(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-        Close();
     }
 
     private void OnDeleteClicked(object sender, RoutedEventArgs e)
     {
         DeleteRequested = true;
         DialogResult = false;
-        Close();
     }
 
     private void OnManageAbsencesClicked(object sender, RoutedEventArgs e)
@@ -63,7 +64,6 @@ public partial class VehicleEditorDialogWindow : Window
 
         Result = result;
         DialogResult = true;
-        Close();
     }
 }
 

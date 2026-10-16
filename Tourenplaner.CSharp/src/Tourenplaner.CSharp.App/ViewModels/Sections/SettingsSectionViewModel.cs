@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Windows.Input;
@@ -138,6 +138,9 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private string _tourDefaultStartTime = AppSettings.DefaultTourStartTime;
     private string _validationSummary = string.Empty;
     private bool _suppressAutoSave;
+    private long _settingsChangeRevision;
+    private long _savedSettingsRevision;
+    public override bool HasUnsavedChanges => _settingsChangeRevision != _savedSettingsRevision;
     private CancellationTokenSource? _autoSaveCts;
     private bool _autoSaveInProgress;
     private CancellationTokenSource? _pinInfoCardZoomBehaviorSaveCts;
@@ -1197,6 +1200,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
     private async Task SaveCoreAsync(bool showToast)
     {
+        var savingRevision = _settingsChangeRevision;
         var existingSettings = await _repository.LoadAsync();
         var model = BuildModel(existingSettings);
         var validation = _validator.Validate(model);
@@ -1211,6 +1215,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
         await _repository.SaveAsync(model);
         await WebfleetUserSettingsService.SaveAsync(_currentUserName, BuildWebfleetUserProfile());
+        _savedSettingsRevision = savingRevision;
         ValidationSummary = string.Empty;
         UpdateBackupStatus(model.BackupDir);
         _dataSyncService?.PublishSettings(_instanceId);
@@ -1253,6 +1258,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
     private void ScheduleAutoSave()
     {
+        _settingsChangeRevision++;
         _autoSaveCts?.Cancel();
         _autoSaveCts?.Dispose();
         _autoSaveCts = new CancellationTokenSource();

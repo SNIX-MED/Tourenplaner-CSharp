@@ -11,4 +11,6 @@ public abstract class SectionViewModelBase : ObservableObject
     public string Title { get; }
 
     public string Description { get; }
+
+    public virtual bool HasUnsavedChanges => false;
 }

@@ -8,6 +8,31 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class OrderImportServiceTests
 {
     [Theory]
+    [InlineData("Max Muster", "Max Muster", "")]
+    [InlineData("Max Muster", " max muster ", "")]
+    [InlineData("Max Muster", "Erika Muster", "Erika Muster")]
+    [InlineData("Muster AG", "Max Muster", "Max Muster")]
+    public async Task ImportOrdersAsync_DoesNotRepeatRecipientAsContact(string name, string contact, string expectedContact)
+    {
+        var xmlOrder = CreateSqlOrder("A-1", name, "Frei Bordsteinkante", "");
+        xmlOrder.KundeKontaktperson = contact;
+        xmlOrder.LieferFirma = name;
+        xmlOrder.LieferKontaktperson = contact;
+        xmlOrder.LieferStrasse = "Teststrasse 1";
+        xmlOrder.LieferPLZ = "8500";
+        xmlOrder.LieferOrt = "Frauenfeld";
+        var repository = new FakeOrderRepository([]);
+
+        var result = await new OrderImportService().ImportOrdersAsync([xmlOrder], repository);
+
+        Assert.Empty(result.Errors);
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal(name, stored.DeliveryAddress.Name);
+        Assert.Equal(expectedContact, stored.DeliveryAddress.ContactPerson);
+        Assert.Equal(expectedContact, stored.OrderAddress.ContactPerson);
+    }
+
+    [Theory]
     [InlineData("Frei Bordsteinkante", "Frei Bordsteinkante", true)]
     [InlineData("Frei Bordsteinkante", "Mit Verteilung", false)]
     [InlineData("Frei Bordsteinkante", "Spediteur", false)]

@@ -548,9 +548,12 @@
                                         <StackPanel Grid.Column="0"
                                                     Orientation="Horizontal"
                                                     VerticalAlignment="Center">
-                                            <TextBlock FontSize="18"
-                                                       FontWeight="SemiBold"
-                                                       Text="Produkte" />
+                                            <StackPanel>
+                                                <TextBlock FontSize="18" FontWeight="SemiBold" Text="Produkte" />
+                                                <TextBlock Margin="0,4,0,0" FontWeight="SemiBold"
+                                                           Text="{Binding ProductsTotalWeightText}"
+                                                           ToolTip="Summe aller Produktpositionen inklusive Mengen, unabhängig vom Produktfilter und einem manuellen Gesamtgewicht." />
+                                            </StackPanel>
                                             <TextBlock Margin="12,0,0,0"
                                                        VerticalAlignment="Center"
                                                        FontWeight="SemiBold"

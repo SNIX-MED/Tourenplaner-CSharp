@@ -273,7 +273,7 @@ public class OrderImportService : IOrderImportService
             OrderAddress = new OrderAddressInfo
             {
                 Name = sqlOrder.KundeFirma,
-                ContactPerson = orderContactPerson,
+                ContactPerson = DistinctContactPerson(BuildCustomerName(sqlOrder), orderContactPerson),
                 Street = (sqlOrder.KundeStrasse ?? string.Empty).Trim(),
                 HouseNumber = (sqlOrder.KundeHausnummer ?? string.Empty).Trim(),
                 PostalCode = sqlOrder.KundePLZ,
@@ -549,7 +549,7 @@ public class OrderImportService : IOrderImportService
 
             return (
                 Name: name,
-                ContactPerson: contactPerson,
+                ContactPerson: DistinctContactPerson(name, contactPerson),
                 Street: (sqlOrder.LieferStrasse ?? string.Empty).Trim(),
                 AddressNumber: (sqlOrder.LieferHausnummer ?? string.Empty).Trim(),
                 PostalCode: sqlOrder.LieferPLZ,
@@ -564,12 +564,17 @@ public class OrderImportService : IOrderImportService
 
         return (
             Name: string.IsNullOrWhiteSpace(sqlOrder.KundeFirma) ? BuildCustomerName(sqlOrder) : sqlOrder.KundeFirma,
-            ContactPerson: customerContact,
+            ContactPerson: DistinctContactPerson(string.IsNullOrWhiteSpace(sqlOrder.KundeFirma) ? BuildCustomerName(sqlOrder) : sqlOrder.KundeFirma, customerContact),
             Street: (sqlOrder.KundeStrasse ?? string.Empty).Trim(),
             AddressNumber: (sqlOrder.KundeHausnummer ?? string.Empty).Trim(),
             PostalCode: sqlOrder.KundePLZ,
             City: sqlOrder.KundeOrt);
     }
+
+    private static string DistinctContactPerson(string name, string contactPerson) =>
+        string.Equals(name.Trim(), contactPerson.Trim(), StringComparison.OrdinalIgnoreCase)
+            ? string.Empty
+            : contactPerson.Trim();
 
     private string BuildCustomerName(XmlOrderImportData sqlOrder)
     {

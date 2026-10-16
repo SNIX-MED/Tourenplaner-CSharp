@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,6 +15,9 @@ public partial class UnavailabilityEditorDialogWindow : Window
         InitializeComponent();
         ViewModel = new UnavailabilityEditorDialogViewModel(periods);
         DataContext = ViewModel;
+        UnsavedChangesGuard.Attach(this,
+            () => System.Text.Json.JsonSerializer.Serialize(ViewModel.Periods.Select(x => UnsavedChangesGuard.Capture(x)).ToArray()),
+            () => DialogResult == true);
     }
 
     public UnavailabilityEditorDialogViewModel ViewModel { get; }
@@ -26,7 +29,7 @@ public partial class UnavailabilityEditorDialogWindow : Window
     {
         if (sender is FrameworkElement { Tag: UnavailabilityPeriodEditItem item }) ViewModel.Periods.Remove(item);
     }
-    private void OnCancelClicked(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
+    private void OnCancelClicked(object sender, RoutedEventArgs e) { DialogResult = false; }
 
     private void OnTimePreviewTextInput(object sender, TextCompositionEventArgs e)
     {
@@ -110,7 +113,6 @@ public partial class UnavailabilityEditorDialogWindow : Window
         }
         Result = result;
         DialogResult = true;
-        Close();
     }
 }
 

@@ -2197,28 +2197,24 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         var employeesTask = _employeeRepository.LoadAsync();
         var vehiclesTask = _vehicleRepository.LoadAsync();
         await Task.WhenAll(employeesTask, vehiclesTask);
-        var selectedDate = ResourceAvailabilityService.ParseDate(routeDate);
 
         var employees = (await employeesTask)
-            .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
+            .Where(x => x.Active)
             .OrderByDescending(x => x.IsFavorite)
             .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(x => new TourEmployeeOption(x.Id, x.DisplayName, x.IsFavorite))
+            .Select(x => new TourEmployeeOption(x.Id, x.DisplayName, x.IsFavorite, x.UnavailabilityPeriods))
             .ToList();
 
         var vehicleData = await vehiclesTask;
         var vehicles = vehicleData.Vehicles
-            .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
+            .Where(x => x.Active)
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
+            .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]", x.UnavailabilityPeriods))
             .ToList();
         var trailers = vehicleData.Trailers
-            .Where(x => x.Active &&
-                        (!selectedDate.HasValue || !ResourceAvailabilityService.IsUnavailableAt(x.UnavailabilityPeriods, selectedDate.Value, routeTime)))
+            .Where(x => x.Active)
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]"))
+            .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]", x.UnavailabilityPeriods))
             .ToList();
 
         return (employees, vehicles, trailers);
@@ -3350,6 +3346,17 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return normalized.Length <= 90 ? normalized : $"{normalized[..87]}...";
     }
 
+    private string? _savedAssignmentState;
+    private string CaptureEditorAssignment() => System.Text.Json.JsonSerializer.Serialize(new
+    {
+        EditorDate, EditorStartTime,
+        Vehicle = SelectedVehicle?.Id ?? string.Empty,
+        Trailer = SelectedTrailer?.Id ?? string.Empty,
+        Employees = AvailableEmployees.Where(x => x.IsSelected).Select(x => x.Id).OrderBy(x => x).ToArray()
+    });
+    public override bool HasUnsavedChanges => SelectedTour is not null &&
+        _savedAssignmentState is not null && _savedAssignmentState != CaptureEditorAssignment();
+
     private void SyncEditorFromSelection()
     {
         _editorSyncInProgress = true;
@@ -3385,6 +3392,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         finally
         {
             _editorSyncInProgress = false;
+            _savedAssignmentState = CaptureEditorAssignment();
         }
 
         UpdateEditorConflictPreview();

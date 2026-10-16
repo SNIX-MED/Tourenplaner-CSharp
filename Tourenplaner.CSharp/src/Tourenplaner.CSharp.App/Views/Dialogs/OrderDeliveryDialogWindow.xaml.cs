@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -15,6 +15,7 @@ public partial class OrderDeliveryDialogWindow : Window
         InitializeComponent();
         ViewModel = new OrderDeliveryDialogViewModel(order);
         DataContext = ViewModel;
+        UnsavedChangesGuard.Attach(this, () => UnsavedChangesGuard.Capture(ViewModel, ViewModel.Lines.Select(x => UnsavedChangesGuard.Capture(x)).ToArray()), () => DialogResult == true);
     }
 
     public OrderDeliveryDialogViewModel ViewModel { get; }
@@ -24,7 +25,7 @@ public partial class OrderDeliveryDialogWindow : Window
     public string Delivery1Notes { get; private set; } = string.Empty;
     public string Delivery2Notes { get; private set; } = string.Empty;
 
-    private void OnCancel(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
+    private void OnCancel(object sender, RoutedEventArgs e) { DialogResult = false; }
     private void OnSave(object sender, RoutedEventArgs e)
     {
         if (!ViewModel.TryBuild(out var lines, out var error))
@@ -38,7 +39,6 @@ public partial class OrderDeliveryDialogWindow : Window
         Delivery1Notes = ViewModel.Delivery1Notes;
         Delivery2Notes = ViewModel.Delivery2Notes;
         DialogResult = true;
-        Close();
     }
 }
 

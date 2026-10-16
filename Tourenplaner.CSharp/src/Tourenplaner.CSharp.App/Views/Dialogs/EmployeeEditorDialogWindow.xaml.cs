@@ -16,6 +16,9 @@ public partial class EmployeeEditorDialogWindow : Window
         InitializeComponent();
         ViewModel = new EmployeeEditorDialogViewModel(seed, webfleetVehicles, webfleetDrivers, noWebfleetVehiclesMessage, hasDuplicateWebfleetAssignment, isWebfleetEnabled);
         DataContext = ViewModel;
+        UnsavedChangesGuard.Attach(this,
+            () => UnsavedChangesGuard.Capture(ViewModel, ViewModel.UnavailabilityItems.Select(x => UnsavedChangesGuard.Capture(x)).ToArray()),
+            () => DialogResult == true || DeleteRequested);
     }
 
     public EmployeeEditorDialogViewModel ViewModel { get; }
@@ -27,14 +30,12 @@ public partial class EmployeeEditorDialogWindow : Window
     private void OnCancelClicked(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-        Close();
     }
 
     private void OnDeleteClicked(object sender, RoutedEventArgs e)
     {
         DeleteRequested = true;
         DialogResult = false;
-        Close();
     }
 
     private void OnFavoriteClicked(object sender, RoutedEventArgs e)
@@ -59,7 +60,6 @@ public partial class EmployeeEditorDialogWindow : Window
 
         Result = result;
         DialogResult = true;
-        Close();
     }
 
     private void PhoneTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)

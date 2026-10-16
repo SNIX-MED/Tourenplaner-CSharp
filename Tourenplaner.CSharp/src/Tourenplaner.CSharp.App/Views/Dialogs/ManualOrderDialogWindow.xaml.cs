@@ -27,6 +27,13 @@ public partial class ManualOrderDialogWindow : Window
         _isEditMode = existingOrder is not null;
         ViewModel = new ManualOrderDialogViewModel(existingOrder, deliveryTypes, defaultOrderType);
         DataContext = ViewModel;
+        UnsavedChangesGuard.Attach(this,
+            () => UnsavedChangesGuard.Capture(ViewModel, new
+            {
+                Products = ViewModel.ProductLines.Select(x => UnsavedChangesGuard.Capture(x)).ToArray(),
+                DeliveryNotes = ViewModel.DeliveryNotes.Select(x => new { x.DeliveryId, x.Notes }).ToArray()
+            }, nameof(ManualOrderDialogViewModel.IsEditingEnabled), nameof(ManualOrderDialogViewModel.SelectedProductDeliveryStatus)),
+            () => DialogResult == true || DeleteRequested);
         PreviewMouseDown += OnWindowPreviewMouseDown;
         Deactivated += OnWindowDeactivated;
         Title = existingOrder is null ? "Kundenkartei" : $"Auftrag bearbeiten - {existingOrder.Id}";
@@ -69,14 +76,12 @@ public partial class ManualOrderDialogWindow : Window
     private void OnCancelClicked(object sender, RoutedEventArgs e)
     {
         DialogResult = false;
-        Close();
     }
 
     private void OnDeleteClicked(object sender, RoutedEventArgs e)
     {
         DeleteRequested = true;
         DialogResult = false;
-        Close();
     }
 
     private async void OnSaveClicked(object sender, RoutedEventArgs e)
@@ -139,7 +144,6 @@ public partial class ManualOrderDialogWindow : Window
         DeleteRequested = false;
         CreatedOrder = order;
         DialogResult = true;
-        Close();
     }
 
     private void OnXmlImportLockClicked(object sender, RoutedEventArgs e)
@@ -392,6 +396,14 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             DeliveryMethodExtensions.ResolveOrderType(x) == defaultOrderType) ?? _deliveryTypes[0];
         FilteredProductLines = CollectionViewSource.GetDefaultView(ProductLines);
         FilteredProductLines.Filter = MatchesSelectedSupplier;
+        ProductLines.CollectionChanged += (_, e) =>
+        {
+            if (e.OldItems is not null)
+                foreach (ProductLineInput line in e.OldItems) line.PropertyChanged -= OnProductWeightChanged;
+            if (e.NewItems is not null)
+                foreach (ProductLineInput line in e.NewItems) line.PropertyChanged += OnProductWeightChanged;
+            OnPropertyChanged(nameof(ProductsTotalWeightText));
+        };
         ApplyExistingOrder(existingOrder);
     }
 
@@ -402,6 +414,14 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     public ObservableCollection<DeliveryNoteInput> DeliveryNotes { get; } = new();
 
     public ObservableCollection<DeliveryProductGroup> DeliveryProductGroups { get; } = new();
+
+    public string ProductsTotalWeightText => $"Gesamtgewicht aller Produkte: {ProductLines.Sum(x => x.TotalWeightKg).ToString("0.##", CultureInfo.CurrentCulture)} kg";
+
+    private void OnProductWeightChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ProductLineInput.Quantity) or nameof(ProductLineInput.UnitWeightKg))
+            OnPropertyChanged(nameof(ProductsTotalWeightText));
+    }
 
     public bool HasDeliveryProductGroups => DeliveryProductGroups.Count > 0;
 
