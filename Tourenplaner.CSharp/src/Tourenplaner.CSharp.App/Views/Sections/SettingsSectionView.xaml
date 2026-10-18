@@ -1118,7 +1118,7 @@
                                                             <StackPanel Orientation="Horizontal">
                                                                 <TextBlock FontWeight="SemiBold" Text="Umstellung abschließen" />
                                                                 <Border Style="{StaticResource SettingsInfoIconStyle}"
-                                                                        ToolTip="Speichert die PostgreSQL-Daten, prüft die Verbindung und startet die App im Mehrbenutzer-Modus neu.">
+                                                                        ToolTip="Prüft die Verbindung, überträgt lokale Daten in eine leere PostgreSQL-Datenbank und startet die App im Mehrbenutzer-Modus neu. Eine bereits befüllte Datenbank wird nicht überschrieben.">
                                                                     <TextBlock Style="{StaticResource SettingsInfoIconTextStyle}" />
                                                                 </Border>
                                                             </StackPanel>

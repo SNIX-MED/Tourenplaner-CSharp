@@ -61,6 +61,14 @@ public partial class CreateTourDialogWindow : Window
         OpenOnMapButton.Visibility = showOpenOnMapButton ? Visibility.Visible : Visibility.Collapsed;
         if (editTourId is > 0)
         {
+            Title = "Liefertour bearbeiten";
+            DialogHeading.Text = "Liefertour bearbeiten";
+            StopEditingHint.Visibility = Visibility.Visible;
+            SaveButton.Content = "Änderungen übernehmen";
+            OpenOnMapButton.Visibility = Visibility.Collapsed;
+            System.Windows.Controls.Grid.SetColumn(SaveButton, 1);
+            System.Windows.Controls.Grid.SetColumnSpan(SaveButton, 2);
+
             var lockAttempt = Task.Run(
                     () => CollaborationSessionService.TryAcquireResourceAsync(
                         "tour",

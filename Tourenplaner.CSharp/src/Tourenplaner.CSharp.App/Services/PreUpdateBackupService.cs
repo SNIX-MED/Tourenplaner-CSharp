@@ -33,7 +33,8 @@ internal static class PreUpdateBackupService
         string targetVersion,
         CancellationToken cancellationToken = default,
         string? destinationDirectory = null,
-        string fileNamePurpose = "pre-update")
+        string fileNamePurpose = "pre-update",
+        AppStorageMode? storageModeOverride = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
 
@@ -43,7 +44,10 @@ internal static class PreUpdateBackupService
         {
             var settingsPath = Path.Combine(dataRoot, "settings.json");
             var bootstrapSettings = await new JsonAppSettingsRepository(settingsPath).LoadAsync(cancellationToken);
-            var settings = await LoadEffectiveSettingsAsync(bootstrapSettings, cancellationToken);
+            var settings = storageModeOverride.HasValue
+                ? bootstrapSettings
+                : await LoadEffectiveSettingsAsync(bootstrapSettings, cancellationToken);
+            var sourceStorageMode = storageModeOverride ?? settings.StorageMode;
             var backupDirectory = string.IsNullOrWhiteSpace(destinationDirectory)
                 ? ResolveBackupDirectory(settings.BackupDir)
                 : Path.GetFullPath(destinationDirectory.Trim());
@@ -61,10 +65,10 @@ internal static class PreUpdateBackupService
             await using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: false))
             {
-                await WriteMetadataAsync(archive, settings.StorageMode, currentVersion, targetVersion, cancellationToken);
+                await WriteMetadataAsync(archive, sourceStorageMode, currentVersion, targetVersion, cancellationToken);
                 await WriteLocalDataAsync(archive, dataRoot, cancellationToken);
 
-                if (settings.StorageMode == AppStorageMode.PostgreSql)
+                if (sourceStorageMode == AppStorageMode.PostgreSql)
                 {
                     if (settings.PostgreSqlStorage is null || !settings.PostgreSqlStorage.IsConfigured())
                     {

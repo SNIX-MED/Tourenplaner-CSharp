@@ -1842,6 +1842,11 @@ public partial class KarteSectionView : UserControl
         _routeDragSourceContainer = null;
         ClearRouteDropIndicator();
 
+        if (DataContext is not KarteSectionViewModel vm || !vm.CanReorderRouteStops)
+        {
+            return;
+        }
+
         if (VisualTreeUtilities.FindAncestor<ScrollBar>(e.OriginalSource as DependencyObject) is not null)
         {
             return;
@@ -1878,6 +1883,14 @@ public partial class KarteSectionView : UserControl
 
     private void RouteStopsList_MouseMove(object sender, MouseEventArgs e)
     {
+        if (DataContext is not KarteSectionViewModel vm || !vm.CanReorderRouteStops)
+        {
+            _routeGridDragStart = null;
+            _routeGridDragItem = null;
+            _routeDragSourceContainer = null;
+            return;
+        }
+
         if (_routeGridDragStart is null || _routeGridDragItem is null || e.LeftButton != MouseButtonState.Pressed)
         {
             return;
@@ -1921,6 +1934,7 @@ public partial class KarteSectionView : UserControl
     private void RouteStopsList_DragOver(object sender, DragEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
+            !vm.CanReorderRouteStops ||
             !e.Data.GetDataPresent(typeof(RouteDragPayload)))
         {
             ClearRouteDropIndicator();
@@ -2169,8 +2183,12 @@ public partial class KarteSectionView : UserControl
     private void RouteStopsList_Drop(object sender, DragEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
+            !vm.CanReorderRouteStops ||
             !e.Data.GetDataPresent(typeof(RouteDragPayload)))
         {
+            ClearRouteDropIndicator();
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
             return;
         }
 

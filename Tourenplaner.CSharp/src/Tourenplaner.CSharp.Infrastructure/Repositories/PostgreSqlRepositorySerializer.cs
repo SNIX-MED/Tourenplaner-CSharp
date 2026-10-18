@@ -4,10 +4,7 @@ namespace Tourenplaner.CSharp.Infrastructure.Repositories;
 
 internal static class PostgreSqlRepositorySerializer
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
+    private static readonly JsonSerializerOptions SerializerOptions = RepositoryJsonSerializerOptions.PostgreSqlPayload;
 
     public static string Serialize<T>(T value)
     {

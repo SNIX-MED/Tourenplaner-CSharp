@@ -16,4 +16,8 @@
     <Resource Include="..\Tourenplaner.CSharp.App\Assets\Applogo.png" Link="Assets\Applogo.png" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\Shared\ConfiguredHttpClientFactory.cs" Link="Shared\ConfiguredHttpClientFactory.cs" />
+  </ItemGroup>
+
 </Project>

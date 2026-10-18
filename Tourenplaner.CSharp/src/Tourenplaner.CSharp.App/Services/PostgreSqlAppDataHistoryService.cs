@@ -23,7 +23,6 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
         DateTimeOffset? BeforeUpdatedAt,
         DateTimeOffset? AfterUpdatedAt);
 
-    private const int MaxHistoryEntries = 80;
     private static readonly TimeSpan CaptureDebounce = TimeSpan.FromMilliseconds(160);
     private static readonly HashSet<string> AllowedTables =
     [
@@ -35,11 +34,11 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
     private readonly PostgreSqlStorageSettings _settings;
     private readonly PostgreSqlConnectionFactory _connectionFactory = new();
     private readonly PostgreSqlSchemaInitializer _schemaInitializer = new();
-    private readonly Stack<HistoryEntry> _undoStack = new();
-    private readonly Stack<HistoryEntry> _redoStack = new();
+    private readonly HistorySession<HistoryEntry> _history =
+        new(entry => entry.Description);
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly Guid _sourceId = Guid.NewGuid();
-    private CancellationTokenSource? _captureCts;
+    private readonly AsyncDebounceCoordinator _captureDebouncer;
     private long _lastChangeId;
     private bool _initialized;
     private bool _restoring;
@@ -52,15 +51,16 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
     {
         _dataSyncService = dataSyncService;
         _settings = settings;
+        _captureDebouncer = new AsyncDebounceCoordinator(CaptureDebounce, CaptureChangesAsync);
         PostgreSqlClientContext.Configure(dataSyncService.ClientInstanceId, userName);
     }
 
     public event EventHandler? StateChanged;
 
-    public bool CanUndo { get { lock (_gate) return _undoStack.Count > 0; } }
-    public bool CanRedo { get { lock (_gate) return _redoStack.Count > 0; } }
-    public string UndoDescription { get { lock (_gate) return _undoStack.TryPeek(out var item) ? item.Description : string.Empty; } }
-    public string RedoDescription { get { lock (_gate) return _redoStack.TryPeek(out var item) ? item.Description : string.Empty; } }
+    public bool CanUndo => _history.CanUndo;
+    public bool CanRedo => _history.CanRedo;
+    public string UndoDescription => _history.UndoDescription;
+    public string RedoDescription => _history.RedoDescription;
     public bool HasPersistentHistory => true;
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -134,12 +134,8 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
         try
         {
             PostgreSqlClientContext.Configure(_dataSyncService.ClientInstanceId, userName);
-            lock (_gate)
-            {
-                _captureCts?.Cancel();
-                _undoStack.Clear();
-                _redoStack.Clear();
-            }
+            _captureDebouncer.CancelPending();
+            _history.Reset();
 
             await using var connection = _connectionFactory.CreateConnection(_settings);
             await connection.OpenAsync(cancellationToken);
@@ -156,19 +152,14 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
         RaiseStateChanged();
     }
 
-    public Task UndoAsync() => RestoreTopAsync(_undoStack, _redoStack);
+    public Task UndoAsync() => RestoreTopAsync(HistoryDirection.Undo);
 
-    public Task RedoAsync() => RestoreTopAsync(_redoStack, _undoStack);
+    public Task RedoAsync() => RestoreTopAsync(HistoryDirection.Redo);
 
     public void Dispose()
     {
         _dataSyncService.DataChanged -= OnDataChanged;
-        lock (_gate)
-        {
-            _captureCts?.Cancel();
-            _captureCts?.Dispose();
-            _captureCts = null;
-        }
+        _captureDebouncer.Dispose();
         _operationGate.Dispose();
     }
 
@@ -181,34 +172,21 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
             return;
         }
 
-        ScheduleCapture(BuildDescriptionFromArgs(args));
+        ScheduleCapture(AppDataHistoryDescriptionFormatter.Format(
+            args,
+            AppDataHistoryDescriptionProfile.PostgreSql));
     }
 
     private void ScheduleCapture(string description)
     {
-        CancellationTokenSource cts;
         lock (_gate)
         {
-            _pendingDescription = string.IsNullOrWhiteSpace(description) ? "Änderung" : description.Trim();
-            _captureCts?.Cancel();
-            _captureCts?.Dispose();
-            _captureCts = new CancellationTokenSource();
-            cts = _captureCts;
+            _pendingDescription = string.IsNullOrWhiteSpace(description)
+                ? "Änderung"
+                : description.Trim();
         }
 
-        CaptureAfterDelayAsync(cts).Forget();
-    }
-
-    private async Task CaptureAfterDelayAsync(CancellationTokenSource cts)
-    {
-        try
-        {
-            await Task.Delay(CaptureDebounce, cts.Token);
-            await CaptureChangesAsync(cts.Token);
-        }
-        catch (OperationCanceledException) when (cts.IsCancellationRequested)
-        {
-        }
+        _captureDebouncer.Schedule();
     }
 
     private async Task CaptureChangesAsync(CancellationToken cancellationToken)
@@ -233,10 +211,8 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
             lock (_gate)
             {
                 description = _pendingDescription;
-                _undoStack.Push(new HistoryEntry(description, items));
-                Trim(_undoStack);
-                _redoStack.Clear();
             }
+            _history.RecordMutation(new HistoryEntry(description, items));
             RaiseStateChanged();
         }
         finally
@@ -308,22 +284,21 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
             .ToList();
     }
 
-    private async Task RestoreTopAsync(Stack<HistoryEntry> source, Stack<HistoryEntry> destination)
+    private async Task RestoreTopAsync(HistoryDirection direction)
     {
         await _operationGate.WaitAsync();
         try
         {
-            HistoryEntry entry;
-            lock (_gate)
+            if (!_history.TryGetRestoreTarget(direction, out var entry))
             {
-                if (!source.TryPeek(out entry!)) return;
+                return;
             }
 
             _restoring = true;
             IReadOnlyList<ChangeItem> inverseItems;
             try
             {
-                var historyAction = ReferenceEquals(source, _undoStack) ? "undo" : "redo";
+                var historyAction = direction == HistoryDirection.Undo ? "undo" : "redo";
                 inverseItems = await ApplyEntryAsync(entry, historyAction);
             }
             finally
@@ -331,12 +306,10 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
                 _restoring = false;
             }
 
-            lock (_gate)
-            {
-                source.Pop();
-                destination.Push(new HistoryEntry(entry.Description, inverseItems));
-                Trim(destination);
-            }
+            _history.CompleteRestore(
+                direction,
+                entry,
+                new HistoryEntry(entry.Description, inverseItems));
 
             PublishFullReload();
             RaiseStateChanged();
@@ -559,39 +532,5 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
         return await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private static void Trim(Stack<HistoryEntry> stack)
-    {
-        if (stack.Count <= MaxHistoryEntries) return;
-        var kept = stack.Take(MaxHistoryEntries).Reverse().ToArray();
-        stack.Clear();
-        foreach (var item in kept) stack.Push(item);
-    }
-
     private void RaiseStateChanged() => StateChanged?.Invoke(this, EventArgs.Empty);
-
-    private static string BuildDescriptionFromArgs(AppDataChangedEventArgs args)
-    {
-        if (args.Kinds == AppDataKind.Settings) return "Einstellungen ändern";
-        if (args.Kinds == AppDataKind.Orders) return DescribeEntity("Auftrag", "Aufträge", args);
-        if (args.Kinds == AppDataKind.Tours) return DescribeEntity("Tour", "Touren", args);
-        if (args.Kinds == AppDataKind.Employees) return DescribeEntity("Mitarbeiter", "Mitarbeiter", args);
-        if (args.Kinds == AppDataKind.Vehicles) return DescribeEntity("Fahrzeug", "Fahrzeuge", args);
-        if (args.Kinds == AppDataKind.CalendarEntries) return DescribeEntity("Kalendereintrag", "Kalendereinträge", args);
-        return "Daten ändern";
-    }
-
-    private static string DescribeEntity(string singular, string plural, AppDataChangedEventArgs args)
-    {
-        var hadPrevious = !string.IsNullOrWhiteSpace(args.PreviousId);
-        var hasCurrent = !string.IsNullOrWhiteSpace(args.CurrentId);
-        if (!hadPrevious && hasCurrent) return $"{singular} erstellen";
-        if (hadPrevious && !hasCurrent) return $"{singular} löschen";
-        if (hadPrevious && hasCurrent)
-        {
-            return string.Equals(args.PreviousId, args.CurrentId, StringComparison.OrdinalIgnoreCase)
-                ? $"{singular} aktualisieren"
-                : $"{singular} umbenennen";
-        }
-        return $"{plural} ändern";
-    }
 }

@@ -7,17 +7,11 @@ namespace Tourenplaner.CSharp.Infrastructure.Repositories;
 public abstract class JsonRepositoryBase<T>
 {
     private const int FileOpenRetryAttempts = 6;
-    private readonly JsonSerializerOptions _serializerOptions;
+    private static readonly JsonSerializerOptions SerializerOptions = RepositoryJsonSerializerOptions.FileRepository;
 
     protected JsonRepositoryBase(string filePath)
     {
         FilePath = filePath;
-        _serializerOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true,
-            WriteIndented = true
-        };
     }
 
     protected string FilePath { get; }
@@ -36,7 +30,7 @@ public abstract class JsonRepositoryBase<T>
 
             await using var stream = await OpenFileWithRetryAsync(
                 FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, cancellationToken);
-            var result = await JsonSerializer.DeserializeAsync<List<T>>(stream, _serializerOptions, cancellationToken);
+            var result = await JsonSerializer.DeserializeAsync<List<T>>(stream, SerializerOptions, cancellationToken);
             return result ?? new List<T>();
         }
         finally
@@ -54,7 +48,7 @@ public abstract class JsonRepositoryBase<T>
             EnsureParentDirectory();
             await using var stream = await OpenFileWithRetryAsync(
                 FilePath, FileMode.Create, FileAccess.Write, FileShare.None, cancellationToken);
-            await JsonSerializer.SerializeAsync(stream, values.ToList(), _serializerOptions, cancellationToken);
+            await JsonSerializer.SerializeAsync(stream, values.ToList(), SerializerOptions, cancellationToken);
         }
         finally
         {
@@ -79,13 +73,13 @@ public abstract class JsonRepositoryBase<T>
             {
                 await using var readStream = await OpenFileWithRetryAsync(
                     FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, cancellationToken);
-                items = await JsonSerializer.DeserializeAsync<List<T>>(readStream, _serializerOptions, cancellationToken) ?? [];
+                items = await JsonSerializer.DeserializeAsync<List<T>>(readStream, SerializerOptions, cancellationToken) ?? [];
             }
 
             mutation(items);
             await using var writeStream = await OpenFileWithRetryAsync(
                 FilePath, FileMode.Create, FileAccess.Write, FileShare.None, cancellationToken);
-            await JsonSerializer.SerializeAsync(writeStream, items, _serializerOptions, cancellationToken);
+            await JsonSerializer.SerializeAsync(writeStream, items, SerializerOptions, cancellationToken);
         }
         finally
         {
@@ -104,13 +98,13 @@ public abstract class JsonRepositoryBase<T>
             {
                 await using var createStream = await OpenFileWithRetryAsync(
                     FilePath, FileMode.Create, FileAccess.Write, FileShare.None, cancellationToken);
-                await JsonSerializer.SerializeAsync(createStream, fallback, _serializerOptions, cancellationToken);
+                await JsonSerializer.SerializeAsync(createStream, fallback, SerializerOptions, cancellationToken);
                 return fallback;
             }
 
             await using var stream = await OpenFileWithRetryAsync(
                 FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, cancellationToken);
-            var value = await JsonSerializer.DeserializeAsync<T>(stream, _serializerOptions, cancellationToken);
+            var value = await JsonSerializer.DeserializeAsync<T>(stream, SerializerOptions, cancellationToken);
             return value ?? fallback;
         }
         finally
@@ -128,7 +122,7 @@ public abstract class JsonRepositoryBase<T>
             EnsureParentDirectory();
             await using var stream = await OpenFileWithRetryAsync(
                 FilePath, FileMode.Create, FileAccess.Write, FileShare.None, cancellationToken);
-            await JsonSerializer.SerializeAsync(stream, value, _serializerOptions, cancellationToken);
+            await JsonSerializer.SerializeAsync(stream, value, SerializerOptions, cancellationToken);
         }
         finally
         {

@@ -6,11 +6,9 @@ using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
 using Tourenplaner.CSharp.App.Views.Dialogs;
-using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
-using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -33,15 +31,10 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         Order.ReadyToDeliverStatus
     ];
 
-    private readonly IOrderRepository _repository;
-    private readonly ITourRecordStore _tourRepository;
+    private readonly OrderSectionWorkflowService _workflowService;
     private readonly IAppSettingsStore _settingsRepository;
-    private readonly IOrderMutationRepository? _mutationRepository;
-    private readonly AppDataSyncService _dataSyncService;
-    private readonly Func<int, Task>? _openTourAsync;
     private readonly string _geocodeCachePath;
     private readonly List<Order> _allOrders = new();
-    private readonly Guid _instanceId = Guid.NewGuid();
     private readonly OrderDeliveryService _deliveryService = new();
     private Order? _lastDeletedOrder;
     private int _lastDeletedIndex = -1;
@@ -63,20 +56,13 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private bool _showArchivedOrders;
 
     public OrdersSectionViewModel(
-        IOrderRepository repository,
-        ITourRecordStore tourRepository,
+        OrderSectionWorkflowService workflowService,
         IAppSettingsStore settingsRepository,
-        string dataRoot,
-        AppDataSyncService dataSyncService,
-        Func<int, Task>? openTourAsync = null)
+        string dataRoot)
         : base("Aufträge", "Aufträge mit Adresse, Zuordnung und Filterung.")
     {
-        _repository = repository;
-        _tourRepository = tourRepository;
+        _workflowService = workflowService ?? throw new ArgumentNullException(nameof(workflowService));
         _settingsRepository = settingsRepository;
-        _mutationRepository = repository as IOrderMutationRepository;
-        _dataSyncService = dataSyncService;
-        _openTourAsync = openTourAsync;
         _geocodeCachePath = Path.Combine(dataRoot, "geocode-cache.json");
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
@@ -104,7 +90,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         ToggleArchiveModeCommand = new DelegateCommand(() => ShowArchivedOrders = !ShowArchivedOrders);
         ResetOrderFiltersCommand = new DelegateCommand(ResetOrderFilters);
         ToggleAllOrderFiltersCommand = new DelegateCommand(ToggleAllOrderFilters);
-        _dataSyncService.OrdersChanged += OnOrdersChanged;
+        _workflowService.OrdersChanged += OnOrdersChanged;
         _ = RefreshAsync();
     }
 
@@ -302,12 +288,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     public void UpdateSelectedOrders(IEnumerable<OrderItem> orders)
     {
         var snapshot = orders.ToList();
-
-        SelectedOrders.Clear();
-        foreach (var order in snapshot)
-        {
-            SelectedOrders.Add(order);
-        }
+        OrderSectionWorkflowService.SynchronizeSelection(SelectedOrders, snapshot);
 
         if (SelectedOrders.Count > 0 && (SelectedOrder is null || !SelectedOrders.Contains(SelectedOrder)))
         {
@@ -334,7 +315,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     public async Task SaveAsync()
     {
         OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders);
-        await _repository.SaveAllAsync(_allOrders);
+        await _workflowService.SaveAllAsync(_allOrders);
         PublishOrderChange(SelectedOrder?.Id, SelectedOrder?.Id);
         StatusText = $"Aufträge gespeichert: {_allOrders.Count(DeliveryMethodExtensions.CanUseLiefertour)}";
     }
@@ -599,47 +580,24 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private async Task<AddressGeocodingResult?> ApplyDeliveryMethodRoutingAsync(Order order, GeoPoint? fallbackLocation = null)
     {
-        return await OrderDeliveryRoutingService.ApplyAsync(order, fallbackLocation, TryResolveOrderAsync);
+        return await _workflowService.ApplyDeliveryMethodRoutingAsync(order, fallbackLocation);
     }
 
     private async Task<bool> ConfirmManualArchiveForAssignedActiveTourAsync(Order existing, bool nextIsArchived)
     {
-        if (existing.IsArchived || !nextIsArchived)
+        var assignment = await _workflowService.ResolveArchiveAssignmentAsync(existing, nextIsArchived);
+        if (!assignment.RequiresConfirmation)
         {
             return true;
         }
-
-        var assignedTourId = (existing.AssignedTourId ?? string.Empty).Trim();
-        if (!int.TryParse(assignedTourId, out var assignedTourIdNumber) || assignedTourIdNumber <= 0)
-        {
-            return true;
-        }
-
-        var tours = await _tourRepository.LoadAsync();
-        var assignedTour = tours.FirstOrDefault(t => t.Id == assignedTourIdNumber);
-        if (assignedTour is null || assignedTour.IsArchived)
-        {
-            return true;
-        }
-
-        var tourLabel = string.IsNullOrWhiteSpace(assignedTour.Name)
-            ? $"Tour {assignedTour.Id}"
-            : $"{assignedTour.Name.Trim()} (Tour {assignedTour.Id})";
         var confirmation = Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-            $"Der Auftrag ist in {tourLabel} eingeplant, und diese Tour ist nicht archiviert.{Environment.NewLine}{Environment.NewLine}" +
+            $"Der Auftrag ist in {assignment.TourLabel} eingeplant, und diese Tour ist nicht archiviert.{Environment.NewLine}{Environment.NewLine}" +
             "Auftrag trotzdem archivieren?",
             "Auftrag in aktiver Tour",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
 
         return confirmation == MessageBoxResult.Yes;
-    }
-
-    private async Task<AddressGeocodingResult?> TryResolveOrderAsync(Order order)
-    {
-        var settings = await _settingsRepository.LoadAsync();
-        var tomTomApiKey = (settings.TomTomApiKey ?? string.Empty).Trim();
-        return await AddressGeocodingService.TryResolveOrderAsync(order, tomTomApiKey, _geocodeCachePath);
     }
 
     private async Task ToggleArchiveSelectedOrderAsync()
@@ -743,8 +701,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
-        var assignedTourIdText = (SelectedOrder.AssignedTourId ?? string.Empty).Trim();
-        if (!int.TryParse(assignedTourIdText, out var tourId) || tourId <= 0)
+        var navigation = await _workflowService.NavigateToAssignedTourAsync(SelectedOrder.AssignedTourId);
+        if (navigation.Status == OrderTourNavigationStatus.InvalidTourId)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                 "Für diesen Auftrag ist keine gültige Tour zugeordnet.",
@@ -754,24 +712,22 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
-        if (_openTourAsync is null)
+        if (navigation.Status == OrderTourNavigationStatus.NavigationUnavailable)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                $"Der Auftrag ist Tour {tourId} zugeordnet.",
+                $"Der Auftrag ist Tour {navigation.TourId} zugeordnet.",
                 "Tour anzeigen",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             return;
         }
 
-        await _openTourAsync(tourId);
     }
 
     private bool CanShowAssignedTour()
     {
         return SelectedOrder is not null &&
-               int.TryParse((SelectedOrder.AssignedTourId ?? string.Empty).Trim(), out var tourId) &&
-               tourId > 0;
+               OrderSectionWorkflowService.CanNavigateToAssignedTour(SelectedOrder.AssignedTourId);
     }
 
     private void CopySelectedOrderNumber()
@@ -857,7 +813,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
         var deleted = 0;
         var deletedIds = new List<string>();
         var deletedSnapshots = new List<(Order Order, int Index)>();
-        if (_mutationRepository is null)
+        if (!_workflowService.HasOrderMutationRepository)
         {
             foreach (var target in targets)
             {
@@ -876,7 +832,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 _allOrders.RemoveAll(x => string.Equals(x.Id, deletedId, StringComparison.OrdinalIgnoreCase));
             }
 
-            await _repository.SaveAllAsync(_allOrders);
+            await _workflowService.SaveAllAsync(_allOrders);
             deleted = deletedIds.Count;
         }
         else
@@ -945,19 +901,14 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             MapOrders.Add(ToOrderItem(order));
         }
 
-        SelectedOrder = string.IsNullOrWhiteSpace(selectedOrderId)
-            ? MapOrders.FirstOrDefault()
-            : MapOrders.FirstOrDefault(x => string.Equals(x.Id, selectedOrderId, StringComparison.OrdinalIgnoreCase))
-                ?? MapOrders.FirstOrDefault();
+        SelectedOrder = OrderSectionWorkflowService.SelectOrderById(MapOrders, selectedOrderId);
         UpdateStatusText();
         RaiseCommandStates();
     }
 
     private void UpdateStatusText()
     {
-        var assigned = MapOrders.Count(x => !string.IsNullOrWhiteSpace(x.AssignedTourId));
-        var modeLabel = ShowArchivedOrders ? "Archiviert" : "Aktiv";
-        StatusText = $"Aufträge ({modeLabel}): {MapOrders.Count} | Zugeordnet: {assigned} | Offen: {MapOrders.Count - assigned}";
+        StatusText = OrderSectionWorkflowService.BuildStatusText("Aufträge", MapOrders, ShowArchivedOrders);
     }
 
     private void RaiseCommandStates()
@@ -1017,20 +968,9 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private async Task RefreshFromRepositoryAsync(string? preferredSelectedId = null)
     {
+        var loadResult = await _workflowService.LoadAndNormalizeAsync();
         _allOrders.Clear();
-        _allOrders.AddRange(await _repository.GetAllAsync());
-        var originalOrders = OrderMaintenancePersistenceService.CreateSnapshot(_allOrders);
-        var deliveriesChanged = false;
-        foreach (var order in _allOrders)
-        {
-            deliveriesChanged |= _deliveryService.Normalize(order);
-            deliveriesChanged |= _deliveryService.EnsureRemainderDelivery(order) is not null;
-            deliveriesChanged |= _deliveryService.DistributeOrderNotesToDeliveries(order);
-        }
-        if (deliveriesChanged || OrderSectionSharedHelpers.SyncDerivedOrderStatuses(_allOrders))
-        {
-            await OrderMaintenancePersistenceService.SaveChangesAsync(_repository, originalOrders, _allOrders);
-        }
+        _allOrders.AddRange(loadResult.Orders);
 
         UpdateFilterOptions();
         RebuildGrid(preferredSelectedId);
@@ -1038,24 +978,14 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private async Task<bool> SaveOrderAsync(Order order, CancellationToken cancellationToken = default)
     {
-        try
+        var result = await _workflowService.SaveOrderAsync(order, _allOrders, cancellationToken);
+        if (result.Succeeded)
         {
-            if (_mutationRepository is not null)
-            {
-                await _mutationRepository.UpsertAsync(order, cancellationToken);
-            }
-            else
-            {
-                await _repository.SaveAllAsync(_allOrders, cancellationToken);
-            }
-
             return true;
         }
-        catch (ConcurrencyConflictException)
-        {
-            await HandleConcurrencyConflictAsync(order.Id);
-            return false;
-        }
+
+        await HandleConcurrencyConflictAsync(order.Id);
+        return false;
     }
 
     public bool IncludeOpenOrders
@@ -1086,24 +1016,18 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private async Task<bool> DeleteOrderAsync(string orderId, string? concurrencyToken = null, CancellationToken cancellationToken = default)
     {
-        try
+        var result = await _workflowService.DeleteOrderAsync(
+            orderId,
+            concurrencyToken,
+            _allOrders,
+            cancellationToken);
+        if (result.Succeeded)
         {
-            if (_mutationRepository is not null)
-            {
-                await _mutationRepository.DeleteAsync(orderId, concurrencyToken, cancellationToken);
-            }
-            else
-            {
-                await _repository.SaveAllAsync(_allOrders, cancellationToken);
-            }
-
             return true;
         }
-        catch (ConcurrencyConflictException)
-        {
-            await HandleConcurrencyConflictAsync(orderId);
-            return false;
-        }
+
+        await HandleConcurrencyConflictAsync(orderId);
+        return false;
     }
 
     private async Task HandleConcurrencyConflictAsync(string? preferredSelectedId)
@@ -1336,7 +1260,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)
     {
-        if (args.SourceId == _instanceId)
+        if (_workflowService.IsOwnChange(args))
         {
             return;
         }
@@ -1353,36 +1277,17 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             return args.CurrentOrderId;
         }
 
-        return selectedOrderId;
+        return OrderSectionWorkflowService.ResolvePreferredSelectedId(args, selectedOrderId);
     }
 
     private void PublishOrderChange(string? previousOrderId, string? currentOrderId)
     {
-        _dataSyncService.PublishOrders(_instanceId, previousOrderId, currentOrderId);
+        _workflowService.PublishOrderChange(previousOrderId, currentOrderId);
     }
 
     private async Task ReconcileToursWithOrdersAsync(IEnumerable<Order> orders)
     {
-        var tours = (await _tourRepository.LoadAsync()).ToList();
-        var originalTours = TourReconciliationPersistenceService.CreateSnapshot(tours);
-        var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
-        if (!cleanup.HasChanges)
-        {
-            return;
-        }
-
-        var scheduleService = new TourScheduleService();
-        foreach (var changedTourId in cleanup.RescheduledTourIds)
-        {
-            var changedTour = tours.FirstOrDefault(x => x.Id == changedTourId);
-            if (changedTour is not null)
-            {
-                scheduleService.ApplySchedule(changedTour);
-            }
-        }
-
-        await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, tours, cleanup);
-        _dataSyncService.PublishTours(_instanceId);
+        await _workflowService.ReconcileToursWithOrdersAsync(orders);
     }
 
     private bool MatchesTourAssignmentFilter(Order order)
@@ -1477,14 +1382,7 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
 
     private void SelectOrderById(string? orderId)
     {
-        if (string.IsNullOrWhiteSpace(orderId))
-        {
-            SelectedOrder = MapOrders.FirstOrDefault();
-            return;
-        }
-
-        SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.Id, orderId, StringComparison.OrdinalIgnoreCase))
-                        ?? MapOrders.FirstOrDefault();
+        SelectedOrder = OrderSectionWorkflowService.SelectOrderById(MapOrders, orderId);
     }
 
     private static string BuildDeliveryProgress(Order order)

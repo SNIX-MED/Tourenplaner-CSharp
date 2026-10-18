@@ -30,7 +30,7 @@ public sealed class JsonOrderRepository : JsonRepositoryBase<Order>, IOrderRepos
     public async Task UpsertAsync(Order order, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(order);
-        order.ConcurrencyToken = CreateConcurrencyToken();
+        order.ConcurrencyToken = RepositoryConcurrencyToken.Create();
 
         await MutateListAsync(items =>
         {
@@ -52,6 +52,4 @@ public sealed class JsonOrderRepository : JsonRepositoryBase<Order>, IOrderRepos
             cancellationToken);
     }
 
-    private static string CreateConcurrencyToken()
-        => DateTimeOffset.UtcNow.ToString("O");
 }

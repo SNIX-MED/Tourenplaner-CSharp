@@ -1,5 +1,7 @@
 ﻿using System.Text.Json;
 
+using Tourenplaner.CSharp.Infrastructure.Repositories;
+
 namespace Tourenplaner.CSharp.Infrastructure.Storage;
 
 public class JsonStorageException : Exception
@@ -18,15 +20,8 @@ public sealed class InvalidJsonFileException : JsonStorageException
 
 public sealed class JsonFileStore
 {
-    private static readonly JsonSerializerOptions ReadOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
-    private static readonly JsonSerializerOptions WriteOptions = new()
-    {
-        WriteIndented = true
-    };
+    private static readonly JsonSerializerOptions ReadOptions = RepositoryJsonSerializerOptions.FileStoreRead;
+    private static readonly JsonSerializerOptions WriteOptions = RepositoryJsonSerializerOptions.FileStoreWrite;
 
     public async Task AtomicWriteAsync<T>(string path, T payload, CancellationToken cancellationToken = default)
     {

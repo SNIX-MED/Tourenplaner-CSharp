@@ -69,11 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Gezieltes Speichern von Produktstatus und Auftragsdetails mit sichtbarer Fehlerbehandlung
-          - Robuster PostgreSQL-Sync mit Nachladen nach Wiederverbindung
-          - Eigene Kollaborationssperren bei langen Benutzernamen korrekt erkennen
-          - Einheitliche Konfliktpruefung fuer Einstellungen und Schutz vor unbemerktem lokalen Dateibetrieb
-          - Programm startet immer maximiert
+          - Sicherere Datenspeicherung mit Konflikterkennung fuer JSON und PostgreSQL
+          - Ueberarbeitete Historie, Backups und Wiederherstellung vor Updates
+          - Verbesserter XML-Auftragsimport und konsistente Produkt-/Gewichtsdaten
+          - Stabilere Tourenplanung, Kartenfunktionen und Auftragsbearbeitung
+          - Gemeinsame, konfigurierbare Netzwerkbehandlung fuer App und Updater
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

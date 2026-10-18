@@ -3,12 +3,16 @@ using System.Net.Http;
 using System.Text.Json;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Shared.Net;
 
 namespace Tourenplaner.CSharp.App.Services;
 
 public sealed class TomTomRoutingService
 {
-    private static readonly HttpClient Client = CreateClient();
+    private static readonly HttpClient Client = ConfiguredHttpClientFactory.Create(
+        TimeSpan.FromSeconds(20),
+        "GAWELA-Tourenplaner/1.0",
+        acceptJson: true);
     private readonly string _apiKey;
     private readonly TomTomRoutingProfile _profile;
 
@@ -427,16 +431,6 @@ public sealed class TomTomRoutingService
         return $"{point.Latitude.ToString(CultureInfo.InvariantCulture)},{point.Longitude.ToString(CultureInfo.InvariantCulture)}";
     }
 
-    private static HttpClient CreateClient()
-    {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(20)
-        };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GAWELA-Tourenplaner/1.0");
-        client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        return client;
-    }
 }
 
 public enum TomTomRoutingMode

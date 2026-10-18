@@ -223,43 +223,13 @@ public sealed partial class KarteSectionViewModel
 
     private void UpdateFilterOptions(ObservableCollection<MapOrderFilterOption> target, IReadOnlyList<string> values)
     {
-        var previouslyAvailable = target
-            .Select(x => x.Label)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var previouslySelected = target
-            .Where(x => x.IsSelected)
-            .Select(x => x.Label)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var keepCurrentSelection = target.Count > 0;
-
-        foreach (var option in target)
-        {
-            option.PropertyChanged -= OnOrderFilterOptionChanged;
-        }
-
-        target.Clear();
-        foreach (var value in values.Where(x => !string.IsNullOrWhiteSpace(x)))
-        {
-            var isNewValue = !previouslyAvailable.Contains(value);
-            var isSelected = !keepCurrentSelection || previouslySelected.Contains(value) || isNewValue;
-            var option = new MapOrderFilterOption(value, isSelected);
-            option.PropertyChanged += OnOrderFilterOptionChanged;
-            target.Add(option);
-        }
+        OrderSectionSharedHelpers.UpdateFilterOptions(target, values, OnOrderFilterOptionChanged);
     }
 
     private static int GetOrderStatusSortIndex(string? status)
     {
         var normalized = NormalizeOrderStatus(status);
-        for (var i = 0; i < _orderStatusOptions.Count; i++)
-        {
-            if (string.Equals(_orderStatusOptions[i], normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                return i;
-            }
-        }
-
-        return int.MaxValue;
+        return OrderSectionSharedHelpers.GetSortIndex(normalized, _orderStatusOptions, int.MaxValue);
     }
 
     private void OnOrderFilterOptionChanged(object? sender, PropertyChangedEventArgs e)
@@ -297,10 +267,11 @@ public sealed partial class KarteSectionViewModel
     {
         return IncludeOpenOrders &&
                IncludePlannedOrders &&
-               OrderStatusFilters.All(x => x.IsSelected) &&
-               DeliveryTypeFilters.All(x => x.IsSelected) &&
-               AvisoStatusFilters.All(x => x.IsSelected) &&
-               SupplierFilters.All(x => x.IsSelected);
+               OrderSectionSharedHelpers.AreAllFilterOptionsSelected(
+                   OrderStatusFilters,
+                   DeliveryTypeFilters,
+                   AvisoStatusFilters,
+                   SupplierFilters);
     }
 
     private string BuildFilterSummaryText()
@@ -319,10 +290,10 @@ public sealed partial class KarteSectionViewModel
             parts.Add("keine Tourzuordnung");
         }
 
-        AddPartialSummary(parts, "Status", OrderStatusFilters);
-        AddPartialSummary(parts, "Lieferart", DeliveryTypeFilters);
-        AddPartialSummary(parts, "Aviso", AvisoStatusFilters);
-        AddPartialSummary(parts, "Lieferant", SupplierFilters);
+        OrderSectionSharedHelpers.AddPartialFilterSummary(parts, "Status", OrderStatusFilters);
+        OrderSectionSharedHelpers.AddPartialFilterSummary(parts, "Lieferart", DeliveryTypeFilters);
+        OrderSectionSharedHelpers.AddPartialFilterSummary(parts, "Aviso", AvisoStatusFilters);
+        OrderSectionSharedHelpers.AddPartialFilterSummary(parts, "Lieferant", SupplierFilters);
 
         return parts.Count == 0
             ? "Filter (alle Aufträge)"
@@ -337,51 +308,27 @@ public sealed partial class KarteSectionViewModel
             count++;
         }
 
-        if (IsFilterGroupActive(OrderStatusFilters))
+        if (OrderSectionSharedHelpers.IsFilterGroupActive(OrderStatusFilters))
         {
             count++;
         }
 
-        if (IsFilterGroupActive(DeliveryTypeFilters))
+        if (OrderSectionSharedHelpers.IsFilterGroupActive(DeliveryTypeFilters))
         {
             count++;
         }
 
-        if (IsFilterGroupActive(AvisoStatusFilters))
+        if (OrderSectionSharedHelpers.IsFilterGroupActive(AvisoStatusFilters))
         {
             count++;
         }
 
-        if (IsFilterGroupActive(SupplierFilters))
+        if (OrderSectionSharedHelpers.IsFilterGroupActive(SupplierFilters))
         {
             count++;
         }
 
         return count;
-    }
-
-    private static bool IsFilterGroupActive(ObservableCollection<MapOrderFilterOption> options)
-    {
-        return options.Count > 0 && options.Any(x => !x.IsSelected);
-    }
-
-    private static void AddPartialSummary(
-        List<string> parts,
-        string label,
-        ObservableCollection<MapOrderFilterOption> options)
-    {
-        if (options.Count == 0)
-        {
-            return;
-        }
-
-        var selectedCount = options.Count(x => x.IsSelected);
-        if (selectedCount == options.Count)
-        {
-            return;
-        }
-
-        parts.Add($"{label}: {selectedCount}/{options.Count}");
     }
 
     private static bool OrderContainsAnySupplier(Order order, IReadOnlySet<string> suppliers)
@@ -391,9 +338,6 @@ public sealed partial class KarteSectionViewModel
 
     private static string NormalizeSupplier(string? supplier)
     {
-        var normalized = (supplier ?? string.Empty).Trim();
-        return string.IsNullOrWhiteSpace(normalized)
-            ? UnspecifiedSupplierFilterOption
-            : normalized;
+        return OrderSectionSharedHelpers.NormalizeFilterLabel(supplier, UnspecifiedSupplierFilterOption);
     }
 }

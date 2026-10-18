@@ -907,15 +907,11 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBlock Grid.Column="1"
-                                           VerticalAlignment="Center"
-                                           HorizontalAlignment="Center"
-                                           FontSize="19"
-                                           FontWeight="SemiBold"
-                                           Margin="0,0,0,0"
-                                           Text="{Binding CurrentStopViewTourName}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
+                                <Grid Grid.Column="1"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Stretch">
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding ShowRouteStopsPanel}" Value="True">
@@ -923,8 +919,15 @@
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                    </Grid.Style>
+                                    <TextBlock Margin="2,0,0,0"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Center"
+                                               FontSize="19"
+                                               FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis"
+                                               Text="{Binding CurrentStopViewTourName}" />
+                                </Grid>
                                 <Button Grid.Column="2"
                                         Margin="8,0,10,0"
                                         Command="{Binding NextTourCommand}"
@@ -993,8 +996,9 @@
                                 </Button>
                                 <Button Grid.Column="6"
                                         Margin="8,0,0,0"
-                                        Command="{Binding EditSelectedTourCommand}"
-                                        ToolTip="Tour bearbeiten"
+                                        Command="{Binding StartSelectedTourEditingCommand}"
+                                        ToolTip="{Binding StartTourEditingToolTip}"
+                                        ToolTipService.ShowOnDisabled="True"
                                         Style="{StaticResource DetailsHeaderToggleButtonStyle}">
                                     <TextBlock Style="{StaticResource MapActionGlyphStyle}"
                                                Text="&#xE70F;" />
@@ -1160,9 +1164,14 @@
                                     <Border.Style>
                                         <Style TargetType="Border">
                                             <Setter Property="Visibility" Value="Visible" />
+                                            <Setter Property="Opacity" Value="1" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding ShowRouteStopsPanel}" Value="False">
                                                     <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsLoadedTourReadOnly}" Value="True">
+                                                    <Setter Property="Opacity" Value="0.68" />
+                                                    <Setter Property="ToolTip" Value="Vorschauansicht – zum Ändern bitte 'Tour bearbeiten' wählen." />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -1181,7 +1190,7 @@
                                              DragLeave="RouteStopsList_DragLeave"
                                              Drop="RouteStopsList_Drop"
                                              GiveFeedback="RouteStopsList_GiveFeedback"
-                                             AllowDrop="True"
+                                             AllowDrop="{Binding CanReorderRouteStops}"
                                              Style="{StaticResource RouteStopsListStyle}"
                                              ItemContainerStyle="{StaticResource RouteStopListItemStyle}">
                                         <ListBox.ItemTemplate>
@@ -2039,6 +2048,22 @@
                                 </Style>
                             </Border.Style>
                             <StackPanel>
+                                <TextBlock Margin="0,0,0,6"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Brush.Accent}"
+                                           Text="{Binding LoadedTourAccessText}"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding LoadedTourAccessText}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <TextBlock FontWeight="SemiBold" Text="{Binding RouteTotalWeightText}" />
                                 <TextBlock Margin="0,4,0,0"
                                            FontWeight="SemiBold"
@@ -2097,7 +2122,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="Route optimieren" Command="{Binding OptimizeRouteCommand}">
+                            <Button Grid.Column="0" Content="Tourdetails" Command="{Binding EditSelectedTourCommand}" ToolTip="Tourdetails bearbeiten">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Setter Property="Visibility" Value="Visible" />

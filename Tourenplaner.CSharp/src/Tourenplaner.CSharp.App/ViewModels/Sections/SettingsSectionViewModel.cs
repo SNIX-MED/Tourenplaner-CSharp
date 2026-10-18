@@ -1564,6 +1564,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
 
     private async Task ActivatePostgreSqlAndRestartAsync()
     {
+        var postgreSqlSettings = BuildPostgreSqlStorageSettings();
         try
         {
             await VerifyPostgreSqlConnectionAsync();
@@ -1585,6 +1586,45 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         {
             ValidationSummary = string.Join(Environment.NewLine, validation.Errors);
             StatusText = "PostgreSQL-Aktivierung abgebrochen: Einstellungen sind noch ungültig.";
+            return;
+        }
+
+        try
+        {
+            var targetEmployees = await new PostgreSqlEmployeesRepository(postgreSqlSettings).LoadAsync();
+            if (targetEmployees.Count == 0)
+            {
+                var localEmployeesPath = Path.Combine(_dataRoot, "employees.json");
+                var localEmployees = await new JsonEmployeesRepository(localEmployeesPath).LoadAsync();
+                if (!localEmployees.Any(x => x.HasProgramProfile && !string.IsNullOrWhiteSpace(x.DisplayName)))
+                {
+                    throw new InvalidOperationException(
+                        "Die lokalen Daten enthalten keinen Mitarbeiter mit Programmprofil. " +
+                        "PostgreSQL kann deshalb nicht als startfähiger Datenspeicher aktiviert werden.");
+                }
+
+                StatusText = "Lokale Daten werden nach PostgreSQL übertragen...";
+                var migrationBackup = await PreUpdateBackupService.CreateAsync(
+                    _dataRoot,
+                    ApplicationVersion,
+                    "postgresql-activation",
+                    fileNamePurpose: "before-postgresql-activation",
+                    storageModeOverride: AppStorageMode.JsonFiles);
+                await new UnifiedBackupRestoreService().RestoreAsync(
+                    migrationBackup,
+                    _dataRoot,
+                    AppStorageMode.PostgreSql,
+                    postgreSqlSettings);
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"PostgreSQL-Aktivierung abgebrochen: {ex.Message}";
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+                $"Die lokalen Daten konnten nicht sicher nach PostgreSQL übertragen werden.{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                "PostgreSQL aktivieren",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
             return;
         }
 

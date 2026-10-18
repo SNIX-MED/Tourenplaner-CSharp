@@ -93,6 +93,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private bool _isToursFilterPanelVisible;
     private bool _showOnlyToursWithWarnings;
     private Func<int> _getMapLoadedTourId = static () => 0;
+    private Func<bool> _isMapLoadedTourEditing = static () => false;
     private Func<int, IReadOnlyDictionary<string, TourTimingPreview>> _getMapTimingPreview =
         static _ => new Dictionary<string, TourTimingPreview>(StringComparer.OrdinalIgnoreCase);
 
@@ -236,12 +237,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     public bool IsSelectedTourLockedByMap => SelectedTour is not null && IsTourLockedByMap(SelectedTour.TourId);
 
     public string SelectedTourMapLockText => IsSelectedTourLockedByMap
-        ? "Diese Tour ist aktuell im Karten-Tab geöffnet. Änderungen sind hier vorübergehend gesperrt."
+        ? "Diese Tour wird aktuell im Karten-Tab bearbeitet. Änderungen sind hier vorübergehend gesperrt."
         : string.Empty;
 
-    public void ConfigureMapLoadedTourProvider(Func<int> provider)
+    public void ConfigureMapLoadedTourProvider(Func<int> provider, Func<bool>? isEditingProvider = null)
     {
         _getMapLoadedTourId = provider ?? (static () => 0);
+        _isMapLoadedTourEditing = isEditingProvider ?? (static () => false);
         NotifyMapLoadedTourChanged();
     }
 
@@ -864,7 +866,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var loadedTourId = _getMapLoadedTourId();
-        if (loadedTourId > 0)
+        if (loadedTourId > 0 && _isMapLoadedTourEditing())
         {
             if (loadedTourId == SelectedTour.TourId && _openMapAsync is not null)
             {
@@ -1929,6 +1931,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 continue;
             }
 
+            if (!EnsureTourCanBeModified(target.Id))
+            {
+                continue;
+            }
+
             if (!await DeleteTourAsync(target.Id, target.ConcurrencyToken))
             {
                 continue;
@@ -1966,119 +1973,192 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var tour = SelectedTour.Source;
-        var (editHour, editMinute) = ParseStartTimeParts(tour.StartTime);
-        var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date, tour.StartTime);
-        var materialGroups = (await _settingsRepository.LoadAsync()).AdditionalMaterialGroups ?? [];
-        var singleEmployeeWarningDeliveryTypes = await BuildSingleEmployeeWarningDeliveryTypesAsync(tour);
-
-        var dialog = new CreateTourDialogWindow(
-            routeDate: string.IsNullOrWhiteSpace(tour.Date) ? DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : tour.Date.Trim(),
-            routeName: string.IsNullOrWhiteSpace(tour.Name) ? $"Tour {tour.Id}" : tour.Name.Trim(),
-            routeStartHour: editHour,
-            routeStartMinute: editMinute,
-            vehicleOptions: vehicles,
-            trailerOptions: trailers,
-            employeeOptions: employees,
-            singleEmployeeWarningDeliveryTypes: singleEmployeeWarningDeliveryTypes,
-            selectedVehicleId: tour.VehicleId,
-            selectedTrailerId: tour.TrailerId,
-            selectedSecondaryVehicleId: tour.SecondaryVehicleId,
-            selectedSecondaryTrailerId: tour.SecondaryTrailerId,
-            selectedEmployeeIds: tour.EmployeeIds,
-            showOpenOnMapButton: true,
-            additionalMaterialGroups: materialGroups,
-            selectedAdditionalMaterials: tour.AdditionalMaterials,
-            editTourId: tour.Id)
+        if (IsTourLockedByMap(tour.Id))
         {
-            Owner = System.Windows.Application.Current?.MainWindow,
-            Title = "Tour bearbeiten"
-        };
+            ShowMapEditLockNotice();
+            return;
+        }
 
-        if (dialog.ShowDialog() != true)
+        var editLeases = await TryAcquireTourEditLeasesAsync(tour);
+        if (editLeases is null)
         {
-            if (dialog.OpenOnMapRequested && _openTourOnMapAsync is not null)
+            return;
+        }
+
+        var openOnMapAfterSave = false;
+        try
+        {
+            var (editHour, editMinute) = ParseStartTimeParts(tour.StartTime);
+            var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date, tour.StartTime);
+            var materialGroups = (await _settingsRepository.LoadAsync()).AdditionalMaterialGroups ?? [];
+            var singleEmployeeWarningDeliveryTypes = await BuildSingleEmployeeWarningDeliveryTypesAsync(tour);
+
+            var dialog = new CreateTourDialogWindow(
+                routeDate: string.IsNullOrWhiteSpace(tour.Date) ? DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : tour.Date.Trim(),
+                routeName: string.IsNullOrWhiteSpace(tour.Name) ? $"Tour {tour.Id}" : tour.Name.Trim(),
+                routeStartHour: editHour,
+                routeStartMinute: editMinute,
+                vehicleOptions: vehicles,
+                trailerOptions: trailers,
+                employeeOptions: employees,
+                singleEmployeeWarningDeliveryTypes: singleEmployeeWarningDeliveryTypes,
+                selectedVehicleId: tour.VehicleId,
+                selectedTrailerId: tour.TrailerId,
+                selectedSecondaryVehicleId: tour.SecondaryVehicleId,
+                selectedSecondaryTrailerId: tour.SecondaryTrailerId,
+                selectedEmployeeIds: tour.EmployeeIds,
+                showOpenOnMapButton: true,
+                additionalMaterialGroups: materialGroups,
+                selectedAdditionalMaterials: tour.AdditionalMaterials,
+                editTourId: tour.Id)
             {
-                await _openTourOnMapAsync(tour.Id);
+                Owner = System.Windows.Application.Current?.MainWindow,
+                Title = "Tour bearbeiten"
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                if (dialog.OpenOnMapRequested && _openTourOnMapAsync is not null)
+                {
+                    await _openTourOnMapAsync(tour.Id);
+                }
+                return;
             }
-            return;
-        }
 
-        if (dialog.Result is null)
+            if (dialog.Result is null)
+            {
+                return;
+            }
+
+            var result = dialog.Result;
+            var originalName = tour.Name;
+            var originalDate = tour.Date;
+            var originalStartTime = tour.StartTime;
+            var originalVehicleId = tour.VehicleId;
+            var originalTrailerId = tour.TrailerId;
+            var originalSecondaryVehicleId = tour.SecondaryVehicleId;
+            var originalSecondaryTrailerId = tour.SecondaryTrailerId;
+            var originalEmployeeIds = tour.EmployeeIds.ToList();
+            var originalAdditionalMaterials = CloneAdditionalMaterials(tour.AdditionalMaterials);
+
+            tour.Name = result.RouteName;
+            tour.Date = result.RouteDate;
+            tour.StartTime = result.StartTime;
+            tour.VehicleId = string.IsNullOrWhiteSpace(result.VehicleId) ? null : result.VehicleId.Trim();
+            tour.TrailerId = string.IsNullOrWhiteSpace(result.TrailerId) ? null : result.TrailerId.Trim();
+            tour.SecondaryVehicleId = string.IsNullOrWhiteSpace(result.SecondaryVehicleId) ? null : result.SecondaryVehicleId.Trim();
+            tour.SecondaryTrailerId = string.IsNullOrWhiteSpace(result.SecondaryTrailerId) ? null : result.SecondaryTrailerId.Trim();
+            tour.EmployeeIds = (result.EmployeeIds ?? [])
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            tour.AdditionalMaterials = CloneAdditionalMaterials(result.AdditionalMaterials);
+
+            var availabilityError = await BuildAvailabilityErrorAsync(
+                tour.Date,
+                tour.StartTime,
+                tour.VehicleId,
+                tour.TrailerId,
+                tour.SecondaryVehicleId,
+                tour.SecondaryTrailerId,
+                tour.EmployeeIds);
+            if (!string.IsNullOrWhiteSpace(availabilityError))
+            {
+                Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+                tour.Name = originalName;
+                tour.Date = originalDate;
+                tour.StartTime = originalStartTime;
+                tour.VehicleId = originalVehicleId;
+                tour.TrailerId = originalTrailerId;
+                tour.SecondaryVehicleId = originalSecondaryVehicleId;
+                tour.SecondaryTrailerId = originalSecondaryTrailerId;
+                tour.EmployeeIds = originalEmployeeIds;
+                tour.AdditionalMaterials = originalAdditionalMaterials;
+                return;
+            }
+
+            if (!ConfirmPlanningWarnings(_loadedTours, tour.Id))
+            {
+                tour.Name = originalName;
+                tour.Date = originalDate;
+                tour.StartTime = originalStartTime;
+                tour.VehicleId = originalVehicleId;
+                tour.TrailerId = originalTrailerId;
+                tour.SecondaryVehicleId = originalSecondaryVehicleId;
+                tour.SecondaryTrailerId = originalSecondaryTrailerId;
+                tour.EmployeeIds = originalEmployeeIds;
+                tour.AdditionalMaterials = originalAdditionalMaterials;
+                return;
+            }
+
+            _scheduleService.ApplySchedule(tour);
+            if (!await SaveTourAsync(tour))
+            {
+                return;
+            }
+            _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
+            await RefreshAsync();
+            await FocusTourAsync(tour.Id);
+            StatusText = $"Tour {tour.Id} wurde aktualisiert.";
+            openOnMapAfterSave = true;
+        }
+        finally
         {
-            return;
+            foreach (var lease in editLeases)
+            {
+                lease.Dispose();
+            }
         }
 
-        var result = dialog.Result;
-        var originalName = tour.Name;
-        var originalDate = tour.Date;
-        var originalStartTime = tour.StartTime;
-        var originalVehicleId = tour.VehicleId;
-        var originalTrailerId = tour.TrailerId;
-        var originalSecondaryVehicleId = tour.SecondaryVehicleId;
-        var originalSecondaryTrailerId = tour.SecondaryTrailerId;
-        var originalEmployeeIds = tour.EmployeeIds.ToList();
-        var originalAdditionalMaterials = CloneAdditionalMaterials(tour.AdditionalMaterials);
+        if (openOnMapAfterSave && _openTourOnMapAsync is not null)
+        {
+            await _openTourOnMapAsync(tour.Id);
+        }
+    }
 
-        tour.Name = result.RouteName;
-        tour.Date = result.RouteDate;
-        tour.StartTime = result.StartTime;
-        tour.VehicleId = string.IsNullOrWhiteSpace(result.VehicleId) ? null : result.VehicleId.Trim();
-        tour.TrailerId = string.IsNullOrWhiteSpace(result.TrailerId) ? null : result.TrailerId.Trim();
-        tour.SecondaryVehicleId = string.IsNullOrWhiteSpace(result.SecondaryVehicleId) ? null : result.SecondaryVehicleId.Trim();
-        tour.SecondaryTrailerId = string.IsNullOrWhiteSpace(result.SecondaryTrailerId) ? null : result.SecondaryTrailerId.Trim();
-        tour.EmployeeIds = (result.EmployeeIds ?? [])
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
+    private async Task<List<CollaborationResourceLease>?> TryAcquireTourEditLeasesAsync(TourRecord tour)
+    {
+        var leases = new List<CollaborationResourceLease>();
+        var tourAttempt = await CollaborationSessionService.TryAcquireResourceAsync(
+            "tour",
+            tour.Id.ToString(CultureInfo.InvariantCulture));
+        if (tourAttempt.Lease is null)
+        {
+            StatusText = $"Die Tour wird aktuell von {tourAttempt.Result.LockedByUserName} bearbeitet.";
+            ToastNotificationService.ShowInfo(StatusText);
+            return null;
+        }
+
+        leases.Add(tourAttempt.Lease);
+        var orderIds = (tour.Stops ?? [])
+            .Where(stop => stop is not null &&
+                           !TourStopIdentity.IsCompanyStop(stop) &&
+                           !TourStopIdentity.IsPauseStop(stop))
+            .Select(stop => (stop.Auftragsnummer ?? string.Empty).Trim())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        tour.AdditionalMaterials = CloneAdditionalMaterials(result.AdditionalMaterials);
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase);
 
-        var availabilityError = await BuildAvailabilityErrorAsync(
-            tour.Date,
-            tour.StartTime,
-            tour.VehicleId,
-            tour.TrailerId,
-            tour.SecondaryVehicleId,
-            tour.SecondaryTrailerId,
-            tour.EmployeeIds);
-        if (!string.IsNullOrWhiteSpace(availabilityError))
+        foreach (var orderId in orderIds)
         {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
-            tour.Name = originalName;
-            tour.Date = originalDate;
-            tour.StartTime = originalStartTime;
-            tour.VehicleId = originalVehicleId;
-            tour.TrailerId = originalTrailerId;
-            tour.SecondaryVehicleId = originalSecondaryVehicleId;
-            tour.SecondaryTrailerId = originalSecondaryTrailerId;
-            tour.EmployeeIds = originalEmployeeIds;
-            tour.AdditionalMaterials = originalAdditionalMaterials;
-            return;
+            var orderAttempt = await CollaborationSessionService.TryAcquireResourceAsync("order", orderId);
+            if (orderAttempt.Lease is not null)
+            {
+                leases.Add(orderAttempt.Lease);
+                continue;
+            }
+
+            foreach (var lease in leases)
+            {
+                lease.Dispose();
+            }
+            StatusText = $"Auftrag {orderId} wird aktuell von {orderAttempt.Result.LockedByUserName} bearbeitet. Die Tour kann nicht bearbeitet werden.";
+            ToastNotificationService.ShowInfo(StatusText);
+            return null;
         }
 
-        if (!ConfirmPlanningWarnings(_loadedTours, tour.Id))
-        {
-            tour.Name = originalName;
-            tour.Date = originalDate;
-            tour.StartTime = originalStartTime;
-            tour.VehicleId = originalVehicleId;
-            tour.TrailerId = originalTrailerId;
-            tour.SecondaryVehicleId = originalSecondaryVehicleId;
-            tour.SecondaryTrailerId = originalSecondaryTrailerId;
-            tour.EmployeeIds = originalEmployeeIds;
-            tour.AdditionalMaterials = originalAdditionalMaterials;
-            return;
-        }
-
-        _scheduleService.ApplySchedule(tour);
-        if (!await SaveTourAsync(tour))
-        {
-            return;
-        }
-        _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
-        await RefreshAsync();
-        await FocusTourAsync(tour.Id);
-        StatusText = $"Tour {tour.Id} wurde aktualisiert.";
+        return leases;
     }
 
     private async Task<IReadOnlyList<string>> BuildSingleEmployeeWarningDeliveryTypesAsync(TourRecord tour)
@@ -3349,7 +3429,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private string? _savedAssignmentState;
     private string CaptureEditorAssignment() => System.Text.Json.JsonSerializer.Serialize(new
     {
-        EditorDate, EditorStartTime,
+        EditorDate,
+        EditorStartTime,
         Vehicle = SelectedVehicle?.Id ?? string.Empty,
         Trailer = SelectedTrailer?.Id ?? string.Empty,
         Employees = AvailableEmployees.Where(x => x.IsSelected).Select(x => x.Id).OrderBy(x => x).ToArray()
@@ -3515,7 +3596,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     }
 
     private bool IsTourLockedByMap(int tourId)
-        => tourId > 0 && _getMapLoadedTourId() == tourId;
+        => tourId > 0 && _getMapLoadedTourId() == tourId && _isMapLoadedTourEditing();
 
     private bool CanModifySelectedTours()
     {
@@ -3543,7 +3624,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private void ShowMapEditLockNotice()
     {
-        StatusText = "Diese Tour ist aktuell im Karten-Tab geöffnet. Änderungen sind hier vorübergehend gesperrt.";
+        StatusText = "Diese Tour wird aktuell im Karten-Tab bearbeitet. Änderungen sind hier vorübergehend gesperrt.";
         ToastNotificationService.ShowInfo(StatusText);
     }
 

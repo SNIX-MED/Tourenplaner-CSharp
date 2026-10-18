@@ -1,26 +1,23 @@
-﻿using System.IO;
+using System.IO;
 
 namespace Tourenplaner.CSharp.App.Services;
 
 public sealed class AppDataHistoryService : IAppDataHistoryService
 {
-    private sealed class AppDataSnapshot
-    {
-        public required IReadOnlyDictionary<string, byte[]?> Files { get; init; }
-        public required string Description { get; init; }
-    }
+    private sealed record AppDataSnapshot(
+        IReadOnlyDictionary<string, byte[]?> Files,
+        string Description);
 
-    private const int MaxHistoryEntries = 80;
     private static readonly TimeSpan CaptureDebounce = TimeSpan.FromMilliseconds(140);
 
     private readonly object _gate = new();
     private readonly AppDataSyncService _dataSyncService;
     private readonly HashSet<string> _trackedPaths;
-    private readonly Stack<AppDataSnapshot> _undoStack = new();
-    private readonly Stack<AppDataSnapshot> _redoStack = new();
+    private readonly HistorySession<AppDataSnapshot> _history =
+        new(snapshot => snapshot.Description);
     private readonly List<FileSystemWatcher> _watchers = new();
     private readonly Guid _instanceId = Guid.NewGuid();
-    private CancellationTokenSource? _captureCts;
+    private readonly AsyncDebounceCoordinator _captureDebouncer;
     private AppDataSnapshot? _current;
     private string _pendingDescription = "Änderung";
     private bool _captureSuppressed;
@@ -32,55 +29,26 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
         _dataSyncService = dataSyncService;
         _trackedPaths = trackedJsonPaths
             .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Select(path => Path.GetFullPath(path))
+            .Select(Path.GetFullPath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _captureDebouncer = new AsyncDebounceCoordinator(
+            CaptureDebounce,
+            _ =>
+            {
+                CaptureIfChanged();
+                return Task.CompletedTask;
+            });
     }
 
     public event EventHandler? StateChanged;
 
-    public bool CanUndo
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _undoStack.Count > 0;
-            }
-        }
-    }
+    public bool CanUndo => _history.CanUndo;
 
-    public bool CanRedo
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _redoStack.Count > 0;
-            }
-        }
-    }
+    public bool CanRedo => _history.CanRedo;
 
-    public string UndoDescription
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _undoStack.Count == 0 ? string.Empty : _undoStack.Peek().Description;
-            }
-        }
-    }
+    public string UndoDescription => _history.UndoDescription;
 
-    public string RedoDescription
-    {
-        get
-        {
-            lock (_gate)
-            {
-                return _redoStack.Count == 0 ? string.Empty : _redoStack.Peek().Description;
-            }
-        }
-    }
+    public string RedoDescription => _history.RedoDescription;
 
     public bool HasPersistentHistory => false;
 
@@ -102,112 +70,40 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
         return Task.CompletedTask;
     }
 
-    public async Task UndoAsync()
-    {
-        AppDataSnapshot? target;
-        AppDataSnapshot? current;
+    public Task UndoAsync() =>
+        RestoreAsync(HistoryDirection.Undo);
 
-        lock (_gate)
-        {
-            if (_undoStack.Count == 0 || _current is null)
-            {
-                return;
-            }
+    public Task RedoAsync() =>
+        RestoreAsync(HistoryDirection.Redo);
 
-            target = _undoStack.Peek();
-            current = _current;
-            _captureSuppressed = true;
-        }
-
-        try
-        {
-            await RestoreSnapshotAsync(target);
-            lock (_gate)
-            {
-                _undoStack.Pop();
-                _redoStack.Push(CloneSnapshotWithDescription(current, target.Description));
-                _current = CloneSnapshot(target);
-            }
-        }
-        finally
-        {
-            lock (_gate)
-            {
-                _captureSuppressed = false;
-            }
-        }
-
-        PublishFullReload();
-        RaiseStateChanged();
-    }
-
-    public Task ResetSessionAsync(string? userName, CancellationToken cancellationToken = default)
+    public Task ResetSessionAsync(
+        string? userName,
+        CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
-            _undoStack.Clear();
-            _redoStack.Clear();
+            _history.Reset();
             _current = ReadSnapshot("Initialzustand");
         }
+
         RaiseStateChanged();
         return Task.CompletedTask;
     }
 
-    public Task<IReadOnlyList<AppDataHistoryDisplayItem>> LoadRecentEntriesAsync(int maximumCount = 100, CancellationToken cancellationToken = default)
-        => Task.FromResult<IReadOnlyList<AppDataHistoryDisplayItem>>([]);
+    public Task<IReadOnlyList<AppDataHistoryDisplayItem>> LoadRecentEntriesAsync(
+        int maximumCount = 100,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<AppDataHistoryDisplayItem>>([]);
 
-    public Task<int> CleanupExpiredEntriesAsync(int retentionDays, CancellationToken cancellationToken = default)
-        => Task.FromResult(0);
-
-    public async Task RedoAsync()
-    {
-        AppDataSnapshot? target;
-        AppDataSnapshot? current;
-
-        lock (_gate)
-        {
-            if (_redoStack.Count == 0 || _current is null)
-            {
-                return;
-            }
-
-            target = _redoStack.Peek();
-            current = _current;
-            _captureSuppressed = true;
-        }
-
-        try
-        {
-            await RestoreSnapshotAsync(target);
-            lock (_gate)
-            {
-                _redoStack.Pop();
-                _undoStack.Push(CloneSnapshotWithDescription(current, target.Description));
-                _current = CloneSnapshot(target);
-            }
-        }
-        finally
-        {
-            lock (_gate)
-            {
-                _captureSuppressed = false;
-            }
-        }
-
-        PublishFullReload();
-        RaiseStateChanged();
-    }
+    public Task<int> CleanupExpiredEntriesAsync(
+        int retentionDays,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(0);
 
     public void Dispose()
     {
         _dataSyncService.DataChanged -= OnDataChanged;
-
-        lock (_gate)
-        {
-            _captureCts?.Cancel();
-            _captureCts?.Dispose();
-            _captureCts = null;
-        }
+        _captureDebouncer.Dispose();
 
         foreach (var watcher in _watchers)
         {
@@ -218,15 +114,53 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
         _watchers.Clear();
     }
 
+    private async Task RestoreAsync(HistoryDirection direction)
+    {
+        AppDataSnapshot? target;
+        AppDataSnapshot? current;
+
+        lock (_gate)
+        {
+            if (_current is null || !_history.TryGetRestoreTarget(direction, out target))
+            {
+                return;
+            }
+
+            current = _current;
+            _captureSuppressed = true;
+        }
+
+        try
+        {
+            await RestoreSnapshotAsync(target);
+            var inverse = CloneSnapshotWithDescription(current, target.Description);
+            _history.CompleteRestore(direction, target, inverse);
+            lock (_gate)
+            {
+                _current = CloneSnapshot(target);
+            }
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                _captureSuppressed = false;
+            }
+        }
+
+        PublishFullReload();
+        RaiseStateChanged();
+    }
+
     private void SetupWatchers()
     {
-        var grouped = _trackedPaths
-            .Select(path => Path.GetDirectoryName(path))
+        var directories = _trackedPaths
+            .Select(Path.GetDirectoryName)
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        foreach (var directory in grouped)
+        foreach (var directory in directories)
         {
             if (!Directory.Exists(directory))
             {
@@ -236,9 +170,9 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
             var watcher = new FileSystemWatcher(directory!)
             {
                 IncludeSubdirectories = false,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite |
+                               NotifyFilters.Size | NotifyFilters.CreationTime
             };
-
             watcher.Changed += OnTrackedFileChanged;
             watcher.Created += OnTrackedFileChanged;
             watcher.Renamed += OnTrackedFileRenamed;
@@ -255,27 +189,25 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
             return;
         }
 
-        ScheduleCapture(BuildDescriptionFromArgs(args));
+        ScheduleCapture(AppDataHistoryDescriptionFormatter.Format(
+            args,
+            AppDataHistoryDescriptionProfile.LocalFile));
     }
 
-    private void OnTrackedFileChanged(object sender, FileSystemEventArgs e)
+    private void OnTrackedFileChanged(object sender, FileSystemEventArgs args)
     {
-        if (!IsTracked(e.FullPath))
+        if (IsTracked(args.FullPath))
         {
-            return;
+            ScheduleCapture("Dateiänderung", lowPriority: true);
         }
-
-        ScheduleCapture("Dateiänderung", lowPriority: true);
     }
 
-    private void OnTrackedFileRenamed(object sender, RenamedEventArgs e)
+    private void OnTrackedFileRenamed(object sender, RenamedEventArgs args)
     {
-        if (!IsTracked(e.FullPath) && !IsTracked(e.OldFullPath))
+        if (IsTracked(args.FullPath) || IsTracked(args.OldFullPath))
         {
-            return;
+            ScheduleCapture("Dateiumbenennung", lowPriority: true);
         }
-
-        ScheduleCapture("Dateiumbenennung", lowPriority: true);
     }
 
     private bool IsTracked(string? path)
@@ -285,14 +217,11 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
             return false;
         }
 
-        var normalized = Path.GetFullPath(path);
-        return _trackedPaths.Contains(normalized);
+        return _trackedPaths.Contains(Path.GetFullPath(path));
     }
 
     private void ScheduleCapture(string description, bool lowPriority = false)
     {
-        CancellationTokenSource captureCts;
-
         lock (_gate)
         {
             if (_captureSuppressed || _current is null)
@@ -300,36 +229,23 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
                 return;
             }
 
-            var normalizedDescription = string.IsNullOrWhiteSpace(description) ? "Änderung" : description.Trim();
-            if (!lowPriority || IsGenericDescription(_pendingDescription) || !IsGenericDescription(normalizedDescription))
+            var normalizedDescription = string.IsNullOrWhiteSpace(description)
+                ? "Änderung"
+                : description.Trim();
+            if (!lowPriority ||
+                AppDataHistoryDescriptionFormatter.IsGeneric(_pendingDescription) ||
+                !AppDataHistoryDescriptionFormatter.IsGeneric(normalizedDescription))
             {
                 _pendingDescription = normalizedDescription;
             }
-
-            _captureCts?.Cancel();
-            _captureCts?.Dispose();
-            _captureCts = new CancellationTokenSource();
-            captureCts = _captureCts;
         }
 
-        CaptureAfterDebounceAsync(captureCts).Forget();
-    }
-
-    private async Task CaptureAfterDebounceAsync(CancellationTokenSource captureCts)
-    {
-        await Task.Delay(CaptureDebounce, captureCts.Token);
-        if (!captureCts.IsCancellationRequested)
-        {
-            CaptureIfChanged();
-        }
+        _captureDebouncer.Schedule();
     }
 
     private void CaptureIfChanged()
     {
-        AppDataSnapshot? next;
-        AppDataSnapshot? current;
         var shouldRaise = false;
-
         lock (_gate)
         {
             if (_captureSuppressed || _current is null)
@@ -337,17 +253,13 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
                 return;
             }
 
-            current = _current;
-            next = ReadSnapshot(_pendingDescription);
-
-            if (SnapshotsEqual(current, next))
+            var next = ReadSnapshot(_pendingDescription);
+            if (SnapshotsEqual(_current, next))
             {
                 return;
             }
 
-            _undoStack.Push(CloneSnapshotWithDescription(current, next.Description));
-            TrimHistory(_undoStack);
-            _redoStack.Clear();
+            _history.RecordMutation(CloneSnapshotWithDescription(_current, next.Description));
             _current = CloneSnapshot(next);
             shouldRaise = true;
         }
@@ -360,23 +272,15 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
 
     private AppDataSnapshot ReadSnapshot(string description)
     {
-        var data = new Dictionary<string, byte[]?>(StringComparer.OrdinalIgnoreCase);
+        var files = new Dictionary<string, byte[]?>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in _trackedPaths)
         {
-            if (!File.Exists(path))
-            {
-                data[path] = null;
-                continue;
-            }
-
-            data[path] = File.ReadAllBytes(path);
+            files[path] = File.Exists(path) ? File.ReadAllBytes(path) : null;
         }
 
-        return new AppDataSnapshot
-        {
-            Files = data,
-            Description = string.IsNullOrWhiteSpace(description) ? "Änderung" : description
-        };
+        return new AppDataSnapshot(
+            files,
+            string.IsNullOrWhiteSpace(description) ? "Änderung" : description);
     }
 
     private static AppDataSnapshot CloneSnapshot(AppDataSnapshot source)
@@ -387,20 +291,19 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
             clonedFiles[pair.Key] = pair.Value is null ? null : (byte[])pair.Value.Clone();
         }
 
-        return new AppDataSnapshot
-        {
-            Files = clonedFiles,
-            Description = source.Description
-        };
+        return new AppDataSnapshot(clonedFiles, source.Description);
     }
 
-    private static AppDataSnapshot CloneSnapshotWithDescription(AppDataSnapshot source, string description)
+    private static AppDataSnapshot CloneSnapshotWithDescription(
+        AppDataSnapshot source,
+        string description)
     {
         var cloned = CloneSnapshot(source);
-        return new AppDataSnapshot
+        return cloned with
         {
-            Files = cloned.Files,
-            Description = string.IsNullOrWhiteSpace(description) ? source.Description : description
+            Description = string.IsNullOrWhiteSpace(description)
+                ? source.Description
+                : description
         };
     }
 
@@ -413,12 +316,8 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
 
         foreach (var pair in left.Files)
         {
-            if (!right.Files.TryGetValue(pair.Key, out var rightBytes))
-            {
-                return false;
-            }
-
-            if (!ByteArraysEqual(pair.Value, rightBytes))
+            if (!right.Files.TryGetValue(pair.Key, out var rightBytes) ||
+                !ByteArraysEqual(pair.Value, rightBytes))
             {
                 return false;
             }
@@ -434,47 +333,27 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
             return true;
         }
 
-        if (left is null || right is null || left.Length != right.Length)
-        {
-            return false;
-        }
-
-        return left.AsSpan().SequenceEqual(right);
+        return left is not null &&
+               right is not null &&
+               left.Length == right.Length &&
+               left.AsSpan().SequenceEqual(right);
     }
 
-    private static void TrimHistory(Stack<AppDataSnapshot> stack)
-    {
-        if (stack.Count <= MaxHistoryEntries)
-        {
-            return;
-        }
-
-        var kept = stack.Take(MaxHistoryEntries).Reverse().ToArray();
-        stack.Clear();
-        foreach (var item in kept)
-        {
-            stack.Push(item);
-        }
-    }
-
-    private async Task RestoreSnapshotAsync(AppDataSnapshot snapshot)
+    private static async Task RestoreSnapshotAsync(AppDataSnapshot snapshot)
     {
         foreach (var pair in snapshot.Files)
         {
-            var path = pair.Key;
-            var content = pair.Value;
-
-            if (content is null)
+            if (pair.Value is null)
             {
-                if (File.Exists(path))
+                if (File.Exists(pair.Key))
                 {
-                    File.Delete(path);
+                    File.Delete(pair.Key);
                 }
 
                 continue;
             }
 
-            await WriteBytesAtomicAsync(path, content);
+            await WriteBytesAtomicAsync(pair.Key, pair.Value);
         }
     }
 
@@ -482,12 +361,13 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
     {
         var fileInfo = new FileInfo(path);
         fileInfo.Directory?.Create();
+        var tempPath = Path.Combine(
+            fileInfo.DirectoryName ?? string.Empty,
+            $"{fileInfo.Name}.{Guid.NewGuid():N}.tmp");
 
-        var tempPath = Path.Combine(fileInfo.DirectoryName ?? string.Empty, $"{fileInfo.Name}.{Guid.NewGuid():N}.tmp");
         try
         {
             await File.WriteAllBytesAsync(tempPath, content);
-
             if (!File.Exists(path))
             {
                 File.Move(tempPath, path);
@@ -498,7 +378,11 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
             {
                 try
                 {
-                    File.Replace(tempPath, path, destinationBackupFileName: null, ignoreMetadataErrors: true);
+                    File.Replace(
+                        tempPath,
+                        path,
+                        destinationBackupFileName: null,
+                        ignoreMetadataErrors: true);
                     return;
                 }
                 catch (IOException) when (attempt < 2)
@@ -518,124 +402,12 @@ public sealed class AppDataHistoryService : IAppDataHistoryService
 
     private void PublishFullReload()
     {
-        const AppDataKind allKinds = AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Employees |
-                                     AppDataKind.Vehicles | AppDataKind.Settings | AppDataKind.CalendarEntries;
+        const AppDataKind allKinds = AppDataKind.Orders | AppDataKind.Tours |
+                                     AppDataKind.Employees | AppDataKind.Vehicles |
+                                     AppDataKind.Settings | AppDataKind.CalendarEntries;
         _dataSyncService.Publish(new AppDataChangedEventArgs(_instanceId, allKinds));
     }
 
-    private void RaiseStateChanged()
-    {
+    private void RaiseStateChanged() =>
         StateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private static string DescribeKinds(AppDataKind kinds)
-    {
-        if (kinds == AppDataKind.None)
-        {
-            return "Änderung";
-        }
-
-        var labels = new List<string>();
-        if (kinds.HasFlag(AppDataKind.Orders))
-        {
-            labels.Add("Aufträge");
-        }
-
-        if (kinds.HasFlag(AppDataKind.Tours))
-        {
-            labels.Add("Touren");
-        }
-
-        if (kinds.HasFlag(AppDataKind.Employees))
-        {
-            labels.Add("Mitarbeiter");
-        }
-
-        if (kinds.HasFlag(AppDataKind.Vehicles))
-        {
-            labels.Add("Fahrzeuge");
-        }
-
-        if (kinds.HasFlag(AppDataKind.Settings))
-        {
-            labels.Add("Einstellungen");
-        }
-
-        if (kinds.HasFlag(AppDataKind.CalendarEntries))
-        {
-            labels.Add("Kalendereinträge");
-        }
-
-        return labels.Count == 0 ? "Änderung" : string.Join(", ", labels);
-    }
-
-    private static bool IsGenericDescription(string? description)
-    {
-        var text = (description ?? string.Empty).Trim();
-        return string.IsNullOrWhiteSpace(text) ||
-               string.Equals(text, "Änderung", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(text, "Dateiänderung", StringComparison.OrdinalIgnoreCase) ||
-               string.Equals(text, "Dateiumbenennung", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string BuildDescriptionFromArgs(AppDataChangedEventArgs args)
-    {
-        var kinds = args.Kinds;
-        if (kinds == AppDataKind.Orders)
-        {
-            return BuildEntityAction("Auftrag", "Aufträge", args.PreviousId, args.CurrentId);
-        }
-
-        if (kinds == AppDataKind.Tours)
-        {
-            return BuildEntityAction("Tour", "Touren", args.PreviousId, args.CurrentId);
-        }
-
-        if (kinds == AppDataKind.Employees)
-        {
-            return BuildEntityAction("Mitarbeiter", "Mitarbeiter", args.PreviousId, args.CurrentId);
-        }
-
-        if (kinds == AppDataKind.Vehicles)
-        {
-            return BuildEntityAction("Fahrzeug", "Fahrzeuge", args.PreviousId, args.CurrentId);
-        }
-
-        if (kinds == AppDataKind.Settings)
-        {
-            return "Einstellungen ändern";
-        }
-
-        if (kinds == AppDataKind.CalendarEntries)
-        {
-            return BuildEntityAction("Kalendereintrag", "Kalendereinträge", args.PreviousId, args.CurrentId);
-        }
-
-        return DescribeKinds(kinds);
-    }
-
-    private static string BuildEntityAction(string singular, string plural, string? previousId, string? currentId)
-    {
-        var hasPrevious = !string.IsNullOrWhiteSpace(previousId);
-        var hasCurrent = !string.IsNullOrWhiteSpace(currentId);
-
-        if (!hasPrevious && hasCurrent)
-        {
-            return $"{singular} erstellen";
-        }
-
-        if (hasPrevious && !hasCurrent)
-        {
-            return $"{singular} löschen";
-        }
-
-        if (hasPrevious && hasCurrent)
-        {
-            return string.Equals(previousId, currentId, StringComparison.OrdinalIgnoreCase)
-                ? $"{singular} aktualisieren"
-                : $"{singular} umbenennen";
-        }
-
-        return $"{plural} ändern";
-    }
 }

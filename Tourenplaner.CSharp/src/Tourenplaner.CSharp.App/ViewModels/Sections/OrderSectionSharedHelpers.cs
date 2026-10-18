@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -19,6 +20,102 @@ internal static class OrderSectionSharedHelpers
         {
             option.IsSelected = isSelected;
         }
+    }
+
+    public static void UpdateFilterOptions(
+        ObservableCollection<MapOrderFilterOption> target,
+        IEnumerable<string> values,
+        PropertyChangedEventHandler propertyChangedHandler)
+    {
+        var previouslyAvailable = target
+            .Select(option => option.Label)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var previouslySelected = target
+            .Where(option => option.IsSelected)
+            .Select(option => option.Label)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var keepCurrentSelection = target.Count > 0;
+
+        foreach (var option in target)
+        {
+            option.PropertyChanged -= propertyChangedHandler;
+        }
+
+        target.Clear();
+        foreach (var value in values.Where(value => !string.IsNullOrWhiteSpace(value)))
+        {
+            var isNewValue = !previouslyAvailable.Contains(value);
+            var isSelected = !keepCurrentSelection || previouslySelected.Contains(value) || isNewValue;
+            var option = new MapOrderFilterOption(value, isSelected);
+            option.PropertyChanged += propertyChangedHandler;
+            target.Add(option);
+        }
+    }
+
+    public static int GetSortIndex(string? value, IReadOnlyList<string> orderedValues, int unknownValueIndex)
+    {
+        for (var index = 0; index < orderedValues.Count; index++)
+        {
+            if (string.Equals(orderedValues[index], value, StringComparison.OrdinalIgnoreCase))
+            {
+                return index;
+            }
+        }
+
+        return unknownValueIndex;
+    }
+
+    public static bool AreAllFilterOptionsSelected(params ObservableCollection<MapOrderFilterOption>[] filterGroups)
+    {
+        return filterGroups.All(group => group.All(option => option.IsSelected));
+    }
+
+    public static bool IsFilterGroupActive(ObservableCollection<MapOrderFilterOption> options)
+    {
+        return options.Count > 0 && options.Any(option => !option.IsSelected);
+    }
+
+    public static void AddPartialFilterSummary(
+        ICollection<string> parts,
+        string label,
+        ObservableCollection<MapOrderFilterOption> options)
+    {
+        if (options.Count == 0)
+        {
+            return;
+        }
+
+        var selectedCount = options.Count(option => option.IsSelected);
+        if (selectedCount != options.Count)
+        {
+            parts.Add($"{label}: {selectedCount}/{options.Count}");
+        }
+    }
+
+    public static string NormalizeFilterLabel(string? value, string unspecifiedLabel)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? unspecifiedLabel : normalized;
+    }
+
+    public static int ResolveTrafficBufferPercent(int explicitValue, int legacyValue, int fallbackValue)
+    {
+        return explicitValue switch
+        {
+            >= 0 and <= 100 => explicitValue,
+            _ when legacyValue is >= 0 and <= 100 => legacyValue,
+            _ => fallbackValue
+        };
+    }
+
+    public static string BuildStreetLine(string? street, string? houseNumber)
+    {
+        return JoinNonEmpty(" ", street, houseNumber);
+    }
+
+    public static string BuildCompanyAddress(string? street, string? postalCode, string? city)
+    {
+        return JoinNonEmpty(", ", street, JoinNonEmpty(" ", postalCode, city));
     }
 
     public static bool SyncDerivedOrderStatuses(IEnumerable<Order> orders)
@@ -123,16 +220,16 @@ internal static class OrderSectionSharedHelpers
                    (value ?? string.Empty).Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string BuildAddressLine(string? street, string? houseNumber, string? postalCode, string? city)
+    public static string BuildAddressLine(string? street, string? houseNumber, string? postalCode, string? city)
     {
-        var streetLine = string.Join(" ", new[] { street, houseNumber }
-            .Select(value => (value ?? string.Empty).Trim())
-            .Where(value => !string.IsNullOrWhiteSpace(value)));
-        var postalCityLine = string.Join(" ", new[] { postalCode, city }
-            .Select(value => (value ?? string.Empty).Trim())
-            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        return JoinNonEmpty(", ", BuildStreetLine(street, houseNumber), JoinNonEmpty(" ", postalCode, city));
+    }
 
-        return string.Join(", ", new[] { streetLine, postalCityLine }
-            .Where(value => !string.IsNullOrWhiteSpace(value)));
+    private static string JoinNonEmpty(string separator, params string?[] values)
+    {
+        return string.Join(
+            separator,
+            values.Select(value => (value ?? string.Empty).Trim())
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
     }
 }

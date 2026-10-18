@@ -3,12 +3,16 @@ using System.Net.Http;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using Tourenplaner.CSharp.Shared.Net;
 
 namespace Tourenplaner.CSharp.App.Services;
 
 internal static class AppUpdateStatusService
 {
-    private static readonly HttpClient Client = CreateClient();
+    private static readonly HttpClient Client = ConfiguredHttpClientFactory.Create(
+        TimeSpan.FromSeconds(20),
+        "GAWELA-Tourenplaner-App/1.0",
+        acceptJson: true);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -135,17 +139,6 @@ internal static class AppUpdateStatusService
         }
 
         return Version.TryParse(normalized, out var version) ? version : null;
-    }
-
-    private static HttpClient CreateClient()
-    {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(20)
-        };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GAWELA-Tourenplaner-App/1.0");
-        client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        return client;
     }
 
     private sealed class AppUpdateConfiguration

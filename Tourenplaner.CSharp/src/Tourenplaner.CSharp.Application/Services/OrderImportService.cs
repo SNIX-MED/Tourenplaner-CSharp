@@ -1,4 +1,4 @@
-﻿using Tourenplaner.CSharp.Application.Abstractions;
+using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 
@@ -17,60 +17,45 @@ public class ImportResult
 
 public interface IOrderImportService
 {
-    Task<ImportResult> ImportOrdersAsync(
-        List<XmlOrderImportData> xmlOrders,
-        IOrderRepository orderRepository,
-        bool markAsXmlImported = false,
-        IEnumerable<TourRecord>? tours = null);
+    Task<ImportResult> ImportOrdersAsync(List<XmlOrderImportData> xmlOrders, IOrderRepository orderRepository,
+        bool markAsXmlImported = false, IEnumerable<TourRecord>? tours = null);
 
-    Task<ImportPreviewResult> PreviewImportAsync(
-        List<XmlOrderImportData> xmlOrders,
-        IOrderRepository orderRepository,
-        IEnumerable<TourRecord>? tours = null);
+    Task<ImportPreviewResult> PreviewImportAsync(List<XmlOrderImportData> xmlOrders,
+        IOrderRepository orderRepository, IEnumerable<TourRecord>? tours = null);
 }
 
 public class OrderImportService : IOrderImportService
 {
-    public async Task<ImportPreviewResult> PreviewImportAsync(
-        List<XmlOrderImportData> xmlOrders,
-        IOrderRepository orderRepository,
-        IEnumerable<TourRecord>? tours = null)
-    {
-        var preview = new ImportPreviewResult
-        {
-            InputOrderCount = xmlOrders?.Count ?? 0
-        };
+    private readonly OrderImportMapper _mapper = new();
+    private readonly OrderDeliveryService _deliveryService = new();
 
+    public async Task<ImportPreviewResult> PreviewImportAsync(List<XmlOrderImportData> xmlOrders,
+        IOrderRepository orderRepository, IEnumerable<TourRecord>? tours = null)
+    {
+        var preview = new ImportPreviewResult { InputOrderCount = xmlOrders?.Count ?? 0 };
         var protectedOrderIds = GetActiveTourOrderIds(tours);
         var existingOrders = (await orderRepository.GetAllAsync()).ToList();
         var existingById = existingOrders
-            .Where(x => !string.IsNullOrWhiteSpace(x.Id))
-            .GroupBy(x => x.Id.Trim(), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+            .Where(order => !string.IsNullOrWhiteSpace(order.Id))
+            .GroupBy(order => order.Id.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         foreach (var xmlOrder in xmlOrders ?? [])
         {
             try
             {
-                var previewItem = BuildPreviewItem(xmlOrder, existingById, protectedOrderIds);
-                preview.Items.Add(previewItem);
+                var normalizedOrderId = (xmlOrder.AuftragNr ?? string.Empty).Trim();
+                existingById.TryGetValue(normalizedOrderId, out var existingOrder);
+                var importedOrder = PrepareOrder(xmlOrder, existingOrder, protectedOrderIds, false);
+                ValidateDeliveryReconciliation(existingOrder, importedOrder);
+                var difference = OrderImportDifferenceAnalyzer.Analyze(existingOrder, importedOrder);
 
-                switch (previewItem.Action)
-                {
-                    case ImportPreviewAction.Create:
-                        preview.CreatedOrders++;
-                        break;
-                    case ImportPreviewAction.Update:
-                        preview.UpdatedOrders++;
-                        break;
-                    default:
-                        preview.UnchangedOrders++;
-                        break;
-                }
+                preview.Items.Add(BuildPreviewItem(existingOrder, importedOrder, difference));
+                IncrementPreviewCount(preview, difference.Action);
             }
             catch (Exception ex)
             {
-                preview.Errors.Add(BuildOrderErrorMessage(xmlOrder.AuftragNr, ex));
+                preview.Errors.Add(BuildOrderErrorMessage(xmlOrder?.AuftragNr, ex));
             }
         }
 
@@ -82,14 +67,11 @@ public class OrderImportService : IOrderImportService
                 _ => 2
             })
             .ToList();
-
         return preview;
     }
 
-    public async Task<ImportResult> ImportOrdersAsync(
-        List<XmlOrderImportData> sqlOrders,
-        IOrderRepository orderRepository,
-        bool markAsXmlImported = false,
+    public async Task<ImportResult> ImportOrdersAsync(List<XmlOrderImportData> xmlOrders,
+        IOrderRepository orderRepository, bool markAsXmlImported = false,
         IEnumerable<TourRecord>? tours = null)
     {
         var result = new ImportResult { ImportedAt = DateTime.Now };
@@ -97,66 +79,42 @@ public class OrderImportService : IOrderImportService
         var existingOrders = (await orderRepository.GetAllAsync()).ToList();
         var repairedPinMetadata = false;
 
-        foreach (var sqlOrder in sqlOrders ?? [])
+        foreach (var xmlOrder in xmlOrders ?? [])
         {
             try
             {
-                var deliveryMethod = DeliveryMethodExtensions.ParseDeliveryMethod(sqlOrder.Lieferbedingung);
-                var isMapOrder = deliveryMethod.IsMapOrder();
-
-                var existingOrder = existingOrders
-                    .FirstOrDefault(o => string.Equals(o.Id, sqlOrder.AuftragNr, StringComparison.OrdinalIgnoreCase));
+                var existingOrder = existingOrders.FirstOrDefault(order =>
+                    string.Equals(order.Id, xmlOrder.AuftragNr, StringComparison.OrdinalIgnoreCase));
+                var importedOrder = PrepareOrder(xmlOrder, existingOrder, protectedOrderIds, markAsXmlImported);
 
                 if (existingOrder is null)
                 {
-                    var createdOrder = CreateImportedOrder(sqlOrder, isMapOrder, markAsXmlImported: markAsXmlImported);
-                    existingOrders.Add(createdOrder);
-                    result.CreatedOrders++;
-                    result.ProcessedOrderIds.Add(createdOrder.Id);
-                    if (!string.IsNullOrWhiteSpace(createdOrder.Id))
-                    {
-                        result.ChangedOrderIds.Add(createdOrder.Id);
-                    }
+                    AddCreatedOrder(existingOrders, result, importedOrder);
                     continue;
                 }
 
-                var importedOrder = CreateImportedOrder(sqlOrder, isMapOrder, existingOrder, markAsXmlImported);
-                PreserveActiveTourOrder(existingOrder, importedOrder, protectedOrderIds);
-                if (existingOrder.IsLocationManuallySet &&
-                    existingOrder.ManualLocationRequiresReview &&
-                    !HasManualLocationAddressChanged(existingOrder, importedOrder))
+                if (RepairStaleManualPinReviewFlag(existingOrder, importedOrder))
                 {
-                    // Repair a stale review flag caused by older versions comparing
-                    // TomTom's normalized spelling with the unchanged XML address.
-                    // This is metadata maintenance, not a user-visible order update.
-                    existingOrder.ManualLocationRequiresReview = false;
                     repairedPinMetadata = true;
                 }
-                var changes = DescribeDifferences(existingOrder, importedOrder);
-                if (changes.Count == 0)
+
+                var difference = OrderImportDifferenceAnalyzer.Analyze(existingOrder, importedOrder);
+                if (difference.Action == ImportPreviewAction.Unchanged)
                 {
                     result.UnchangedOrders++;
                     result.ProcessedOrderIds.Add(existingOrder.Id);
                     continue;
                 }
 
-                var deliveryService = new OrderDeliveryService();
-                if (!deliveryService.TryReconcileImportedProducts(existingOrder, importedOrder.Products, out var deliveryError))
-                {
-                    throw new InvalidOperationException($"Teillieferungen konnten nicht mit den XML-Produktmengen abgeglichen werden: {deliveryError}");
-                }
-
+                ReconcileDeliveries(existingOrder, importedOrder, applyChanges: true);
                 ApplyImportedData(existingOrder, importedOrder);
                 result.UpdatedOrders++;
                 result.ProcessedOrderIds.Add(existingOrder.Id);
-                if (!string.IsNullOrWhiteSpace(existingOrder.Id))
-                {
-                    result.ChangedOrderIds.Add(existingOrder.Id);
-                }
+                AddChangedOrderId(result, existingOrder.Id);
             }
             catch (Exception ex)
             {
-                result.Errors.Add(BuildOrderErrorMessage(sqlOrder.AuftragNr, ex));
+                result.Errors.Add(BuildOrderErrorMessage(xmlOrder?.AuftragNr, ex));
             }
         }
 
@@ -168,49 +126,91 @@ public class OrderImportService : IOrderImportService
         return result;
     }
 
-    private ImportPreviewItem BuildPreviewItem(
-        XmlOrderImportData sqlOrder,
-        IReadOnlyDictionary<string, Order> existingById,
-        IReadOnlySet<string> protectedOrderIds)
+    private Order PrepareOrder(XmlOrderImportData xmlOrder, Order? existingOrder,
+        IReadOnlySet<string> protectedOrderIds, bool markAsXmlImported)
     {
-        var deliveryMethod = DeliveryMethodExtensions.ParseDeliveryMethod(sqlOrder.Lieferbedingung);
-        var isMapOrder = deliveryMethod.IsMapOrder();
-        var normalizedOrderId = (sqlOrder.AuftragNr ?? string.Empty).Trim();
-
-        if (!existingById.TryGetValue(normalizedOrderId, out var existingOrder))
+        var importedOrder = _mapper.Map(xmlOrder, existingOrder, markAsXmlImported);
+        if (existingOrder is not null)
         {
-            var newOrder = CreateImportedOrder(sqlOrder, isMapOrder);
-            return new ImportPreviewItem
-            {
-                OrderId = newOrder.Id,
-                CustomerName = newOrder.CustomerName,
-                Action = ImportPreviewAction.Create,
-                DeliveryType = newOrder.DeliveryType,
-                OrderTypeLabel = FormatOrderType(newOrder.Type),
-                Changes = new List<string>
-                {
-                    "Neuer Auftrag wird angelegt."
-                }
-            };
+            PreserveActiveTourOrder(existingOrder, importedOrder, protectedOrderIds);
         }
 
-        var importedOrder = CreateImportedOrder(sqlOrder, isMapOrder, existingOrder);
-        PreserveActiveTourOrder(existingOrder, importedOrder, protectedOrderIds);
-        var deliveryService = new OrderDeliveryService();
-        if (!deliveryService.TryReconcileImportedProducts(existingOrder, importedOrder.Products, out var deliveryError, applyChanges: false))
+        return importedOrder;
+    }
+
+    private void ValidateDeliveryReconciliation(Order? existingOrder, Order importedOrder)
+    {
+        if (existingOrder is not null)
         {
-            throw new InvalidOperationException($"Teillieferungen konnten nicht mit den XML-Produktmengen abgeglichen werden: {deliveryError}");
+            ReconcileDeliveries(existingOrder, importedOrder, applyChanges: false);
         }
-        var changes = DescribeDifferences(existingOrder, importedOrder);
-        return new ImportPreviewItem
+    }
+
+    private void ReconcileDeliveries(Order existingOrder, Order importedOrder, bool applyChanges)
+    {
+        if (!_deliveryService.TryReconcileImportedProducts(existingOrder, importedOrder.Products,
+                out var deliveryError, applyChanges))
         {
-            OrderId = existingOrder.Id,
-            CustomerName = string.IsNullOrWhiteSpace(importedOrder.CustomerName) ? existingOrder.CustomerName : importedOrder.CustomerName,
-            Action = changes.Count == 0 ? ImportPreviewAction.Unchanged : ImportPreviewAction.Update,
-            DeliveryType = importedOrder.DeliveryType,
-            OrderTypeLabel = FormatOrderType(importedOrder.Type),
-            Changes = changes
-        };
+            throw new InvalidOperationException(
+                $"Teillieferungen konnten nicht mit den XML-Produktmengen abgeglichen werden: {deliveryError}");
+        }
+    }
+
+    private static ImportPreviewItem BuildPreviewItem(Order? existingOrder, Order importedOrder,
+        OrderImportDifference difference) => new()
+    {
+        OrderId = existingOrder?.Id ?? importedOrder.Id,
+        CustomerName = existingOrder is not null && string.IsNullOrWhiteSpace(importedOrder.CustomerName)
+            ? existingOrder.CustomerName
+            : importedOrder.CustomerName,
+        Action = difference.Action,
+        DeliveryType = importedOrder.DeliveryType,
+        OrderTypeLabel = FormatOrderType(importedOrder.Type),
+        Changes = difference.Changes.ToList()
+    };
+
+    private static void IncrementPreviewCount(ImportPreviewResult preview, ImportPreviewAction action)
+    {
+        switch (action)
+        {
+            case ImportPreviewAction.Create:
+                preview.CreatedOrders++;
+                break;
+            case ImportPreviewAction.Update:
+                preview.UpdatedOrders++;
+                break;
+            default:
+                preview.UnchangedOrders++;
+                break;
+        }
+    }
+
+    private static void AddCreatedOrder(ICollection<Order> existingOrders, ImportResult result, Order createdOrder)
+    {
+        existingOrders.Add(createdOrder);
+        result.CreatedOrders++;
+        result.ProcessedOrderIds.Add(createdOrder.Id);
+        AddChangedOrderId(result, createdOrder.Id);
+    }
+
+    private static void AddChangedOrderId(ImportResult result, string? orderId)
+    {
+        if (!string.IsNullOrWhiteSpace(orderId))
+        {
+            result.ChangedOrderIds.Add(orderId);
+        }
+    }
+
+    private static bool RepairStaleManualPinReviewFlag(Order existingOrder, Order importedOrder)
+    {
+        if (!existingOrder.IsLocationManuallySet || !existingOrder.ManualLocationRequiresReview ||
+            OrderImportDifferenceAnalyzer.HasManualLocationAddressChanged(existingOrder, importedOrder))
+        {
+            return false;
+        }
+
+        existingOrder.ManualLocationRequiresReview = false;
+        return true;
     }
 
     private static HashSet<string> GetActiveTourOrderIds(IEnumerable<TourRecord>? tours) =>
@@ -223,13 +223,14 @@ public class OrderImportService : IOrderImportService
             .Where(id => id.Length > 0)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-    private static void PreserveActiveTourOrder(Order existingOrder, Order importedOrder, IReadOnlySet<string> protectedOrderIds)
+    private static void PreserveActiveTourOrder(Order existingOrder, Order importedOrder,
+        IReadOnlySet<string> protectedOrderIds)
     {
         var deliveryMethod = DeliveryMethodExtensions.ParseDeliveryMethod(importedOrder.DeliveryType);
         var normalizedDeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(importedOrder.DeliveryType);
         if (deliveryMethod == DeliveryMethodType.Selbstabholung ||
             string.Equals(normalizedDeliveryType, DeliveryMethodExtensions.Post, StringComparison.OrdinalIgnoreCase) ||
-            (deliveryMethod == DeliveryMethodType.Fracht_mit_Spediteur && !importedOrder.IsAlternativeDeliveryEnabled))
+            deliveryMethod == DeliveryMethodType.Fracht_mit_Spediteur && !importedOrder.IsAlternativeDeliveryEnabled)
         {
             return;
         }
@@ -240,138 +241,10 @@ public class OrderImportService : IOrderImportService
         }
     }
 
-    private Order CreateImportedOrder(
-        XmlOrderImportData sqlOrder,
-        bool isMapOrder,
-        Order? existingOrder = null,
-        bool markAsXmlImported = false)
-    {
-        var deliveryAddress = ResolveDeliveryAddress(sqlOrder);
-        var resolvedEmail = ResolvePreferredContact(sqlOrder.LieferEmail, sqlOrder.KundeEmail);
-        var resolvedPhone = ResolvePreferredContact(sqlOrder.LieferTelefon, sqlOrder.KundeTelefon);
-
-        var auftragsAdresse = BuildAddress(
-            sqlOrder.KundeStrasse,
-            sqlOrder.KundeHausnummer,
-            sqlOrder.KundePLZ,
-            sqlOrder.KundeOrt,
-            sqlOrder.KundeLand);
-        var orderContactPerson = ResolvePreferredContact(
-            sqlOrder.KundeKontaktperson,
-            $"{sqlOrder.KundeVorname} {sqlOrder.KundeNachname}");
-
-        var order = new Order
-        {
-            Id = (sqlOrder.AuftragNr ?? string.Empty).Trim(),
-            CustomerName = BuildCustomerName(sqlOrder),
-            Address = $"{auftragsAdresse}, {sqlOrder.KundePLZ} {sqlOrder.KundeOrt}".Trim(' ', ','),
-            ScheduledDate = DateOnly.FromDateTime(sqlOrder.AuftragsDatum),
-            DeliveryDate = NormalizeDeliveryDate(sqlOrder.Lieferdatum),
-            DeliveryPeriod = (sqlOrder.Lieferdatum2 ?? string.Empty).Trim(),
-            DeliveryCanOccurEarlier = sqlOrder.LieferungKannFrueherErfolgen,
-            Type = isMapOrder ? OrderType.Map : OrderType.NonMap,
-            OrderAddress = new OrderAddressInfo
-            {
-                Name = sqlOrder.KundeFirma,
-                ContactPerson = DistinctContactPerson(BuildCustomerName(sqlOrder), orderContactPerson),
-                Street = (sqlOrder.KundeStrasse ?? string.Empty).Trim(),
-                HouseNumber = (sqlOrder.KundeHausnummer ?? string.Empty).Trim(),
-                PostalCode = sqlOrder.KundePLZ,
-                City = sqlOrder.KundeOrt
-            },
-            DeliveryAddress = new DeliveryAddressInfo
-            {
-                Name = deliveryAddress.Name,
-                ContactPerson = deliveryAddress.ContactPerson,
-                Street = deliveryAddress.Street,
-                HouseNumber = deliveryAddress.AddressNumber,
-                PostalCode = deliveryAddress.PostalCode,
-                City = deliveryAddress.City
-            },
-            Email = resolvedEmail,
-            Phone = resolvedPhone,
-            Products = BuildProducts(sqlOrder.Produkte, existingOrder?.Products, sqlOrder.Lieferzeit),
-            ManualTotalWeightKg = existingOrder?.ManualTotalWeightKg,
-            ManualTotalWeightInfo = existingOrder?.ManualTotalWeightInfo ?? string.Empty,
-            DeliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
-            IsAlternativeDeliveryEnabled = existingOrder?.IsAlternativeDeliveryEnabled == true &&
-                                           string.Equals(
-                                               DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(existingOrder.DeliveryType),
-                                               DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
-                                               StringComparison.OrdinalIgnoreCase) &&
-                                           DeliveryMethodExtensions.SupportsAlternativeDelivery(sqlOrder.Lieferbedingung),
-            IsSelfPickupAlternativeEnabled = existingOrder?.IsSelfPickupAlternativeEnabled == true &&
-                                             !string.Equals(
-                                                 DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(sqlOrder.Lieferbedingung),
-                                                 DeliveryMethodExtensions.SelbstabholungLabel,
-                                                 StringComparison.OrdinalIgnoreCase),
-            OrderStatus = Order.DefaultOrderStatus,
-            Notes = (sqlOrder.Notiz ?? string.Empty).Trim(),
-            IstVorauszahlung = sqlOrder.IstVorauszahlung,
-            IstVorauszahlungBezahlt = sqlOrder.IstVorauszahlungBezahlt,
-            IsArchived = sqlOrder.Archiviert,
-            IsXmlImported = markAsXmlImported || existingOrder?.IsXmlImported == true
-        };
-
-        order.OrderStatus = Order.ResolveOrderStatusFromProducts(order.Products);
-        return order;
-    }
-
-    private static List<OrderProductInfo> BuildProducts(
-        IReadOnlyList<XmlOrderProductData>? sqlProducts,
-        IReadOnlyList<OrderProductInfo>? existingProducts,
-        string? deliveryTime)
-    {
-        var existing = existingProducts ?? [];
-        var products = new List<OrderProductInfo>();
-
-        for (var i = 0; i < (sqlProducts ?? []).Count; i++)
-        {
-            var sqlProduct = sqlProducts![i];
-            var previousProduct = i < existing.Count ? existing[i] : null;
-            var quantity = (int)sqlProduct.Menge;
-            var unitWeightKg = (double)sqlProduct.Gewicht;
-
-            products.Add(new OrderProductInfo
-            {
-                PositionId = previousProduct?.PositionId ?? Guid.NewGuid().ToString("N"),
-                ExternalPositionId = previousProduct?.ExternalPositionId ?? string.Empty,
-                Name = (sqlProduct.Bezeichnung ?? string.Empty).Trim(),
-                Supplier = !string.IsNullOrWhiteSpace(sqlProduct.Lieferant)
-                    ? sqlProduct.Lieferant.Trim()
-                    : previousProduct?.Supplier ?? string.Empty,
-                ExpectedDelivery = previousProduct?.ExpectedDelivery ?? string.Empty,
-                Quantity = quantity,
-                UnitWeightKg = unitWeightKg,
-                WeightKg = unitWeightKg * quantity,
-                Dimensions = previousProduct?.Dimensions ?? string.Empty,
-                DeliveryStatus = previousProduct is null
-                    ? ResolveImportedProductDeliveryStatus(sqlProduct.Lieferzeit, deliveryTime, sqlProduct.Lieferant)
-                    : OrderProductInfo.NormalizeDeliveryStatus(previousProduct.DeliveryStatus)
-            });
-        }
-
-        return products;
-    }
-
-    private static string ResolveImportedProductDeliveryStatus(string? productDeliveryTime, string? orderDeliveryTime, string? supplier)
-    {
-        var deliveryTime = !string.IsNullOrWhiteSpace(productDeliveryTime)
-            ? productDeliveryTime
-            : orderDeliveryTime;
-        if (!(deliveryTime ?? string.Empty).Trim().StartsWith("ab Lager", StringComparison.OrdinalIgnoreCase))
-        {
-            return OrderProductInfo.OrderedStatus;
-        }
-
-        return (supplier ?? string.Empty).Trim().StartsWith("Esnova Racks S.A.", StringComparison.OrdinalIgnoreCase)
-            ? OrderProductInfo.PendingPreparationStatus
-            : OrderProductInfo.InStockStatus;
-    }
-
     private static void ApplyImportedData(Order existingOrder, Order importedOrder)
     {
-        var manualLocationAddressChanged = HasManualLocationAddressChanged(existingOrder, importedOrder);
+        var manualLocationAddressChanged =
+            OrderImportDifferenceAnalyzer.HasManualLocationAddressChanged(existingOrder, importedOrder);
         if (existingOrder.IsLocationManuallySet)
         {
             existingOrder.ManualLocationRequiresReview = manualLocationAddressChanged;
@@ -389,6 +262,7 @@ public class OrderImportService : IOrderImportService
         {
             existingOrder.DeliveryAddress = importedOrder.DeliveryAddress;
         }
+
         existingOrder.Email = importedOrder.Email;
         existingOrder.Phone = importedOrder.Phone;
         existingOrder.Products = importedOrder.Products;
@@ -405,376 +279,14 @@ public class OrderImportService : IOrderImportService
         existingOrder.IsXmlImported = importedOrder.IsXmlImported;
     }
 
-    private static DateOnly? NormalizeDeliveryDate(DateTime? deliveryDate)
-    {
-        if (!deliveryDate.HasValue || deliveryDate.Value.Date <= DateTime.MinValue.Date)
-        {
-            return null;
-        }
-
-        return DateOnly.FromDateTime(deliveryDate.Value);
-    }
-
-    private static List<string> DescribeDifferences(Order existingOrder, Order importedOrder)
-    {
-        var changes = new List<string>();
-
-        AddChange(changes, "Kunde", existingOrder.CustomerName, importedOrder.CustomerName);
-        AddChange(changes, "Termin", FormatDate(existingOrder.ScheduledDate), FormatDate(importedOrder.ScheduledDate));
-        AddChange(changes, "Lieferdatum", existingOrder.DeliveryDate?.ToString("dd.MM.yyyy"), importedOrder.DeliveryDate?.ToString("dd.MM.yyyy"));
-        AddChange(changes, "Lieferzeitraum", existingOrder.DeliveryPeriod, importedOrder.DeliveryPeriod);
-        AddChange(changes, "Lieferung kann früher erfolgen", FormatBool(existingOrder.DeliveryCanOccurEarlier), FormatBool(importedOrder.DeliveryCanOccurEarlier));
-        AddChange(changes, "Typ", FormatOrderType(existingOrder.Type), FormatOrderType(importedOrder.Type));
-        AddChange(changes, "Lieferart", existingOrder.DeliveryType, importedOrder.DeliveryType);
-        if (existingOrder.IsAlternativeDeliveryEnabled && !importedOrder.IsAlternativeDeliveryEnabled)
-        {
-            changes.Add($"Alternative Planung: {DeliveryMethodExtensions.GetAlternativeDeliveryLabel(existingOrder.DeliveryType)} -> zurückgesetzt");
-        }
-        if (existingOrder.IsSelfPickupAlternativeEnabled && !importedOrder.IsSelfPickupAlternativeEnabled)
-        {
-            changes.Add("Evtl. Selbstabholung -> zurückgesetzt");
-        }
-        AddOrderAddressChanges(changes, existingOrder.OrderAddress, importedOrder.OrderAddress);
-        var manualLocationAddressChanged = HasManualLocationAddressChanged(existingOrder, importedOrder);
-        if (!existingOrder.IsLocationManuallySet || manualLocationAddressChanged)
-        {
-            AddDeliveryAddressChanges(changes, existingOrder.DeliveryAddress, importedOrder.DeliveryAddress);
-        }
-        if (manualLocationAddressChanged)
-        {
-            changes.Add("Manueller Pin bleibt erhalten; geänderte Lieferadresse muss geprüft werden.");
-        }
-        AddChange(changes, "E-Mail", existingOrder.Email, importedOrder.Email);
-        AddChange(changes, "Telefon", existingOrder.Phone, importedOrder.Phone);
-        AddChange(changes, "Notiz", existingOrder.Notes, importedOrder.Notes);
-        AddChange(changes, "Vorauskasse", FormatBool(existingOrder.IstVorauszahlung), FormatBool(importedOrder.IstVorauszahlung));
-        AddChange(changes, "Vorauszahlung bezahlt", FormatBool(existingOrder.IstVorauszahlungBezahlt), FormatBool(importedOrder.IstVorauszahlungBezahlt));
-        AddChange(changes, "Archiviert", FormatBool(existingOrder.IsArchived), FormatBool(importedOrder.IsArchived));
-        AddChange(changes, "XML-Import", FormatBool(existingOrder.IsXmlImported), FormatBool(importedOrder.IsXmlImported));
-        AddProductChange(changes, existingOrder.Products, importedOrder.Products);
-        AddChange(changes, "Status", Order.NormalizeOrderStatus(existingOrder.OrderStatus), Order.NormalizeOrderStatus(importedOrder.OrderStatus));
-
-        return changes;
-    }
-
-    private static void AddChange(List<string> changes, string label, string? oldValue, string? newValue)
-    {
-        var normalizedOld = NormalizeComparisonValue(oldValue);
-        var normalizedNew = NormalizeComparisonValue(newValue);
-        if (string.Equals(normalizedOld, normalizedNew, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        changes.Add($"{label}: {DisplayValue(normalizedOld)} -> {DisplayValue(normalizedNew)}");
-    }
-
-    private static void AddOrderAddressChanges(
-        List<string> changes,
-        OrderAddressInfo? existingAddress,
-        OrderAddressInfo? importedAddress)
-    {
-        AddChange(changes, "Auftragsadresse Name", existingAddress?.Name, importedAddress?.Name);
-        AddChange(changes, "Auftragsadresse Kontaktperson", existingAddress?.ContactPerson, importedAddress?.ContactPerson);
-        AddChange(changes, "Auftragsadresse Zusatz", existingAddress?.Additional, importedAddress?.Additional);
-        AddChange(changes, "Auftragsadresse Strasse", existingAddress?.Street, importedAddress?.Street);
-        AddChange(changes, "Auftragsadresse Hausnummer", existingAddress?.HouseNumber, importedAddress?.HouseNumber);
-        AddChange(changes, "Auftragsadresse PLZ", existingAddress?.PostalCode, importedAddress?.PostalCode);
-        AddChange(changes, "Auftragsadresse Ort", existingAddress?.City, importedAddress?.City);
-    }
-
-    private static void AddDeliveryAddressChanges(
-        List<string> changes,
-        DeliveryAddressInfo? existingAddress,
-        DeliveryAddressInfo? importedAddress)
-    {
-        AddChange(changes, "Lieferadresse Name", existingAddress?.Name, importedAddress?.Name);
-        AddChange(changes, "Lieferadresse Kontaktperson", existingAddress?.ContactPerson, importedAddress?.ContactPerson);
-        AddChange(changes, "Lieferadresse Zusatz", existingAddress?.Additional, importedAddress?.Additional);
-        AddChange(changes, "Lieferadresse Strasse", existingAddress?.Street, importedAddress?.Street);
-        AddChange(changes, "Lieferadresse Hausnummer", existingAddress?.HouseNumber, importedAddress?.HouseNumber);
-        AddChange(changes, "Lieferadresse PLZ", existingAddress?.PostalCode, importedAddress?.PostalCode);
-        AddChange(changes, "Lieferadresse Ort", existingAddress?.City, importedAddress?.City);
-    }
-
-    private static void AddProductChange(
-        List<string> changes,
-        IReadOnlyList<OrderProductInfo>? existingProducts,
-        IReadOnlyList<OrderProductInfo>? importedProducts)
-    {
-        var existing = existingProducts ?? [];
-        var imported = importedProducts ?? [];
-
-        if (existing.Count != imported.Count)
-        {
-            changes.Add($"Produkte: {existing.Count} -> {imported.Count} Position(en)");
-            return;
-        }
-
-        for (var i = 0; i < imported.Count; i++)
-        {
-            var oldLine = FormatProduct(existing[i]);
-            var newLine = FormatProduct(imported[i]);
-            if (!string.Equals(oldLine, newLine, StringComparison.Ordinal))
-            {
-                changes.Add($"Produkt {i + 1}: {DisplayValue(oldLine)} -> {DisplayValue(newLine)}");
-            }
-        }
-    }
-
-    private (string Name, string ContactPerson, string Street, string AddressNumber, string PostalCode, string City) ResolveDeliveryAddress(XmlOrderImportData sqlOrder)
-    {
-        var hasSeparateDeliveryAddress =
-            !string.IsNullOrWhiteSpace(sqlOrder.LieferStrasse) ||
-            !string.IsNullOrWhiteSpace(sqlOrder.LieferHausnummer) ||
-            !string.IsNullOrWhiteSpace(sqlOrder.LieferPLZ) ||
-            !string.IsNullOrWhiteSpace(sqlOrder.LieferOrt) ||
-            !string.IsNullOrWhiteSpace(sqlOrder.LieferLand) ||
-            !string.IsNullOrWhiteSpace(sqlOrder.LieferFirma) ||
-            !string.IsNullOrWhiteSpace(sqlOrder.LieferVorname) ||
-            !string.IsNullOrWhiteSpace(sqlOrder.LieferNachname);
-
-        if (hasSeparateDeliveryAddress)
-        {
-            var name = string.IsNullOrWhiteSpace(sqlOrder.LieferFirma)
-                ? BuildCustomerName(sqlOrder)
-                : sqlOrder.LieferFirma;
-            var contactPerson = ResolvePreferredContact(
-                sqlOrder.LieferKontaktperson,
-                sqlOrder.KundeKontaktperson);
-            if (string.IsNullOrWhiteSpace(contactPerson))
-            {
-                contactPerson = BuildContactPersonName(sqlOrder);
-            }
-
-            return (
-                Name: name,
-                ContactPerson: DistinctContactPerson(name, contactPerson),
-                Street: (sqlOrder.LieferStrasse ?? string.Empty).Trim(),
-                AddressNumber: (sqlOrder.LieferHausnummer ?? string.Empty).Trim(),
-                PostalCode: sqlOrder.LieferPLZ,
-                City: sqlOrder.LieferOrt);
-        }
-
-        var customerContact = ResolvePreferredContact(sqlOrder.KundeKontaktperson, string.Empty);
-        if (string.IsNullOrWhiteSpace(customerContact))
-        {
-            customerContact = $"{sqlOrder.KundeVorname} {sqlOrder.KundeNachname}".Trim();
-        }
-
-        return (
-            Name: string.IsNullOrWhiteSpace(sqlOrder.KundeFirma) ? BuildCustomerName(sqlOrder) : sqlOrder.KundeFirma,
-            ContactPerson: DistinctContactPerson(string.IsNullOrWhiteSpace(sqlOrder.KundeFirma) ? BuildCustomerName(sqlOrder) : sqlOrder.KundeFirma, customerContact),
-            Street: (sqlOrder.KundeStrasse ?? string.Empty).Trim(),
-            AddressNumber: (sqlOrder.KundeHausnummer ?? string.Empty).Trim(),
-            PostalCode: sqlOrder.KundePLZ,
-            City: sqlOrder.KundeOrt);
-    }
-
-    private static string DistinctContactPerson(string name, string contactPerson) =>
-        string.Equals(name.Trim(), contactPerson.Trim(), StringComparison.OrdinalIgnoreCase)
-            ? string.Empty
-            : contactPerson.Trim();
-
-    private string BuildCustomerName(XmlOrderImportData sqlOrder)
-    {
-        var parts = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(sqlOrder.KundeFirma))
-        {
-            parts.Add(sqlOrder.KundeFirma);
-        }
-
-        if (!string.IsNullOrWhiteSpace(sqlOrder.KundeNachname))
-        {
-            parts.Add(sqlOrder.KundeNachname);
-        }
-
-        if (!string.IsNullOrWhiteSpace(sqlOrder.KundeVorname))
-        {
-            parts.Add(sqlOrder.KundeVorname);
-        }
-
-        return string.Join(" ", parts).Trim();
-    }
-
-    private string BuildContactPersonName(XmlOrderImportData sqlOrder)
-    {
-        var parts = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(sqlOrder.LieferVorname))
-        {
-            parts.Add(sqlOrder.LieferVorname);
-        }
-
-        if (!string.IsNullOrWhiteSpace(sqlOrder.LieferNachname))
-        {
-            parts.Add(sqlOrder.LieferNachname);
-        }
-
-        if (parts.Count == 0)
-        {
-            if (!string.IsNullOrWhiteSpace(sqlOrder.KundeVorname))
-            {
-                parts.Add(sqlOrder.KundeVorname);
-            }
-
-            if (!string.IsNullOrWhiteSpace(sqlOrder.KundeNachname))
-            {
-                parts.Add(sqlOrder.KundeNachname);
-            }
-        }
-
-        return string.Join(" ", parts).Trim();
-    }
-
-    private string BuildAddress(string street, string number, string zip, string city, string country)
-    {
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(street))
-        {
-            parts.Add(street);
-        }
-
-        if (!string.IsNullOrWhiteSpace(number))
-        {
-            parts.Add(number);
-        }
-
-        return string.Join(" ", parts).Trim();
-    }
-
-    private static string ResolvePreferredContact(string? deliveryValue, string? orderValue)
-    {
-        var delivery = (deliveryValue ?? string.Empty).Trim();
-        if (!string.IsNullOrWhiteSpace(delivery))
-        {
-            return delivery;
-        }
-
-        return (orderValue ?? string.Empty).Trim();
-    }
-
     private static string BuildOrderErrorMessage(string? orderId, Exception ex)
     {
         var normalizedOrderId = (orderId ?? string.Empty).Trim();
-        return string.IsNullOrWhiteSpace(normalizedOrderId)
+        return normalizedOrderId.Length == 0
             ? $"Fehler bei einem Auftrag ohne AuftragNr: {ex.Message}"
             : $"Fehler bei Auftrag {normalizedOrderId}: {ex.Message}";
     }
 
-    private static string FormatOrderType(OrderType type)
-    {
-        return type == OrderType.Map ? "Karte" : "Nicht-Karte";
-    }
-
-    private static string FormatDate(DateOnly date)
-    {
-        return date.ToString("dd.MM.yyyy");
-    }
-
-    private static string FormatBool(bool value)
-    {
-        return value ? "Ja" : "Nein";
-    }
-
-    private static string FormatAddress(OrderAddressInfo? address)
-    {
-        if (address is null)
-        {
-            return string.Empty;
-        }
-
-        return string.Join(", ", new[]
-        {
-            (address.Name ?? string.Empty).Trim(),
-            (address.ContactPerson ?? string.Empty).Trim(),
-            BuildStreetLine(address.Street, address.HouseNumber),
-            $"{(address.PostalCode ?? string.Empty).Trim()} {(address.City ?? string.Empty).Trim()}".Trim()
-        }.Where(x => !string.IsNullOrWhiteSpace(x)));
-    }
-
-    private static string FormatDeliveryAddress(DeliveryAddressInfo? address)
-    {
-        if (address is null)
-        {
-            return string.Empty;
-        }
-
-        return string.Join(", ", new[]
-        {
-            (address.Name ?? string.Empty).Trim(),
-            (address.ContactPerson ?? string.Empty).Trim(),
-            BuildStreetLine(address.Street, address.HouseNumber),
-            $"{(address.PostalCode ?? string.Empty).Trim()} {(address.City ?? string.Empty).Trim()}".Trim()
-        }.Where(x => !string.IsNullOrWhiteSpace(x)));
-    }
-
-    private static bool HasManualLocationAddressChanged(Order existingOrder, Order importedOrder)
-    {
-        if (!existingOrder.IsLocationManuallySet)
-        {
-            return false;
-        }
-
-        // ManualLocationAddress deliberately stores the original XML address used
-        // when the pin was confirmed. Do not compare against DeliveryAddress here:
-        // that value may contain TomTom's normalized spelling (for example
-        // "Seewernstrasse" instead of the unchanged XML value "Seewenstrasse").
-        var confirmedXmlAddress = string.IsNullOrWhiteSpace(existingOrder.ManualLocationAddress)
-            ? FormatDeliveryLocationAddress(existingOrder.DeliveryAddress)
-            : existingOrder.ManualLocationAddress;
-        var importedXmlAddress = FormatDeliveryLocationAddress(importedOrder.DeliveryAddress);
-        return !string.Equals(
-            NormalizeComparisonValue(confirmedXmlAddress),
-            NormalizeComparisonValue(importedXmlAddress),
-            StringComparison.Ordinal);
-    }
-
-    private static string FormatDeliveryLocationAddress(DeliveryAddressInfo? address)
-    {
-        if (address is null)
-        {
-            return string.Empty;
-        }
-
-        return string.Join(", ", new[]
-        {
-            BuildStreetLine(address.Street, address.HouseNumber),
-            $"{(address.PostalCode ?? string.Empty).Trim()} {(address.City ?? string.Empty).Trim()}".Trim()
-        }.Where(x => !string.IsNullOrWhiteSpace(x)));
-    }
-
-    private static string BuildStreetLine(string? street, string? houseNumber)
-    {
-        return string.Join(" ", new[]
-        {
-            (street ?? string.Empty).Trim(),
-            (houseNumber ?? string.Empty).Trim()
-        }.Where(x => !string.IsNullOrWhiteSpace(x)));
-    }
-
-    private static string FormatProduct(OrderProductInfo product)
-    {
-        return string.Join(" | ", new[]
-        {
-            (product.Name ?? string.Empty).Trim(),
-            (product.Supplier ?? string.Empty).Trim(),
-            $"Menge {product.Quantity}",
-            $"Einzelgewicht {product.UnitWeightKg:0.##} kg",
-            $"Total {product.WeightKg:0.##} kg",
-            OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus)
-        });
-    }
-
-    private static string NormalizeComparisonValue(string? value)
-    {
-        return (value ?? string.Empty).Trim();
-    }
-
-    private static string DisplayValue(string? value)
-    {
-        var normalized = (value ?? string.Empty).Trim();
-        return string.IsNullOrWhiteSpace(normalized) ? "-" : normalized;
-    }
+    private static string FormatOrderType(OrderType type) =>
+        type == OrderType.Map ? "Karte" : "Nicht-Karte";
 }

@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Globalization;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.Application.Abstractions;
@@ -10,6 +10,80 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class ToursSectionViewModelTests
 {
+    [Fact]
+    public async Task MapViewMode_DoesNotBlockTourModifications()
+    {
+        var viewModel = CreateViewModelWithTour(19);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedTour = Assert.Single(viewModel.Tours);
+        viewModel.ConfigureMapLoadedTourProvider(() => 19, () => false);
+
+        Assert.False(viewModel.IsSelectedTourLockedByMap);
+        Assert.True(viewModel.DeleteTourCommand.CanExecute(null));
+        Assert.True(viewModel.SaveAssignmentCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task MapEditMode_BlocksTourModifications()
+    {
+        var viewModel = CreateViewModelWithTour(19);
+        await viewModel.RefreshAsync();
+        viewModel.SelectedTour = Assert.Single(viewModel.Tours);
+        viewModel.ConfigureMapLoadedTourProvider(() => 19, () => true);
+
+        Assert.True(viewModel.IsSelectedTourLockedByMap);
+        Assert.False(viewModel.DeleteTourCommand.CanExecute(null));
+        Assert.False(viewModel.SaveAssignmentCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Recalculate_DifferentTourLoadedReadOnly_OpensSelectedTourOnMap()
+    {
+        var openedTourId = 0;
+        var viewModel = new ToursSectionViewModel(
+            new ControlledTourStore([CreateTour(19)]),
+            new SingleOrderRepository(),
+            new EmptyEmployeeStore(),
+            new EmptyVehicleStore(),
+            new DefaultSettingsStore(),
+            tourId =>
+            {
+                openedTourId = tourId;
+                return Task.CompletedTask;
+            });
+        await viewModel.RefreshAsync();
+        viewModel.SelectedTour = Assert.Single(viewModel.Tours);
+        viewModel.ConfigureMapLoadedTourProvider(() => 42, () => false);
+
+        await viewModel.RecalculateAndSaveAsync();
+
+        Assert.Equal(19, openedTourId);
+    }
+
+    [Fact]
+    public async Task Recalculate_DifferentTourBeingEdited_DoesNotReplaceMapTour()
+    {
+        var openedTourId = 0;
+        var viewModel = new ToursSectionViewModel(
+            new ControlledTourStore([CreateTour(19)]),
+            new SingleOrderRepository(),
+            new EmptyEmployeeStore(),
+            new EmptyVehicleStore(),
+            new DefaultSettingsStore(),
+            tourId =>
+            {
+                openedTourId = tourId;
+                return Task.CompletedTask;
+            });
+        await viewModel.RefreshAsync();
+        viewModel.SelectedTour = Assert.Single(viewModel.Tours);
+        viewModel.ConfigureMapLoadedTourProvider(() => 42, () => true);
+
+        await viewModel.RecalculateAndSaveAsync();
+
+        Assert.Equal(0, openedTourId);
+    }
+
     [Fact]
     public async Task Refresh_DeduplicatesRepositoryRowsByTourId()
     {
@@ -65,6 +139,13 @@ public sealed class ToursSectionViewModelTests
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         return Assert.IsType<List<TourRecord>>(field?.GetValue(viewModel));
     }
+
+    private static ToursSectionViewModel CreateViewModelWithTour(int id) => new(
+        new ControlledTourStore([CreateTour(id)]),
+        new SingleOrderRepository(),
+        new EmptyEmployeeStore(),
+        new EmptyVehicleStore(),
+        new DefaultSettingsStore());
 
     private static TourRecord CreateTour(int id) => new()
     {

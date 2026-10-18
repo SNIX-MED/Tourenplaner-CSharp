@@ -6,6 +6,18 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class PostgreSqlBackupRestoreServiceTests
 {
+    [Fact]
+    public void TryParseUtcTimestamp_ConvertsLocalOffsetToUtc()
+    {
+        var parsed = PostgreSqlBackupRestoreService.TryParseUtcTimestamp(
+            "2026-10-16T22:39:38.1984032+02:00",
+            out var timestamp);
+
+        Assert.True(parsed);
+        Assert.Equal(TimeSpan.Zero, timestamp.Offset);
+        Assert.Equal(new DateTimeOffset(2026, 10, 16, 20, 39, 38, TimeSpan.Zero).AddTicks(1_984_032), timestamp);
+    }
+
     private static readonly string[] Tables =
     [
         "orders", "tours", "employees", "vehicles", "tour_records", "calendar_manual_entries", "singletons"

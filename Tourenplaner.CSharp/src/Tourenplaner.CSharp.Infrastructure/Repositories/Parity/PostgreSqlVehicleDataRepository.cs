@@ -31,7 +31,7 @@ public sealed class PostgreSqlVehicleDataRepository : IVehicleDataStore
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return new VehicleDataRecord();
         var result = VehicleNormalizer.NormalizePayload(PostgreSqlRepositorySerializer.Deserialize(reader.GetString(0), () => new VehicleDataRecord()));
-        result.ConcurrencyToken = reader.GetFieldValue<DateTimeOffset>(1).ToUniversalTime().ToString("O");
+        result.ConcurrencyToken = RepositoryConcurrencyToken.Format(reader.GetFieldValue<DateTimeOffset>(1));
         return result;
     }
 
@@ -43,7 +43,7 @@ public sealed class PostgreSqlVehicleDataRepository : IVehicleDataStore
         await connection.OpenAsync(cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
-        var expected = ParseToken(normalized.ConcurrencyToken);
+        var expected = RepositoryConcurrencyToken.Parse(normalized.ConcurrencyToken);
         await using var command = connection.CreateCommand();
         command.CommandText = expected is null
             ? $"""INSERT INTO "{schema}"."singletons" (key, payload, updated_at) VALUES (@key, CAST(@payload AS jsonb), timezone('utc', now())) ON CONFLICT (key) DO NOTHING RETURNING updated_at;"""
@@ -53,9 +53,7 @@ public sealed class PostgreSqlVehicleDataRepository : IVehicleDataStore
         if (expected.HasValue) command.Parameters.AddWithValue("expectedUpdatedAt", expected.Value);
         var savedAt = await command.ExecuteScalarAsync(cancellationToken);
         if (savedAt is null) throw new ConcurrencyConflictException("Fahrzeugdaten", VehicleDataKey);
-        payload.ConcurrencyToken = ReadTimestamp(savedAt).ToUniversalTime().ToString("O");
+        payload.ConcurrencyToken = RepositoryConcurrencyToken.Format(
+            RepositoryConcurrencyToken.ReadTimestamp(savedAt));
     }
-
-    private static DateTimeOffset? ParseToken(string? token) => string.IsNullOrWhiteSpace(token) ? null : DateTimeOffset.Parse(token.Trim());
-    private static DateTimeOffset ReadTimestamp(object value) => value is DateTimeOffset dto ? dto : new DateTimeOffset(((DateTime)value).ToUniversalTime(), TimeSpan.Zero);
 }

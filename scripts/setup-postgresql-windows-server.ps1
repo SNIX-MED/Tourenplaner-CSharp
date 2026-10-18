@@ -154,7 +154,14 @@ function Set-ConfigValue {
         $content += $replacement
     }
 
-    Set-Content -LiteralPath $Path -Value $content -Encoding UTF8
+    # Windows PowerShell 5 writes a UTF-8 BOM with `Set-Content -Encoding UTF8`.
+    # PostgreSQL 18 treats that BOM as a syntax error at the beginning of the
+    # configuration file, so write UTF-8 explicitly without a BOM.
+    [System.IO.File]::WriteAllLines(
+        $Path,
+        [string[]]$content,
+        [System.Text.UTF8Encoding]::new($false)
+    )
 }
 
 function Ensure-HbaEntry {
@@ -207,26 +214,34 @@ function Invoke-Psql {
         [string]$Sql
     )
 
-    $escapedSql = $Sql.Replace('"', '\"')
-    $escapedArgs = @(
+    $sqlFile = [System.IO.Path]::GetTempFileName()
+    [System.IO.File]::WriteAllText(
+        $sqlFile,
+        $Sql,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+
+    $psqlArgs = @(
         "--host", "127.0.0.1",
         "--port", "$Port",
         "--username", $SuperUserName,
         "--dbname", $Database,
         "--no-password",
-        "--command", $escapedSql
+        "--set", "ON_ERROR_STOP=1",
+        "--file", $sqlFile
     )
 
     $oldPassword = $env:PGPASSWORD
     try {
         $env:PGPASSWORD = $SuperUserPassword
-        & $PsqlPath @escapedArgs
+        & $PsqlPath @psqlArgs
         if ($LASTEXITCODE -ne 0) {
             throw "psql-Befehl fehlgeschlagen."
         }
     }
     finally {
         $env:PGPASSWORD = $oldPassword
+        Remove-Item -LiteralPath $sqlFile -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -282,7 +297,7 @@ $appSchemaSql = Escape-SqlLiteral $AppSchema
 
 Write-Step "Lege Datenbankrolle an"
 Invoke-Psql -PsqlPath $psqlPath -Database "postgres" -Sql @"
-DO \$\$
+DO `$`$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$appUserSql') THEN
         EXECUTE 'CREATE ROLE "$appUserSql" LOGIN PASSWORD ''$appPasswordSql''';
@@ -290,18 +305,14 @@ BEGIN
         EXECUTE 'ALTER ROLE "$appUserSql" WITH LOGIN PASSWORD ''$appPasswordSql''';
     END IF;
 END
-\$\$;
+`$`$;
 "@
 
 Write-Step "Lege Tourenplaner-Datenbank an"
 Invoke-Psql -PsqlPath $psqlPath -Database "postgres" -Sql @"
-DO \$\$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$appDatabaseSql') THEN
-        EXECUTE 'CREATE DATABASE "$appDatabaseSql" OWNER "$appUserSql"';
-    END IF;
-END
-\$\$;
+SELECT format('CREATE DATABASE %I OWNER %I', '$appDatabaseSql', '$appUserSql')
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '$appDatabaseSql')
+\gexec
 "@
 
 Write-Step "Lege Schema und Berechtigungen an"

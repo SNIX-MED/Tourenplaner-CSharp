@@ -4,12 +4,16 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Tourenplaner.CSharp.Shared.Net;
 
 namespace Tourenplaner.CSharp.Launcher;
 
 internal sealed class UpdateService
 {
-    private static readonly HttpClient Client = CreateClient();
+    private static readonly HttpClient Client = ConfiguredHttpClientFactory.Create(
+        TimeSpan.FromMinutes(10),
+        "GAWELA-Tourenplaner-Updater/1.0",
+        acceptJson: true);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -182,16 +186,6 @@ internal sealed class UpdateService
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
-    private static HttpClient CreateClient()
-    {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromMinutes(10)
-        };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GAWELA-Tourenplaner-Updater/1.0");
-        client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        return client;
-    }
 }
 
 internal sealed class UpdateConfiguration

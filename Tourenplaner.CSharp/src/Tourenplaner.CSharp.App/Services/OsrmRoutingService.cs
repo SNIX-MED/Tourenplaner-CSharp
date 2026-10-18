@@ -1,12 +1,16 @@
 ﻿using System.Net.Http;
 using System.Text.Json;
 using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Shared.Net;
 
 namespace Tourenplaner.CSharp.App.Services;
 
 public sealed class OsrmRoutingService
 {
-    private static readonly HttpClient Client = CreateClient();
+    private static readonly HttpClient Client = ConfiguredHttpClientFactory.Create(
+        TimeSpan.FromSeconds(15),
+        "GAWELA-Tourenplaner/1.0",
+        acceptJson: true);
 
     public async Task<IReadOnlyList<IReadOnlyList<int>>?> TryBuildDurationMatrixMinutesAsync(
         IReadOnlyList<GeoPoint> stops,
@@ -173,16 +177,6 @@ public sealed class OsrmRoutingService
         }
     }
 
-    private static HttpClient CreateClient()
-    {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(15)
-        };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GAWELA-Tourenplaner/1.0");
-        client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        return client;
-    }
 }
 
 public sealed record RouteLegTravelTimeProfile(int OptimisticDurationMinutes, int RealisticDurationMinutes, int PessimisticDurationMinutes)

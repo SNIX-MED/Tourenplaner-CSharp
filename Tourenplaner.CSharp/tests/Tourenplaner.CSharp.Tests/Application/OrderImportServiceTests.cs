@@ -693,6 +693,26 @@ public class OrderImportServiceTests
         Assert.Equal(-10d, product.WeightKg);
     }
 
+    [Fact]
+    public async Task InvalidInputRow_DoesNotPreventFollowingValidRowInPreviewOrImport()
+    {
+        var previewRepository = new FakeOrderRepository([]);
+        var importRepository = new FakeOrderRepository([]);
+        var validOrder = CreateSqlOrder("VALID-2", "Gültiger Kunde", "Frei Bordsteinkante", "Notiz");
+        var input = new List<XmlOrderImportData> { null!, validOrder };
+        var service = new OrderImportService();
+
+        var preview = await service.PreviewImportAsync(input, previewRepository);
+        var result = await service.ImportOrdersAsync(input, importRepository);
+
+        Assert.Single(preview.Errors);
+        Assert.Equal("VALID-2", Assert.Single(preview.Items).OrderId);
+        Assert.Equal(1, preview.CreatedOrders);
+        Assert.Single(result.Errors);
+        Assert.Equal(1, result.CreatedOrders);
+        Assert.Equal("VALID-2", Assert.Single(importRepository.StoredOrders).Id);
+    }
+
     private static XmlOrderImportData CreateSqlOrder(
         string id,
         string customerName,

@@ -101,7 +101,7 @@ public sealed partial class MainShellViewModel : ObservableObject
             dataSyncService,
             () => NavigateToMapAsync(map));
         _toursSection = tours;
-        tours.ConfigureMapLoadedTourProvider(() => map.LoadedTourId);
+        tours.ConfigureMapLoadedTourProvider(() => map.LoadedTourId, () => map.IsLoadedTourEditing);
         tours.ConfigureMapTimingPreviewProvider(map.GetLoadedTourTimingPreview);
         var calendar = new KalenderSectionViewModel(
             repositories.TourRecordStore,
@@ -117,20 +117,30 @@ public sealed partial class MainShellViewModel : ObservableObject
             orderId => OpenOrderEditorFromCalendarAsync(orderId),
             dataSyncService: dataSyncService);
         _calendarSection = calendar;
-        var orders = new OrdersSectionViewModel(
+        var ordersWorkflowService = new OrderSectionWorkflowService(
             repositories.OrderRepository,
             repositories.TourRecordStore,
             repositories.AppSettingsStore,
-            repositories.DataRootPath,
             dataSyncService,
+            Path.Combine(repositories.DataRootPath, "geocode-cache.json"),
+            Guid.NewGuid(),
+            tourId => NavigateToTourAsync(tours, tourId));
+        var orders = new OrdersSectionViewModel(
+            ordersWorkflowService,
+            repositories.AppSettingsStore,
+            repositories.DataRootPath);
+        var nonMapOrdersWorkflowService = new OrderSectionWorkflowService(
+            repositories.OrderRepository,
+            repositories.TourRecordStore,
+            repositories.AppSettingsStore,
+            dataSyncService,
+            Path.Combine(repositories.DataRootPath, "geocode-cache.json"),
+            Guid.NewGuid(),
             tourId => NavigateToTourAsync(tours, tourId));
         var nonMapOrders = new NonMapOrdersSectionViewModel(
-            repositories.OrderRepository,
-            repositories.TourRecordStore,
+            nonMapOrdersWorkflowService,
             repositories.AppSettingsStore,
-            repositories.DataRootPath,
-            dataSyncService,
-            tourId => NavigateToTourAsync(tours, tourId));
+            repositories.DataRootPath);
         map.ShowOrderInListAsync = async order =>
         {
             if (order.Type == OrderType.NonMap)
@@ -873,7 +883,8 @@ public sealed partial class MainShellViewModel : ObservableObject
             return;
         }
 
-        if (string.Equals(e.PropertyName, nameof(KarteSectionViewModel.LoadedTourId), StringComparison.Ordinal))
+        if (string.Equals(e.PropertyName, nameof(KarteSectionViewModel.LoadedTourId), StringComparison.Ordinal) ||
+            string.Equals(e.PropertyName, nameof(KarteSectionViewModel.IsLoadedTourEditing), StringComparison.Ordinal))
         {
             _toursSection.NotifyMapLoadedTourChanged();
             return;

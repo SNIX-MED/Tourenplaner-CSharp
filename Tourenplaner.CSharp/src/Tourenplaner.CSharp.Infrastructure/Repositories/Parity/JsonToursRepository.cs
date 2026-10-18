@@ -43,7 +43,7 @@ public sealed class JsonToursRepository : ITourRecordStore, ITourRecordMutationS
     public async Task UpsertAsync(TourRecord tour, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(tour);
-        tour.ConcurrencyToken = CreateConcurrencyToken();
+        tour.ConcurrencyToken = RepositoryConcurrencyToken.Create();
 
         await _store.UpdateAsync(
             _path,
@@ -65,6 +65,4 @@ public sealed class JsonToursRepository : ITourRecordStore, ITourRecordMutationS
             cancellationToken);
     }
 
-    private static string CreateConcurrencyToken()
-        => DateTimeOffset.UtcNow.ToString("O");
 }

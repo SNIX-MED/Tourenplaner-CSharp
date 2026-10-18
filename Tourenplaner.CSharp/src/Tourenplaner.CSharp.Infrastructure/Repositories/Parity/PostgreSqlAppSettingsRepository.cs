@@ -33,7 +33,9 @@ public sealed class PostgreSqlAppSettingsRepository : IAppSettingsStore
         DateTimeOffset? updatedAt = null;
         if (await reader.ReadAsync(cancellationToken)) { payload = reader.GetString(0); updatedAt = reader.GetFieldValue<DateTimeOffset>(1); }
         var settings = PostgreSqlRepositorySerializer.Deserialize(payload ?? string.Empty, () => new AppSettings());
-        settings.ConcurrencyToken = updatedAt?.ToUniversalTime().ToString("O");
+        settings.ConcurrencyToken = updatedAt.HasValue
+            ? RepositoryConcurrencyToken.Format(updatedAt.Value)
+            : null;
         await reader.DisposeAsync();
         if (settings.ApplyStayMinutesDefaultsMigration()) await SaveAsync(settings, cancellationToken);
         return settings;
@@ -46,7 +48,7 @@ public sealed class PostgreSqlAppSettingsRepository : IAppSettingsStore
         await connection.OpenAsync(cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
-        var expected = ParseToken(settings.ConcurrencyToken);
+        var expected = RepositoryConcurrencyToken.Parse(settings.ConcurrencyToken);
         await using var command = connection.CreateCommand();
         command.CommandText = expected is null
             ? $"""INSERT INTO "{schema}"."singletons" (key, payload, updated_at) VALUES (@key, CAST(@payload AS jsonb), timezone('utc', now())) ON CONFLICT (key) DO NOTHING RETURNING updated_at;"""
@@ -56,9 +58,7 @@ public sealed class PostgreSqlAppSettingsRepository : IAppSettingsStore
         if (expected.HasValue) command.Parameters.AddWithValue("expectedUpdatedAt", expected.Value);
         var savedAt = await command.ExecuteScalarAsync(cancellationToken);
         if (savedAt is null) throw new ConcurrencyConflictException("Einstellungen", SettingsKey);
-        settings.ConcurrencyToken = ReadTimestamp(savedAt).ToUniversalTime().ToString("O");
+        settings.ConcurrencyToken = RepositoryConcurrencyToken.Format(
+            RepositoryConcurrencyToken.ReadTimestamp(savedAt));
     }
-
-    private static DateTimeOffset? ParseToken(string? token) => string.IsNullOrWhiteSpace(token) ? null : DateTimeOffset.Parse(token.Trim());
-    private static DateTimeOffset ReadTimestamp(object value) => value is DateTimeOffset dto ? dto : new DateTimeOffset(((DateTime)value).ToUniversalTime(), TimeSpan.Zero);
 }

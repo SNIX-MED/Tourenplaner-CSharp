@@ -323,6 +323,69 @@ public sealed class KarteSearchDetailsTests
         Assert.Equal(string.Empty, viewModel.DetailDeliveryPeriod);
     }
 
+    [Fact]
+    public void LoadedTourMode_ChangesFromPreviewToEditingAndDisablesStartCommand()
+    {
+        var viewModel = CreateViewModel();
+        SetPrivateField(viewModel, "_activeTourId", 42);
+
+        Assert.True(viewModel.IsLoadedTourReadOnly);
+        Assert.False(viewModel.CanReorderRouteStops);
+        Assert.False(viewModel.IsEditingTour(42));
+        Assert.Equal("Bearbeitungsmodus für Tourstopps starten", viewModel.StartTourEditingToolTip);
+        Assert.True(viewModel.StartSelectedTourEditingCommand.CanExecute(null));
+
+        SetPrivateField(viewModel, "_loadedTourLeaseId", 42);
+        SetPrivateField(viewModel, "_isLoadedTourEditing", true);
+
+        Assert.True(viewModel.IsLoadedTourEditing);
+        Assert.True(viewModel.CanReorderRouteStops);
+        Assert.True(viewModel.IsEditingTour(42));
+        Assert.False(viewModel.IsEditingTour(99));
+        Assert.False(viewModel.IsLoadedTourReadOnly);
+        Assert.Equal("Bearbeitungsmodus für Tourstopps ist aktiv", viewModel.StartTourEditingToolTip);
+        Assert.False(viewModel.StartSelectedTourEditingCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void StopEditingCommand_TargetsLoadedTourInsteadOfAnotherSelectedTour()
+    {
+        var viewModel = CreateViewModel();
+        SetPrivateField(viewModel, "_activeTourId", 42);
+        SetPrivateField(viewModel, "_selectedTourOverviewId", 99);
+
+        Assert.Equal(42, viewModel.LoadedTourId);
+        Assert.Equal(42, viewModel.ResolveTourIdForDetailsEditing());
+        Assert.True(viewModel.StartSelectedTourEditingCommand.CanExecute(null));
+
+        SetPrivateField(viewModel, "_loadedTourLeaseId", 42);
+        SetPrivateField(viewModel, "_isLoadedTourEditing", true);
+
+        Assert.True(viewModel.IsEditingTour(42));
+        Assert.False(viewModel.IsEditingTour(99));
+        Assert.False(viewModel.StartSelectedTourEditingCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void LoadedTourMode_IsEmptyWhenNoTourIsLoaded()
+    {
+        var viewModel = CreateViewModel();
+
+        Assert.False(viewModel.IsLoadedTourEditing);
+        Assert.False(viewModel.IsLoadedTourReadOnly);
+        Assert.True(viewModel.CanReorderRouteStops);
+        Assert.False(viewModel.StartSelectedTourEditingCommand.CanExecute(null));
+    }
+
+    private static void SetPrivateField<T>(KarteSectionViewModel viewModel, string fieldName, T value)
+    {
+        var field = typeof(KarteSectionViewModel).GetField(
+            fieldName,
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        field.SetValue(viewModel, value);
+    }
+
     private static KarteSectionViewModel CreateViewModel(
         IOrderRepository? orderRepository = null,
         ITourRecordStore? tourRepository = null) => new(

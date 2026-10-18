@@ -8,6 +8,43 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class PreUpdateBackupServiceTests
 {
     [Fact]
+    public async Task CreateAsync_LocalOverride_MarksPostgreSqlBootstrapAsLocalSource()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tourenplaner-pre-update-tests", Guid.NewGuid().ToString("N"));
+        var dataRoot = Path.Combine(root, "data");
+        var backupRoot = Path.Combine(root, "backups");
+        Directory.CreateDirectory(dataRoot);
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(dataRoot, "settings.json"),
+                JsonSerializer.Serialize(new AppSettings
+                {
+                    StorageMode = AppStorageMode.PostgreSql,
+                    BackupDir = backupRoot
+                }));
+            await File.WriteAllTextAsync(Path.Combine(dataRoot, "employees.json"), "[]");
+
+            var backupPath = await PreUpdateBackupService.CreateAsync(
+                dataRoot,
+                "1.0.0",
+                "postgresql-activation",
+                destinationDirectory: backupRoot,
+                storageModeOverride: AppStorageMode.JsonFiles);
+
+            Assert.Equal(AppStorageMode.JsonFiles, UnifiedBackupRestoreService.ReadSourceMode(backupPath));
+            using var archive = ZipFile.OpenRead(backupPath);
+            Assert.NotNull(archive.GetEntry("local-data/employees.json"));
+            Assert.Null(archive.GetEntry("postgresql/employees.json"));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public async Task CreateAsync_ArchivesLocalDataAndVersionMetadata()
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-pre-update-tests", Guid.NewGuid().ToString("N"));

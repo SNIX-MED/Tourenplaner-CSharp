@@ -1,4 +1,6 @@
 ﻿using System.IO.Compression;
+using System.Text;
+using System.Text.Json;
 using Tourenplaner.CSharp.Application.Services;
 
 namespace Tourenplaner.CSharp.Tests.Application;
@@ -87,11 +89,157 @@ public class BackupManagerTests
         }
     }
 
+    [Fact]
+    public async Task CreateBackupAsync_WritesBackwardCompatibleVersionOneManifest()
+    {
+        var root = CreateTempRoot();
+        var configDir = Path.Combine(root, "cfg");
+        var dataDir = Path.Combine(root, "data");
+        var backupDir = Path.Combine(root, "backups");
+        Directory.CreateDirectory(configDir);
+        Directory.CreateDirectory(dataDir);
+        Directory.CreateDirectory(backupDir);
+
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(configDir, "settings.json"), "{\"x\":1}");
+
+            var manager = new BackupManager();
+            var backupPath = await manager.CreateBackupAsync(
+                "gawela",
+                configDir,
+                dataDir,
+                backupDir,
+                "full");
+
+            using var archive = ZipFile.OpenRead(backupPath);
+            var manifestEntry = archive.GetEntry("manifest.json");
+            Assert.NotNull(manifestEntry);
+            using var manifestStream = manifestEntry.Open();
+            using var manifest = await JsonDocument.ParseAsync(manifestStream);
+            var rootElement = manifest.RootElement;
+
+            Assert.Equal(1, rootElement.GetProperty("BackupVersion").GetInt32());
+            Assert.Equal("full", rootElement.GetProperty("BackupType").GetString());
+            Assert.Equal("gawela", rootElement.GetProperty("AppName").GetString());
+            Assert.Equal(configDir, rootElement.GetProperty("SourcePaths").GetProperty("config_dir").GetString());
+            Assert.Equal(dataDir, rootElement.GetProperty("SourcePaths").GetProperty("data_dir").GetString());
+            Assert.Equal(JsonValueKind.Array, rootElement.GetProperty("FileIndex").ValueKind);
+            Assert.Equal(JsonValueKind.Array, rootElement.GetProperty("DeletedPaths").ValueKind);
+            Assert.Equal(JsonValueKind.Null, rootElement.GetProperty("IncrementalBase").ValueKind);
+            Assert.True(rootElement.TryGetProperty("CreatedAtIso", out _));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task RestoreBackupAsync_ThrowsInvalidDataExceptionWhenManifestIsMissing()
+    {
+        var root = CreateTempRoot();
+        var backupPath = Path.Combine(root, "missing-manifest.bak");
+
+        try
+        {
+            CreateArchive(backupPath, manifestJson: null);
+            var manager = new BackupManager();
+
+            var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+                manager.RestoreBackupAsync(
+                    backupPath,
+                    Path.Combine(root, "restore-data"),
+                    Path.Combine(root, "restore-config")));
+
+            Assert.Equal("manifest.json missing in backup archive.", exception.Message);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task RestoreBackupAsync_ThrowsInvalidDataExceptionWhenManifestJsonIsMalformed()
+    {
+        var root = CreateTempRoot();
+        var backupPath = Path.Combine(root, "malformed-manifest.bak");
+
+        try
+        {
+            CreateArchive(backupPath, "{\"BackupVersion\":1,");
+            var manager = new BackupManager();
+
+            var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+                manager.RestoreBackupAsync(
+                    backupPath,
+                    Path.Combine(root, "restore-data"),
+                    Path.Combine(root, "restore-config")));
+
+            Assert.Equal("manifest.json is invalid.", exception.Message);
+            Assert.IsType<JsonException>(exception.InnerException);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"BackupVersion\":2,\"SourcePaths\":{},\"FileIndex\":[],\"DeletedPaths\":[]}")]
+    [InlineData("{\"BackupVersion\":1,\"SourcePaths\":null,\"FileIndex\":[],\"DeletedPaths\":[]}")]
+    [InlineData("{\"BackupVersion\":1,\"SourcePaths\":{},\"FileIndex\":null,\"DeletedPaths\":[]}")]
+    [InlineData("{\"BackupVersion\":1,\"SourcePaths\":{},\"FileIndex\":[],\"DeletedPaths\":null}")]
+    public async Task RestoreBackupAsync_ThrowsInvalidDataExceptionWhenManifestStructureIsInvalid(
+        string manifestJson)
+    {
+        var root = CreateTempRoot();
+        var backupPath = Path.Combine(root, "invalid-manifest.bak");
+
+        try
+        {
+            CreateArchive(backupPath, manifestJson);
+            var manager = new BackupManager();
+
+            var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+                manager.RestoreBackupAsync(
+                    backupPath,
+                    Path.Combine(root, "restore-data"),
+                    Path.Combine(root, "restore-config")));
+
+            Assert.Equal("manifest.json is invalid.", exception.Message);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     private static string CreateTempRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         return root;
+    }
+
+    private static void CreateArchive(string backupPath, string? manifestJson)
+    {
+        using var stream = new FileStream(backupPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: false);
+
+        if (manifestJson is null)
+        {
+            var dataEntry = archive.CreateEntry("data/employees.json");
+            using var dataWriter = new StreamWriter(dataEntry.Open(), Encoding.UTF8);
+            dataWriter.Write("[]");
+            return;
+        }
+
+        var manifestEntry = archive.CreateEntry("manifest.json");
+        using var manifestWriter = new StreamWriter(manifestEntry.Open(), Encoding.UTF8);
+        manifestWriter.Write(manifestJson);
     }
 
     [Fact]

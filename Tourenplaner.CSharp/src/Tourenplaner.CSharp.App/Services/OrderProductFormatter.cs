@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Services;
@@ -6,50 +7,28 @@ namespace Tourenplaner.CSharp.App.Services;
 public static class OrderProductFormatter
 {
     public static string BuildSummary(IEnumerable<OrderProductInfo>? products)
-    {
-        var lines = (products ?? [])
-            .Select(BuildSingleSummary)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .ToList();
-
-        return lines.Count == 0 ? "N/A" : string.Join(", ", lines);
-    }
+        => FormatProducts(products, BuildSingleSummary, ", ");
 
     public static string BuildDetails(IEnumerable<OrderProductInfo>? products)
+        => FormatProducts(products, BuildSingleDetail, Environment.NewLine);
+
+    public static double ResolveUnitWeightKg(OrderProductInfo product) =>
+        OrderProductWeightNormalization.ResolveUnitWeightKg(product);
+
+    public static double ResolveTotalWeightKg(OrderProductInfo product) =>
+        OrderProductWeightNormalization.ResolveTotalWeightKg(product);
+
+    private static string FormatProducts(
+        IEnumerable<OrderProductInfo>? products,
+        Func<OrderProductInfo?, string> formatProduct,
+        string separator)
     {
         var lines = (products ?? [])
-            .Select(BuildSingleDetail)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(formatProduct)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
             .ToList();
 
-        return lines.Count == 0 ? "N/A" : string.Join(Environment.NewLine, lines);
-    }
-
-    public static double ResolveUnitWeightKg(OrderProductInfo product)
-    {
-        var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
-        if (product.UnitWeightKg > 0)
-        {
-            return product.UnitWeightKg;
-        }
-
-        if (product.WeightKg != 0)
-        {
-            return product.WeightKg / quantity;
-        }
-
-        return 0d;
-    }
-
-    public static double ResolveTotalWeightKg(OrderProductInfo product)
-    {
-        var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
-        if (product.WeightKg != 0)
-        {
-            return product.WeightKg;
-        }
-
-        return ResolveUnitWeightKg(product) * quantity;
+        return lines.Count == 0 ? "N/A" : string.Join(separator, lines);
     }
 
     private static string BuildSingleSummary(OrderProductInfo? product)

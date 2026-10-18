@@ -1,4 +1,4 @@
-using Tourenplaner.CSharp.App.Services;
+﻿using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.Application.Abstractions;
 
 namespace Tourenplaner.CSharp.Tests.Application;
@@ -39,11 +39,39 @@ public sealed class CollaborationSessionServiceTests
         await CollaborationSessionService.ShutdownAsync();
     }
 
+    [Fact]
+    public async Task Reacquire_WaitsUntilPreviousDatabaseReleaseHasCompleted()
+    {
+        var locks = new FakeLockService { BlockResourceRelease = true };
+        CollaborationSessionService.Configure(locks);
+        Assert.True((await CollaborationSessionService.TryLoginAsync("Anna")).Acquired);
+
+        var first = await CollaborationSessionService.TryAcquireResourceAsync("tour", "19");
+        Assert.NotNull(first.Lease);
+        first.Lease!.Dispose();
+        await locks.ResourceReleaseStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reacquire = CollaborationSessionService.TryAcquireResourceAsync("tour", "19");
+        await Task.Delay(20);
+        Assert.False(reacquire.IsCompleted);
+
+        locks.CompleteResourceRelease();
+        var second = await reacquire;
+        Assert.NotNull(second.Lease);
+        Assert.Equal(2, locks.ResourceAcquireCount);
+
+        second.Lease!.Dispose();
+        await CollaborationSessionService.ShutdownAsync();
+    }
+
     private sealed class FakeLockService : ICollaborationLockService
     {
         public string ConflictUser { get; set; } = string.Empty;
         public int ResourceAcquireCount { get; private set; }
         public int ResourceReleaseCount { get; private set; }
+        public bool BlockResourceRelease { get; init; }
+        public TaskCompletionSource ResourceReleaseStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource ResourceReleaseCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task<CollaborationLockResult> TryAcquireAsync(string resourceKind, string resourceId, string userName, CancellationToken cancellationToken = default)
         {
@@ -53,11 +81,17 @@ public sealed class CollaborationSessionServiceTests
             return Task.FromResult(CollaborationLockResult.Success());
         }
 
-        public Task ReleaseAsync(string resourceKind, string resourceId, CancellationToken cancellationToken = default)
+        public async Task ReleaseAsync(string resourceKind, string resourceId, CancellationToken cancellationToken = default)
         {
             if (resourceKind != "user") ResourceReleaseCount++;
-            return Task.CompletedTask;
+            if (resourceKind != "user" && BlockResourceRelease)
+            {
+                ResourceReleaseStarted.TrySetResult();
+                await ResourceReleaseCompletion.Task.WaitAsync(cancellationToken);
+            }
         }
+
+        public void CompleteResourceRelease() => ResourceReleaseCompletion.TrySetResult();
 
         public Task ReleaseAllAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

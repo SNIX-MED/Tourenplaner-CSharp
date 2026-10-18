@@ -11,7 +11,7 @@ public sealed record OrderPinSaveValidationResult(
 public static class OrderPinSaveValidationService
 {
     public static bool HasDeliveryAddressChanged(Order existing, Order updated) =>
-        !string.Equals(BuildAddressKey(existing), BuildAddressKey(updated), StringComparison.Ordinal);
+        OrderPinValidationPolicy.HasDeliveryAddressChanged(existing, updated);
 
     public static async Task<OrderPinSaveValidationResult> ValidateAsync(
         Order existing,
@@ -20,8 +20,7 @@ public static class OrderPinSaveValidationService
         string? geocodeCachePath,
         Window? owner = null)
     {
-        if (!HasDeliveryAddressChanged(existing, updated) ||
-            !DeliveryMethodExtensions.CanUseLiefertour(updated))
+        if (!OrderPinValidationPolicy.RequiresGeocoding(existing, updated))
         {
             return new OrderPinSaveValidationResult(true, null);
         }
@@ -30,84 +29,46 @@ public static class OrderPinSaveValidationService
             updated,
             tomTomApiKey,
             geocodeCachePath);
-        var result = resolution.Result;
+        var geocodingResult = resolution.Result;
+        var decision = OrderPinValidationPolicy.ResolveDecision(existing, updated, geocodingResult);
 
-        if (!existing.IsLocationManuallySet && result?.IsPrecise == true)
+        if (decision == OrderPinValidationDecision.AcceptPreciseGeocoding)
         {
-            updated.Location = result.Location;
-            updated.IsLocationManuallySet = false;
-            updated.ManualLocationAddress = string.Empty;
-            updated.ManualLocationRequiresReview = false;
-            return new OrderPinSaveValidationResult(true, result);
+            OrderPinValidationPolicy.ApplyPreciseGeocoding(updated, geocodingResult!);
+            return new OrderPinSaveValidationResult(true, geocodingResult);
         }
 
-        var address = BuildAddressLine(updated);
-        var wasManual = existing.IsLocationManuallySet && existing.Location is not null;
-        var initialLocation = wasManual
-            ? existing.Location
-            : result?.Location ?? existing.Location;
-        var requireManualPlacement = !wasManual;
+        var confirmation = OrderPinValidationPolicy.CreateManualConfirmation(
+            existing,
+            updated,
+            geocodingResult);
         var dialog = new PinAddressInfoDialogWindow(
             updated,
-            address,
-            result,
-            ResolveFailureSummary(resolution.FailureReason),
+            confirmation.AddressLine,
+            geocodingResult,
+            OrderPinValidationPolicy.ResolveFailureSummary(resolution.FailureReason),
             tomTomApiKey,
-            initialLocation,
+            confirmation.InitialLocation,
             initialLocationIsManual: true,
-            initialLocationRequiresReview: wasManual,
-            requireManualPlacement: requireManualPlacement)
+            initialLocationRequiresReview: confirmation.ExistingLocationIsManual,
+            requireManualPlacement: confirmation.RequireManualPlacement)
         {
             Owner = owner ?? System.Windows.Application.Current?.MainWindow
         };
 
         if (dialog.ShowDialog() != true || dialog.SelectedLocation is null)
         {
-            return new OrderPinSaveValidationResult(false, result);
+            return new OrderPinSaveValidationResult(false, geocodingResult);
         }
 
-        updated.Location = dialog.SelectedLocation;
-        updated.IsLocationManuallySet = dialog.IsSelectedLocationManual;
-        updated.ManualLocationAddress = dialog.IsSelectedLocationManual ? address : string.Empty;
-        updated.ManualLocationRequiresReview = false;
-        return new OrderPinSaveValidationResult(true, result);
+        OrderPinValidationPolicy.ApplyManualConfirmation(
+            updated,
+            dialog.SelectedLocation,
+            dialog.IsSelectedLocationManual,
+            confirmation.AddressLine);
+        return new OrderPinSaveValidationResult(true, geocodingResult);
     }
 
-    internal static string BuildAddressLine(Order order)
-    {
-        var delivery = order.DeliveryAddress;
-        var street = string.Join(" ", new[] { delivery?.Street, delivery?.HouseNumber }
-            .Where(x => !string.IsNullOrWhiteSpace(x)));
-        var city = string.Join(" ", new[] { delivery?.PostalCode, delivery?.City }
-            .Where(x => !string.IsNullOrWhiteSpace(x)));
-        return string.Join(", ", new[] { street, city }.Where(x => !string.IsNullOrWhiteSpace(x)));
-    }
-
-    private static string BuildAddressKey(Order order)
-    {
-        var delivery = order.DeliveryAddress;
-        return string.Join("|", new[]
-        {
-            Normalize(delivery?.Street),
-            Normalize(delivery?.HouseNumber),
-            Normalize(delivery?.PostalCode),
-            Normalize(delivery?.City)
-        });
-    }
-
-    private static string Normalize(string? value)
-    {
-        return SwissAddressNormalization.NormalizeForComparison(value)
-            .Replace(" ", string.Empty, StringComparison.Ordinal);
-    }
-
-    private static string ResolveFailureSummary(AddressGeocodingFailureReason reason) => reason switch
-    {
-        AddressGeocodingFailureReason.MissingApiKey => "TomTom-API-Key fehlt. Der Pin muss manuell geprüft werden.",
-        AddressGeocodingFailureReason.AuthenticationFailed => "TomTom-Zugang wurde abgelehnt. Der Pin muss manuell geprüft werden.",
-        AddressGeocodingFailureReason.RateLimited => "TomTom drosselt die Adresssuche. Der Pin muss manuell geprüft werden.",
-        AddressGeocodingFailureReason.Timeout => "Die TomTom-Anfrage hat zu lange gedauert. Der Pin muss manuell geprüft werden.",
-        AddressGeocodingFailureReason.ConnectionFailed => "TomTom ist derzeit nicht erreichbar. Der Pin muss manuell geprüft werden.",
-        _ => "Die neue Lieferadresse konnte nicht eindeutig zugeordnet werden. Bitte den Pin manuell setzen."
-    };
+    internal static string BuildAddressLine(Order order) =>
+        OrderPinValidationPolicy.BuildAddressLine(order, trimComponents: false);
 }

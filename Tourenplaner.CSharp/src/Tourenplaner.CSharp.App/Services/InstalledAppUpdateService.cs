@@ -5,12 +5,16 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Tourenplaner.CSharp.Shared.Net;
 
 namespace Tourenplaner.CSharp.App.Services;
 
 internal static class InstalledAppUpdateService
 {
-    private static readonly HttpClient Client = CreateClient();
+    private static readonly HttpClient Client = ConfiguredHttpClientFactory.Create(
+        TimeSpan.FromMinutes(10),
+        "GAWELA-Tourenplaner-AppUpdater/1.0",
+        acceptJson: true);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -299,17 +303,6 @@ internal static class InstalledAppUpdateService
         using var sha256 = SHA256.Create();
         var hash = sha256.ComputeHash(stream);
         return Convert.ToHexString(hash).ToLowerInvariant();
-    }
-
-    private static HttpClient CreateClient()
-    {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromMinutes(10)
-        };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GAWELA-Tourenplaner-AppUpdater/1.0");
-        client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        return client;
     }
 
     private sealed class UpdateConfiguration

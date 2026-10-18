@@ -37,7 +37,10 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock FontSize="34" FontWeight="Bold" Text="Neue Liefertour" />
+            <TextBlock x:Name="DialogHeading"
+                       FontSize="34"
+                       FontWeight="Bold"
+                       Text="Neue Liefertour" />
 
             <Grid Grid.Row="1" Margin="0,12,0,0">
                 <Grid.ColumnDefinitions>
@@ -207,7 +210,18 @@
                 </StackPanel>
             </Border>
 
-            <Grid Grid.Row="10" Margin="0,16,0,0">
+            <StackPanel Grid.Row="10" Margin="0,16,0,0">
+                <Border x:Name="StopEditingHint"
+                        Margin="0,0,0,12"
+                        Padding="12,10"
+                        CornerRadius="8"
+                        Background="{DynamicResource Brush.SurfaceRaised}"
+                        Visibility="Collapsed">
+                    <TextBlock Text="Nach dem Übernehmen können Sie die Stopps der Tour auf der Karte hinzufügen, entfernen und neu anordnen."
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource Brush.TextMuted}" />
+                </Border>
+                <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
@@ -222,8 +236,9 @@
                         Style="{StaticResource PrimaryButtonStyle}"
                         Visibility="Collapsed"
                         Click="OnOpenOnMapClicked" />
-                <Button Grid.Column="2" Height="38" Margin="8,0,0,0" Content="Speichern" Style="{StaticResource SuccessButtonStyle}" IsDefault="True" Click="OnCreateClicked" />
-            </Grid>
+                    <Button x:Name="SaveButton" Grid.Column="2" Height="38" Margin="8,0,0,0" Content="Speichern" Style="{StaticResource SuccessButtonStyle}" IsDefault="True" Click="OnCreateClicked" />
+                </Grid>
+            </StackPanel>
         </Grid>
     </Border>
 </Window>

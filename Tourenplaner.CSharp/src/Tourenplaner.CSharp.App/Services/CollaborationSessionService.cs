@@ -1,4 +1,4 @@
-using Tourenplaner.CSharp.Application.Abstractions;
+﻿using Tourenplaner.CSharp.Application.Abstractions;
 
 namespace Tourenplaner.CSharp.App.Services;
 
@@ -38,6 +38,7 @@ public static class CollaborationSessionService
     private static string _currentUserName = string.Empty;
     private static readonly object ReferenceGate = new();
     private static readonly Dictionary<(string Kind, string Id), int> ReferenceCounts = new();
+    private static readonly Dictionary<(string Kind, string Id), SemaphoreSlim> ResourceOperationGates = new();
 
     public static string CurrentUserName => _currentUserName;
     public static bool HasActiveResourceLocks
@@ -72,43 +73,79 @@ public static class CollaborationSessionService
         CancellationToken cancellationToken = default)
     {
         var key = (resourceKind.Trim().ToLowerInvariant(), resourceId.Trim().ToLowerInvariant());
-        lock (ReferenceGate)
+        var operationGate = GetResourceOperationGate(key);
+        await operationGate.WaitAsync(cancellationToken);
+        try
         {
-            if (ReferenceCounts.TryGetValue(key, out var count))
+            lock (ReferenceGate)
             {
-                ReferenceCounts[key] = count + 1;
-                return (new CollaborationResourceLease(resourceKind, resourceId), CollaborationLockResult.Success());
+                if (ReferenceCounts.TryGetValue(key, out var count))
+                {
+                    ReferenceCounts[key] = count + 1;
+                    return (new CollaborationResourceLease(resourceKind, resourceId), CollaborationLockResult.Success());
+                }
             }
-        }
 
-        var result = await _lockService.TryAcquireAsync(resourceKind, resourceId, _currentUserName, cancellationToken);
-        if (result.Acquired)
-        {
-            lock (ReferenceGate) ReferenceCounts[key] = 1;
+            var result = await _lockService.TryAcquireAsync(resourceKind, resourceId, _currentUserName, cancellationToken);
+            if (result.Acquired)
+            {
+                lock (ReferenceGate) ReferenceCounts[key] = 1;
+            }
+            return result.Acquired
+                ? (new CollaborationResourceLease(resourceKind, resourceId), result)
+                : (null, result);
         }
-        return result.Acquired
-            ? (new CollaborationResourceLease(resourceKind, resourceId), result)
-            : (null, result);
+        finally
+        {
+            operationGate.Release();
+        }
     }
 
-    internal static Task ReleaseResourceAsync(string resourceKind, string resourceId)
+    internal static async Task ReleaseResourceAsync(string resourceKind, string resourceId)
     {
         var key = (resourceKind.Trim().ToLowerInvariant(), resourceId.Trim().ToLowerInvariant());
+        var operationGate = GetResourceOperationGate(key);
+        await operationGate.WaitAsync();
+        try
+        {
+            lock (ReferenceGate)
+            {
+                if (ReferenceCounts.TryGetValue(key, out var count) && count > 1)
+                {
+                    ReferenceCounts[key] = count - 1;
+                    return;
+                }
+                ReferenceCounts.Remove(key);
+            }
+
+            await _lockService.ReleaseAsync(resourceKind, resourceId);
+        }
+        finally
+        {
+            operationGate.Release();
+        }
+    }
+
+    private static SemaphoreSlim GetResourceOperationGate((string Kind, string Id) key)
+    {
         lock (ReferenceGate)
         {
-            if (ReferenceCounts.TryGetValue(key, out var count) && count > 1)
+            if (!ResourceOperationGates.TryGetValue(key, out var operationGate))
             {
-                ReferenceCounts[key] = count - 1;
-                return Task.CompletedTask;
+                operationGate = new SemaphoreSlim(1, 1);
+                ResourceOperationGates[key] = operationGate;
             }
-            ReferenceCounts.Remove(key);
+            return operationGate;
         }
-        return _lockService.ReleaseAsync(resourceKind, resourceId);
     }
 
     public static async Task ShutdownAsync()
     {
-        lock (ReferenceGate) ReferenceCounts.Clear();
+        lock (ReferenceGate)
+        {
+            ReferenceCounts.Clear();
+            ResourceOperationGates.Clear();
+        }
         await _lockService.DisposeAsync();
         _currentUserName = string.Empty;
     }

@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Shared.Net;
 
 namespace Tourenplaner.CSharp.App.Services;
 
@@ -62,7 +63,7 @@ public sealed record WebfleetOrderSnapshot(
 /// <summary>Small, deliberately isolated CSV client for WEBFLEET.connect.</summary>
 public sealed class WebfleetConnectService
 {
-    private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(20) };
+    private static readonly HttpClient Client = ConfiguredHttpClientFactory.Create(TimeSpan.FromSeconds(20));
     private static readonly string[] ObjectReportColumns =
     [
         "objectno",

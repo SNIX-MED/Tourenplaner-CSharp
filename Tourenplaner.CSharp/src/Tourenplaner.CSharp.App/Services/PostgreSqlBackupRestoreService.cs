@@ -81,7 +81,7 @@ internal sealed class PostgreSqlBackupRestoreService
                 var key = keyElement.GetString();
                 var updatedAtText = updatedAtElement.GetString();
                 if (string.IsNullOrWhiteSpace(key) ||
-                    !DateTimeOffset.TryParse(updatedAtText, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var updatedAt))
+                    !TryParseUtcTimestamp(updatedAtText, out var updatedAt))
                 {
                     throw new InvalidDataException($"In der Sicherungstabelle {table} ist ein Schlüssel oder Zeitstempel ungültig.");
                 }
@@ -100,6 +100,22 @@ internal sealed class PostgreSqlBackupRestoreService
         }
 
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    internal static bool TryParseUtcTimestamp(string? value, out DateTimeOffset timestamp)
+    {
+        if (!DateTimeOffset.TryParse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind,
+                out var parsed))
+        {
+            timestamp = default;
+            return false;
+        }
+
+        timestamp = parsed.ToUniversalTime();
+        return true;
     }
 
     internal static void ValidateBackupFile(string backupPath)

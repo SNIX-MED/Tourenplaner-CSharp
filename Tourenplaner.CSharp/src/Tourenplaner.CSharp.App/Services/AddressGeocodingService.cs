@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 using System.IO;
 using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Shared.Net;
 
 namespace Tourenplaner.CSharp.App.Services;
 
@@ -14,7 +15,10 @@ public static class AddressGeocodingService
     private const double SwitzerlandCenterLat = 46.798562;
     private const double SwitzerlandCenterLon = 8.231974;
     private const int CurrentCacheValidationVersion = 1;
-    private static readonly HttpClient Client = CreateClient();
+    private static readonly HttpClient Client = ConfiguredHttpClientFactory.Create(
+        TimeSpan.FromSeconds(8),
+        "GAWELA-Tourenplaner/1.0",
+        acceptJson: true);
     private static readonly TomTomRequestQueue RequestQueue = new();
     private static readonly SemaphoreSlim CacheGate = new(1, 1);
     private static readonly ConcurrentDictionary<string, GeoPoint> InMemoryCache = new(StringComparer.OrdinalIgnoreCase);
@@ -370,17 +374,6 @@ public static class AddressGeocodingService
         }
 
         return new AddressGeocodingResolution(CreateResolution(bestCandidate, expectation), AddressGeocodingFailureReason.None);
-    }
-
-    private static HttpClient CreateClient()
-    {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(8)
-        };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GAWELA-Tourenplaner/1.0");
-        client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-        return client;
     }
 
     private static IReadOnlyList<string> BuildQueries(string street, string postalCode, string city, string fallback)

@@ -43,6 +43,48 @@ public class OrderEditPersistenceServiceTests
         Assert.Equal("original-token", original.ConcurrencyToken);
     }
 
+    [Fact]
+    public void CreateCandidate_DeepClonesNestedEditableState()
+    {
+        var original = CreateOrder();
+        original.OrderAddress = new OrderAddressInfo { Street = "Originalstrasse", HouseNumber = "1" };
+        original.DeliveryAddress = new DeliveryAddressInfo { Street = "Lieferstrasse", HouseNumber = "2" };
+        var candidate = OrderEditPersistenceService.CreateCandidate(original);
+
+        candidate.OrderAddress.Street = "Geänderte Auftragsadresse";
+        candidate.DeliveryAddress.Street = "Geänderte Lieferadresse";
+        candidate.Products[0].Name = "Geändertes Produkt";
+
+        Assert.NotSame(original, candidate);
+        Assert.NotSame(original.OrderAddress, candidate.OrderAddress);
+        Assert.NotSame(original.DeliveryAddress, candidate.DeliveryAddress);
+        Assert.NotSame(original.Products, candidate.Products);
+        Assert.NotSame(original.Products[0], candidate.Products[0]);
+        Assert.Equal("Originalstrasse", original.OrderAddress.Street);
+        Assert.Equal("Lieferstrasse", original.DeliveryAddress.Street);
+        Assert.Equal("Produkt", original.Products[0].Name);
+        Assert.Equal(original.Id, candidate.Id);
+        Assert.Equal(original.ConcurrencyToken, candidate.ConcurrencyToken);
+    }
+
+    [Fact]
+    public async Task FullSaveFallback_UsesStableSnapshotAndReplacesCandidateCaseInsensitively()
+    {
+        var original = CreateOrder();
+        var unrelated = new Order { Id = "OTHER" };
+        var currentOrders = new List<Order> { original, unrelated };
+        var candidate = OrderEditPersistenceService.CreateCandidate(original);
+        candidate.Id = original.Id.ToLowerInvariant();
+        var repository = new DeferredEnumerationRepository();
+
+        await OrderEditPersistenceService.SaveAsync(repository, currentOrders, candidate);
+        currentOrders.Clear();
+        currentOrders.Add(new Order { Id = "LATE-MUTATION" });
+
+        Assert.Equal(["OTHER", "221972"], repository.CapturedOrders.Select(order => order.Id).ToArray());
+        Assert.Same(candidate, repository.CapturedOrders[1]);
+    }
+
     private static Order CreateOrder() => new()
     {
         Id = "221972", ConcurrencyToken = "original-token",
@@ -68,5 +110,28 @@ public class OrderEditPersistenceServiceTests
             return Task.CompletedTask;
         }
         public Task DeleteAsync(string orderId, string? concurrencyToken = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class DeferredEnumerationRepository : IOrderRepository
+    {
+        private IEnumerable<Order> _capturedOrders = [];
+
+        public IReadOnlyList<Order> CapturedOrders => _capturedOrders.ToList();
+
+        public Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Order>>([]);
+
+        public Task SaveAllAsync(
+            IEnumerable<Order> orders,
+            CancellationToken cancellationToken = default)
+        {
+            _capturedOrders = orders;
+            return Task.CompletedTask;
+        }
+
+        public Task<Order?> GetByIdAsync(
+            string orderId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<Order?>(null);
     }
 }

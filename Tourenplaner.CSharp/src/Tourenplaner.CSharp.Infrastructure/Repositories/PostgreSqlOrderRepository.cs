@@ -60,7 +60,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
 
         foreach (var item in items)
         {
-            var expectedToken = ParseConcurrencyToken(item.ConcurrencyToken);
+            var expectedToken = RepositoryConcurrencyToken.Parse(item.ConcurrencyToken);
             var nextToken = DateTimeOffset.UtcNow;
 
             await using var command = connection.CreateCommand();
@@ -110,7 +110,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
                 throw new ConcurrencyConflictException("Auftrag", item.Id.Trim());
             }
 
-            savedTokens.Add((item, FormatConcurrencyToken(ReadTimestamp(savedAt))));
+            savedTokens.Add((item, RepositoryConcurrencyToken.Format(RepositoryConcurrencyToken.ReadTimestamp(savedAt))));
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -151,7 +151,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
         ArgumentNullException.ThrowIfNull(order);
 
         var normalizedId = order.Id.Trim();
-        var expectedToken = ParseConcurrencyToken(order.ConcurrencyToken);
+        var expectedToken = RepositoryConcurrencyToken.Parse(order.ConcurrencyToken);
         var nextToken = DateTimeOffset.UtcNow;
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
@@ -177,7 +177,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
                 throw new ConcurrencyConflictException("Auftrag", normalizedId);
             }
 
-            order.ConcurrencyToken = FormatConcurrencyToken(ReadTimestamp(insertedAt));
+            order.ConcurrencyToken = RepositoryConcurrencyToken.Format(RepositoryConcurrencyToken.ReadTimestamp(insertedAt));
             return;
         }
 
@@ -203,7 +203,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
             throw new ConcurrencyConflictException("Auftrag", normalizedId);
         }
 
-        order.ConcurrencyToken = FormatConcurrencyToken(ReadTimestamp(updatedAt));
+        order.ConcurrencyToken = RepositoryConcurrencyToken.Format(RepositoryConcurrencyToken.ReadTimestamp(updatedAt));
     }
 
     public async Task DeleteAsync(string orderId, string? concurrencyToken = null, CancellationToken cancellationToken = default)
@@ -219,7 +219,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
-        var expectedToken = ParseConcurrencyToken(concurrencyToken);
+        var expectedToken = RepositoryConcurrencyToken.Parse(concurrencyToken);
 
         await using var command = connection.CreateCommand();
         if (expectedToken is null)
@@ -252,35 +252,8 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
     private static Order DeserializeOrder(string payload, DateTimeOffset updatedAt)
     {
         var order = PostgreSqlRepositorySerializer.Deserialize(payload, () => new Order());
-        order.ConcurrencyToken = FormatConcurrencyToken(updatedAt);
+        order.ConcurrencyToken = RepositoryConcurrencyToken.Format(updatedAt);
         return order;
     }
 
-    private static string CreateConcurrencyToken()
-        => FormatConcurrencyToken(DateTimeOffset.UtcNow);
-
-    private static string FormatConcurrencyToken(DateTimeOffset value)
-        => value.ToUniversalTime().ToString("O");
-
-    private static DateTimeOffset? ParseConcurrencyToken(string? token)
-    {
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return null;
-        }
-
-        return DateTimeOffset.Parse(token.Trim());
-    }
-
-    private static DateTimeOffset ReadTimestamp(object value)
-    {
-        return value switch
-        {
-            DateTimeOffset dto => dto,
-            DateTime dt => dt.Kind == DateTimeKind.Unspecified
-                ? new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc))
-                : new DateTimeOffset(dt.ToUniversalTime(), TimeSpan.Zero),
-            _ => throw new InvalidOperationException($"Unerwarteter PostgreSQL-Zeitstempeltyp: {value.GetType().FullName}")
-        };
-    }
 }

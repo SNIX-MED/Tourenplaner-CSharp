@@ -60,7 +60,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
 
         foreach (var item in items)
         {
-            var expectedToken = ParseConcurrencyToken(item.ConcurrencyToken);
+            var expectedToken = RepositoryConcurrencyToken.Parse(item.ConcurrencyToken);
             var nextToken = DateTimeOffset.UtcNow;
 
             await using var command = connection.CreateCommand();
@@ -110,7 +110,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
                 throw new ConcurrencyConflictException("Tour", item.Id.ToString());
             }
 
-            savedTokens.Add((item, FormatConcurrencyToken(ReadTimestamp(savedAt))));
+            savedTokens.Add((item, RepositoryConcurrencyToken.Format(RepositoryConcurrencyToken.ReadTimestamp(savedAt))));
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -146,7 +146,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
 
         foreach (var item in tourItems)
         {
-            var expectedToken = ParseConcurrencyToken(item.ConcurrencyToken);
+            var expectedToken = RepositoryConcurrencyToken.Parse(item.ConcurrencyToken);
             var nextToken = DateTimeOffset.UtcNow;
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
@@ -168,12 +168,12 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
                 throw new ConcurrencyConflictException("Tour", item.Id.ToString());
             }
             if (savedAt is null) throw new ConcurrencyConflictException("Tour", item.Id.ToString());
-            savedTourTokens.Add((item, FormatConcurrencyToken(ReadTimestamp(savedAt))));
+            savedTourTokens.Add((item, RepositoryConcurrencyToken.Format(RepositoryConcurrencyToken.ReadTimestamp(savedAt))));
         }
 
         foreach (var item in orderItems)
         {
-            var expectedToken = ParseConcurrencyToken(item.ConcurrencyToken);
+            var expectedToken = RepositoryConcurrencyToken.Parse(item.ConcurrencyToken);
             var nextToken = DateTimeOffset.UtcNow;
             await using var command = connection.CreateCommand();
             command.Transaction = transaction;
@@ -195,7 +195,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
                 throw new ConcurrencyConflictException("Auftrag", item.Id.Trim());
             }
             if (savedAt is null) throw new ConcurrencyConflictException("Auftrag", item.Id.Trim());
-            savedOrderTokens.Add((item, FormatConcurrencyToken(ReadTimestamp(savedAt))));
+            savedOrderTokens.Add((item, RepositoryConcurrencyToken.Format(RepositoryConcurrencyToken.ReadTimestamp(savedAt))));
         }
 
         foreach (var item in deletedTours)
@@ -237,7 +237,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
         ArgumentNullException.ThrowIfNull(tour);
 
         var normalized = TourNormalizer.NormalizeTour(tour);
-        var expectedToken = ParseConcurrencyToken(normalized.ConcurrencyToken);
+        var expectedToken = RepositoryConcurrencyToken.Parse(normalized.ConcurrencyToken);
         var nextToken = DateTimeOffset.UtcNow;
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
@@ -263,7 +263,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
                 throw new ConcurrencyConflictException("Tour", normalized.Id.ToString());
             }
 
-            normalized.ConcurrencyToken = FormatConcurrencyToken(ReadTimestamp(insertedAt));
+            normalized.ConcurrencyToken = RepositoryConcurrencyToken.Format(RepositoryConcurrencyToken.ReadTimestamp(insertedAt));
             tour.ConcurrencyToken = normalized.ConcurrencyToken;
             return;
         }
@@ -290,7 +290,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
             throw new ConcurrencyConflictException("Tour", normalized.Id.ToString());
         }
 
-        normalized.ConcurrencyToken = FormatConcurrencyToken(ReadTimestamp(updatedAt));
+        normalized.ConcurrencyToken = RepositoryConcurrencyToken.Format(RepositoryConcurrencyToken.ReadTimestamp(updatedAt));
         tour.ConcurrencyToken = normalized.ConcurrencyToken;
     }
 
@@ -301,7 +301,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
-        var expectedToken = ParseConcurrencyToken(concurrencyToken);
+        var expectedToken = RepositoryConcurrencyToken.Parse(concurrencyToken);
 
         await using var command = connection.CreateCommand();
         if (expectedToken is null)
@@ -334,12 +334,9 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
     private static TourRecord DeserializeTour(string payload, DateTimeOffset updatedAt)
     {
         var item = PostgreSqlRepositorySerializer.Deserialize(payload, () => new TourRecord());
-        item.ConcurrencyToken = FormatConcurrencyToken(updatedAt);
+        item.ConcurrencyToken = RepositoryConcurrencyToken.Format(updatedAt);
         return TourNormalizer.NormalizeTour(item);
     }
-
-    private static string CreateConcurrencyToken()
-        => FormatConcurrencyToken(DateTimeOffset.UtcNow);
 
     private static string BuildConcurrencySafeUpdateSql(string schema, string table)
         => $"""
@@ -372,7 +369,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
         string entityName,
         CancellationToken cancellationToken)
     {
-        var expectedToken = ParseConcurrencyToken(concurrencyToken);
+        var expectedToken = RepositoryConcurrencyToken.Parse(concurrencyToken);
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = expectedToken is null
@@ -389,28 +386,4 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
         if (expectedToken.HasValue && affectedRows == 0) throw new ConcurrencyConflictException(entityName, id);
     }
 
-    private static string FormatConcurrencyToken(DateTimeOffset value)
-        => value.ToUniversalTime().ToString("O");
-
-    private static DateTimeOffset? ParseConcurrencyToken(string? token)
-    {
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return null;
-        }
-
-        return DateTimeOffset.Parse(token.Trim());
-    }
-
-    private static DateTimeOffset ReadTimestamp(object value)
-    {
-        return value switch
-        {
-            DateTimeOffset dto => dto,
-            DateTime dt => dt.Kind == DateTimeKind.Unspecified
-                ? new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Utc))
-                : new DateTimeOffset(dt.ToUniversalTime(), TimeSpan.Zero),
-            _ => throw new InvalidOperationException($"Unerwarteter PostgreSQL-Zeitstempeltyp: {value.GetType().FullName}")
-        };
-    }
 }
