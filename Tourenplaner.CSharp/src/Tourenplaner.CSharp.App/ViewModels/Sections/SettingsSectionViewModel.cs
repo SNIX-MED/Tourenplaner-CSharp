@@ -71,6 +71,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private int _calendarLoadCriticalPeopleThreshold = 2;
     private bool _mapAutoOpenDetailsOnPinSelection = true;
     private bool _mapSearchDimNonMatchingPins;
+    private bool _mapOpenPinInfoCardOnHover = true;
     private bool _mapPinInfoCardShowName = true;
     private bool _mapPinInfoCardShowOrderNumber = true;
     private bool _mapPinInfoCardShowStreet = true;
@@ -687,6 +688,12 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     {
         get => _mapSearchDimNonMatchingPins;
         set => SetProperty(ref _mapSearchDimNonMatchingPins, value);
+    }
+
+    public bool MapOpenPinInfoCardOnHover
+    {
+        get => _mapOpenPinInfoCardOnHover;
+        set => SetProperty(ref _mapOpenPinInfoCardOnHover, value);
     }
 
     public bool MapPinInfoCardShowName
@@ -1317,6 +1324,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
             nameof(CalendarLoadCriticalPeopleThreshold) or
             nameof(MapAutoOpenDetailsOnPinSelection) or
             nameof(MapSearchDimNonMatchingPins) or
+            nameof(MapOpenPinInfoCardOnHover) or
             nameof(MapPinInfoCardShowName) or
             nameof(MapPinInfoCardShowOrderNumber) or
             nameof(MapPinInfoCardShowStreet) or
@@ -1842,6 +1850,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         userPreference.CalendarLoadCriticalPeopleThreshold = CalendarLoadCriticalPeopleThreshold;
         userPreference.MapAutoOpenDetailsOnPinSelection = MapAutoOpenDetailsOnPinSelection;
         userPreference.MapSearchDimNonMatchingPins = MapSearchDimNonMatchingPins;
+        userPreference.MapOpenPinInfoCardOnHover = MapOpenPinInfoCardOnHover;
         userPreference.MapPinInfoCardShowName = MapPinInfoCardShowName;
         userPreference.MapPinInfoCardShowOrderNumber = MapPinInfoCardShowOrderNumber;
         userPreference.MapPinInfoCardShowStreet = MapPinInfoCardShowStreet;
@@ -1947,6 +1956,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         CalendarLoadCriticalPeopleThreshold = userPreference.CalendarLoadCriticalPeopleThreshold < 1 ? 2 : userPreference.CalendarLoadCriticalPeopleThreshold;
         MapAutoOpenDetailsOnPinSelection = userPreference.MapAutoOpenDetailsOnPinSelection;
         MapSearchDimNonMatchingPins = userPreference.MapSearchDimNonMatchingPins;
+        MapOpenPinInfoCardOnHover = userPreference.MapOpenPinInfoCardOnHover;
         MapPinInfoCardShowName = userPreference.MapPinInfoCardShowName;
         MapPinInfoCardShowOrderNumber = userPreference.MapPinInfoCardShowOrderNumber;
         MapPinInfoCardShowStreet = userPreference.MapPinInfoCardShowStreet;

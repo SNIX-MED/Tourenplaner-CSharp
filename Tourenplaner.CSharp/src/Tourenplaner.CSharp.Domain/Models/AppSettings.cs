@@ -62,6 +62,7 @@ public sealed class AppSettings
     public bool MapDetailsPanelExpanded { get; set; } = true;
     public bool MapAutoOpenDetailsOnPinSelection { get; set; } = true;
     public bool MapSearchDimNonMatchingPins { get; set; } = true;
+    public bool MapOpenPinInfoCardOnHover { get; set; } = true;
     public bool MapPinInfoCardShowName { get; set; } = true;
     public bool MapPinInfoCardShowOrderNumber { get; set; } = true;
     public bool MapPinInfoCardShowStreet { get; set; } = true;
@@ -157,6 +158,7 @@ public sealed class AppSettings
             MapDetailsPanelExpanded = MapDetailsPanelExpanded,
             MapAutoOpenDetailsOnPinSelection = MapAutoOpenDetailsOnPinSelection,
             MapSearchDimNonMatchingPins = MapSearchDimNonMatchingPins,
+            MapOpenPinInfoCardOnHover = MapOpenPinInfoCardOnHover,
             MapPinInfoCardShowName = MapPinInfoCardShowName,
             MapPinInfoCardShowOrderNumber = MapPinInfoCardShowOrderNumber,
             MapPinInfoCardShowStreet = MapPinInfoCardShowStreet,
@@ -364,6 +366,7 @@ public sealed class UserAppPreference
     public bool MapDetailsPanelExpanded { get; set; } = true;
     public bool MapAutoOpenDetailsOnPinSelection { get; set; } = true;
     public bool MapSearchDimNonMatchingPins { get; set; } = true;
+    public bool MapOpenPinInfoCardOnHover { get; set; } = true;
     public bool MapPinInfoCardShowName { get; set; } = true;
     public bool MapPinInfoCardShowOrderNumber { get; set; } = true;
     public bool MapPinInfoCardShowStreet { get; set; } = true;
@@ -413,6 +416,7 @@ public sealed class UserAppPreference
             MapDetailsPanelExpanded = MapDetailsPanelExpanded,
             MapAutoOpenDetailsOnPinSelection = MapAutoOpenDetailsOnPinSelection,
             MapSearchDimNonMatchingPins = MapSearchDimNonMatchingPins,
+            MapOpenPinInfoCardOnHover = MapOpenPinInfoCardOnHover,
             MapPinInfoCardShowName = MapPinInfoCardShowName,
             MapPinInfoCardShowOrderNumber = MapPinInfoCardShowOrderNumber,
             MapPinInfoCardShowStreet = MapPinInfoCardShowStreet,

@@ -807,7 +807,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
                 DateTimeStyles.None,
                 out var parsedOrderDate))
         {
-            error = "Bitte ein gültiges Auftragsdatum im Format DD.MM.YYYY eingeben.";
+            error = Tourenplaner.CSharp.App.Resources.GermanDateUiText.InvalidOrderDate;
             return false;
         }
 
@@ -817,7 +817,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         {
             if (!DateTime.TryParseExact(normalizedDeliveryDateText, "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDeliveryDate))
             {
-                error = "Bitte ein gültiges Lieferdatum im Format DD.MM.YYYY eingeben.";
+                error = Tourenplaner.CSharp.App.Resources.GermanDateUiText.InvalidDeliveryDate;
                 return false;
             }
 

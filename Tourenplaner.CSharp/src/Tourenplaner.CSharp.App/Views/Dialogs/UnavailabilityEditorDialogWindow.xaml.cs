@@ -160,7 +160,7 @@ public sealed class UnavailabilityEditorDialogViewModel
             if (!start.HasValue || !end.HasValue)
             {
                 result = [];
-                error = $"Eintrag {index + 1}: Bitte gültige Datumswerte im Format DD.MM.YYYY eingeben.";
+                error = Tourenplaner.CSharp.App.Resources.GermanDateUiText.InvalidUnavailabilityEntryDate(index + 1);
                 return false;
             }
             if (!TryNormalizeTime(row.StartTime, out var startTime) || !TryNormalizeTime(row.EndTime, out var endTime))

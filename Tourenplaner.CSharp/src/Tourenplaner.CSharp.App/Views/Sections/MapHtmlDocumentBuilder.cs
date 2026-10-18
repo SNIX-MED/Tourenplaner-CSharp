@@ -642,6 +642,7 @@ internal static class MapHtmlDocumentBuilder
                          let companyMarkerLocation = null;
                          let hasAppliedInitialMarkerFit = false;
                          let routePopupVisible = false;
+                         let markerPopupHoverEnabled = true;
                          let stickyPopupOrderId = '';
                          let activeOrderPopupElement = null;
                          let routeStopHitTargets = [];
@@ -655,6 +656,23 @@ internal static class MapHtmlDocumentBuilder
                          let markerFanOutRafScheduled = false;
                          let hoveredOverlapGroupKey = '';
                          let overlapHoverResetHandle = 0;
+                         const openMarkerPopupOnHover = marker => {
+                           if (!markerPopupHoverEnabled) return;
+                           if (!marker || typeof marker.getPopup !== 'function') return;
+                           const popup = marker.getPopup();
+                           if (!popup) return;
+                           popup.addTo(map);
+                           scalePopupElement(popup);
+                           enableOrderPopupInteraction(popup);
+                           bringOrderPopupToFront(popup);
+                         };
+                         const closeMarkerPopupAfterHover = marker => {
+                           if (!marker || routePopupVisible || typeof marker.getPopup !== 'function') return;
+                           const markerId = marker.__gawelaOrderId ? String(marker.__gawelaOrderId) : '';
+                           if (stickyPopupOrderId && markerId === stickyPopupOrderId) return;
+                           const popup = marker.getPopup();
+                           if (popup) popup.remove();
+                         };
                          const applyScaleVariable = (scale) => {
                            const value = Number.isFinite(scale) ? Math.max(0.35, Math.min(2.4, scale)) : 1.0;
                            markerScale = value;
@@ -2345,10 +2363,12 @@ internal static class MapHtmlDocumentBuilder
                                 if (currentOverlapGroupKey) {
                                   setHoveredOverlapGroupKey(currentOverlapGroupKey);
                                 }
+                                openMarkerPopupOnHover(marker);
                                 map.getCanvas().style.cursor = 'pointer';
                               });
                               markerEl.addEventListener('mouseleave', () => {
                                 scheduleOverlapHoverReset();
+                                closeMarkerPopupAfterHover(marker);
                                 map.getCanvas().style.cursor = 'grab';
                               });
                              markerEl.addEventListener('contextmenu', evt => {
@@ -2760,8 +2780,10 @@ internal static class MapHtmlDocumentBuilder
                                });
                              }
 
+                            const matchingOrderMarker = (window.__gawelaLastMarkers || []).find(candidate =>
+                              candidate && stop.id && String(candidate.id) === String(stop.id));
                             const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
-                              createScaledPopupHtml('')
+                              createScaledPopupHtml(buildPinPopupHtml(matchingOrderMarker || stop))
                             );
                              const marker = new ttSdk.Marker({ element: buildMarkerElement(stop, true), draggable: true, anchor: 'center' })
                                .setLngLat([stop.displayLon, stop.displayLat])
@@ -2777,10 +2799,12 @@ internal static class MapHtmlDocumentBuilder
                              markerEl.addEventListener('mouseenter', () => {
                                clearOverlapHoverReset();
                                setHoveredOverlapGroupKey(markerEl.dataset.overlapGroupKey || '');
+                               openMarkerPopupOnHover(marker);
                                map.getCanvas().style.cursor = 'pointer';
                              });
                              markerEl.addEventListener('mouseleave', () => {
                                scheduleOverlapHoverReset();
+                               closeMarkerPopupAfterHover(marker);
                                map.getCanvas().style.cursor = 'grab';
                              });
                              markerEl.addEventListener('contextmenu', evt => {
@@ -3091,6 +3115,12 @@ internal static class MapHtmlDocumentBuilder
                                }
                              }
                            });
+                         };
+                         window.gawelaSetMarkerPopupHoverEnabled = function(enabled) {
+                           markerPopupHoverEnabled = !!enabled;
+                           if (markerPopupHoverEnabled || routePopupVisible) return;
+                           mapMarkers.forEach(closeMarkerPopupAfterHover);
+                           routeMarkers.forEach(closeMarkerPopupAfterHover);
                          };
                          window.gawelaSetPopupSizeMultiplier = function(multiplier) {
                            const parsed = Number(multiplier);

@@ -114,6 +114,39 @@ public sealed class MapHtmlDocumentBuilderTests
         Assert.Contains("map.on('zoomend', scheduleMarkerFanOutRecompute)", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void OrderAndRoutePins_OpenTheirInfoCardWhileHovered()
+    {
+        var html = MapHtmlDocumentBuilder.Build(null, true, true, null, false, true, true, false, false, true, true, 1d, 0);
+
+        Assert.Contains("const openMarkerPopupOnHover = marker =>", html, StringComparison.Ordinal);
+        Assert.Contains("const closeMarkerPopupAfterHover = marker =>", html, StringComparison.Ordinal);
+        Assert.Contains("if (!markerPopupHoverEnabled) return;", html, StringComparison.Ordinal);
+        Assert.Contains("window.gawelaSetMarkerPopupHoverEnabled = function(enabled)", html, StringComparison.Ordinal);
+        Assert.Contains("mapMarkers.forEach(closeMarkerPopupAfterHover);", html, StringComparison.Ordinal);
+        Assert.Contains("routeMarkers.forEach(closeMarkerPopupAfterHover);", html, StringComparison.Ordinal);
+        Assert.Contains("const matchingOrderMarker = (window.__gawelaLastMarkers || []).find", html, StringComparison.Ordinal);
+        Assert.Contains("createScaledPopupHtml(buildPinPopupHtml(matchingOrderMarker || stop))", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("createScaledPopupHtml('')", html, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(html, "openMarkerPopupOnHover(marker);"));
+        Assert.Equal(2, CountOccurrences(html, "closeMarkerPopupAfterHover(marker);"));
+        Assert.Contains("if (!marker || routePopupVisible", html, StringComparison.Ordinal);
+        Assert.Contains("if (stickyPopupOrderId && markerId === stickyPopupOrderId) return;", html, StringComparison.Ordinal);
+    }
+
+    private static int CountOccurrences(string value, string searchValue)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = value.IndexOf(searchValue, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += searchValue.Length;
+        }
+
+        return count;
+    }
+
     [Theory]
     [InlineData(0, -18)]
     [InlineData(36, -4.5)]

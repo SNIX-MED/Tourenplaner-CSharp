@@ -69,11 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Sicherere Datenspeicherung mit Konflikterkennung fuer JSON und PostgreSQL
-          - Ueberarbeitete Historie, Backups und Wiederherstellung vor Updates
-          - Verbesserter XML-Auftragsimport und konsistente Produkt-/Gewichtsdaten
-          - Stabilere Tourenplanung, Kartenfunktionen und Auftragsbearbeitung
-          - Gemeinsame, konfigurierbare Netzwerkbehandlung fuer App und Updater
+          - Pin-Infokarten koennen beim Ueberfahren geoeffnet und in den Einstellungen deaktiviert werden
+          - Verstaendlichere Aktion zum Festlegen neuer Tourdetails
+          - Fruehzeitige Personalempfehlung fuer Auftraege mit Verteilung
+          - Erfolgsmeldungen verwenden den sichtbaren Tournamen statt interner IDs
+          - Konsistente deutsche Datumshinweise und verbesserte Barrierefreiheit
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

@@ -58,7 +58,8 @@ public static class AppMessageBox
         string caption,
         string cancelButtonText,
         string confirmButtonText,
-        MessageBoxImage icon = MessageBoxImage.Warning)
+        MessageBoxImage icon = MessageBoxImage.Warning,
+        bool requireExplicitPrimaryConfirmation = false)
     {
         var dialog = new AppMessageDialogWindow(
             messageBoxText,
@@ -66,7 +67,8 @@ public static class AppMessageBox
             MessageBoxButton.YesNo,
             icon,
             confirmButtonText,
-            cancelButtonText)
+            cancelButtonText,
+            requireExplicitPrimaryConfirmation: requireExplicitPrimaryConfirmation)
         {
             Owner = owner ?? System.Windows.Application.Current?.MainWindow
         };

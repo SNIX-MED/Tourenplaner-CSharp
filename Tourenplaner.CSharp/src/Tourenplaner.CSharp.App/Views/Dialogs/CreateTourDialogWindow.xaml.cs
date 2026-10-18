@@ -1,6 +1,8 @@
 ﻿using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using Tourenplaner.CSharp.App.ViewModels;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.Domain.Models;
@@ -11,6 +13,7 @@ public partial class CreateTourDialogWindow : Window
 {
     private CollaborationResourceLease? _editLease;
     private string _lockConflictUserName = string.Empty;
+    private bool _isSubmitting;
 
     public CreateTourDialogWindow(
         string routeDate,
@@ -49,6 +52,8 @@ public partial class CreateTourDialogWindow : Window
             additionalMaterialGroups,
             selectedAdditionalMaterials);
         DataContext = ViewModel;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        Closed += (_, _) => ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         UnsavedChangesGuard.Attach(this,
             () => UnsavedChangesGuard.Capture(ViewModel, new
             {
@@ -108,14 +113,50 @@ public partial class CreateTourDialogWindow : Window
 
     private void OnCreateClicked(object sender, RoutedEventArgs e)
     {
+        if (_isSubmitting)
+        {
+            return;
+        }
+
         if (!ViewModel.TryBuildResult(out var result, out var validationError))
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(this, validationError, "Eingabe prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
+        if (ViewModel.RequiresEmployeeRecommendationConfirmation &&
+            AppMessageBox.ShowConfirmation(
+                this,
+                ViewModel.EmployeeRecommendationConfirmationMessage,
+                TourStaffingWarningService.ConfirmationTitle,
+                TourStaffingWarningService.ConfirmationCancelText,
+                TourStaffingWarningService.ConfirmationAcceptText,
+                MessageBoxImage.Warning,
+                requireExplicitPrimaryConfirmation: true) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        result = result with { EmployeeRecommendationConfirmed = true };
+        _isSubmitting = true;
+        SaveButton.IsEnabled = false;
         Result = result;
         DialogResult = true;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(CreateTourDialogViewModel.HasEmployeeRecommendationWarning))
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            var peer = UIElementAutomationPeer.FromElement(EmployeeRecommendationWarning) ??
+                       UIElementAutomationPeer.CreatePeerForElement(EmployeeRecommendationWarning);
+            peer?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+        });
     }
 
     private void OnOpenOnMapClicked(object sender, RoutedEventArgs e)
@@ -217,11 +258,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             ApplySelectedEmployees(selectedEmployeeIds);
         }
 
-        SingleEmployeeWarningDeliveryTypes = (singleEmployeeWarningDeliveryTypes ?? [])
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        _singleEmployeeWarningDeliveryTypes = NormalizeDistributionDeliveryTypes(singleEmployeeWarningDeliveryTypes);
 
         foreach (var employee in _allEmployees)
         {
@@ -262,7 +299,8 @@ public sealed class CreateTourDialogViewModel : ObservableObject
 
     public List<SelectableEmployee> Employees => _allEmployees;
 
-    public IReadOnlyList<string> SingleEmployeeWarningDeliveryTypes { get; }
+    private IReadOnlyList<string> _singleEmployeeWarningDeliveryTypes = [];
+    public IReadOnlyList<string> SingleEmployeeWarningDeliveryTypes => _singleEmployeeWarningDeliveryTypes;
     public List<SelectableAdditionalMaterial> AdditionalMaterialOptions { get; }
     public bool HasAdditionalMaterialOptions => AdditionalMaterialOptions.Count > 0;
 
@@ -379,7 +417,13 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     public bool UseSecondaryVehicle
     {
         get => _useSecondaryVehicle;
-        set => SetProperty(ref _useSecondaryVehicle, value);
+        set
+        {
+            if (SetProperty(ref _useSecondaryVehicle, value))
+            {
+                RefreshStaffingRecommendation();
+            }
+        }
     }
 
     public TourLookupOption? SelectedSecondaryVehicle
@@ -394,7 +438,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         set => SetProperty(ref _selectedSecondaryTrailer, value);
     }
 
-    private string _selectedEmployeesSummary = "Keine Mitarbeiter ausgewählt";
+    private string _selectedEmployeesSummary = "Kein Mitarbeiter ausgewählt";
     public string SelectedEmployeesSummary
     {
         get => _selectedEmployeesSummary;
@@ -412,6 +456,26 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         RefreshEmployeesSummary();
     }
 
+    public bool ContainsDistributionOrder => StaffingAssessment.ContainsDistributionOrder;
+    public int RecommendedEmployeeCount => TourStaffingWarningService.RecommendedEmployeeCount;
+    public bool HasEmployeeRecommendationWarning => StaffingAssessment.HasEmployeeRecommendationWarning;
+    public bool RequiresEmployeeRecommendationConfirmation => StaffingAssessment.RequiresSaveConfirmation;
+    public string EmployeeRecommendationMessage => StaffingAssessment.EmployeeRecommendationMessage;
+    public string EmployeeRecommendationConfirmationMessage => StaffingAssessment.ConfirmationMessage;
+    public string EmployeeRecommendationAccessibleName => HasEmployeeRecommendationWarning
+        ? $"Personalempfehlung. {EmployeeRecommendationMessage}"
+        : "Keine Personalempfehlung erforderlich";
+
+    private TourStaffingAssessment StaffingAssessment => TourStaffingWarningService.Evaluate(
+        Employees.Where(employee => employee.IsSelected).Select(employee => employee.Id).ToList(),
+        SingleEmployeeWarningDeliveryTypes);
+
+    public void UpdateSingleEmployeeWarningDeliveryTypes(IReadOnlyList<string>? deliveryTypes)
+    {
+        _singleEmployeeWarningDeliveryTypes = NormalizeDistributionDeliveryTypes(deliveryTypes);
+        RefreshStaffingRecommendation();
+    }
+
     public bool TryBuildResult(out CreateTourDialogResult result, out string error)
     {
         result = default!;
@@ -420,7 +484,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         var normalizedDateText = (DateText ?? string.Empty).Trim();
         if (!DateTime.TryParseExact(normalizedDateText, "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
         {
-            error = "Bitte ein gültiges Datum im Format DD.MM.YYYY eingeben.";
+            error = Tourenplaner.CSharp.App.Resources.GermanDateUiText.InvalidTourDate;
             return false;
         }
 
@@ -502,10 +566,32 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     private void RefreshEmployeesSummary()
     {
         var count = Employees.Count(x => x.IsSelected);
-        SelectedEmployeesSummary = count == 0
-            ? "Keine Mitarbeiter ausgew\u00E4hlt"
-            : $"{count} Mitarbeiter ausgew\u00E4hlt";
+        SelectedEmployeesSummary = count switch
+        {
+            0 => "Kein Mitarbeiter ausgewählt",
+            1 => "1 Mitarbeiter ausgewählt",
+            _ => $"{count} Mitarbeiter ausgewählt"
+        };
+        RefreshStaffingRecommendation();
     }
+
+    private void RefreshStaffingRecommendation()
+    {
+        OnPropertyChanged(nameof(ContainsDistributionOrder));
+        OnPropertyChanged(nameof(RecommendedEmployeeCount));
+        OnPropertyChanged(nameof(HasEmployeeRecommendationWarning));
+        OnPropertyChanged(nameof(RequiresEmployeeRecommendationConfirmation));
+        OnPropertyChanged(nameof(EmployeeRecommendationMessage));
+        OnPropertyChanged(nameof(EmployeeRecommendationConfirmationMessage));
+        OnPropertyChanged(nameof(EmployeeRecommendationAccessibleName));
+    }
+
+    private static IReadOnlyList<string> NormalizeDistributionDeliveryTypes(IReadOnlyList<string>? deliveryTypes) =>
+        (deliveryTypes ?? [])
+            .Where(TourStaffingWarningService.IsDistributionDeliveryType)
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     private void OnEmployeePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -598,7 +684,8 @@ public sealed record CreateTourDialogResult(
     string? SecondaryVehicleId,
     string? SecondaryTrailerId,
     IReadOnlyList<string> EmployeeIds,
-    IReadOnlyList<TourAdditionalMaterial> AdditionalMaterials);
+    IReadOnlyList<TourAdditionalMaterial> AdditionalMaterials,
+    bool EmployeeRecommendationConfirmed = false);
 
 public sealed class SelectableAdditionalMaterial : ObservableObject
 {

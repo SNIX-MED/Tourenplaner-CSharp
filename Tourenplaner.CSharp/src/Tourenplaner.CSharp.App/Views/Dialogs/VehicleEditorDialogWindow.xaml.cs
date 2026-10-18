@@ -359,7 +359,7 @@ public sealed class VehicleEditorDialogViewModel : ObservableObject
             var end = ResourceAvailabilityService.ParseDate(OutageEndDate);
             if (!start.HasValue || !end.HasValue)
             {
-                error = "Bitte für den Ausfall ein gültiges Start- und Enddatum im Format DD.MM.YYYY eingeben.";
+                error = Tourenplaner.CSharp.App.Resources.GermanDateUiText.InvalidOutageDateRange;
                 return false;
             }
         }

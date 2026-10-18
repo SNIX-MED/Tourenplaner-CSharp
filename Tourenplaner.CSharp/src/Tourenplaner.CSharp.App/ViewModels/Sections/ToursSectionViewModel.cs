@@ -2097,10 +2097,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             {
                 return;
             }
+            StatusText = TourNotificationMessageFormatter.FormatTourUpdatedMessage(tour);
+            ToastNotificationService.ShowInfo(StatusText);
             _dataSyncService.PublishTours(_instanceId, tour.Id.ToString(CultureInfo.InvariantCulture), tour.Id.ToString(CultureInfo.InvariantCulture));
             await RefreshAsync();
             await FocusTourAsync(tour.Id);
-            StatusText = $"Tour {tour.Id} wurde aktualisiert.";
             openOnMapAfterSave = true;
         }
         finally

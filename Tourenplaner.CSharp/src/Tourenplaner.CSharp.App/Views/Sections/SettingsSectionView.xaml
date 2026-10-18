@@ -1566,6 +1566,10 @@
                                                 <CheckBox Margin="0,14,0,0"
                                                           Content="Nicht passende Suchtreffer ausgrauen statt ausblenden"
                                                           IsChecked="{Binding MapSearchDimNonMatchingPins, Mode=TwoWay}" />
+                                                <CheckBox Margin="0,10,0,0"
+                                                          Content="Infokarte beim Überfahren eines Pins öffnen"
+                                                          ToolTip="Öffnet die zum Pin gehörende Infokarte, solange sich der Mauszeiger darüber befindet."
+                                                          IsChecked="{Binding MapOpenPinInfoCardOnHover, Mode=TwoWay}" />
                                                 <TextBlock Margin="0,18,0,0" Style="{StaticResource SettingsSubsectionTitleStyle}" Text="Sichtbare Felder" />
                                                 <WrapPanel Margin="0,12,0,0">
                                                     <Border Style="{StaticResource ToggleTileStyle}"><CheckBox Content="Name anzeigen" IsChecked="{Binding MapPinInfoCardShowName, Mode=TwoWay}" /></Border>

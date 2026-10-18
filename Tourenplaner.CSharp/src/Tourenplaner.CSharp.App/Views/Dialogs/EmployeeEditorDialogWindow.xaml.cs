@@ -325,7 +325,7 @@ public sealed class EmployeeEditorDialogViewModel : ObservableObject
             var end = ResourceAvailabilityService.ParseDate(AbsenceEndDate);
             if (!start.HasValue || !end.HasValue)
             {
-                error = "Bitte für die Abwesenheit ein gültiges Start- und Enddatum im Format DD.MM.YYYY eingeben.";
+                error = Tourenplaner.CSharp.App.Resources.GermanDateUiText.InvalidAbsenceDateRange;
                 return false;
             }
         }

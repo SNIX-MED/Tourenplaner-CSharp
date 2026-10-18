@@ -12,7 +12,8 @@ public partial class AppMessageDialogWindow : Window
         MessageBoxImage image,
         string? primaryButtonText = null,
         string? secondaryButtonText = null,
-        string? additionalButtonText = null)
+        string? additionalButtonText = null,
+        bool requireExplicitPrimaryConfirmation = false)
     {
         InitializeComponent();
 
@@ -22,6 +23,11 @@ public partial class AppMessageDialogWindow : Window
 
         ConfigureVisuals(image);
         ConfigureButtons(buttons, primaryButtonText, secondaryButtonText);
+        if (requireExplicitPrimaryConfirmation && buttons == MessageBoxButton.YesNo)
+        {
+            PrimaryButton.IsDefault = false;
+            Loaded += (_, _) => SecondaryButton.Focus();
+        }
         if (!string.IsNullOrWhiteSpace(additionalButtonText))
         {
             AdditionalButton.Content = additionalButtonText;

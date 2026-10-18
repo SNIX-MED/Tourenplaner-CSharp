@@ -595,6 +595,7 @@ public sealed partial class KarteSectionViewModel
         _mapAutoOpenDetailsOnPinSelection = userPreference.MapAutoOpenDetailsOnPinSelection;
         _mapSearchDimNonMatchingPins = userPreference.MapSearchDimNonMatchingPins;
         _mapPinInfoCardShowName = userPreference.MapPinInfoCardShowName;
+        _mapOpenPinInfoCardOnHover = userPreference.MapOpenPinInfoCardOnHover;
         _mapPinInfoCardShowOrderNumber = userPreference.MapPinInfoCardShowOrderNumber;
         _mapPinInfoCardShowStreet = userPreference.MapPinInfoCardShowStreet;
         _mapPinInfoCardShowPostalCodeCity = userPreference.MapPinInfoCardShowPostalCodeCity;
@@ -703,6 +704,7 @@ public sealed partial class KarteSectionViewModel
             OnPropertyChanged(nameof(TomTomEnableTileCache));
         }
         OnPropertyChanged(nameof(MapPinInfoCardShowName));
+        OnPropertyChanged(nameof(MapOpenPinInfoCardOnHover));
         OnPropertyChanged(nameof(MapPinInfoCardShowOrderNumber));
         OnPropertyChanged(nameof(MapPinInfoCardShowStreet));
         OnPropertyChanged(nameof(MapPinInfoCardShowPostalCodeCity));
@@ -2571,7 +2573,8 @@ public sealed partial class KarteSectionViewModel
             result.SecondaryVehicleId,
             result.SecondaryTrailerId,
             result.EmployeeIds,
-            result.AdditionalMaterials);
+            result.AdditionalMaterials,
+            result.EmployeeRecommendationConfirmed);
     }
 
     private async Task OpenEditSelectedTourDialogAsync()
@@ -2655,7 +2658,8 @@ public sealed partial class KarteSectionViewModel
                 result.SecondaryVehicleId,
                 result.SecondaryTrailerId,
                 result.EmployeeIds,
-                result.AdditionalMaterials);
+                result.AdditionalMaterials,
+                result.EmployeeRecommendationConfirmed);
         }
         finally
         {
@@ -2746,7 +2750,8 @@ public sealed partial class KarteSectionViewModel
         string? secondaryVehicleId,
         string? secondaryTrailerId,
         IReadOnlyList<string> employeeIds,
-        IReadOnlyList<TourAdditionalMaterial> additionalMaterials)
+        IReadOnlyList<TourAdditionalMaterial> additionalMaterials,
+        bool employeeRecommendationConfirmed = false)
     {
         var wasCommitted = false;
         try
@@ -2768,7 +2773,7 @@ public sealed partial class KarteSectionViewModel
                 return;
             }
 
-            if (!ConfirmSingleEmployeeDeliveryWarning(
+            if (!employeeRecommendationConfirmed && !ConfirmSingleEmployeeDeliveryWarning(
                     employeeIds,
                     RouteStops.Where(IsOrderStop).Select(stop => stop.OrderId)))
             {
@@ -2826,14 +2831,15 @@ public sealed partial class KarteSectionViewModel
 
             await SaveChangedToursAndOrdersAsync(originalTours, tours, originalOrders, _allOrders);
             wasCommitted = true;
+            var successMessage = TourNotificationMessageFormatter.FormatTourCreatedMessage(tour);
+            StatusText = successMessage;
+            ToastNotificationService.ShowInfo(successMessage);
             _dataSyncService.PublishTours(_instanceId, nextId.ToString(CultureInfo.InvariantCulture), nextId.ToString(CultureInfo.InvariantCulture));
             PublishOrderChange(null, null);
             await RefreshAfterLocalMutationAsync(nextId);
             await FocusTourAsync(nextId);
             SetRouteChanged(false);
             ClearDraftRouteStopRemovalUndoHistory();
-            StatusText = "Route gespeichert und auf Karte geladen.";
-            ToastNotificationService.ShowInfo($"Neue Tour {nextId} wurde erstellt.");
         }
         catch (ConcurrencyConflictException conflict)
         {
@@ -2870,7 +2876,8 @@ public sealed partial class KarteSectionViewModel
         string? secondaryVehicleId,
         string? secondaryTrailerId,
         IReadOnlyList<string> employeeIds,
-        IReadOnlyList<TourAdditionalMaterial> additionalMaterials)
+        IReadOnlyList<TourAdditionalMaterial> additionalMaterials,
+        bool employeeRecommendationConfirmed = false)
     {
         var wasCommitted = false;
         try
@@ -2919,7 +2926,7 @@ public sealed partial class KarteSectionViewModel
             var warningOrderIds = hasDraftRouteStops
                 ? RouteStops.Where(IsOrderStop).Select(stop => stop.OrderId)
                 : ExtractNonCompanyTourOrderIds(existingTour);
-            if (!ConfirmSingleEmployeeDeliveryWarning(employeeIds, warningOrderIds))
+            if (!employeeRecommendationConfirmed && !ConfirmSingleEmployeeDeliveryWarning(employeeIds, warningOrderIds))
             {
                 return;
             }
@@ -3014,6 +3021,9 @@ public sealed partial class KarteSectionViewModel
 
             await SaveChangedToursAndOrdersAsync(originalTours, tours, originalOrders, _allOrders);
             wasCommitted = true;
+            var successMessage = TourNotificationMessageFormatter.FormatTourUpdatedMessage(updated);
+            StatusText = successMessage;
+            ToastNotificationService.ShowInfo(successMessage);
             _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
             PublishOrderChange(null, null);
             await RefreshAfterLocalMutationAsync(tourId);
@@ -3022,12 +3032,10 @@ public sealed partial class KarteSectionViewModel
             if (isOverviewEdit)
             {
                 SelectTourOverviewById(tourId);
-                StatusText = "Tour aktualisiert.";
             }
             else
             {
                 await FocusTourAsync(tourId);
-                StatusText = "Tour aktualisiert und auf Karte geladen.";
             }
         }
         catch (ConcurrencyConflictException conflict)
@@ -5281,8 +5289,7 @@ public sealed partial class KarteSectionViewModel
         foreach (var order in _allOrders.Where(x => normalizedOrderIds.Contains(x.Id)))
         {
             var deliveryType = NormalizeDeliveryType(order.DeliveryType);
-            if (string.Equals(deliveryType, DeliveryMethodExtensions.MitVerteilung, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(deliveryType, DeliveryMethodExtensions.MitVerteilungMontage, StringComparison.OrdinalIgnoreCase))
+            if (TourStaffingWarningService.IsDistributionDeliveryType(deliveryType))
             {
                 presentDeliveryTypes.Add(deliveryType);
             }
@@ -5303,11 +5310,14 @@ public sealed partial class KarteSectionViewModel
             return true;
         }
 
-        return Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+        return Tourenplaner.CSharp.App.Services.AppMessageBox.ShowConfirmation(
+                   System.Windows.Application.Current?.MainWindow,
                    warning,
-                   "Mitarbeiter prüfen",
-                   MessageBoxButton.YesNo,
-                   MessageBoxImage.Warning) == MessageBoxResult.Yes;
+                   TourStaffingWarningService.ConfirmationTitle,
+                   TourStaffingWarningService.ConfirmationCancelText,
+                   TourStaffingWarningService.ConfirmationAcceptText,
+                   MessageBoxImage.Warning,
+                   requireExplicitPrimaryConfirmation: true) == MessageBoxResult.Yes;
     }
 
     private void RaiseCommandStates()
@@ -5330,6 +5340,9 @@ public sealed partial class KarteSectionViewModel
         RaiseCanExecuteChangedIfSupported(ExportRouteCommand);
         RaiseCanExecuteChangedIfSupported(SaveRouteAsTourCommand);
         RaiseCanExecuteChangedIfSupported(SaveCurrentTourCommand);
+        OnPropertyChanged(nameof(CurrentTourPrimaryActionText));
+        OnPropertyChanged(nameof(CurrentTourPrimaryActionToolTip));
+        OnPropertyChanged(nameof(CurrentTourPrimaryActionAccessibleName));
         RaiseCanExecuteChangedIfSupported(SendCurrentTourToWebfleetCommand);
         RaiseCanExecuteChangedIfSupported(OpenSelectedTourOverviewCommand);
         RaiseCanExecuteChangedIfSupported(ClearRouteCommand);
@@ -7051,6 +7064,7 @@ public sealed partial class KarteSectionViewModel
             var nextZoomBehaviorStrength = userPreference.PinInfoCardZoomBehaviorStrength is >= 0.2d and <= 4.0d
                 ? userPreference.PinInfoCardZoomBehaviorStrength
                 : AppSettings.DefaultPinInfoCardZoomBehaviorStrength;
+            var nextMapOpenPinInfoCardOnHover = userPreference.MapOpenPinInfoCardOnHover;
             var nextMapRouteCapacityWarningThresholdPercent = userPreference.MapRouteCapacityWarningThresholdPercent is < 0 or > 100
                 ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
                 : userPreference.MapRouteCapacityWarningThresholdPercent;
@@ -7110,6 +7124,13 @@ public sealed partial class KarteSectionViewModel
                 _pinInfoCardZoomBehaviorStrength = nextZoomBehaviorStrength;
                 OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrength));
                 OnPropertyChanged(nameof(PinInfoCardZoomBehaviorStrengthText));
+                changed = true;
+            }
+
+            if (_mapOpenPinInfoCardOnHover != nextMapOpenPinInfoCardOnHover)
+            {
+                _mapOpenPinInfoCardOnHover = nextMapOpenPinInfoCardOnHover;
+                OnPropertyChanged(nameof(MapOpenPinInfoCardOnHover));
                 changed = true;
             }
 

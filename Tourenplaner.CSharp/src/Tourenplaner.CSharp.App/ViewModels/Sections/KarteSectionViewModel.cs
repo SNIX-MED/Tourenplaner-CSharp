@@ -186,6 +186,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private bool _isMapLegendPanelVisible;
     private double _pinInfoCardScale = 1.0;
     private bool _mapPinInfoCardShowName = true;
+    private bool _mapOpenPinInfoCardOnHover = true;
     private bool _mapPinInfoCardShowOrderNumber = true;
     private bool _mapPinInfoCardShowStreet = true;
     private bool _mapPinInfoCardShowPostalCodeCity = true;
@@ -434,6 +435,15 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         : "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/icon-infocards-on.jpg";
     public string PinInfoCardScalePercentText => $"{Math.Round(PinInfoCardScale * 100d):0}%";
     public string PinInfoCardZoomBehaviorStrengthText => $"{PinInfoCardZoomBehaviorStrength:0.00}x";
+    public string CurrentTourPrimaryActionText => ResolveCurrentTourPrimaryActionText(ResolveCurrentTourId() > 0);
+    public string CurrentTourPrimaryActionToolTip => ResolveCurrentTourId() > 0
+        ? "Änderungen an der bestehenden Tour speichern"
+        : "Datum, Abfahrtszeit, Name, Fahrzeug, Anhänger und Mitarbeiter festlegen";
+    public string CurrentTourPrimaryActionAccessibleName => ResolveCurrentTourId() > 0
+        ? "Änderungen an der bestehenden Tour speichern"
+        : "Tourdetails festlegen";
+    internal static string ResolveCurrentTourPrimaryActionText(bool isExistingTour) =>
+        isExistingTour ? "Speichern" : "Tourdetails festlegen";
     public string ToggleAllPlannedToursButtonText => IsAllPlannedToursVisible ? "Touren ausblenden" : "Alle Touren anzeigen";
     public string ToggleAllPlannedToursImagePath => IsAllPlannedToursVisible
         ? "pack://application:,,,/Tourenplaner.CSharp.App;component/Assets/Touren-ausblenden.png"
@@ -701,6 +711,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public int SearchFocusRevision => _searchFocusRevision;
 
     public bool MapPinInfoCardShowName => _mapPinInfoCardShowName;
+    public bool MapOpenPinInfoCardOnHover => _mapOpenPinInfoCardOnHover;
     public bool MapPinInfoCardShowOrderNumber => _mapPinInfoCardShowOrderNumber;
     public bool MapPinInfoCardShowStreet => _mapPinInfoCardShowStreet;
     public bool MapPinInfoCardShowPostalCodeCity => _mapPinInfoCardShowPostalCodeCity;

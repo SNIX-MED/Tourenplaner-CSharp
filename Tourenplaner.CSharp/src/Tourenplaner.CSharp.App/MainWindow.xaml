@@ -285,7 +285,11 @@
                     Background="{DynamicResource Brush.Card}"
                     BorderBrush="{DynamicResource Brush.BorderSoft}"
                     BorderThickness="1"
-                    CornerRadius="16">
+                    CornerRadius="16"
+                    ToolTip="{Binding ToastMessage}"
+                    AutomationProperties.Name="{Binding ToastMessage}"
+                    AutomationProperties.HelpText="{Binding ToastMessage}"
+                    AutomationProperties.LiveSetting="Polite">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock FontFamily="Segoe Fluent Icons"
                                FontSize="16"
@@ -294,7 +298,9 @@
                                Text="&#xE946;" />
                     <TextBlock Margin="12,0,0,0"
                                VerticalAlignment="Center"
-                               TextWrapping="Wrap"
+                               MaxWidth="480"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap"
                                FontSize="14"
                                Foreground="{DynamicResource Brush.TextPrimary}"
                                Text="{Binding ToastMessage}" />

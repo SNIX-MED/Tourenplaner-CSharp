@@ -17,7 +17,8 @@ public class TourStaffingWarningServiceTests
 
         Assert.True(warned);
         Assert.Contains(deliveryType, warning);
-        Assert.Contains("nur 1 Mitarbeiter", warning);
+        Assert.Contains("nur ein Mitarbeiter", warning);
+        Assert.Contains("Möchten Sie die Tour trotzdem speichern?", warning);
     }
 
     [Fact]
@@ -40,5 +41,27 @@ public class TourStaffingWarningServiceTests
             out _);
 
         Assert.False(warned);
+    }
+
+    [Fact]
+    public void Evaluate_DistributionOrderWithoutEmployee_ShowsInlineWarningButNotConfirmation()
+    {
+        var assessment = TourStaffingWarningService.Evaluate([], [DeliveryMethodExtensions.MitVerteilung]);
+
+        Assert.True(assessment.ContainsDistributionOrder);
+        Assert.True(assessment.HasEmployeeRecommendationWarning);
+        Assert.False(assessment.RequiresSaveConfirmation);
+        Assert.Contains("Kein Mitarbeiter ausgewählt", assessment.EmployeeRecommendationMessage);
+    }
+
+    [Fact]
+    public void Evaluate_DistributionOrderWithTwoEmployees_NeedsNoWarning()
+    {
+        var assessment = TourStaffingWarningService.Evaluate(
+            ["employee-1", "employee-2"],
+            [DeliveryMethodExtensions.MitVerteilung]);
+
+        Assert.False(assessment.HasEmployeeRecommendationWarning);
+        Assert.False(assessment.RequiresSaveConfirmation);
     }
 }
