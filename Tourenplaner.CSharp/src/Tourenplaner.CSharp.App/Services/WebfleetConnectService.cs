@@ -58,7 +58,9 @@ public sealed record WebfleetOrderSnapshot(
     string Street,
     DateOnly? ScheduledDate,
     TimeOnly? PlannedArrivalTime,
-    int? ArrivalToleranceMinutes);
+    int? ArrivalToleranceMinutes,
+    string PostalCode = "",
+    string City = "");
 
 /// <summary>Small, deliberately isolated CSV client for WEBFLEET.connect.</summary>
 public sealed class WebfleetConnectService
@@ -461,7 +463,8 @@ public sealed class WebfleetConnectService
                 Get(row, "street"),
                 DateOnly.TryParse(Get(row, "orderdate"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var orderDate) ? orderDate : null,
                 TimeOnly.TryParse(Get(row, "planned_arrival_time"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var plannedArrivalTime) ? plannedArrivalTime : null,
-                int.TryParse(Get(row, "arrivaltolerance"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var arrivalTolerance) ? arrivalTolerance : null))
+                int.TryParse(Get(row, "arrivaltolerance"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var arrivalTolerance) ? arrivalTolerance : null,
+                Get(row, "zip"), Get(row, "city")))
             .Where(order => !string.IsNullOrWhiteSpace(order.OrderId))
             .ToList();
     }

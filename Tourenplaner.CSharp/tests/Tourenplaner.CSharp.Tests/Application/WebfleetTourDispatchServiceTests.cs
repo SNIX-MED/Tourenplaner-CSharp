@@ -7,6 +7,85 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class WebfleetTourDispatchServiceTests
 {
+    [Fact]
+    public async Task PreviewCannotSendCustomerStopWithoutCurrentOrderData()
+    {
+        var tour = new TourRecord { Id = 20, Date = "19.10.2026", Stops =
+            [new TourStopRecord { Auftragsnummer = "221878", Address = "Veraltete Adresse", Lat = 47, Lon = 8 }] };
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new WebfleetTourDispatchService().PreviewSynchronizationAsync(tour,
+                new Vehicle { WebfleetObjectUid = "vehicle" }, new WebfleetConnectionSettings(), new WebfleetConnectService()));
+        Assert.Contains("aktuelle Auftragsdaten", error.Message);
+    }
+
+    [Theory]
+    [InlineData(double.PositiveInfinity, 8)]
+    [InlineData(91, 8)]
+    [InlineData(47, 181)]
+    public void ManualStopsRejectInvalidCoordinates(double lat, double lon)
+    {
+        var tour = new TourRecord { Stops = [new TourStopRecord { StopKind = "manual", Lat = lat, Lon = lon }] };
+        Assert.Contains(new WebfleetTourDispatchService([]).Validate(tour, new Vehicle { WebfleetObjectUid = "vehicle" }),
+            error => error.Contains("Ungültige Koordinaten"));
+    }
+
+    [Fact]
+    public void ValidationUsesCurrentOrderCoordinatesWhenStoredTourCoordinatesAreMissing()
+    {
+        var order = new Order { Id = "221878", Location = new GeoPoint(47.49, 7.58),
+            DeliveryAddress = new DeliveryAddressInfo { Street = "Hauptstrasse 41", PostalCode = "4153", City = "Reinach" } };
+        var tour = new TourRecord { Stops = [new TourStopRecord { Auftragsnummer = order.Id }] };
+        Assert.Empty(new WebfleetTourDispatchService([order]).Validate(tour, new Vehicle { WebfleetObjectUid = "vehicle" }));
+    }
+
+    [Theory]
+    [InlineData("Hauptstrasse 41", "8600", "Dübendorf", true)]
+    [InlineData("", "4153", "Reinach BL", true)]
+    [InlineData("Hauptstrasse 41", "4153", "Reinach BL", false)]
+    public void SynchronizationDetectsWrongOrMissingAddressEvenWithCorrectCoordinates(string street, string zip, string city, bool changed)
+    {
+        var desired = new WebfleetDestinationOrderRequest("vehicle", "T20-4-221878", "Tour", 47.4921842, 7.5896901,
+            "CH", "4153", "Reinach BL", "Hauptstrasse 41", new DateOnly(2026,10,19), null, null);
+        var remote = new WebfleetOrderSnapshot(desired.OrderId, desired.OrderText, desired.Latitude, desired.Longitude,
+            street, desired.ScheduledDate, null, null, zip, city);
+        var method = typeof(WebfleetTourDispatchService).GetMethod("IsChanged", BindingFlags.NonPublic | BindingFlags.Static)!;
+        Assert.Equal(changed, (bool)method.Invoke(null,[remote,desired])!);
+    }
+
+    [Fact]
+    public void DestinationUsesCurrentDeliveryAddressAndCoordinatesInsteadOfStaleTourStop()
+    {
+        var order = new Order
+        {
+            Id = "221878", Address = "Zürichstrasse 131, 8600 Dübendorf",
+            DeliveryAddress = new DeliveryAddressInfo { Street = "Hauptstrasse", HouseNumber = "41", PostalCode = "4153", City = "Reinach BL" },
+            Location = new GeoPoint(47.4921842, 7.5896901)
+        };
+        var stop = new TourStopRecord { Auftragsnummer = order.Id, Address = order.Address, Lat = 47.4, Lon = 8.6 };
+        var destination = new WebfleetTourDispatchService([order]).ResolveDestination(stop);
+        Assert.Equal("Hauptstrasse 41", destination.Street);
+        Assert.Equal("4153", destination.PostalCode);
+        Assert.Equal("Reinach BL", destination.City);
+        Assert.Equal(47.4921842, destination.Latitude);
+        Assert.Equal(7.5896901, destination.Longitude);
+        Assert.Equal(order.Address, stop.Address);
+        order.DeliveryAddress.Street = "";
+        order.DeliveryAddress.HouseNumber = "";
+        Assert.Throws<InvalidOperationException>(() => new WebfleetTourDispatchService([order]).ResolveDestination(stop));
+    }
+
+    [Fact]
+    public void DispatchNeverFallsBackToOrderAddressWhenOrderMissingOrPinNeedsReview()
+    {
+        var stop = new TourStopRecord { Auftragsnummer = "221878", Address = "Falsche Adresse", Lat = 47, Lon = 8 };
+        Assert.Throws<InvalidOperationException>(() => new WebfleetTourDispatchService([]).ResolveDestination(stop));
+        var order = new Order { Id = "221878", ManualLocationRequiresReview = true, Location = new GeoPoint(47,8),
+            DeliveryAddress = new DeliveryAddressInfo { Street = "Hauptstrasse 41", PostalCode = "4153", City = "Reinach" } };
+        Assert.Throws<InvalidOperationException>(() => new WebfleetTourDispatchService([order]).ResolveDestination(stop));
+        stop.StopKind = "manual";
+        Assert.Equal("Falsche Adresse", new WebfleetTourDispatchService([]).ResolveDestination(stop).Street);
+    }
+
     [Theory]
     [InlineData("manual", "stop-1")]
     [InlineData("", "manual:123")]

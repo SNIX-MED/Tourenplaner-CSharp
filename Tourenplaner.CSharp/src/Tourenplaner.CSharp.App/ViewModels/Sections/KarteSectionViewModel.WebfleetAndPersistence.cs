@@ -68,7 +68,8 @@ public sealed partial class KarteSectionViewModel
             driver = dialog.SelectedDriver;
         }
         var vehicle = new Vehicle { Id = driver.Id, Name = driver.DisplayName, WebfleetObjectUid = driver.WebfleetObjectUid, WebfleetObjectNumber = driver.WebfleetObjectNumber };
-        var dispatch = new WebfleetTourDispatchService();
+        var currentOrders = await _orderRepository.GetAllAsync(cancellationToken);
+        var dispatch = new WebfleetTourDispatchService(currentOrders);
         var errors = dispatch.Validate(tour, vehicle);
         if (errors.Count > 0)
         {
@@ -94,6 +95,15 @@ public sealed partial class KarteSectionViewModel
             return;
         }
 
+        // The confirmation dialog may remain open while another client edits an order.
+        currentOrders = await _orderRepository.GetAllAsync(cancellationToken);
+        dispatch = new WebfleetTourDispatchService(currentOrders);
+        errors = dispatch.Validate(tour, vehicle);
+        if (errors.Count > 0)
+        {
+            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(string.Join(Environment.NewLine, errors), "WEBFLEET-Versand prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         await dispatch.DispatchAsync(tour, vehicle!, webfleet, webfleetClient, cancellationToken);
         await _tourRepository.SaveAsync(tours, cancellationToken);
         StatusText = tour.WebfleetDispatch.LastMessage;

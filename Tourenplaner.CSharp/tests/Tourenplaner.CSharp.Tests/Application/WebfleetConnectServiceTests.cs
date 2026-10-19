@@ -5,6 +5,28 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class WebfleetConnectServiceTests
 {
+    [Fact]
+    public void DestinationQuerySendsStructuredDeliveryAddressAndReadsItBack()
+    {
+        var request = new WebfleetDestinationOrderRequest("vehicle", "T20-4-221878", "Tour",47.4921842,7.5896901,
+            "CH","4153","Reinach BL","Hauptstrasse 41",new DateOnly(2026,10,19),null,null);
+        var build = typeof(WebfleetConnectService).GetMethod("BuildDestinationOrderQuery",BindingFlags.NonPublic | BindingFlags.Static)!;
+        foreach(var action in new[]{"sendDestinationOrderExtern","updateDestinationOrderExtern"})
+        {
+            var query = Assert.IsType<Dictionary<string,string?>>(build.Invoke(null,[new Tourenplaner.CSharp.Domain.Models.WebfleetConnectionSettings(),request,action]));
+            Assert.Equal("Hauptstrasse 41",query["street"]);
+            Assert.Equal("4153",query["zip"]);
+            Assert.Equal("Reinach BL",query["city"]);
+            Assert.Equal("47492184",query["latitude"]);
+            Assert.Equal("7589690",query["longitude"]);
+        }
+        var parse = typeof(WebfleetConnectService).GetMethod("ParseOrders",BindingFlags.NonPublic | BindingFlags.Static)!;
+        var orders = Assert.IsAssignableFrom<IReadOnlyList<WebfleetOrderSnapshot>>(parse.Invoke(null,["orderid;street;zip;city\nT20-4-221878;Hauptstrasse 41;4153;Reinach BL"]));
+        var order = Assert.Single(orders);
+        Assert.Equal("4153",order.PostalCode);
+        Assert.Equal("Reinach BL",order.City);
+    }
+
     [Theory]
     [InlineData("sendDestinationOrderExtern", 2, true)]
     [InlineData("updateDestinationOrderExtern", 1, true)]

@@ -125,7 +125,10 @@ public static class TourOrderReferenceService
                     orderDataChanged = true;
                 }
 
-                var nextAddress = (order.Address ?? string.Empty).Trim();
+                var deliveryAddress = order.DeliveryAddress;
+                var nextAddress = OrderAddressFormatting.BuildAddressLine(deliveryAddress?.Street,
+                    deliveryAddress?.HouseNumber, deliveryAddress?.PostalCode, deliveryAddress?.City);
+                if (string.IsNullOrWhiteSpace(nextAddress)) nextAddress = (order.Address ?? string.Empty).Trim();
                 var nextName = (order.CustomerName ?? string.Empty).Trim();
                 var nextLat = order.Location?.Latitude;
                 var nextLon = order.Location?.Longitude;

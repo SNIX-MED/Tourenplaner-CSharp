@@ -7,6 +7,22 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class TourOrderReferenceServiceTests
 {
     [Fact]
+    public void ReconciliationKeepsDeliveryAddressInsteadOfReplacingItWithBillingAddress()
+    {
+        var order = new Order { Id = "221878", CustomerName = "Familie Wiesner", Address = "Zürichstrasse 131, 8600 Dübendorf",
+            DeliveryAddress = new DeliveryAddressInfo { Street = "Hauptstrasse", HouseNumber = "41", PostalCode = "4153", City = "Reinach BL" },
+            Location = new GeoPoint(47.4921842,7.5896901) };
+        var stop = new TourStopRecord { Id = "auftrag:221878", Auftragsnummer = order.Id, Address = order.Address };
+        var tours = new List<TourRecord> { new() { Id = 20, Stops = [stop] } };
+        TourOrderReferenceService.ReconcileActiveToursWithOrders(tours,[order]);
+        Assert.Equal("Hauptstrasse 41, 4153 Reinach BL",stop.Address);
+        Assert.Equal(order.Location.Latitude,stop.Lat);
+        TourOrderReferenceService.ReconcileActiveToursWithOrders(tours,[order]);
+        Assert.Equal("Hauptstrasse 41, 4153 Reinach BL",stop.Address);
+        Assert.Equal("Zürichstrasse 131, 8600 Dübendorf",order.Address);
+    }
+
+    [Fact]
     public void RemoveStopsWithoutOrders_RemovesOnlyMissingOrderStopsFromActiveTours()
     {
         var activeTour = new TourRecord

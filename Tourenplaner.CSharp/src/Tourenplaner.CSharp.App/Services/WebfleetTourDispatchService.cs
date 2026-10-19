@@ -11,6 +11,31 @@ public sealed record WebfleetTourSyncResult(int CreateCount, int UpdateCount, in
 
 public sealed class WebfleetTourDispatchService
 {
+    private readonly IReadOnlyDictionary<string, Order>? _orders;
+
+    public WebfleetTourDispatchService(IEnumerable<Order>? orders = null)
+    {
+        _orders = orders?.Where(order => !string.IsNullOrWhiteSpace(order.Id))
+            .ToDictionary(order => order.Id.Trim(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    public (string Street, string PostalCode, string City, double Latitude, double Longitude) ResolveDestination(TourStopRecord stop)
+    {
+        if (IsManualStop(stop) || _orders is null)
+            return (stop.Address, string.Empty, string.Empty, stop.Lat ?? double.NaN, stop.Lon ?? stop.Lng ?? double.NaN);
+        if (!_orders.TryGetValue((stop.Auftragsnummer ?? string.Empty).Trim(), out var order))
+            throw new InvalidOperationException($"Stopp {stop.Order}: Auftrag für die Lieferadresse wurde nicht gefunden.");
+        var address = order.DeliveryAddress;
+        var street = OrderAddressFormatting.BuildStreetLine(address?.Street, address?.HouseNumber);
+        if (string.IsNullOrWhiteSpace(street) || string.IsNullOrWhiteSpace(address?.PostalCode) || string.IsNullOrWhiteSpace(address.City))
+            throw new InvalidOperationException($"Auftrag {order.Id}: Die Lieferadresse ist unvollständig. WEBFLEET-Versand abgebrochen.");
+        if (order.ManualLocationRequiresReview || order.Location is null ||
+            !double.IsFinite(order.Location.Latitude) || order.Location.Latitude is < -90 or > 90 ||
+            !double.IsFinite(order.Location.Longitude) || order.Location.Longitude is < -180 or > 180)
+            throw new InvalidOperationException($"Auftrag {order.Id}: Die Position der Lieferadresse muss geprüft werden.");
+        return (street, address.PostalCode.Trim(), address.City.Trim(), order.Location.Latitude, order.Location.Longitude);
+    }
+
     public IReadOnlyList<string> Validate(TourRecord tour, Vehicle? vehicle)
     {
         var errors = new List<string>();
@@ -18,7 +43,16 @@ public sealed class WebfleetTourDispatchService
         if (vehicle is null || string.IsNullOrWhiteSpace(vehicle.WebfleetObjectUid)) errors.Add("Dem Tourfahrzeug ist noch kein WEBFLEET-Fahrzeug zugeordnet.");
         foreach (var stop in tour.Stops.Where(IsDispatchableStop))
         {
-            if (stop.Lat is null || (stop.Lon ?? stop.Lng) is null) errors.Add($"Stopp {stop.Order}: Koordinaten fehlen.");
+            try
+            {
+                var destination = ResolveDestination(stop);
+                if (double.IsNaN(destination.Latitude) || double.IsNaN(destination.Longitude))
+                    errors.Add($"Stopp {stop.Order}: Koordinaten fehlen.");
+                else if (!double.IsFinite(destination.Latitude) || !double.IsFinite(destination.Longitude) ||
+                    Math.Abs(destination.Latitude) > 90 || Math.Abs(destination.Longitude) > 180)
+                    errors.Add($"Stopp {stop.Order}: Ungültige Koordinaten.");
+            }
+            catch (InvalidOperationException ex) { errors.Add(ex.Message); }
             if (!IsManualStop(stop) && string.IsNullOrWhiteSpace(stop.Auftragsnummer)) errors.Add($"Stopp {stop.Order}: Auftragsnummer fehlt.");
         }
         return errors;
@@ -98,21 +132,24 @@ public sealed class WebfleetTourDispatchService
         IReadOnlyList<TourStopRecord> stops,
         CancellationToken cancellationToken)
     {
+        if (_orders is null && stops.Any(stop => !IsManualStop(stop)))
+            throw new InvalidOperationException("WEBFLEET-Versand benötigt aktuelle Auftragsdaten zur Prüfung der Lieferadressen.");
         var items = stops.Select((stop, dispatchPosition) =>
         {
             var sourceOrder = IsManualStop(stop) ? "MANUELL" : stop.Auftragsnummer ?? string.Empty;
             var orderId = BuildOrderId(tour.Id, dispatchPosition + 1, sourceOrder);
             var arrivalWindow = BuildWebfleetArrivalWindow(tour, stop);
+            var destination = ResolveDestination(stop);
             return new SynchronizationItem(stop, new WebfleetDestinationOrderRequest(
                 vehicle.WebfleetObjectUid,
                 orderId,
                 BuildOrderText(tour, stop, dispatchPosition + 1),
-                stop.Lat!.Value,
-                (stop.Lon ?? stop.Lng)!.Value,
+                destination.Latitude,
+                destination.Longitude,
                 "CH",
-                string.Empty,
-                string.Empty,
-                stop.Address,
+                destination.PostalCode,
+                destination.City,
+                destination.Street,
                 ParseTourDate(tour.Date),
                 arrivalWindow.PlannedArrival,
                 arrivalWindow.ArrivalToleranceMinutes));
@@ -158,7 +195,9 @@ public sealed class WebfleetTourDispatchService
         !string.Equals(remoteOrder.OrderText, desiredOrder.OrderText, StringComparison.Ordinal) ||
         !AreSameCoordinates(remoteOrder.Latitude, desiredOrder.Latitude) ||
         !AreSameCoordinates(remoteOrder.Longitude, desiredOrder.Longitude) ||
-        (!string.IsNullOrWhiteSpace(remoteOrder.Street) && !string.Equals(remoteOrder.Street, desiredOrder.Street, StringComparison.Ordinal)) ||
+        !string.Equals(remoteOrder.Street, desiredOrder.Street, StringComparison.Ordinal) ||
+        (!string.IsNullOrWhiteSpace(desiredOrder.PostalCode) && !string.Equals(remoteOrder.PostalCode, desiredOrder.PostalCode, StringComparison.Ordinal)) ||
+        (!string.IsNullOrWhiteSpace(desiredOrder.City) && !string.Equals(remoteOrder.City, desiredOrder.City, StringComparison.Ordinal)) ||
         remoteOrder.ScheduledDate != desiredOrder.ScheduledDate ||
         (desiredOrder.PlannedArrival.HasValue &&
             (remoteOrder.PlannedArrivalTime != TimeOnly.FromDateTime(desiredOrder.PlannedArrival.Value.DateTime) ||

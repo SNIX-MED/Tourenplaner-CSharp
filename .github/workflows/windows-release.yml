@@ -69,10 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Stabilere Strassenrouten und Schutz vor Luftlinien bei Routingfehlern
-          - Verbesserte WEBFLEET-Fahrspur und Google-Maps-Link am Fahrzeugpin
-          - Auftragslisten mit Lieferdatum, Zeitraum und angepasster Adressanzeige
-          - Avisierungsfarben, Fahrzeuganzeige und Schutz der Auftragsnotizen
+          - WEBFLEET verwendet die aktuelle Lieferadresse statt veralteter Tourstopp-Adressen
+          - Strasse, Hausnummer, PLZ und Ort werden getrennt uebertragen
+          - Tourabgleich bewahrt abweichende Lieferadressen
+          - Versandpruefung fuer fehlende Adressen und ungueltige Zielpositionen
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
