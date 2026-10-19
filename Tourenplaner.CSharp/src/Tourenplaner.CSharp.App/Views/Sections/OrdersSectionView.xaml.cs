@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.ComponentModel;
@@ -92,7 +92,6 @@ public partial class OrdersSectionView : UserControl
     {
         if (e.PropertyName is nameof(OrdersSectionViewModel.IsCustomerColumnVisible) or
             nameof(OrdersSectionViewModel.IsDeliveryAddressColumnVisible) or
-            nameof(OrdersSectionViewModel.IsDeliveryPersonColumnVisible) or
             nameof(OrdersSectionViewModel.IsNotesColumnVisible))
         {
             UpdateColumnVisibility();
@@ -107,11 +106,9 @@ public partial class OrdersSectionView : UserControl
             OrderSectionViewHelpers.ApplyColumnVisibility(
                 customerVisible: true,
                 deliveryAddressVisible: true,
-                deliveryPersonVisible: true,
                 notesVisible: true,
                 CustomerColumn,
                 DeliveryAddressColumn,
-                DeliveryPersonColumn,
                 NotesColumn);
             return;
         }
@@ -119,11 +116,9 @@ public partial class OrdersSectionView : UserControl
         OrderSectionViewHelpers.ApplyColumnVisibility(
             vm.IsCustomerColumnVisible,
             vm.IsDeliveryAddressColumnVisible,
-            vm.IsDeliveryPersonColumnVisible,
             vm.IsNotesColumnVisible,
             CustomerColumn,
             DeliveryAddressColumn,
-            DeliveryPersonColumn,
             NotesColumn);
     }
 }

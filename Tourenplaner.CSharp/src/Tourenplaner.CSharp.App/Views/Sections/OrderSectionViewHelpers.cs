@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
@@ -116,16 +116,13 @@ internal static class OrderSectionViewHelpers
     public static void ApplyColumnVisibility(
         bool customerVisible,
         bool deliveryAddressVisible,
-        bool deliveryPersonVisible,
         bool notesVisible,
         DataGridColumn customerColumn,
         DataGridColumn deliveryAddressColumn,
-        DataGridColumn deliveryPersonColumn,
         DataGridColumn notesColumn)
     {
         customerColumn.Visibility = customerVisible ? Visibility.Visible : Visibility.Collapsed;
         deliveryAddressColumn.Visibility = deliveryAddressVisible ? Visibility.Visible : Visibility.Collapsed;
-        deliveryPersonColumn.Visibility = deliveryPersonVisible ? Visibility.Visible : Visibility.Collapsed;
         notesColumn.Visibility = notesVisible ? Visibility.Visible : Visibility.Collapsed;
     }
 }

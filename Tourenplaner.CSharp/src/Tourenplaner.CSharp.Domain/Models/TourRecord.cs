@@ -18,6 +18,7 @@ public sealed class TourRecord
     public Dictionary<string, int> TravelTimeCache { get; set; } = new();
     public Dictionary<string, TourTravelTimeProfile> TravelTimeProfileCache { get; set; } = new();
     public List<GeoPoint> RouteGeometryPoints { get; set; } = new();
+    public string RouteGeometrySignature { get; set; } = string.Empty;
     public string? ConcurrencyToken { get; set; }
     public WebfleetDispatchRecord WebfleetDispatch { get; set; } = new();
 }

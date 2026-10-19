@@ -217,6 +217,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private int _routeVisualRevision;
     private DateTime _lastRouteProviderCallUtc = DateTime.MinValue;
     private string _lastRouteSignature = string.Empty;
+    private string _lastSuccessfulRouteSignature = string.Empty;
     private CancellationTokenSource? _pinInfoCardScaleAutoSaveCts;
     private CancellationTokenSource? _routeRebuildDebounceCts;
     private readonly string _routeComputationCachePath;

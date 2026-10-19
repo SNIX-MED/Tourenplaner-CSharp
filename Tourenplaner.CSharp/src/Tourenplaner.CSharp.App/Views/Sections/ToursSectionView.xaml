@@ -802,7 +802,7 @@
                                                         CornerRadius="19"
                                                         VerticalAlignment="Top"
                                                         HorizontalAlignment="Center"
-                                                        Background="#4EBA74">
+                                                        Background="{Binding AvisoBadgeColor}">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="Visibility" Value="Visible" />

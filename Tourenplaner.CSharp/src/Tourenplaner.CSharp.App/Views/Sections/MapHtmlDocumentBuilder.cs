@@ -1,4 +1,4 @@
-﻿namespace Tourenplaner.CSharp.App.Views.Sections;
+namespace Tourenplaner.CSharp.App.Views.Sections;
 
 internal static class MapHtmlDocumentBuilder
 {
@@ -181,6 +181,7 @@ internal static class MapHtmlDocumentBuilder
                    .tt-popup-tip, .mapboxgl-popup-tip { display: none !important; }
                    .tt-popup, .tt-popup *, .mapboxgl-popup, .mapboxgl-popup * { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; -webkit-user-drag: none !important; }
                    .tt-popup.gawela-order-popup .gawela-info-card, .tt-popup.gawela-order-popup .gawela-info-card *, .mapboxgl-popup.gawela-order-popup .gawela-info-card, .mapboxgl-popup.gawela-order-popup .gawela-info-card * { pointer-events: auto !important; }
+                   .tt-popup .gawela-fleet-maps-link, .mapboxgl-popup .gawela-fleet-maps-link { pointer-events: auto !important; cursor: pointer; }
                    .tt-marker { pointer-events: auto !important; }
                    .tt-popup, .mapboxgl-popup { z-index: 1400 !important; }
                    .tt-popup.gawela-order-popup.gawela-popup-front, .mapboxgl-popup.gawela-order-popup.gawela-popup-front { z-index: 1500 !important; }
@@ -2707,12 +2708,22 @@ internal static class MapHtmlDocumentBuilder
                            clearMarkers(fleetMarkers);
                            if (!Array.isArray(vehicles)) return;
                            vehicles.forEach(v => {
-                             if (!v || typeof v.lat !== 'number' || typeof v.lon !== 'number') return;
+                             if (!v || !Number.isFinite(v.lat) || !Number.isFinite(v.lon) || Math.abs(v.lat) > 90 || Math.abs(v.lon) > 180) return;
                              const el = document.createElement('div');
                              el.style.cssText = 'width:30px;height:30px;border-radius:50%;background:#0f766e;border:3px solid white;box-shadow:0 2px 7px rgba(15,23,42,.45);color:white;font:700 16px Segoe UI,sans-serif;display:flex;align-items:center;justify-content:center;';
                              el.textContent = '🚚';
                              const safe = value => String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                             const popup = new ttSdk.Popup({ offset: 18, anchor: 'bottom' }).setHTML(`<div class='gawela-fleet-popup'><header class='gawela-fleet-popup-header'><div class='gawela-fleet-popup-name'>${safe(v.name)}</div><div class='gawela-fleet-popup-driver'>${safe(v.driver || 'Kein Fahrer')}</div></header><section class='gawela-fleet-popup-section'><div class='gawela-fleet-popup-line'>${safe(v.position || '')}</div><div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Stand:</span> ${safe(v.positionTime || '-')}</div>${v.orderId ? `<div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Auftrag:</span> ${safe(v.orderId)}</div>` : ''}${v.destination ? `<div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Ziel:</span> ${safe(v.destination)}</div>` : ''}</section></div><div class='gawela-fleet-popup-tail-wrap'><div class='gawela-fleet-popup-tail'></div></div>`);
+                             const popup = new ttSdk.Popup({ offset: 18, anchor: 'bottom' }).setHTML(`<div class='gawela-fleet-popup'><header class='gawela-fleet-popup-header'><div class='gawela-fleet-popup-name'>${safe(v.name)}</div><div class='gawela-fleet-popup-driver'>${safe(v.driver || 'Kein Fahrer')}</div></header><section class='gawela-fleet-popup-section'><div class='gawela-fleet-popup-line'>${safe(v.position || '')}</div><div class='gawela-fleet-popup-line'><a class='gawela-fleet-maps-link' href='https://www.google.com/maps/search/?api=1&amp;query=${v.lat},${v.lon}'>Position in maps öffnen</a></div>${v.orderId ? `<div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Auftrag:</span> ${safe(v.orderId)}</div>` : ''}${v.destination ? `<div class='gawela-fleet-popup-line'><span class='gawela-fleet-popup-label'>Ziel:</span> ${safe(v.destination)}</div>` : ''}</section></div><div class='gawela-fleet-popup-tail-wrap'><div class='gawela-fleet-popup-tail'></div></div>`);
+                             popup.on('open', () => {
+                               const link = popup.getElement()?.querySelector('.gawela-fleet-maps-link');
+                               if (!link || link.dataset.mapsBound) return;
+                               link.dataset.mapsBound = 'true';
+                               link.addEventListener('click', event => {
+                                 event.preventDefault();
+                                 event.stopPropagation();
+                                 window.chrome.webview.postMessage(`openFleetMaps:${v.lat}:${v.lon}`);
+                               });
+                             });
                              const marker = new ttSdk.Marker({ element: el, anchor: 'center' }).setLngLat([v.lon, v.lat]).setPopup(popup).addTo(map);
                              applyMarkerStackOrder(marker, 60, 'gawela-fleet-marker-layer');
                              fleetMarkers.push(marker);

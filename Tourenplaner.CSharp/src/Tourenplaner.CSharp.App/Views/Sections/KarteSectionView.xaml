@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.KarteSectionView"
+<UserControl x:Class="Tourenplaner.CSharp.App.Views.Sections.KarteSectionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -1363,10 +1363,10 @@
                                                                     Height="38"
                                                                     CornerRadius="19"
                                                                     VerticalAlignment="Top"
-                                                                    HorizontalAlignment="Center"
-                                                                    Background="#4EBA74">
+                                                                    HorizontalAlignment="Center">
                                                                 <Border.Style>
                                                                     <Style TargetType="Border">
+                                                                        <Setter Property="Background" Value="{Binding AvisoBadgeColor}" />
                                                                         <Setter Property="Width" Value="38" />
                                                                         <Setter Property="Height" Value="38" />
                                                                         <Setter Property="CornerRadius" Value="19" />
@@ -1932,6 +1932,7 @@
                                 </Style>
                             </Border.Style>
                             <Grid>
+
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -1953,16 +1954,28 @@
                                                 <ColumnDefinition Width="1" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Image Width="34" Height="34"
-                                                   VerticalAlignment="Center"
-                                                   Stretch="Uniform"
-                                                   SnapsToDevicePixels="True"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Stopps.png" />
+                                            <Viewbox Width="34" Height="34" VerticalAlignment="Center" ToolTip="Fahrzeug">
+                                                <Canvas Width="36" Height="28">
+                                                    <Path Stroke="{DynamicResource Brush.TextPrimary}" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M 2,5 L 22,5 L 22,21 L 2,21 Z M 22,11 L 29,11 L 34,17 L 34,21 L 22,21 M 25,13 L 28,13 L 31,17 L 25,17 Z" />
+                                                    <Ellipse Canvas.Left="6" Canvas.Top="18" Width="7" Height="7" Fill="{DynamicResource Brush.CardSoft}" Stroke="{DynamicResource Brush.TextPrimary}" StrokeThickness="1.6" />
+                                                    <Ellipse Canvas.Left="25" Canvas.Top="18" Width="7" Height="7" Fill="{DynamicResource Brush.CardSoft}" Stroke="{DynamicResource Brush.TextPrimary}" StrokeThickness="1.6" />
+                                                </Canvas>
+                                            </Viewbox>
                                             <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
-                                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Stopps" />
-                                                <TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourOverviewItem.StopCount}" />
+                                            <StackPanel Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding SelectedTourOverviewItem.VehicleName}" ToolTip="{Binding SelectedTourOverviewItem.VehicleName}" />
+                                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding SelectedTourOverviewItem.TrailerName}" ToolTip="{Binding SelectedTourOverviewItem.TrailerName}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Margin" Value="0,3,0,0" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding SelectedTourOverviewItem.TrailerName}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </StackPanel>
                                         </Grid>
                                     </Border>

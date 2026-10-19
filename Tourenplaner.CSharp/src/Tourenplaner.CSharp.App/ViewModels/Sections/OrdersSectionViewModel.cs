@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
@@ -50,7 +50,6 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     private bool _suppressFilterRefresh;
     private bool _isCustomerColumnVisible = true;
     private bool _isDeliveryAddressColumnVisible = true;
-    private bool _isDeliveryPersonColumnVisible = true;
     private bool _isNotesColumnVisible = true;
     private bool _isOrdersFilterPanelVisible;
     private bool _showArchivedOrders;
@@ -205,12 +204,6 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
     {
         get => _isDeliveryAddressColumnVisible;
         set => SetProperty(ref _isDeliveryAddressColumnVisible, value);
-    }
-
-    public bool IsDeliveryPersonColumnVisible
-    {
-        get => _isDeliveryPersonColumnVisible;
-        set => SetProperty(ref _isDeliveryPersonColumnVisible, value);
     }
 
     public bool IsNotesColumnVisible
@@ -1348,6 +1341,8 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
             CustomerName = order.CustomerName,
             Address = order.Address,
             ScheduledDate = order.ScheduledDate.ToString("dd.MM.yyyy"),
+            DeliveryDate = order.DeliveryDate?.ToString("dd.MM.yyyy") ?? string.Empty,
+            DeliveryPeriod = order.DeliveryPeriod ?? string.Empty,
             AssignedTourId = order.AssignedTourId ?? string.Empty,
             Latitude = order.Location?.Latitude.ToString("0.######") ?? string.Empty,
             Longitude = order.Location?.Longitude.ToString("0.######") ?? string.Empty,

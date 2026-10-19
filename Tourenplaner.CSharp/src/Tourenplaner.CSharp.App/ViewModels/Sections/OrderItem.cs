@@ -10,6 +10,8 @@ public sealed class OrderItem : ObservableObject
     private string _customerName = string.Empty;
     private string _address = string.Empty;
     private string _scheduledDate = string.Empty;
+    private string _deliveryDate = string.Empty;
+    private string _deliveryPeriod = string.Empty;
     private string _assignedTourId = string.Empty;
     private string _latitude = string.Empty;
     private string _longitude = string.Empty;
@@ -64,6 +66,18 @@ public sealed class OrderItem : ObservableObject
         set => SetProperty(ref _scheduledDate, value);
     }
 
+    public string DeliveryDate
+    {
+        get => _deliveryDate;
+        set => SetProperty(ref _deliveryDate, value);
+    }
+
+    public string DeliveryPeriod
+    {
+        get => _deliveryPeriod;
+        set => SetProperty(ref _deliveryPeriod, value);
+    }
+
     public string OrderAddressLine
     {
         get
@@ -94,6 +108,9 @@ public sealed class OrderItem : ObservableObject
             return string.Join(' ', new[] { postal, city }.Where(x => !string.IsNullOrWhiteSpace(x)));
         }
     }
+
+    public string DeliveryAddressLine => string.Join(", ",
+        new[] { DeliveryStreetLine, DeliveryPostalCityLine }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
     public string DeliveryPersonPrimary
     {

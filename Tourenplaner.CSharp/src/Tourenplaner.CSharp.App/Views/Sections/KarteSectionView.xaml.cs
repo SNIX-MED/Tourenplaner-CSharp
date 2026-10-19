@@ -1,4 +1,4 @@
-﻿using System.Collections.Specialized;
+using System.Collections.Specialized;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -1297,6 +1297,28 @@ public partial class KarteSectionView : UserControl
         var raw = e.TryGetWebMessageAsString();
         if (string.IsNullOrWhiteSpace(raw))
         {
+            return;
+        }
+
+        if (raw.StartsWith("openFleetMaps:", StringComparison.Ordinal))
+        {
+            var parts = raw.Split(':');
+            if (parts.Length == 3 &&
+                double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var latitude) &&
+                double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var longitude) &&
+                double.IsFinite(latitude) && double.IsFinite(longitude) &&
+                latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180)
+            {
+                var url = FormattableString.Invariant($"https://www.google.com/maps/search/?api=1&query={latitude},{longitude}");
+                try
+                {
+                    Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Google Maps konnte nicht geöffnet werden: {ex.Message}");
+                }
+            }
             return;
         }
 

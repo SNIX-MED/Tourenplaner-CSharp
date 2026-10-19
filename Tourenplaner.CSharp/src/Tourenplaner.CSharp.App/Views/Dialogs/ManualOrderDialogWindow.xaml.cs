@@ -902,7 +902,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             OrderStatus = Order.ResolveOrderStatusFromProducts(products),
             IstVorauszahlung = IstVorauszahlung,
             IstVorauszahlungBezahlt = IstVorauszahlungBezahlt,
-            Notes = DeliveryNotes.Count == 0 ? (Notes ?? string.Empty).Trim() : string.Empty,
+            Notes = (Notes ?? string.Empty).Trim(),
             AssignedTourId = _existingAssignedTourId,
             Location = _existingLocation,
             IsLocationManuallySet = _existingIsLocationManuallySet,
@@ -1043,7 +1043,17 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
                 }).ToList()
             };
             _existingDeliveries.Add(copy);
-            DeliveryNotes.Add(new DeliveryNoteInput(copy.Id, copy.SequenceNumber, copy.Notes));
+            if (existingOrder.Deliveries?.Count > 1)
+                DeliveryNotes.Add(new DeliveryNoteInput(copy.Id, copy.SequenceNumber, copy.Notes, true));
+        }
+        if (_existingDeliveries.Count == 1)
+        {
+            var deliveryNotes = System.Text.RegularExpressions.Regex.Replace(
+                _existingDeliveries[0].Notes.Trim(), @"^Lieferung\s+\d+\s*/\s*\d+\s*:\s*", string.Empty,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant).Trim();
+            if (!string.IsNullOrWhiteSpace(deliveryNotes) &&
+                !string.Equals(Notes.Trim(), deliveryNotes, StringComparison.Ordinal))
+                Notes = string.IsNullOrWhiteSpace(Notes) ? deliveryNotes : $"{Notes.Trim()}{Environment.NewLine}{deliveryNotes}";
         }
         ManualTotalWeightKgText = existingOrder.ManualTotalWeightKg?.ToString("0.##", CultureInfo.CurrentCulture) ?? string.Empty;
         ManualTotalWeightInfoText = existingOrder.ManualTotalWeightInfo ?? string.Empty;
@@ -1080,7 +1090,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private void RebuildDeliveryProductGroups()
     {
         DeliveryProductGroups.Clear();
-        if (_existingDeliveries.Count == 0)
+        if (_existingDeliveries.Count <= 1)
         {
             OnPropertyChanged(nameof(HasDeliveryProductGroups));
             OnPropertyChanged(nameof(HasNoDeliveryProductGroups));
@@ -1294,17 +1304,19 @@ public sealed class SupplierFilterItem : INotifyPropertyChanged
 public sealed class DeliveryNoteInput : INotifyPropertyChanged
 {
     private string _notes;
+    private readonly bool _isPartialDelivery;
 
-    public DeliveryNoteInput(string deliveryId, int sequenceNumber, string notes)
+    public DeliveryNoteInput(string deliveryId, int sequenceNumber, string notes, bool isPartialDelivery = false)
     {
         DeliveryId = deliveryId;
         SequenceNumber = sequenceNumber;
         _notes = notes ?? string.Empty;
+        _isPartialDelivery = isPartialDelivery;
     }
 
     public string DeliveryId { get; }
     public int SequenceNumber { get; }
-    public string Heading => $"Notizen Lieferung Teil {SequenceNumber}";
+    public string Heading => _isPartialDelivery ? $"Notizen Lieferung Teil {SequenceNumber}" : "Notizen";
     public string Notes
     {
         get => _notes;

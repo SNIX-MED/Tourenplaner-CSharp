@@ -293,6 +293,68 @@ public class ManualOrderDialogViewModelTests
         Assert.Equal(2, secondProduct.Quantity);
     }
 
+    [Theory]
+    [InlineData("Auftragsnotiz", "", "Auftragsnotiz")]
+    [InlineData("", "Liefernotiz", "Liefernotiz")]
+    [InlineData("Identisch", "Identisch", "Identisch")]
+    [InlineData("", "Lieferung 1/1: Liefernotiz", "Liefernotiz")]
+    public void SingleInternalDeliveryUsesNormalNotesAndPreservesAssignment(string notes, string deliveryNotes, string expected)
+    {
+        var source = CreateOrder();
+        source.Notes = notes;
+        source.Products[0].PositionId = "P1";
+        source.Deliveries = [new OrderDelivery
+        {
+            Id = "D1", SequenceNumber = 1, AssignedTourId = "42", Notes = deliveryNotes,
+            Lines = [new OrderDeliveryLine { OrderProductPositionId = "P1", Quantity = 1 }]
+        }];
+        var vm = new ManualOrderDialogViewModel(source);
+        Assert.Empty(vm.DeliveryNotes);
+        Assert.Empty(vm.DeliveryProductGroups);
+        Assert.Equal(expected, vm.Notes);
+        Assert.True(vm.TryBuildOrder(out var result, out var error), error);
+        Assert.Equal(expected, result!.Notes);
+        var delivery = Assert.Single(result.Deliveries);
+        Assert.Equal("D1", delivery.Id);
+        Assert.Equal("42", delivery.AssignedTourId);
+        Assert.Empty(delivery.Notes);
+        Assert.Equal("P1", Assert.Single(delivery.Lines).OrderProductPositionId);
+        Assert.Equal(notes, source.Notes);
+        Assert.Equal(deliveryNotes, source.Deliveries[0].Notes);
+    }
+
+    [Fact]
+    public void DistinctSingleDeliveryAndOrderNotesBothSurviveRoundTrip()
+    {
+        var source = CreateOrder();
+        source.Notes = "Auftragsnotiz";
+        source.Deliveries = [new OrderDelivery { Id = "D1", Notes = "Liefernotiz" }];
+        var vm = new ManualOrderDialogViewModel(source);
+        Assert.True(vm.TryBuildOrder(out var result, out var error), error);
+        Assert.Equal($"Auftragsnotiz{Environment.NewLine}Liefernotiz", result!.Notes);
+        var reopened = new ManualOrderDialogViewModel(result);
+        Assert.Equal(result.Notes, reopened.Notes);
+    }
+
+    [Fact]
+    public void SplitOrderKeepsGeneralNotesAndPartHeadings()
+    {
+        var source = CreateOrder();
+        source.Notes = "Allgemeine Notiz";
+        source.Deliveries = [
+            new OrderDelivery { Id = "D1", SequenceNumber = 1, Status = OrderDeliveryStatus.Delivered, Notes = "Teil eins" },
+            new OrderDelivery { Id = "D2", SequenceNumber = 2, Notes = "Teil zwei" }
+        ];
+        var vm = new ManualOrderDialogViewModel(source);
+        Assert.Equal("Notizen Lieferung Teil 1", vm.DeliveryNotes[0].Heading);
+        Assert.Equal("Notizen Lieferung Teil 2", vm.DeliveryNotes[1].Heading);
+        Assert.True(vm.TryBuildOrder(out var result, out var error), error);
+        Assert.Equal("Allgemeine Notiz", result!.Notes);
+        Assert.Equal("Teil eins", result.Deliveries[0].Notes);
+        Assert.Equal(OrderDeliveryStatus.Delivered, result.Deliveries[0].Status);
+        Assert.Equal("Teil zwei", result.Deliveries[1].Notes);
+    }
+
     private static Order CreateOrder()
     {
         return new Order

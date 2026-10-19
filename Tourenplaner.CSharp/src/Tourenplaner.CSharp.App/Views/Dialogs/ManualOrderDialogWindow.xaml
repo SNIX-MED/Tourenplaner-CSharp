@@ -815,16 +815,26 @@
                                 Margin="0,12,0,0"
                                 Effect="{x:Null}">
                             <StackPanel>
-                                <StackPanel Visibility="{Binding HasNoDeliveryNotes, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
                                     <TextBlock FontSize="18"
                                                FontWeight="SemiBold"
                                                Margin="0,0,0,10"
                                                Text="Notizen" />
-                                    <TextBox MinHeight="420"
-                                             AcceptsReturn="True"
+                                    <TextBox AcceptsReturn="True"
                                              VerticalScrollBarVisibility="Auto"
                                              TextWrapping="Wrap"
-                                             Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" />
+                                             Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}">
+                                        <TextBox.Style>
+                                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                <Setter Property="MinHeight" Value="420" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasDeliveryNotes}" Value="True">
+                                                        <Setter Property="MinHeight" Value="100" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
                                 </StackPanel>
                                 <ItemsControl Margin="0,16,0,0" ItemsSource="{Binding DeliveryNotes}">
                                     <ItemsControl.ItemTemplate>

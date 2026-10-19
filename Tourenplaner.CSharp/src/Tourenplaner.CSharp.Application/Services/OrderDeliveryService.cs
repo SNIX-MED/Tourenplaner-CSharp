@@ -274,6 +274,12 @@ public sealed class OrderDeliveryService
                 order.Notes = restoredNotes;
                 singleDeliveryChanged = true;
             }
+            else if (!string.IsNullOrWhiteSpace(restoredNotes) &&
+                     !sourceNotes.Contains(restoredNotes, StringComparison.Ordinal))
+            {
+                order.Notes = $"{sourceNotes}{Environment.NewLine}{restoredNotes}";
+                singleDeliveryChanged = true;
+            }
             if (!string.IsNullOrWhiteSpace(deliveryNotes))
             {
                 delivery.Notes = string.Empty;
@@ -294,6 +300,11 @@ public sealed class OrderDeliveryService
             if (string.IsNullOrWhiteSpace(existingContent))
             {
                 existingContent = sourceNotes;
+            }
+            else if (!string.IsNullOrWhiteSpace(sourceNotes) &&
+                     !existingContent.Contains(sourceNotes, StringComparison.Ordinal))
+            {
+                existingContent = $"{existingContent}{Environment.NewLine}{sourceNotes}";
             }
             var nextNotes = $"Lieferung {index + 1}/{total}:";
             if (!string.IsNullOrWhiteSpace(existingContent))

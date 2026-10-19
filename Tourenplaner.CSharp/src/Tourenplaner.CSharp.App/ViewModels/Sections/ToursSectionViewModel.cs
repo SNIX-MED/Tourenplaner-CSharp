@@ -3231,6 +3231,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 Source = stop,
                 IsCompanyStop = isCompanyStop,
                 IsPauseStop = isPauseStop,
+                IsManualStop = IsManualStop(stop),
                 IsRouteStart = isRouteStart,
                 IsRouteEnd = isRouteEnd,
                 IsArchivedOrder = isArchivedOrder,
@@ -3252,6 +3253,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 ServiceTimeText = isCompanyStop || isPauseStop ? string.Empty : $"{Math.Max(0, stop.ServiceMinutes)} min Aufenthalt",
                 DeliveryType = sourceOrder?.DeliveryType ?? string.Empty,
                 OrderStatus = sourceOrder?.OrderStatus ?? string.Empty,
+                AvisoStatus = sourceOrder?.AvisoStatus ?? string.Empty,
                 HasNotes = !string.IsNullOrWhiteSpace(sourceOrder?.Notes),
                 NotesPreview = BuildNotesPreview(sourceOrder?.Notes),
                 PinStatusText = sourceOrder?.IsLocationManuallySet == true
@@ -3531,6 +3533,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return new TourRecord
         {
             Id = source.Id,
+            RouteGeometrySignature = source.RouteGeometrySignature,
+            RouteGeometryPoints = (source.RouteGeometryPoints ?? []).Select(point => new GeoPoint(point.Latitude, point.Longitude)).ToList(),
             Date = source.Date,
             Name = source.Name,
             StartTime = source.StartTime,
@@ -4349,6 +4353,9 @@ public sealed class TourCalendarCardStopItem
 
 public sealed class TourStopOverviewItem
 {
+    public bool IsManualStop { get; set; }
+    public string AvisoStatus { get; set; } = string.Empty;
+    public string AvisoBadgeColor => IsManualStop ? "#4EBA74" : AvisoStatusVisualService.ResolveBadgeColor(AvisoStatus);
     public int SourceTourId { get; set; }
     public TourStopRecord Source { get; set; } = new();
     public bool IsCompanyStop { get; set; }

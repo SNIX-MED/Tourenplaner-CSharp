@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.ComponentModel;
@@ -92,7 +92,6 @@ public partial class NonMapOrdersSectionView : UserControl
     {
         if (e.PropertyName is nameof(NonMapOrdersSectionViewModel.IsCustomerColumnVisible) or
             nameof(NonMapOrdersSectionViewModel.IsDeliveryAddressColumnVisible) or
-            nameof(NonMapOrdersSectionViewModel.IsDeliveryPersonColumnVisible) or
             nameof(NonMapOrdersSectionViewModel.IsNotesColumnVisible))
         {
             UpdateColumnVisibility();
@@ -107,11 +106,9 @@ public partial class NonMapOrdersSectionView : UserControl
             OrderSectionViewHelpers.ApplyColumnVisibility(
                 customerVisible: true,
                 deliveryAddressVisible: true,
-                deliveryPersonVisible: true,
                 notesVisible: true,
                 CustomerColumn,
                 DeliveryAddressColumn,
-                DeliveryPersonColumn,
                 NotesColumn);
             return;
         }
@@ -119,11 +116,9 @@ public partial class NonMapOrdersSectionView : UserControl
         OrderSectionViewHelpers.ApplyColumnVisibility(
             vm.IsCustomerColumnVisible,
             vm.IsDeliveryAddressColumnVisible,
-            vm.IsDeliveryPersonColumnVisible,
             vm.IsNotesColumnVisible,
             CustomerColumn,
             DeliveryAddressColumn,
-            DeliveryPersonColumn,
             NotesColumn);
     }
 }

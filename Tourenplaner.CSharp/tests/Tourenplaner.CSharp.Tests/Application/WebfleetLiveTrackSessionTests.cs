@@ -4,6 +4,48 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class WebfleetLiveTrackSessionTests
 {
+    [Fact]
+    public void DelayedRealFixReplacesNewerProvisionalObservation()
+    {
+        var session = new WebfleetLiveTrackSession();
+        var generation = session.Begin("truck", Today, Now);
+        session.MergeHistory(generation, [Point(-2)]);
+        Assert.True(session.Append(Vehicle(null, lat: 47.01), Now));
+        Assert.True(session.Append(Vehicle(Now.AddSeconds(-10), lat: 47.02), Now.AddSeconds(30)));
+        Assert.Equal(2, session.Points.Count);
+        Assert.Equal(Now.AddSeconds(-10), session.Points[^1].PositionTime);
+        Assert.Equal(47.02, session.Points[^1].Latitude);
+        Assert.False(session.Append(Vehicle(Now.AddMinutes(-3)), Now));
+        Assert.Equal(2, session.Points.Count);
+    }
+
+    [Fact]
+    public void MissingTimestampExtendsChangedPositionAndSkipsUnchangedPolls()
+    {
+        var session = new WebfleetLiveTrackSession();
+        var generation = session.Begin("truck", Today, Now);
+        session.MergeHistory(generation, [Point(-2)]);
+        Assert.True(session.Append(Vehicle(null, lat: 47.01), Now));
+        Assert.Equal(Now, session.Points[^1].PositionTime);
+        Assert.False(session.Append(Vehicle(null, lat: 47.01), Now.AddSeconds(30)));
+        Assert.True(session.Append(Vehicle(null, lat: 47.02), Now.AddMinutes(1)));
+        Assert.Equal(3, session.Points.Count);
+        session.MergeHistory(generation, [Point(-2), Point(0), Point(1)]);
+        Assert.All(session.Points, point => Assert.Equal(47, point.Latitude));
+    }
+
+    [Fact]
+    public void MissingTimestampCannotExtendHistoricalDayOrWrongVehicle()
+    {
+        var session = new WebfleetLiveTrackSession();
+        session.Begin("truck", Today.AddDays(-1), Now);
+        Assert.False(session.Append(Vehicle(null), Now));
+        session.Begin("truck", Today, Now);
+        Assert.False(session.Append(Vehicle(null, "other"), Now));
+        Assert.False(session.Append(Vehicle(null, lat: double.NaN), Now));
+        Assert.True(session.Append(Vehicle(null), Now));
+        Assert.Single(session.Points);
+    }
     private static readonly DateTimeOffset Now = new(2026, 10, 19, 12, 0, 0, TimeSpan.Zero);
     private static DateOnly Today => DateOnly.FromDateTime(Now.LocalDateTime);
     private static WebfleetVehicleSnapshot Vehicle(DateTimeOffset? time, string uid = "truck", double lat = 47) =>

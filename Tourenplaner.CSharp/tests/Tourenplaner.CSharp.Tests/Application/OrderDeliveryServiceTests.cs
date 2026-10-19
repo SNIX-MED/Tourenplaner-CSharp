@@ -5,6 +5,32 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class OrderDeliveryServiceTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void NoteDistributionKeepsDistinctGeneralAndDeliveryNotesAndIsIdempotent(int count)
+    {
+        var order = NewOrder(1);
+        order.Notes = "Allgemeine Notiz";
+        order.Deliveries = Enumerable.Range(1, count).Select(index => new OrderDelivery
+        {
+            Id = $"D{index}", SequenceNumber = index, Notes = $"Spezielle Notiz {index}"
+        }).ToList();
+        Assert.True(_service.DistributeOrderNotesToDeliveries(order));
+        if (count == 1)
+        {
+            Assert.Equal($"Allgemeine Notiz{Environment.NewLine}Spezielle Notiz 1", order.Notes);
+            Assert.Empty(order.Deliveries[0].Notes);
+        }
+        else
+        {
+            Assert.Empty(order.Notes);
+            for (var i = 0; i < count; i++)
+                Assert.Equal($"Lieferung {i + 1}/{count}: Spezielle Notiz {i + 1}{Environment.NewLine}Allgemeine Notiz", order.Deliveries[i].Notes);
+        }
+        Assert.False(_service.DistributeOrderNotesToDeliveries(order));
+    }
+
     private readonly OrderDeliveryService _service = new();
 
     [Fact]

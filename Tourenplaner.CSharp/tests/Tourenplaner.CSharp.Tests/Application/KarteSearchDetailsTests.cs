@@ -11,6 +11,104 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class KarteSearchDetailsTests
 {
     [Fact]
+    public void ReloadedStreetGeometrySurvivesFailureOnlyWithMatchingSavedSignature()
+    {
+        var vm = CreateViewModel();
+        SetPrivateField(vm, "_routeComputationCachePath", string.Empty);
+        vm.RouteStops.Add(new RouteStopItem { Latitude = 47, Longitude = 8 });
+        vm.RouteStops.Add(new RouteStopItem { Latitude = 48, Longitude = 9 });
+        var tour = new TourRecord
+        {
+            RouteGeometrySignature = "saved-profile",
+            RouteGeometryPoints = [new(47, 8), new(47.5, 8.7), new(48, 9)]
+        };
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        typeof(KarteSectionViewModel).GetMethod("ShowSavedTourGeometryImmediately", flags)!.Invoke(vm, [tour]);
+        var retain = typeof(KarteSectionViewModel).GetMethod("TryRetainStreetRoute", flags)!;
+        object?[] args = ["saved-profile", null, 1, null, null];
+        Assert.True((bool)retain.Invoke(vm, args)!);
+        Assert.Equal(3, Assert.IsAssignableFrom<IReadOnlyList<GeoPoint>>(args[3]).Count);
+        args[0] = "changed-profile";
+        Assert.False((bool)retain.Invoke(vm, args)!);
+        var saved = new TourRecord();
+        typeof(KarteSectionViewModel).GetMethod("ApplyCurrentRouteTravelTimeCaches", flags)!.Invoke(vm, [saved]);
+        Assert.Equal("saved-profile", saved.RouteGeometrySignature);
+        Assert.Equal(3, saved.RouteGeometryPoints.Count);
+    }
+
+    [Fact]
+    public void RetainingInMemoryStreetRouteRequiresSameSignatureAndReturnsDetachedPoints()
+    {
+        var vm = CreateViewModel();
+        SetPrivateField(vm, "_routeComputationCachePath", string.Empty);
+        SetPrivateField(vm, "_lastSuccessfulRouteSignature", "original-route");
+        GetPrivateField<List<GeoPoint>>(vm, "_routeGeometryPoints").AddRange([new(47, 8), new(47.1, 8.2), new(48, 9)]);
+        GetPrivateField<List<OsrmRouteLeg>>(vm, "_routeLegs").Add(new OsrmRouteLeg(10, 5));
+        var method = typeof(KarteSectionViewModel).GetMethod("TryRetainStreetRoute", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        object?[] args = ["original-route", null, 1, null, null];
+        Assert.True((bool)method.Invoke(vm, args)!);
+        var retained = Assert.IsAssignableFrom<IReadOnlyList<GeoPoint>>(args[3]);
+        Assert.Equal(3, retained.Count);
+        GetPrivateField<List<GeoPoint>>(vm, "_routeGeometryPoints").Clear();
+        Assert.Equal(3, retained.Count);
+        args[0] = "changed-route";
+        Assert.False((bool)method.Invoke(vm, args)!);
+    }
+
+    [Theory]
+    [InlineData("TomTom keine Route (Schaetzung)", false)]
+    [InlineData("Fallback (Schaetzung)", false)]
+    [InlineData("TomTom", true)]
+    public void RoutingCacheRejectsEstimatedRoutesEvenWhenFresh(string source, bool expected)
+    {
+        var vm = CreateViewModel();
+        var path = Path.Combine(Path.GetTempPath(), $"route-review-{Guid.NewGuid():N}.json");
+        SetPrivateField(vm, "_routeComputationCachePath", path);
+        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(new
+        {
+            Signature = "same-route", Source = source, SavedUtc = DateTime.UtcNow.ToString("O"),
+            GeometryPoints = new[] { new { Latitude = 47d, Longitude = 8d }, new { Latitude = 48d, Longitude = 9d } },
+            Legs = new[] { new { DurationMinutes = 10, DistanceKm = 5d } }
+        }));
+        try
+        {
+            var method = typeof(KarteSectionViewModel).GetMethod("TryLoadRouteComputationCache", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            object?[] args = ["same-route", null, null, null, null, null, false];
+            Assert.Equal(expected, (bool)method.Invoke(vm, args)!);
+            args[0] = "other-route";
+            args[6] = true;
+            Assert.False((bool)method.Invoke(vm, args)!);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void FailedRefreshCanRetainExpiredStreetCacheOnlyForMatchingRoute()
+    {
+        var vm = CreateViewModel();
+        var path = Path.Combine(Path.GetTempPath(), $"route-review-{Guid.NewGuid():N}.json");
+        SetPrivateField(vm, "_routeComputationCachePath", path);
+        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(new
+        {
+            Signature = "same-route", Source = "TomTom", SavedUtc = DateTime.UtcNow.AddDays(-30).ToString("O"),
+            GeometryPoints = new[] { new { Latitude = 47d, Longitude = 8d }, new { Latitude = 48d, Longitude = 9d } },
+            Legs = new[] { new { DurationMinutes = 10, DistanceKm = 5d } }
+        }));
+        try
+        {
+            var method = typeof(KarteSectionViewModel).GetMethod("TryRetainStreetRoute", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            object?[] args = ["same-route", null, 1, null, null];
+            Assert.True((bool)method.Invoke(vm, args)!);
+            args[0] = "changed-stops-or-profile";
+            Assert.False((bool)method.Invoke(vm, args)!);
+            args[0] = "same-route";
+            args[2] = 2;
+            Assert.False((bool)method.Invoke(vm, args)!);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public async Task EditingReloadsPreviewEvenWithoutAnySyncNotification()
     {
         var store = new ChangingPreviewTourStore();

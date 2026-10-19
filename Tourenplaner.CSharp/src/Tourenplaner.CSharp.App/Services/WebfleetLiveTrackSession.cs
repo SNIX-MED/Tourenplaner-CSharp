@@ -8,6 +8,7 @@ public sealed class WebfleetLiveTrackSession
     public DateOnly Date { get; private set; }
     public int Generation { get; private set; }
     private DateTimeOffset _lastHistoryAttempt;
+    private readonly HashSet<DateTimeOffset> _provisionalTimes = new();
 
     public int Begin(string objectUid, DateOnly date, DateTimeOffset now)
     {
@@ -23,6 +24,7 @@ public sealed class WebfleetLiveTrackSession
         Generation++;
         ObjectUid = string.Empty;
         Points.Clear();
+        _provisionalTimes.Clear();
     }
 
     public bool IsToday(DateTimeOffset now) => ObjectUid.Length > 0 && Date == DateOnly.FromDateTime(now.LocalDateTime);
@@ -42,11 +44,26 @@ public sealed class WebfleetLiveTrackSession
     public bool Append(WebfleetVehicleSnapshot vehicle, DateTimeOffset now)
     {
         if (!IsToday(now) || !string.Equals(ObjectUid, vehicle.ObjectUid, StringComparison.OrdinalIgnoreCase) ||
-            !vehicle.PositionTime.HasValue || !vehicle.Latitude.HasValue || !vehicle.Longitude.HasValue) return false;
-        var point = new WebfleetTrackPoint(vehicle.PositionTime.Value, vehicle.Latitude.Value, vehicle.Longitude.Value, null, null);
-        if (!IsValid(point) || point.PositionTime > now ||
-            (Points.Count > 0 && point.PositionTime <= Points[^1].PositionTime)) return false;
+            !vehicle.Latitude.HasValue || !vehicle.Longitude.HasValue) return false;
+        // Some Work App objects provide coordinates without a position timestamp.
+        // Use the observation time only for changed fixes; recorded history reconciles these later.
+        if (!vehicle.PositionTime.HasValue && Points.Count > 0 &&
+            Points[^1].Latitude == vehicle.Latitude.Value && Points[^1].Longitude == vehicle.Longitude.Value)
+            return false;
+        var point = new WebfleetTrackPoint(vehicle.PositionTime ?? now, vehicle.Latitude.Value, vehicle.Longitude.Value, null, null);
+        if (!IsValid(point) || point.PositionTime > now) return false;
+        if (vehicle.PositionTime.HasValue)
+        {
+            // A real fix may arrive later with a timestamp before our observation time.
+            // Do not let provisional points block or reverse the authoritative track.
+            var lastRecorded = Points.LastOrDefault(p => !_provisionalTimes.Contains(p.PositionTime));
+            if (lastRecorded is not null && point.PositionTime <= lastRecorded.PositionTime) return false;
+            Points.RemoveAll(p => _provisionalTimes.Contains(p.PositionTime) && p.PositionTime >= point.PositionTime);
+            _provisionalTimes.RemoveWhere(time => time >= point.PositionTime);
+        }
+        if (Points.Count > 0 && point.PositionTime <= Points[^1].PositionTime) return false;
         Points.Add(point);
+        if (!vehicle.PositionTime.HasValue) _provisionalTimes.Add(point.PositionTime);
         return true;
     }
 
@@ -61,6 +78,8 @@ public sealed class WebfleetLiveTrackSession
         Points.AddRange(prefix);
         Points.AddRange(recorded);
         Points.AddRange(tail);
+        _provisionalTimes.ExceptWith(recorded.Select(p => p.PositionTime));
+        _provisionalTimes.IntersectWith(Points.Select(p => p.PositionTime));
         return true;
     }
 }
