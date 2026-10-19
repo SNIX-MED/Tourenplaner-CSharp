@@ -69,11 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Pin-Infokarten koennen beim Ueberfahren geoeffnet und in den Einstellungen deaktiviert werden
-          - Verstaendlichere Aktion zum Festlegen neuer Tourdetails
-          - Fruehzeitige Personalempfehlung fuer Auftraege mit Verteilung
-          - Erfolgsmeldungen verwenden den sichtbaren Tournamen statt interner IDs
-          - Konsistente deutsche Datumshinweise und verbesserte Barrierefreiheit
+          - Zuverlaessige PostgreSQL-Synchronisierung nach dem Speichern von Touren
+          - Aktueller Datenstand vor dem Bearbeitungsstart und Schutz vor veralteten Tourentwuerfen
+          - Weniger Traffic-Raster-Anfragen durch bedarfsgesteuerte Ebenen, Caching und Pausieren bei Zugriffssperren
+          - WEBFLEET-Spurlinie waechst mit Live-Positionen und wird regelmaessig abgeglichen
+          - Aussagekraeftigere und begrenzte Kartenfehler-Protokollierung
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

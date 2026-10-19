@@ -451,7 +451,8 @@ public sealed class UserAppPreference
 public sealed class MapOverlayUserPreference
 {
     public string Style { get; set; } = AppSettings.DefaultMapOverlayStyle;
-    public bool ShowTrafficFlow { get; set; } = true;
+    public bool ShowTrafficFlow { get; set; }
+    public bool TrafficRasterOptInConfirmed { get; set; }
     public bool ShowTrafficIncidents { get; set; }
     public bool ShowRoadLabels { get; set; } = true;
     public bool ShowPoi { get; set; } = true;

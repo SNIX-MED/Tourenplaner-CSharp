@@ -1,0 +1,17 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const source = fs.readFileSync(path.join(__dirname, '../src/Tourenplaner.CSharp.App/Views/Sections/MapHtmlDocumentBuilder.cs'), 'utf8');
+const start = source.indexOf('const describeMapError =');
+const end = source.indexOf("map.on('error'", start);
+assert.ok(start >= 0 && end > start);
+const describe = new Function(source.slice(start, end) + '; return describeMapError;')();
+assert.equal(describe({ error: 'Tile failed' }), 'Tile failed');
+assert.equal(describe({ message: 'Network failed' }), 'Network failed');
+assert.match(describe({ error: { status: 403, url: 'https://example.test/tile?key=secret&token=private' }, sourceId: 'traffic' }), /HTTP: 403.*Quelle: traffic/);
+assert.ok(!describe({ error: { url: 'https://example.test/?key=secret&access_token=private' } }).includes('secret'));
+assert.ok(!describe({ error: { url: 'https://example.test/?key=secret&access_token=private' } }).includes('private'));
+assert.match(describe(undefined), /ohne Beschreibung/);
+const circular = { sourceId: 'tiles' }; circular.target = circular;
+assert.equal(describe(circular), 'Quelle: tiles');
+console.log('Map error diagnostics: 7 checks passed');

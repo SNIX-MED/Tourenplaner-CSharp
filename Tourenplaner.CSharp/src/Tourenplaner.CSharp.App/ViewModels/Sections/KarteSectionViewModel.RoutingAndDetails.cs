@@ -34,6 +34,20 @@ public sealed partial class KarteSectionViewModel
 
     public async Task LoadWebfleetTrackAsync(string objectUid, DateOnly date)
     {
+        var loadRevision = ++_webfleetTrackLoadRevision;
+        try
+        {
+            await LoadWebfleetTrackCoreAsync(objectUid, date, loadRevision);
+        }
+        catch (Exception ex)
+        {
+            if (loadRevision == _webfleetTrackLoadRevision)
+                SetWebfleetTrackFailure($"WEBFLEET-Positionsverlauf konnte nicht geladen werden: {ex.Message}");
+        }
+    }
+
+    private async Task LoadWebfleetTrackCoreAsync(string objectUid, DateOnly date, int loadRevision)
+    {
         var vehicle = _webfleetVehicles.FirstOrDefault(x => string.Equals(x.ObjectUid, objectUid, StringComparison.OrdinalIgnoreCase));
         if (vehicle is null)
         {
@@ -46,6 +60,7 @@ public sealed partial class KarteSectionViewModel
         var to = from.AddDays(1).AddTicks(-1);
         var settings = await _settingsRepository.LoadAsync();
         var webfleet = await ResolveWebfleetSettingsAsync(settings);
+        if (loadRevision != _webfleetTrackLoadRevision) return;
         if (!webfleet.IsEnabled || !webfleet.HasCredentials)
         {
             _webfleetTrackStatusText = "WEBFLEET ist noch nicht eingerichtet.";
@@ -60,17 +75,18 @@ public sealed partial class KarteSectionViewModel
         var points = await webfleetService.GetTrackAsync(webfleet, vehicle.ObjectUid, from, to);
 
         // Publish the actual track immediately. Loading pauses and the planned tour must never delay the visible trace.
-        _webfleetTrackPoints.Clear();
-        _webfleetTrackPoints.AddRange(points);
+        if (loadRevision != _webfleetTrackLoadRevision) return;
+        var generation = _webfleetLiveTrack.Begin(objectUid, date, DateTimeOffset.Now);
+        _webfleetLiveTrack.MergeHistory(generation, points);
+        _webfleetTrackWarning = null;
+        var latestVehicle = _webfleetVehicles.FirstOrDefault(x => string.Equals(x.ObjectUid, objectUid, StringComparison.OrdinalIgnoreCase));
+        if (latestVehicle is not null) _webfleetLiveTrack.Append(latestVehicle, DateTimeOffset.Now);
         _webfleetPauseMarkers.Clear();
         _webfleetTrackVehicleName = _employeeLabelsByWebfleetObjectUid.TryGetValue(vehicle.ObjectUid, out var employeeName) ? employeeName : vehicle.Name;
         _webfleetTrackRevision++;
         OnPropertyChanged(nameof(WebfleetTrackRevision));
         OnPropertyChanged(nameof(WebfleetTrackVehicleName));
-        _webfleetTrackStatusText = points.Count > 1
-            ? BuildWebfleetArrivalAnalysisPayload(vehicle.ObjectUid, date, points)
-            : $"Kein Positionsverlauf für den {date:dd.MM.yyyy} verfügbar.";
-        OnPropertyChanged(nameof(WebfleetTrackStatusText));
+        PublishWebfleetTrackStatus();
 
         var pauses = Array.Empty<WebfleetPauseMarker>();
         string? pauseWarning = null;
@@ -90,29 +106,23 @@ public sealed partial class KarteSectionViewModel
         {
             pauseWarning = "Kein WEBFLEET-Fahrer für diesen Mitarbeiter hinterlegt.";
         }
+        if (loadRevision != _webfleetTrackLoadRevision || generation != _webfleetLiveTrack.Generation) return;
         _webfleetPauseMarkers.Clear();
         _webfleetPauseMarkers.AddRange(pauses);
         _webfleetTrackRevision++;
         OnPropertyChanged(nameof(WebfleetTrackRevision));
-        var arrivalAnalysisText = points.Count > 1
-            ? BuildWebfleetArrivalAnalysisPayload(vehicle.ObjectUid, date, points)
-            : string.Empty;
-        _webfleetTrackStatusText = points.Count > 1
-            ? string.IsNullOrWhiteSpace(pauseWarning)
-                ? arrivalAnalysisText
-                : arrivalAnalysisText.StartsWith("arrival-analysis:", StringComparison.Ordinal)
-                    ? $"{arrivalAnalysisText}\nwarning:{pauseWarning}"
-                    : $"{arrivalAnalysisText} {pauseWarning}"
-            : $"Kein Positionsverlauf für den {date:dd.MM.yyyy} verfügbar.";
-        OnPropertyChanged(nameof(WebfleetTrackStatusText));
-        StatusText = points.Count > 1
-            ? $"WEBFLEET-Verlauf für {vehicle.Name}: {points.Count} Positionen geladen."
+        _webfleetTrackWarning = pauseWarning;
+        PublishWebfleetTrackStatus();
+        StatusText = _webfleetTrackPoints.Count > 1
+            ? $"WEBFLEET-Verlauf für {vehicle.Name}: {_webfleetTrackPoints.Count} Positionen geladen."
             : $"WEBFLEET lieferte für {vehicle.Name} am {date:dd.MM.yyyy} keine ausreichenden Positionsdaten.";
     }
 
     public void ClearWebfleetTrack()
     {
-        _webfleetTrackPoints.Clear();
+        _webfleetTrackLoadRevision++;
+        _webfleetLiveTrack.Clear();
+        _webfleetTrackWarning = null;
         _webfleetPauseMarkers.Clear();
         _webfleetTrackVehicleName = string.Empty;
         _webfleetTrackRevision++;
@@ -121,6 +131,18 @@ public sealed partial class KarteSectionViewModel
         _webfleetTrackStatusText = string.Empty;
         OnPropertyChanged(nameof(WebfleetTrackStatusText));
         StatusText = "WEBFLEET-Positionsverlauf ausgeblendet.";
+    }
+
+    private void PublishWebfleetTrackStatus()
+    {
+        var analysis = _webfleetTrackPoints.Count > 1
+            ? BuildWebfleetArrivalAnalysisPayload(_webfleetLiveTrack.ObjectUid, _webfleetLiveTrack.Date, _webfleetTrackPoints)
+            : $"Kein Positionsverlauf für den {_webfleetLiveTrack.Date:dd.MM.yyyy} verfügbar.";
+        _webfleetTrackStatusText = string.IsNullOrWhiteSpace(_webfleetTrackWarning) ? analysis
+            : analysis.StartsWith("arrival-analysis:", StringComparison.Ordinal)
+                ? $"{analysis}\nwarning:{_webfleetTrackWarning}"
+                : $"{analysis} {_webfleetTrackWarning}";
+        OnPropertyChanged(nameof(WebfleetTrackStatusText));
     }
 
     public void SetWebfleetTrackFailure(string message)
@@ -612,7 +634,7 @@ public sealed partial class KarteSectionViewModel
             ? AppSettings.DefaultMapRouteCapacityWarningThresholdPercent
             : userPreference.MapRouteCapacityWarningThresholdPercent;
         _tomTomApiKey = (settings.TomTomApiKey ?? string.Empty).Trim();
-        _tomTomShowTrafficFlow = true;
+        _tomTomShowTrafficFlow = false;
         _tomTomTrafficRefreshSeconds = userPreference.TomTomTrafficRefreshSeconds < 15 ? AppSettings.DefaultTomTomTrafficRefreshSeconds : userPreference.TomTomTrafficRefreshSeconds;
         _tomTomRouteRecalcDebounceMs = userPreference.TomTomRouteRecalcDebounceMs is < 100 or > 10000
             ? AppSettings.DefaultTomTomRouteRecalcDebounceMs
@@ -659,8 +681,8 @@ public sealed partial class KarteSectionViewModel
         if (settings.MapOverlayPreferencesByUser.TryGetValue(currentUserName, out var overlayPreference) && overlayPreference is not null)
         {
             _tomTomMapOverlayStyle = NormalizeMapOverlayStyle(overlayPreference.Style);
-            _tomTomShowTrafficFlow = overlayPreference.ShowTrafficFlow;
-            _tomTomShowTrafficIncidents = overlayPreference.ShowTrafficIncidents;
+            _tomTomShowTrafficFlow = overlayPreference.TrafficRasterOptInConfirmed && overlayPreference.ShowTrafficFlow;
+            _tomTomShowTrafficIncidents = overlayPreference.TrafficRasterOptInConfirmed && overlayPreference.ShowTrafficIncidents;
             _tomTomShowRoadLabels = overlayPreference.ShowRoadLabels;
             _tomTomShowPoi = overlayPreference.ShowPoi;
             _tomTomUseVehicleDimensions = overlayPreference.UseVehicleDimensions;
@@ -671,7 +693,7 @@ public sealed partial class KarteSectionViewModel
         else
         {
             _tomTomMapOverlayStyle = AppSettings.DefaultMapOverlayStyle;
-            _tomTomShowTrafficFlow = true;
+            _tomTomShowTrafficFlow = false;
             _tomTomShowTrafficIncidents = false;
             _tomTomShowRoadLabels = true;
             _tomTomShowPoi = true;
@@ -2608,8 +2630,11 @@ public sealed partial class KarteSectionViewModel
         }
 
         var editingWasActive = IsEditingTour(selectedTourId);
+        var dialogConfirmed = false;
         try
         {
+            if (!editingWasActive && !await EnsureLoadedTourEditingAsync(tour)) return;
+            tour = _savedTours.FirstOrDefault(x => x.Id == selectedTourId) ?? tour;
             var (editHour, editMinute) = ParseStartTimePartsOrDefault(tour.StartTime);
             var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date, tour.StartTime);
 
@@ -2642,11 +2667,7 @@ public sealed partial class KarteSectionViewModel
                 return;
             }
 
-            if (!editingWasActive && !await EnsureLoadedTourEditingAsync(tour))
-            {
-                return;
-            }
-
+            dialogConfirmed = true;
             var result = dialog.Result;
             await UpdateExistingTourAsync(
                 selectedTourId,
@@ -2663,7 +2684,7 @@ public sealed partial class KarteSectionViewModel
         }
         finally
         {
-            if (!editingWasActive && _activeTourId != selectedTourId)
+            if (!editingWasActive && (!dialogConfirmed || _activeTourId != selectedTourId))
             {
                 ReleaseLoadedTourLeases();
                 await RefreshDeferredRemoteChangesAsync();
@@ -2906,6 +2927,7 @@ public sealed partial class KarteSectionViewModel
             }
 
             var existingTour = tours[index];
+            EnsureTourEditVersionIsCurrent(existingTour);
             if (!hasDraftRouteStops && !isOverviewEdit)
             {
                 Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
@@ -3021,6 +3043,7 @@ public sealed partial class KarteSectionViewModel
 
             await SaveChangedToursAndOrdersAsync(originalTours, tours, originalOrders, _allOrders);
             wasCommitted = true;
+            if (_loadedTourLeaseId == tourId) _loadedTourEditConcurrencyToken = updated.ConcurrencyToken;
             var successMessage = TourNotificationMessageFormatter.FormatTourUpdatedMessage(updated);
             StatusText = successMessage;
             ToastNotificationService.ShowInfo(successMessage);
@@ -3363,13 +3386,19 @@ public sealed partial class KarteSectionViewModel
         UpdateRouteSummary();
     }
 
-    private async Task<bool> EnsureLoadedTourOrderLeasesAsync(IEnumerable<string> orderIds)
+    private async Task<bool> EnsureLoadedTourOrderLeasesAsync(IEnumerable<string> orderIds, CollaborationResourceLease? expectedTourLease = null)
     {
         var acquiredNow = new List<string>();
         foreach (var orderId in (orderIds ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
         {
+            if (expectedTourLease is not null && !ReferenceEquals(_loadedTourLease, expectedTourLease)) return false;
             if (_loadedTourOrderLeases.ContainsKey(orderId)) continue;
             var attempt = await CollaborationSessionService.TryAcquireResourceAsync("order", orderId);
+            if (expectedTourLease is not null && !ReferenceEquals(_loadedTourLease, expectedTourLease))
+            {
+                attempt.Lease?.Dispose();
+                return false;
+            }
             if (attempt.Lease is null)
             {
                 foreach (var acquiredId in acquiredNow)
@@ -3390,6 +3419,7 @@ public sealed partial class KarteSectionViewModel
         if (acquiredNow.Count > 0)
         {
             var currentOrders = DeduplicateOrders(await _orderRepository.GetAllAsync());
+            if (expectedTourLease is not null && !ReferenceEquals(_loadedTourLease, expectedTourLease)) return false;
             _allOrders.Clear();
             _allOrders.AddRange(currentOrders);
         }
@@ -3403,11 +3433,31 @@ public sealed partial class KarteSectionViewModel
         _loadedTourLease?.Dispose();
         _loadedTourLease = null;
         _loadedTourLeaseId = 0;
+        _loadedTourEditConcurrencyToken = null;
         _isLoadedTourEditing = false;
         NotifyLoadedTourAccessChanged();
     }
 
     private async Task<bool> EnsureLoadedTourEditingAsync(TourRecord tour)
+    {
+        var requestedLoadedTourId = LoadedTourId;
+        await _tourAccessSyncGate.WaitAsync();
+        try
+        {
+            if (LoadedTourId != requestedLoadedTourId) return false;
+            return await AcquireLoadedTourEditingAsync(tour, requestedLoadedTourId);
+        }
+        finally { _tourAccessSyncGate.Release(); }
+    }
+
+    internal void EnsureTourEditVersionIsCurrent(TourRecord current)
+    {
+        if (_isLoadedTourEditing && _loadedTourLeaseId == current.Id &&
+            !string.Equals(_loadedTourEditConcurrencyToken, current.ConcurrencyToken, StringComparison.Ordinal))
+            throw new ConcurrencyConflictException("Tour", current.Id.ToString(CultureInfo.InvariantCulture));
+    }
+
+    private async Task<bool> AcquireLoadedTourEditingAsync(TourRecord tour, int requestedLoadedTourId)
     {
         if (_isLoadedTourEditing && _loadedTourLeaseId == tour.Id && _loadedTourLease is not null)
         {
@@ -3416,6 +3466,7 @@ public sealed partial class KarteSectionViewModel
 
         ReleaseLoadedTourLeases();
         await RefreshDeferredRemoteChangesAsync();
+        if (LoadedTourId != requestedLoadedTourId) return false;
         tour = _savedTours.FirstOrDefault(x => x.Id == tour.Id) ?? tour;
         var lockAttempt = await CollaborationSessionService.TryAcquireResourceAsync(
             "tour",
@@ -3432,19 +3483,63 @@ public sealed partial class KarteSectionViewModel
             return false;
         }
 
-        _loadedTourLease = lockAttempt.Lease;
-        _loadedTourLeaseId = tour.Id;
-        if (!await EnsureLoadedTourOrderLeasesAsync(ExtractNonCompanyTourOrderIds(tour)))
+        if (LoadedTourId != requestedLoadedTourId)
         {
-            ReleaseLoadedTourLeases();
-            StatusText = "Nur Ansicht: Mindestens ein Auftrag der Tour ist gesperrt.";
+            lockAttempt.Lease.Dispose();
             return false;
         }
-
-        _isLoadedTourEditing = true;
-        NotifyLoadedTourAccessChanged();
-        StatusText = "Bearbeitungsmodus aktiviert.";
-        return true;
+        _loadedTourLease = lockAttempt.Lease;
+        _loadedTourLeaseId = tour.Id;
+        var acquiredLease = lockAttempt.Lease;
+        try
+        {
+            // Lock first, then replace the preview with a fresh database snapshot.
+            var current = _tourMutationStore is not null
+                ? await _tourMutationStore.GetByIdAsync(tour.Id)
+                : (await _tourRepository.LoadAsync()).FirstOrDefault(x => x.Id == tour.Id);
+            if (!ReferenceEquals(_loadedTourLease, acquiredLease)) return false;
+            if (LoadedTourId != requestedLoadedTourId) { ReleaseLoadedTourLeases(); return false; }
+            if (current is null || current.IsArchived)
+            {
+                ReleaseLoadedTourLeases();
+                StatusText = "Die Tour ist nicht mehr zur Bearbeitung verfügbar. Bitte die Ansicht aktualisieren.";
+                return false;
+            }
+            if (!await EnsureLoadedTourOrderLeasesAsync(ExtractNonCompanyTourOrderIds(current), acquiredLease))
+            {
+                if (ReferenceEquals(_loadedTourLease, acquiredLease))
+                {
+                    ReleaseLoadedTourLeases();
+                    StatusText = "Nur Ansicht: Mindestens ein Auftrag der Tour ist gesperrt.";
+                }
+                return false;
+            }
+            var currentOrders = DeduplicateOrders(await _orderRepository.GetAllAsync());
+            if (!ReferenceEquals(_loadedTourLease, acquiredLease)) return false;
+            if (LoadedTourId != requestedLoadedTourId) { ReleaseLoadedTourLeases(); return false; }
+            _allOrders.Clear();
+            _allOrders.AddRange(currentOrders);
+            var index = _savedTours.FindIndex(x => x.Id == current.Id);
+            if (index >= 0) _savedTours[index] = current;
+            else _savedTours.Add(current);
+            RebuildOrderGrid(SelectedOrder?.OrderId);
+            if (LoadedTourId == current.Id) await LoadTourIntoRouteAsync(current.Id);
+            if (!ReferenceEquals(_loadedTourLease, acquiredLease)) return false;
+            _loadedTourEditConcurrencyToken = current.ConcurrencyToken;
+            _isLoadedTourEditing = true;
+            NotifyLoadedTourAccessChanged();
+            StatusText = "Bearbeitungsmodus mit aktuellem Datenstand aktiviert.";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (ReferenceEquals(_loadedTourLease, acquiredLease))
+            {
+                ReleaseLoadedTourLeases();
+                StatusText = $"Bearbeitung konnte nicht gestartet werden: {ex.Message}";
+            }
+            return false;
+        }
     }
 
     private bool CanModifyCurrentRoute() => ResolveCurrentTourId() <= 0 || IsLoadedTourEditing;
@@ -6995,6 +7090,13 @@ public sealed partial class KarteSectionViewModel
 
     private async Task RefreshAfterRemoteChangeAsync(AppDataChangedEventArgs args)
     {
+        await _tourAccessSyncGate.WaitAsync();
+        try { await RefreshAfterRemoteChangeCoreAsync(args); }
+        finally { _tourAccessSyncGate.Release(); }
+    }
+
+    private async Task RefreshAfterRemoteChangeCoreAsync(AppDataChangedEventArgs args)
+    {
         if (IsLoadedTourEditing)
         {
             // Do not replace the backing records/concurrency tokens while local route edits
@@ -7677,6 +7779,7 @@ public sealed partial class KarteSectionViewModel
         {
             Style = normalizedStyle,
             ShowTrafficFlow = showTrafficFlow,
+            TrafficRasterOptInConfirmed = true,
             ShowTrafficIncidents = showTrafficIncidents,
             ShowRoadLabels = showRoadLabels,
             ShowPoi = showPoi,

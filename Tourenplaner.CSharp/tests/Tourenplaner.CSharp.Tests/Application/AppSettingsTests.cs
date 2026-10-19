@@ -7,6 +7,21 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class AppSettingsTests
 {
     [Fact]
+    public void TrafficRaster_DefaultsOffAndRequiresOptInForLegacyPreferences()
+    {
+        var defaults = new MapOverlayUserPreference();
+        Assert.False(defaults.ShowTrafficFlow);
+        Assert.False(defaults.ShowTrafficIncidents);
+        var legacy = JsonSerializer.Deserialize<MapOverlayUserPreference>("{\"ShowTrafficFlow\":true,\"ShowTrafficIncidents\":true}")!;
+        Assert.False(legacy.TrafficRasterOptInConfirmed);
+        var confirmed = new MapOverlayUserPreference { ShowTrafficFlow = true, TrafficRasterOptInConfirmed = true };
+        var restored = JsonSerializer.Deserialize<MapOverlayUserPreference>(JsonSerializer.Serialize(confirmed))!;
+        Assert.True(restored.TrafficRasterOptInConfirmed);
+        Assert.True(restored.ShowTrafficFlow);
+        Assert.True(restored.UseDepartAtTraffic);
+    }
+
+    [Fact]
     public void PostgreSqlHistoryRetention_DefaultsToSixtyDays()
     {
         Assert.Equal(60, new PostgreSqlStorageSettings().ChangeHistoryRetentionDays);

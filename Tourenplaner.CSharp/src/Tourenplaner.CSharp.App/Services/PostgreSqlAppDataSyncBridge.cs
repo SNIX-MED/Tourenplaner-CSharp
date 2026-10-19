@@ -8,6 +8,10 @@ namespace Tourenplaner.CSharp.App.Services;
 public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposable, IAsyncDisposable
 {
     private const string ChannelName = "tourenplaner_app_data_sync";
+    private static readonly JsonSerializerOptions NotificationJsonOptions = new()
+    {
+        Converters = { new NotificationGuidConverter() }
+    };
 
     private readonly PostgreSqlStorageSettings _settings;
     private readonly PostgreSqlConnectionFactory _connectionFactory;
@@ -139,25 +143,35 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
 
     private void OnNotification(object sender, NpgsqlNotificationEventArgs args)
     {
-        if (string.IsNullOrWhiteSpace(args.Payload))
+        var change = DecodeNotification(args.Payload);
+        if (change is not null) RemoteDataChanged?.Invoke(this, change);
+    }
+
+    internal static AppDataChangedEventArgs? DecodeNotification(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
         {
-            return;
+            var payload = JsonSerializer.Deserialize<AppDataSyncPayload>(json, NotificationJsonOptions);
+            return payload is null ? null : new(payload.SourceId, payload.Kinds, payload.PreviousId, payload.CurrentId, payload.ClientInstanceId);
+        }
+        catch (JsonException)
+        {
+            // An incompatible notification must neither break LISTEN nor silently lose a change.
+            return new(Guid.Empty, AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Vehicles |
+                AppDataKind.Employees | AppDataKind.Settings | AppDataKind.CalendarEntries, ClientInstanceId: Guid.Empty);
+        }
+    }
+
+    private sealed class NotificationGuidConverter : System.Text.Json.Serialization.JsonConverter<Guid>
+    {
+        public override Guid Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.String && Guid.TryParse(reader.GetString(), out var id)) return id;
+            throw new JsonException("Ungültige Arbeitsplatz-ID in Synchronisationsmeldung.");
         }
 
-        var payload = JsonSerializer.Deserialize<AppDataSyncPayload>(args.Payload);
-        if (payload is null)
-        {
-            return;
-        }
-
-        RemoteDataChanged?.Invoke(
-            this,
-            new AppDataChangedEventArgs(
-                payload.SourceId,
-                payload.Kinds,
-                payload.PreviousId,
-                payload.CurrentId,
-                payload.ClientInstanceId));
+        public override void Write(Utf8JsonWriter writer, Guid value, JsonSerializerOptions options) => writer.WriteStringValue(value);
     }
 
     private void RaiseStatus(bool isConnected, string statusText, string? errorMessage)

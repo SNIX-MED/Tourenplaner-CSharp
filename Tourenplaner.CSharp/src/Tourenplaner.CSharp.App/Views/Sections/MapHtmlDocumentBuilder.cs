@@ -360,10 +360,22 @@ internal static class MapHtmlDocumentBuilder
                    if (fleetTrackClearEl) fleetTrackClearEl.addEventListener('click', () => { window.chrome.webview.postMessage('webfleetTrack:clear'); });
 
                    const statusEl = document.getElementById('status');
-                   const setStatus = (t, isError = false) => {
+                   let generalStatusText = '';
+                   let generalStatusIsError = false;
+                   let trafficStatusText = '';
+                   const renderMapStatus = () => {
                      if (!statusEl) return;
-                     statusEl.textContent = t;
-                     statusEl.classList.toggle('visible', !!isError);
+                     statusEl.textContent = generalStatusIsError ? generalStatusText : (trafficStatusText || generalStatusText);
+                     statusEl.classList.toggle('visible', generalStatusIsError || !!trafficStatusText);
+                   };
+                   const setStatus = (t, isError = false) => {
+                     generalStatusText = t;
+                     generalStatusIsError = !!isError;
+                     renderMapStatus();
+                   };
+                   const setTrafficStatus = text => {
+                     trafficStatusText = text;
+                     renderMapStatus();
                    };
                    const postDiag = (ok, reason) => {
                      if (window.chrome && window.chrome.webview) {
@@ -1725,31 +1737,46 @@ internal static class MapHtmlDocumentBuilder
                            map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none');
                          };
 
+                         const blockedTrafficLayers = new Set();
+                         const trafficErrorMessages = new Map();
+                         const retryTrafficLayer = kind => {
+                           blockedTrafficLayers.delete(kind);
+                           trafficErrorMessages.delete(kind);
+                           setTrafficStatus([...trafficErrorMessages.values()].join(' | '));
+                         };
+                         const removeTrafficLayer = kind => {
+                           const id = `gawela-traffic-${kind}`;
+                           if (map.getLayer(id + '-layer')) map.removeLayer(id + '-layer');
+                           if (map.getSource(id + '-source')) map.removeSource(id + '-source');
+                         };
                          const ensureTrafficLayers = () => {
-                           if (!map.getSource('gawela-traffic-flow-source')) {
+                           if (!mapState.trafficFlow || blockedTrafficLayers.has('flow')) removeTrafficLayer('flow');
+                           if (!mapState.trafficIncidents || blockedTrafficLayers.has('incidents')) removeTrafficLayer('incidents');
+                           if (mapState.trafficFlow && !blockedTrafficLayers.has('flow') && !map.getSource('gawela-traffic-flow-source')) {
                              map.addSource('gawela-traffic-flow-source', {
                                type: 'raster',
-                               tiles: [`https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?tileSize=256&style=main&key=${encodeURIComponent(apiKey)}${cacheSuffix}`],
+                               tiles: [`https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?tileSize=${preferredTileSize}&style=main&key=${encodeURIComponent(apiKey)}`],
                                tileSize: preferredTileSize
                              });
                            }
-                           if (!map.getLayer('gawela-traffic-flow-layer')) {
+                           if (mapState.trafficFlow && !blockedTrafficLayers.has('flow') && !map.getLayer('gawela-traffic-flow-layer')) {
                              map.addLayer({
                                id: 'gawela-traffic-flow-layer',
                                type: 'raster',
                                source: 'gawela-traffic-flow-source',
+                               layout: { visibility: 'visible' },
                                paint: { 'raster-opacity': 0.65 }
                              });
                            }
 
-                           if (!map.getSource('gawela-traffic-incidents-source')) {
+                           if (mapState.trafficIncidents && !blockedTrafficLayers.has('incidents') && !map.getSource('gawela-traffic-incidents-source')) {
                              map.addSource('gawela-traffic-incidents-source', {
                                type: 'raster',
-                               tiles: [`https://api.tomtom.com/traffic/map/4/tile/incidents/s1/{z}/{x}/{y}.png?tileSize=${preferredTileSize}&key=${encodeURIComponent(apiKey)}${cacheSuffix}`],
+                               tiles: [`https://api.tomtom.com/traffic/map/4/tile/incidents/s1/{z}/{x}/{y}.png?tileSize=${preferredTileSize}&key=${encodeURIComponent(apiKey)}`],
                                tileSize: preferredTileSize
                              });
                            }
-                           if (!map.getLayer('gawela-traffic-incidents-layer')) {
+                           if (mapState.trafficIncidents && !blockedTrafficLayers.has('incidents') && !map.getLayer('gawela-traffic-incidents-layer')) {
                              map.addLayer({
                                id: 'gawela-traffic-incidents-layer',
                                type: 'raster',
@@ -2204,12 +2231,14 @@ internal static class MapHtmlDocumentBuilder
                            };
 
                            trafficFlowToggle.addEventListener('change', () => {
+                             retryTrafficLayer('flow');
                              mapState.trafficFlow = !!trafficFlowToggle.checked;
                              applyTrafficLayers();
                              postMapOptions();
                            });
 
                            trafficIncidentsToggle.addEventListener('change', () => {
+                             retryTrafficLayer('incidents');
                              mapState.trafficIncidents = !!trafficIncidentsToggle.checked;
                              applyTrafficLayers();
                              postMapOptions();
@@ -2317,8 +2346,60 @@ internal static class MapHtmlDocumentBuilder
                            setHoveredOverlapGroupKey('');
                          });
 
+                         const describeMapError = (e) => {
+                           const redact = value => String(value).replace(/([?&](?:key|apiKey|token|access_token)=)[^&#\s]*/gi, '$1[entfernt]');
+                           const error = e && e.error;
+                           const parts = [];
+                           const add = (label, value) => {
+                             if (value !== undefined && value !== null && String(value).trim()) parts.push(label + redact(value));
+                           };
+                           add('', typeof error === 'string' ? error : error && error.message);
+                           if (!parts.length) add('', e && e.message);
+                           add('Typ: ', error && error.name);
+                           add('HTTP: ', (error && (error.status || error.statusCode)) || (e && e.status));
+                           add('Quelle: ', e && e.sourceId);
+                           add('URL: ', (error && error.url) || (e && e.url));
+                           if (!parts.length) parts.push('Kartenmodul meldet einen Fehler ohne Beschreibung');
+                           return parts.join(' | ');
+                         };
+                         const recentMapErrorLogs = new Map();
                          map.on('error', (e) => {
-                           const reason = e && e.error && e.error.message ? e.error.message : 'Unbekannter Kartenfehler';
+                           const reason = describeMapError(e);
+                           // Keep a serializable snapshot: SDK errors may contain circular references.
+                           const diagnostic = { time: new Date().toISOString(), reason,
+                             stack: e && e.error && e.error.stack ? describeMapError({ error: String(e.error.stack) }) : '' };
+                           window.__gawelaLastMapError = diagnostic;
+                           const now = Date.now();
+                           for (const [key, time] of recentMapErrorLogs) {
+                             if (now - time >= 30000) recentMapErrorLogs.delete(key);
+                           }
+                           if (!recentMapErrorLogs.has(reason)) {
+                             if (recentMapErrorLogs.size >= 100) recentMapErrorLogs.delete(recentMapErrorLogs.keys().next().value);
+                             recentMapErrorLogs.set(reason, now);
+                             console.error('TomTom Kartenereignis', diagnostic);
+                             if (window.chrome && window.chrome.webview) {
+                               window.chrome.webview.postMessage('maperrorlog:' + JSON.stringify(diagnostic));
+                             }
+                           }
+                           const status = Number((e && e.error && (e.error.status || e.error.statusCode)) || (e && e.status));
+                           const url = String((e && e.error && e.error.url) || (e && e.url) || '');
+                           const kind = ['flow', 'incidents'].find(k =>
+                             (e && e.sourceId === `gawela-traffic-${k}-source`) || url.includes(`/tile/${k}/`));
+                           if (kind && [401, 403, 429].includes(status)) {
+                             if (blockedTrafficLayers.has(kind)) return;
+                             blockedTrafficLayers.add(kind);
+                             // Remove outside the SDK's error dispatch; styledata can fire during removal.
+                             setTimeout(() => { if (blockedTrafficLayers.has(kind)) removeTrafficLayer(kind); }, 0);
+                             const label = kind === 'flow' ? 'Verkehrsfluss' : 'Verkehrsstörungen';
+                             trafficErrorMessages.set(kind, `${label} pausiert (HTTP ${status}): Zugriff oder Kontingent prüfen. In Kartenoptionen aus- und einschalten zum Wiederholen.`);
+                             setTrafficStatus([...trafficErrorMessages.values()].join(' | '));
+                             return;
+                           }
+                           if (kind) {
+                             trafficErrorMessages.set(kind, `${kind === 'flow' ? 'Verkehrsfluss' : 'Verkehrsstörungen'} nicht vollständig verfügbar: ${reason}`);
+                             setTrafficStatus([...trafficErrorMessages.values()].join(' | '));
+                             return;
+                           }
                            setStatus(`Kartenfehler: ${reason}`, true);
                            postDiag(false, `Kartenfehler: ${reason}`);
                          });

@@ -832,7 +832,7 @@ public partial class KarteSectionView : UserControl
             var vm = DataContext as KarteSectionViewModel;
             var html = MapHtmlDocumentBuilder.Build(
                 vm?.TomTomApiKey,
-                vm?.TomTomShowTrafficFlow ?? true,
+                vm?.TomTomShowTrafficFlow ?? false,
                 vm?.TomTomEnableTileCache ?? true,
                 vm?.TomTomMapOverlayStyle ?? AppSettings.DefaultMapOverlayStyle,
                 vm?.TomTomShowTrafficIncidents ?? false,
@@ -1304,6 +1304,24 @@ public partial class KarteSectionView : UserControl
         {
             var addId = raw["add:".Length..];
             vm.AddOrderToRouteById(addId);
+            return;
+        }
+
+        if (raw.StartsWith("maperrorlog:", StringComparison.Ordinal))
+        {
+            try
+            {
+                var logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Tourenplaner", "Logs");
+                Directory.CreateDirectory(logDirectory);
+                var logPath = Path.Combine(logDirectory, $"map-errors-{DateTime.Now:yyyy-MM-dd}.jsonl");
+                // Bound diagnostic disk usage during tile-error storms; keep the first failures of the day.
+                if (raw.Length <= 32 * 1024 && (!File.Exists(logPath) || new FileInfo(logPath).Length < 1024 * 1024))
+                    File.AppendAllText(logPath, raw["maperrorlog:".Length..] + Environment.NewLine);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Kartenfehler konnte nicht protokolliert werden: {ex.Message}");
+            }
             return;
         }
 

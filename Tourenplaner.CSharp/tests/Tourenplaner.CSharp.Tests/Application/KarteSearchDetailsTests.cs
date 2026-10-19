@@ -7,8 +7,183 @@ using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.Tests.Application;
 
+[Collection("Karte collaboration")]
 public sealed class KarteSearchDetailsTests
 {
+    [Fact]
+    public async Task EditingReloadsPreviewEvenWithoutAnySyncNotification()
+    {
+        var store = new ChangingPreviewTourStore();
+        var order = CreateOrder();
+        order.AssignedTourId = "42";
+        var vm = CreateViewModel(new FixedOrderStore(order), store);
+        await vm.RefreshAsync();
+        await vm.FocusTourAsync(42);
+        Assert.Equal("Alter Stand", vm.RouteName);
+        store.Current = ChangingPreviewTourStore.Create("Neuer Stand", "v2", "09:15");
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        try
+        {
+            await (Task)typeof(KarteSectionViewModel).GetMethod("StartSelectedTourEditingAsync", flags)!.Invoke(vm, null)!;
+            Assert.True(vm.IsLoadedTourEditing);
+            Assert.Equal("Neuer Stand", vm.RouteName);
+            Assert.Equal("09", vm.RouteStartHour);
+            Assert.Equal("15", vm.RouteStartMinute);
+            Assert.Equal("v2", GetPrivateField<string>(vm, "_loadedTourEditConcurrencyToken"));
+            vm.EnsureTourEditVersionIsCurrent(store.Current);
+            Assert.Throws<Tourenplaner.CSharp.Application.Common.ConcurrencyConflictException>(() =>
+                vm.EnsureTourEditVersionIsCurrent(ChangingPreviewTourStore.Create("Später geändert", "v3", "10:00")));
+        }
+        finally { typeof(KarteSectionViewModel).GetMethod("ReleaseLoadedTourLeases", flags)!.Invoke(vm, null); }
+    }
+
+    [Fact]
+    public async Task SavingStaleDraftDoesNotOverwriteNewerServerTour()
+    {
+        var store = new ChangingPreviewTourStore();
+        var order = CreateOrder(); order.AssignedTourId = "42";
+        var vm = CreateViewModel(new FixedOrderStore(order), store);
+        await vm.RefreshAsync();
+        await vm.FocusTourAsync(42);
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        try
+        {
+            await (Task)typeof(KarteSectionViewModel).GetMethod("StartSelectedTourEditingAsync", flags)!.Invoke(vm, null)!;
+            store.Current = ChangingPreviewTourStore.Create("Neuer Serverstand", "v2", "10:00");
+            var savedBefore = store.SaveCount;
+            await (Task)typeof(KarteSectionViewModel).GetMethod("UpdateExistingTourAsync", flags)!.Invoke(vm,
+                [42, "Veralteter lokaler Entwurf", DateTime.Today.ToString("dd.MM.yyyy"), "08:00", null, null, null, null,
+                    new List<string>(), new List<TourAdditionalMaterial>(), true])!;
+            // Refresh may persist reconciliation; none of those writes may contain the stale draft.
+            Assert.All(store.SavedNames.Skip(savedBefore), name => Assert.Equal("Neuer Serverstand", name));
+            Assert.Equal("Neuer Serverstand", store.Current.Name);
+            Assert.Equal("v1", GetPrivateField<string>(vm, "_loadedTourEditConcurrencyToken"));
+        }
+        finally { typeof(KarteSectionViewModel).GetMethod("ReleaseLoadedTourLeases", flags)!.Invoke(vm, null); }
+    }
+
+    [Fact]
+    public async Task SwitchingTourWhileStartingEditingDoesNotKeepOldTourLocked()
+    {
+        var store = new ChangingPreviewTourStore();
+        var order = CreateOrder(); order.AssignedTourId = "42";
+        var vm = CreateViewModel(new FixedOrderStore(order), store);
+        await vm.RefreshAsync();
+        await vm.FocusTourAsync(42);
+        store.DeferredLoad = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var start = (Task)typeof(KarteSectionViewModel).GetMethod("StartSelectedTourEditingAsync", flags)!.Invoke(vm, null)!;
+        SetPrivateField(vm, "_activeTourId", 99);
+        store.DeferredLoad.SetResult([store.Current]);
+        await start;
+        Assert.False(vm.IsLoadedTourEditing);
+        Assert.Equal(0, GetPrivateField<int>(vm, "_loadedTourLeaseId"));
+        Assert.Equal(99, vm.LoadedTourId);
+    }
+
+    [Fact]
+    public async Task RemoteChangeReloadsPreviewButDefersDuringEditing()
+    {
+        var store = new ChangingPreviewTourStore();
+        var order = CreateOrder();
+        order.AssignedTourId = "42";
+        var vm = CreateViewModel(new FixedOrderStore(order), store);
+        await vm.RefreshAsync();
+        await vm.FocusTourAsync(42);
+        store.Current = ChangingPreviewTourStore.Create("Neuer Stand", "v2", "09:15");
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var refresh = typeof(KarteSectionViewModel).GetMethod("RefreshAfterRemoteChangeAsync", flags)!;
+        var change = new AppDataChangedEventArgs(Guid.NewGuid(), AppDataKind.Tours);
+        await (Task)refresh.Invoke(vm, [change])!;
+        Assert.Equal("Neuer Stand", vm.RouteName);
+        try
+        {
+            await (Task)typeof(KarteSectionViewModel).GetMethod("StartSelectedTourEditingAsync", flags)!.Invoke(vm, null)!;
+            store.Current = ChangingPreviewTourStore.Create("Während Bearbeitung geändert", "v3", "10:00");
+            await (Task)refresh.Invoke(vm, [change])!;
+            Assert.Equal("Neuer Stand", vm.RouteName);
+            Assert.Equal("v2", GetPrivateField<string>(vm, "_loadedTourEditConcurrencyToken"));
+            Assert.Contains("Externe Änderungen", vm.StatusText);
+        }
+        finally { typeof(KarteSectionViewModel).GetMethod("ReleaseLoadedTourLeases", flags)!.Invoke(vm, null); }
+    }
+
+    private sealed class ChangingPreviewTourStore : ITourRecordStore
+    {
+        public TourRecord Current { get; set; } = Create("Alter Stand", "v1", "08:00");
+        public TaskCompletionSource<IReadOnlyList<TourRecord>>? DeferredLoad { get; set; }
+        public int SaveCount { get; private set; }
+        public List<string> SavedNames { get; } = new();
+        public static TourRecord Create(string name, string token, string startTime) => new()
+        {
+            Id = 42, Name = name, Date = DateTime.Today.ToString("dd.MM.yyyy"), StartTime = startTime,
+            ConcurrencyToken = token, Stops = [new() { Id = "222016", Auftragsnummer = "222016", Order = 1 }]
+        };
+        public Task<IReadOnlyList<TourRecord>> LoadAsync(CancellationToken cancellationToken = default) => DeferredLoad?.Task ?? Task.FromResult<IReadOnlyList<TourRecord>>([Current]);
+        public Task SaveAsync(IEnumerable<TourRecord> tours, CancellationToken cancellationToken = default) { SaveCount++; Current = tours.Single(); SavedNames.Add(Current.Name); return Task.CompletedTask; }
+    }
+
+    private static T GetPrivateField<T>(KarteSectionViewModel vm, string name) =>
+        (T)typeof(KarteSectionViewModel).GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(vm)!;
+
+    [Fact]
+    public async Task FailedTrackReloadRetainsDisplayedVehicleAndTrack()
+    {
+        var settings = new DeferredWebfleetSettingsStore();
+        var vm = CreateViewModel(settingsRepository: settings);
+        var vehicles = GetPrivateField<List<WebfleetVehicleSnapshot>>(vm, "_webfleetVehicles");
+        vehicles.Add(new("1", "new-truck", "Neu", "", 47, 8, DateTimeOffset.Now, "", "", ""));
+        var session = GetPrivateField<WebfleetLiveTrackSession>(vm, "_webfleetLiveTrack");
+        var now = DateTimeOffset.Now;
+        session.Begin("old-truck", DateOnly.FromDateTime(now.LocalDateTime), now);
+        session.Points.Add(new(now.AddMinutes(-2), 47, 8, null, null));
+        var load = vm.LoadWebfleetTrackAsync("new-truck", DateOnly.FromDateTime(now.LocalDateTime));
+        Assert.Equal("old-truck", session.ObjectUid);
+        Assert.Single(vm.GetWebfleetTrackSnapshot());
+        settings.Completion.SetException(new IOException("Test offline"));
+        await load;
+        Assert.Equal("old-truck", session.ObjectUid);
+        Assert.Single(vm.GetWebfleetTrackSnapshot());
+        Assert.Contains("Test offline", vm.WebfleetTrackStatusText);
+    }
+
+    [Fact]
+    public async Task LateLoadFailureDoesNotOverwriteClearedTrackStatus()
+    {
+        var settings = new DeferredWebfleetSettingsStore();
+        var vm = CreateViewModel(settingsRepository: settings);
+        GetPrivateField<List<WebfleetVehicleSnapshot>>(vm, "_webfleetVehicles")
+            .Add(new("1", "truck", "Truck", "", 47, 8, DateTimeOffset.Now, "", "", ""));
+        var load = vm.LoadWebfleetTrackAsync("truck", DateOnly.FromDateTime(DateTime.Today));
+        vm.ClearWebfleetTrack();
+        settings.Completion.SetException(new IOException("Veralteter Fehler"));
+        await load;
+        Assert.Empty(vm.GetWebfleetTrackSnapshot());
+        Assert.Equal(string.Empty, vm.WebfleetTrackStatusText);
+        Assert.Contains("ausgeblendet", vm.StatusText);
+    }
+
+    [Fact]
+    public void TrackStatusRefreshPreservesPauseWarning()
+    {
+        var vm = CreateViewModel();
+        var session = GetPrivateField<WebfleetLiveTrackSession>(vm, "_webfleetLiveTrack");
+        var now = DateTimeOffset.Now;
+        session.Begin("truck", DateOnly.FromDateTime(now.LocalDateTime), now);
+        session.Points.AddRange([new(now.AddMinutes(-2), 47, 8, null, null), new(now.AddMinutes(-1), 47.1, 8.1, null, null)]);
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        typeof(KarteSectionViewModel).GetField("_webfleetTrackWarning", flags)!.SetValue(vm, "Pausen konnten nicht geladen werden.");
+        typeof(KarteSectionViewModel).GetMethod("PublishWebfleetTrackStatus", flags)!.Invoke(vm, null);
+        Assert.Contains("Pausen konnten nicht geladen werden.", vm.WebfleetTrackStatusText);
+    }
+
+    private sealed class DeferredWebfleetSettingsStore : IAppSettingsStore
+    {
+        public TaskCompletionSource<AppSettings> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default) => Completion.Task;
+        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
     [Fact]
     public async Task SingleDeliveryPinDoesNotClaimToBePartialDelivery()
     {
@@ -388,12 +563,13 @@ public sealed class KarteSearchDetailsTests
 
     private static KarteSectionViewModel CreateViewModel(
         IOrderRepository? orderRepository = null,
-        ITourRecordStore? tourRepository = null) => new(
+        ITourRecordStore? tourRepository = null,
+        IAppSettingsStore? settingsRepository = null) => new(
         orderRepository ?? new OrderStore(),
         tourRepository ?? new EmptyTourStore(),
         new EmptyEmployeeStore(),
         new EmptyVehicleStore(),
-        new SettingsStore(),
+        settingsRepository ?? new SettingsStore(),
         Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N")),
         new AppDataSyncService());
 
@@ -549,3 +725,6 @@ public sealed class KarteSearchDetailsTests
             Task.CompletedTask;
     }
 }
+
+[CollectionDefinition("Karte collaboration", DisableParallelization = true)]
+public sealed class KarteCollaborationCollection { }

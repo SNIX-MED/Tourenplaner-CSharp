@@ -111,7 +111,9 @@ public sealed partial class KarteSectionViewModel
         {
             StopWebfleetVehicleAutoRefresh();
             _webfleetVehicles.Clear();
-            _webfleetTrackPoints.Clear();
+            _webfleetTrackLoadRevision++;
+            _webfleetLiveTrack.Clear();
+            _webfleetTrackWarning = null;
             _webfleetPauseMarkers.Clear();
             _areWebfleetVehiclesVisible = false;
             _webfleetVehicleRevision++;
@@ -184,6 +186,7 @@ public sealed partial class KarteSectionViewModel
             return;
         }
         var vehicles = await new WebfleetConnectService().GetVehiclesAsync(webfleet, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         _webfleetVehicles.Clear();
         _webfleetVehicles.AddRange(vehicles.Where(x => x.Latitude.HasValue && x.Longitude.HasValue));
         _areWebfleetVehiclesVisible = true;
@@ -193,6 +196,46 @@ public sealed partial class KarteSectionViewModel
         OnPropertyChanged(nameof(WebfleetVehiclesButtonToolTip));
         OnPropertyChanged(nameof(WebfleetVehiclesButtonImagePath));
         StatusText = $"WEBFLEET: {_webfleetVehicles.Count} Fahrzeugposition(en) aktualisiert.";
+        var trackedVehicle = _webfleetVehicles.FirstOrDefault(x => string.Equals(x.ObjectUid, _webfleetLiveTrack.ObjectUid, StringComparison.OrdinalIgnoreCase));
+        if (trackedVehicle is not null && _webfleetLiveTrack.Append(trackedVehicle, DateTimeOffset.Now))
+        {
+            _webfleetTrackRevision++;
+            OnPropertyChanged(nameof(WebfleetTrackRevision));
+            PublishWebfleetTrackStatus();
+        }
+        if (!_webfleetTrackHistoryRefreshRunning && _webfleetLiveTrack.TryBeginHistoryRefresh(DateTimeOffset.Now))
+        {
+            RefreshLiveWebfleetTrackHistoryAsync(webfleet, cancellationToken).Forget();
+        }
+    }
+
+    private async Task RefreshLiveWebfleetTrackHistoryAsync(WebfleetConnectionSettings settings, CancellationToken cancellationToken)
+    {
+        _webfleetTrackHistoryRefreshRunning = true;
+        var generation = _webfleetLiveTrack.Generation;
+        var objectUid = _webfleetLiveTrack.ObjectUid;
+        var date = _webfleetLiveTrack.Date;
+        try
+        {
+            var from = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local));
+            var points = await new WebfleetConnectService().GetTrackAsync(settings, objectUid, from, from.AddDays(1).AddTicks(-1), cancellationToken);
+            if (cancellationToken.IsCancellationRequested || !_webfleetLiveTrack.IsToday(DateTimeOffset.Now) ||
+                !_webfleetLiveTrack.MergeHistory(generation, points)) return;
+            _webfleetTrackRevision++;
+            OnPropertyChanged(nameof(WebfleetTrackRevision));
+            PublishWebfleetTrackStatus();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            // Retain the displayed track and continue appending live positions on history failure.
+            if (generation == _webfleetLiveTrack.Generation)
+                StatusText = $"WEBFLEET-Verlauf konnte nicht nachgeladen werden; Live-Positionen werden weiter ergänzt: {ex.Message}";
+        }
+        finally
+        {
+            _webfleetTrackHistoryRefreshRunning = false;
+        }
     }
 
     private async Task SaveSelectedTourOverviewStartTimeAsync(
