@@ -42,10 +42,16 @@ public sealed class UserSelectionDialogViewModel : ObservableObject
 
     public ObservableCollection<string> UserNames { get; }
 
+    public Visibility SelectionVisibility => UserNames.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility CreationVisibility => UserNames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string Instructions => UserNames.Count == 0
+        ? "Willkommen! Geben Sie Ihren Namen ein, um das erste Benutzerprofil anzulegen. Die Datenquelle können Sie danach in den Einstellungen einrichten."
+        : "Bitte wählen Sie den Benutzer aus, mit dem diese App auf diesem PC gestartet werden soll.";
+
     public string SelectedUserName
     {
         get => _selectedUserName;
-        set => SetProperty(ref _selectedUserName, (value ?? string.Empty).Trim());
+        set => SetProperty(ref _selectedUserName, value ?? string.Empty);
     }
 
     private static string ResolveSelection(string? preferred, IReadOnlyList<string> names)

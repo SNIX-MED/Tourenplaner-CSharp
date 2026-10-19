@@ -15,6 +15,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
     private readonly IAppSettingsStore _settingsRepository;
     private readonly AppDataSyncService _dataSyncService;
     private readonly List<Employee> _employees = new();
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly Guid _instanceId = Guid.NewGuid();
     private string _statusText = "Lade Mitarbeiter...";
     private string _countText = string.Empty;
@@ -287,9 +288,18 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
 
     public async Task RefreshAsync()
     {
-        _employees.Clear();
-        _employees.AddRange(await _repository.LoadAsync());
-        RebuildEntries();
+        await _refreshGate.WaitAsync();
+        try
+        {
+            var employees = await _repository.LoadAsync();
+            _employees.Clear();
+            _employees.AddRange(employees);
+            RebuildEntries();
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
     }
 
     private async Task SaveCurrentStateAsync(Employee? savedEmployee = null, string? deletedEmployeeId = null)

@@ -335,17 +335,13 @@ public partial class App : System.Windows.Application
 
     private static async Task<string> PromptForRequiredStartupUserAsync(IEmployeeDataStore employeeStore)
     {
-        var names = (await employeeStore.LoadAsync())
+        var employees = (await employeeStore.LoadAsync()).ToList();
+        var names = employees
             .Where(x => x is not null && x.HasProgramProfile && !string.IsNullOrWhiteSpace(x.DisplayName))
             .Select(x => x.DisplayName.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
-        if (names.Count == 0)
-        {
-            throw new InvalidOperationException("Es ist kein Mitarbeiter mit Programmprofil vorhanden.");
-        }
-
         var preferred = (await LocalUserSessionService.LoadAsync()).Trim();
         while (true)
         {
@@ -359,6 +355,25 @@ public partial class App : System.Windows.Application
             var login = await CollaborationSessionService.TryLoginAsync(selected);
             if (login.Acquired)
             {
+                if (names.Count == 0)
+                {
+                    var employee = new Employee
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        DisplayName = selected,
+                        HasProgramProfile = true,
+                        Active = true
+                    };
+                    if (employeeStore is IEmployeeMutationStore mutationStore)
+                    {
+                        await mutationStore.UpsertAsync(employee);
+                    }
+                    else
+                    {
+                        employees.Add(employee);
+                        await employeeStore.SaveAsync(employees);
+                    }
+                }
                 await LocalUserSessionService.SaveAsync(selected);
                 return selected;
             }

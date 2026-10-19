@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Benutzer auswählen"
         Width="420"
-        Height="310"
+        SizeToContent="Height"
         MinHeight="310"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
@@ -14,7 +14,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -26,7 +26,7 @@
                        Margin="0,10,0,0"
                        Foreground="{DynamicResource Brush.TextMuted}"
                        TextWrapping="Wrap"
-                       Text="Bitte wählen Sie den Benutzer aus, mit dem diese App auf diesem PC gestartet werden soll." />
+                       Text="{Binding Instructions}" />
 
             <TextBlock Grid.Row="2"
                        Margin="0,16,0,0"
@@ -34,10 +34,17 @@
                        Text="Benutzerprofil" />
 
             <ComboBox Grid.Row="3"
+                      Visibility="{Binding SelectionVisibility}"
                       Margin="0,6,0,0"
                       Height="38"
                       ItemsSource="{Binding UserNames}"
                       SelectedItem="{Binding SelectedUserName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+            <TextBox Grid.Row="3"
+                     Visibility="{Binding CreationVisibility}"
+                     Margin="0,6,0,0"
+                     Height="38"
+                     Text="{Binding SelectedUserName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
             <Button Grid.Row="4"
                     Height="40"

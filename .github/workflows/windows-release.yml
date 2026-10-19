@@ -69,11 +69,9 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Zuverlaessige PostgreSQL-Synchronisierung nach dem Speichern von Touren
-          - Aktueller Datenstand vor dem Bearbeitungsstart und Schutz vor veralteten Tourentwuerfen
-          - Weniger Traffic-Raster-Anfragen durch bedarfsgesteuerte Ebenen, Caching und Pausieren bei Zugriffssperren
-          - WEBFLEET-Spurlinie waechst mit Live-Positionen und wird regelmaessig abgeglichen
-          - Aussagekraeftigere und begrenzte Kartenfehler-Protokollierung
+          - PostgreSQL-Passwort wird verdeckt angezeigt und bei Einstellungswechseln aktualisiert
+          - Ersteinrichtung eines Benutzerprofils auf neuen PCs
+          - Keine doppelten Mitarbeiter bei gleichzeitigen Aktualisierungen
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

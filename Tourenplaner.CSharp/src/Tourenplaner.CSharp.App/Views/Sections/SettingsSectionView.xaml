@@ -1038,7 +1038,7 @@
                                                     <Border Grid.Column="1" Style="{StaticResource SettingsFieldCardStyle}" Margin="0,0,0,14">
                                                         <StackPanel>
                                                             <TextBlock Style="{StaticResource SettingsFieldLabelStyle}" Text="Passwort" />
-                                                            <TextBox Style="{StaticResource SettingsTextBoxStyle}" Text="{Binding PostgreSqlPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                            <PasswordBox x:Name="PostgreSqlPasswordBox" Style="{StaticResource SettingsPasswordBoxStyle}" PasswordChanged="OnPostgreSqlPasswordChanged" />
                                                         </StackPanel>
                                                     </Border>
                                                 </Grid>
