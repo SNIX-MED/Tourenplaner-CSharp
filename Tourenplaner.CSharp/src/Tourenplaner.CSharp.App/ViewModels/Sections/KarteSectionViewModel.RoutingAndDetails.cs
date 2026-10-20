@@ -251,6 +251,7 @@ public sealed partial class KarteSectionViewModel
     {
         var normalized = query.Trim();
         return _allOrders
+            .Where(x => !x.IsArchived)
             .Where(x => x.Id.Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
                          ResolveRouteStopName(x).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
                          ResolveStreet(x).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
@@ -269,12 +270,26 @@ public sealed partial class KarteSectionViewModel
     private void ReplaceSearchSuggestions(IEnumerable<MapSearchSuggestionItem> suggestions)
     {
         SearchSuggestions.Clear();
-        foreach (var suggestion in suggestions.Take(6)) SearchSuggestions.Add(suggestion);
+        foreach (var suggestion in suggestions.Where(IsAvailableSearchSuggestion).Take(6)) SearchSuggestions.Add(suggestion);
         SelectedSearchSuggestion = SearchSuggestions.FirstOrDefault();
         IsSearchSuggestionsOpen = SearchSuggestions.Count > 0;
     }
 
     public void CloseSearchSuggestions() => IsSearchSuggestionsOpen = false;
+
+    private bool IsAvailableSearchSuggestion(MapSearchSuggestionItem suggestion) =>
+        string.IsNullOrWhiteSpace(suggestion.OrderId) ||
+        _allOrders.Any(order => !order.IsArchived &&
+            string.Equals(order.Id, suggestion.OrderId, StringComparison.OrdinalIgnoreCase));
+
+    private void RemoveUnavailableSearchSuggestions()
+    {
+        foreach (var suggestion in SearchSuggestions.Where(x => !IsAvailableSearchSuggestion(x)).ToList())
+            SearchSuggestions.Remove(suggestion);
+        if (SelectedSearchSuggestion is not null && !SearchSuggestions.Contains(SelectedSearchSuggestion))
+            SelectedSearchSuggestion = SearchSuggestions.FirstOrDefault();
+        if (SearchSuggestions.Count == 0) IsSearchSuggestionsOpen = false;
+    }
 
     public void MoveSearchSuggestionSelection(int offset)
     {
@@ -289,9 +304,16 @@ public sealed partial class KarteSectionViewModel
     {
         suggestion ??= SelectedSearchSuggestion ?? SearchSuggestions.FirstOrDefault();
         if (suggestion is null) return;
+        if (!IsAvailableSearchSuggestion(suggestion))
+        {
+            RemoveUnavailableSearchSuggestions();
+            return;
+        }
 
         _suppressSearchSuggestionRefresh = true;
-        try { SearchText = suggestion.PrimaryText; }
+        // The suggestion label combines fields and is not a searchable order value.
+        // Keep the selected order in the matching marker set after confirming it.
+        try { SearchText = string.IsNullOrWhiteSpace(suggestion.OrderId) ? suggestion.PrimaryText : suggestion.OrderId; }
         finally { _suppressSearchSuggestionRefresh = false; }
         IsSearchSuggestionsOpen = false;
 
@@ -473,7 +495,7 @@ public sealed partial class KarteSectionViewModel
             return exact;
         }
 
-        var orderModel = _allOrders.FirstOrDefault(x =>
+        var orderModel = _allOrders.Where(x => !x.IsArchived).FirstOrDefault(x =>
             string.Equals((x.Id ?? string.Empty).Trim(), normalized, StringComparison.OrdinalIgnoreCase));
         if (orderModel is null)
         {
@@ -508,7 +530,7 @@ public sealed partial class KarteSectionViewModel
             return contains;
         }
 
-        var orderModel = _allOrders.FirstOrDefault(x =>
+        var orderModel = _allOrders.Where(x => !x.IsArchived).FirstOrDefault(x =>
             (x.Id ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
             (x.CustomerName ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
             (x.Address ?? string.Empty).Contains(normalized, StringComparison.OrdinalIgnoreCase) ||

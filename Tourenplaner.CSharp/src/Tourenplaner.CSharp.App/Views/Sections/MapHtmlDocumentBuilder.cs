@@ -68,7 +68,7 @@ internal static class MapHtmlDocumentBuilder
                   .gawela-pin-badge-assigned { background: #64748b; color: #ffffff; }
                   .gawela-pin-prepayment-badge { position: absolute; left: -4px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%; background: #111827; border: 2px solid #ffffff; color: #ffffff; font-size: 9px; font-weight: 800; line-height: 14px; text-align: center; box-shadow: 0 1px 4px rgba(15,23,42,.34); z-index: 3; pointer-events: none; }
                   .gawela-pin-cluster-badge { position: absolute; right: -11px; top: -11px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #172554; border: 2px solid #ffffff; color: #ffffff; font: 800 11px/1 Segoe UI,sans-serif; box-shadow: 0 1px 5px rgba(15,23,42,.45); z-index: 6; pointer-events: none; }
-                  .gawela-pin-dimmed { opacity: .35; }
+                  .gawela-pin-dimmed { opacity: .70; }
                    .gawela-company-marker { width: 22px; height: 22px; border-radius: 50%; background: #0f766e; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; }
                    .gawela-company-marker svg { width: 12px; height: 12px; fill: #ffffff; display: block; }
                    .map-zoom-controls { position: absolute; right: 12px; top: 60px; z-index: 1350; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 4px 14px rgba(15,23,42,.18); }

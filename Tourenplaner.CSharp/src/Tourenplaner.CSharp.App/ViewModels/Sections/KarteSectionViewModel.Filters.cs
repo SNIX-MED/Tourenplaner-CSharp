@@ -8,6 +8,7 @@ public sealed partial class KarteSectionViewModel
 {
     private void RebuildOrderGrid(string? preferredSelectedId = null, bool preserveSelectedOrderInstance = false)
     {
+        RemoveUnavailableSearchSuggestions();
         var previousSelectedId = string.IsNullOrWhiteSpace(preferredSelectedId)
             ? SelectedOrder?.OrderId
             : preferredSelectedId;

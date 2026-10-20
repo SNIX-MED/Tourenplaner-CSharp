@@ -608,6 +608,79 @@ public sealed class KarteSearchDetailsTests
     }
 
     [Fact]
+    public async Task ConfirmingOrderSuggestion_KeepsMatchingPinUndimmed()
+    {
+        var viewModel = CreateViewModel();
+        await viewModel.RefreshAsync();
+        typeof(KarteSectionViewModel).GetField("_mapSearchDimNonMatchingPins",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .SetValue(viewModel, true);
+        viewModel.SearchText = "222016";
+
+        await viewModel.ApplySearchSuggestionAsync(new MapSearchSuggestionItem(
+            "Auftrag 222016 · Testkunde", "Teststrasse 1, 8000 Zürich", "Auftrag",
+            47.3769, 8.5417, "222016"));
+
+        Assert.Equal("222016", viewModel.SelectedOrder?.OrderId);
+        Assert.Equal("222016", viewModel.SearchText);
+        var marker = Assert.Single(viewModel.GetMapMarkerSnapshot());
+        Assert.Equal("222016", marker.OrderId);
+        Assert.False(marker.IsDimmed);
+        Assert.Single(viewModel.MapOrders);
+    }
+
+    [Fact]
+    public async Task LocalSearchSuggestions_ExcludeArchivedOrders()
+    {
+        var order = CreateOrder();
+        order.IsArchived = true;
+        var viewModel = CreateViewModel(new FixedOrderStore(order));
+        await viewModel.RefreshAsync();
+
+        var suggestions = (IReadOnlyList<MapSearchSuggestionItem>)typeof(KarteSectionViewModel)
+            .GetMethod("BuildLocalSearchSuggestions", System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.NonPublic)!.Invoke(viewModel, [order.Id])!;
+
+        Assert.Empty(suggestions);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Refresh_RemovesDeletedOrArchivedSearchSuggestions(bool archive)
+    {
+        var order = CreateOrder();
+        var store = new MutableSearchOrderStore(order);
+        var viewModel = CreateViewModel(store);
+        await viewModel.RefreshAsync();
+        var suggestion = new MapSearchSuggestionItem($"Auftrag {order.Id} · Testkunde",
+            order.Address, "Auftrag", 47, 8, order.Id);
+        viewModel.SearchSuggestions.Add(suggestion);
+        viewModel.SelectedSearchSuggestion = suggestion;
+        viewModel.IsSearchSuggestionsOpen = true;
+
+        if (archive) order.IsArchived = true;
+        else store.Orders.Clear();
+        await viewModel.RefreshAsync();
+
+        Assert.Empty(viewModel.SearchSuggestions);
+        Assert.Null(viewModel.SelectedSearchSuggestion);
+        Assert.False(viewModel.IsSearchSuggestionsOpen);
+        await viewModel.ApplySearchSuggestionAsync(suggestion);
+        Assert.Null(viewModel.SelectedOrder);
+        Assert.Empty(viewModel.SearchText);
+    }
+
+    private sealed class MutableSearchOrderStore(Order order) : IOrderRepository
+    {
+        public List<Order> Orders { get; } = [order];
+        public Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Order>>(Orders);
+        public Task SaveAllAsync(IEnumerable<Order> orders, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+    }
+
+    [Fact]
     public async Task ClosingDetails_ClearsSearchThatOpenedTheOrder()
     {
         var viewModel = CreateViewModel();

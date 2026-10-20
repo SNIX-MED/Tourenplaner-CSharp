@@ -69,8 +69,9 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Mehr anzeigen und Weniger anzeigen auf Pin-Infokarten reagieren auf einen einzelnen Klick
-          - Produktlisten lassen sich ohne zeitliche Klicksperre auf- und einklappen
+          - Bestaetigte Auftragssuche behaelt den gesuchten Pin als Treffer bei
+          - Ausgegraute Pins sind mit 70 Prozent Deckkraft besser sichtbar
+          - Archivierte und geloeschte Auftraege werden aus den Suchvorschlaegen entfernt
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
