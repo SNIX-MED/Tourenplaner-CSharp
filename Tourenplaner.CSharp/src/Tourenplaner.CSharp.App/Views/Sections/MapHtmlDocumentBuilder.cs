@@ -199,6 +199,10 @@ internal static class MapHtmlDocumentBuilder
                    .gawela-info-card { width: 420px; max-width: min(86vw, 420px); background: #ffffff; border: 1px solid #e6e8ee; border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15); color: #111827; overflow: hidden; }
                    .gawela-info-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; }
                    .gawela-info-card-heading { min-width: 0; }
+                   .gawela-info-card-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+                   .gawela-info-card-close { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #64748b; font: 20px/1 Segoe UI,sans-serif; cursor: pointer; }
+                   .gawela-info-card-close:hover { background: #f1f5f9; color: #111827; }
+                   .gawela-info-card-close:focus-visible { outline: 2px solid #7e22ce; outline-offset: 2px; }
                    .gawela-info-card-name { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.12; letter-spacing: -0.01em; color: #111827; }
                    .gawela-info-card-notes { margin: 6px 0 0; font-size: 15px; line-height: 1.28; font-weight: 700; color: #dc2626; white-space: pre-line; }
                    .gawela-info-card-badge { display: inline-block; font-size: 14px; line-height: 1; padding: 7px 10px; border-radius: 10px; background: #f3f4f6; color: #3f3f46; white-space: nowrap; }
@@ -749,6 +753,21 @@ internal static class MapHtmlDocumentBuilder
                                changeMapZoom(evt.deltaY < 0 ? 0.75 : -0.75, around);
                              }, { passive: false });
                            }
+                           if (popupEl.dataset.gawelaCloseBound !== 'true') {
+                             popupEl.dataset.gawelaCloseBound = 'true';
+                             const closeCard = evt => {
+                               const button = evt.target && typeof evt.target.closest === 'function'
+                                 ? evt.target.closest('.gawela-info-card-close') : null;
+                               if (!button) return;
+                               if (typeof evt.button === 'number' && evt.button !== 0) return;
+                               evt.preventDefault();
+                               evt.stopImmediatePropagation();
+                               if (activeOrderPopupElement === popupEl) activeOrderPopupElement = null;
+                               popup.remove();
+                             };
+                             // Keep the element in place until click, so the release cannot click through to the map.
+                             popupEl.addEventListener('click', closeCard, true);
+                           }
                            if (popupEl.dataset.gawelaProductsToggleBound !== 'true') {
                              popupEl.dataset.gawelaProductsToggleBound = 'true';
                              const findProductsToggle = (evt) => {
@@ -960,9 +979,9 @@ internal static class MapHtmlDocumentBuilder
                               });
                          };
 
-                         const applyScreenCollisionLayout = markers => {
+                         const applyScreenCollisionLayout = (markers, collisionMarkers = markers) => {
                            if (!Array.isArray(markers) || markers.length < 2) return markers || [];
-                           const candidates = markers
+                           const candidates = collisionMarkers
                              .map((marker, index) => ({ marker, index }))
                              .filter(entry => entry.marker && Number.isFinite(Number(entry.marker.displayLat)) && Number.isFinite(Number(entry.marker.displayLon)))
                              .map(entry => ({
@@ -1082,8 +1101,11 @@ internal static class MapHtmlDocumentBuilder
                              ...originalMarkers.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'order', __gawelaLayerIndex: index })),
                              ...routeStops.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'route', __gawelaLayerIndex: index }))
                            ];
-                            return applyScreenCollisionLayout(
-                              spreadOverlappingMarkers(combinedMarkers, hoveredOverlapGroupKey, false));
+                           // Cluster membership must use the compact layout. Hover expansion must
+                           // not separate members first and thereby dissolve a numbered cluster.
+                           const compactMarkers = spreadOverlappingMarkers(combinedMarkers, '', false);
+                           return applyScreenCollisionLayout(
+                             spreadOverlappingMarkers(combinedMarkers, hoveredOverlapGroupKey, false), compactMarkers);
                          };
 
                           const resolveVisibleMarkersForLayer = layer => resolveVisibleMarkerFanOut()
@@ -1173,6 +1195,7 @@ internal static class MapHtmlDocumentBuilder
                          };
 
                          const selectRouteStopNearPoint = (point) => {
+                           if (suppressRoutePointerClick) return true;
                            if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
                            if (!Array.isArray(routeStopHitTargets) || routeStopHitTargets.length === 0) return false;
 
@@ -1195,14 +1218,59 @@ internal static class MapHtmlDocumentBuilder
 
                            if (!best || bestDistSq > thresholdSq) return false;
                            if (window.chrome && window.chrome.webview) {
-                             window.chrome.webview.postMessage(String(best.id));
                              window.chrome.webview.postMessage(`routeSelect:${best.id}`);
                            }
                            return true;
                          };
 
+                         let routePointerGesture = null;
+                         let suppressRoutePointerClick = false;
+                         const routeMarkerFromEvent = evt => {
+                           const target = evt && evt.target;
+                           const element = target && typeof target.closest === 'function'
+                             ? target.closest('[data-gawela-route-stop-id]') : null;
+                           return element ? routeMarkerMap.get(element.dataset.gawelaRouteStopId) : null;
+                         };
                          const ensureRouteStopCanvasClickBinding = () => {
                            if (routeStopCanvasClickBound) return;
+                           // Capture on the document survives SDK propagation handling and marker DOM replacement.
+                           document.addEventListener('pointerdown', evt => {
+                             routePointerGesture = null;
+                             suppressRoutePointerClick = false;
+                             if (evt.button !== 0) return;
+                             const marker = routeMarkerFromEvent(evt);
+                             if (!marker) return;
+                             marker.__gawelaPrepareRouteSelection();
+                             routePointerGesture = { id: marker.__gawelaOrderId, pointerId: evt.pointerId,
+                               x: evt.clientX, y: evt.clientY };
+                           }, true);
+                           document.addEventListener('pointercancel', () => {
+                             routePointerGesture = null;
+                             suppressRoutePointerClick = true;
+                           }, true);
+                           document.addEventListener('pointerup', evt => {
+                             const gesture = routePointerGesture;
+                             if (!gesture || gesture.pointerId !== evt.pointerId) return;
+                             routePointerGesture = null;
+                             suppressRoutePointerClick = true;
+                             const dx = evt.clientX - gesture.x;
+                             const dy = evt.clientY - gesture.y;
+                             const marker = routeMarkerMap.get(gesture.id);
+                             if (evt.button !== 0 || dx * dx + dy * dy > 36 || !marker || marker.__gawelaDragging) return;
+                             marker.__gawelaSelectRouteStop();
+                           }, true);
+                           document.addEventListener('click', evt => {
+                             const marker = routeMarkerFromEvent(evt);
+                             if (!marker) return;
+                             evt.stopImmediatePropagation();
+                             evt.preventDefault();
+                             if (evt.button !== 0) return;
+                             if (evt.detail === 0) {
+                               marker.__gawelaPrepareRouteSelection();
+                               marker.__gawelaSelectRouteStop();
+                             } else if (!suppressRoutePointerClick) marker.__gawelaSelectRouteStop();
+                             suppressRoutePointerClick = false;
+                           }, true);
                            map.on('click', (evt) => {
                              if (!evt || !evt.point) return;
                              selectRouteStopNearPoint(evt.point);
@@ -1416,7 +1484,7 @@ internal static class MapHtmlDocumentBuilder
                              sections.push(`<section class='gawela-info-card-section'><div><p class='gawela-info-card-label'>Lieferzeitraum</p><p class='gawela-info-card-line'>${escapeHtml(deliveryPeriod)}</p></div></section>`);
                            }
 
-                           return `<div class='gawela-info-card'><header class='gawela-info-card-header'><div class='gawela-info-card-heading'><h4 class='gawela-info-card-name'>${escapeHtml(cardName)}</h4>${headerNotes}</div>${headerBadge}</header>${sections.join('')}</div><div class='gawela-info-card-tail-wrap'><div class='gawela-info-card-tail'></div></div>`;
+                           return `<div class='gawela-info-card'><header class='gawela-info-card-header'><div class='gawela-info-card-heading'><h4 class='gawela-info-card-name'>${escapeHtml(cardName)}</h4>${headerNotes}</div><div class='gawela-info-card-actions'>${headerBadge}<button type='button' class='gawela-info-card-close' aria-label='Infokarte schließen' title='Infokarte schließen'>×</button></div></header>${sections.join('')}</div><div class='gawela-info-card-tail-wrap'><div class='gawela-info-card-tail'></div></div>`;
                          };
 
                          const applyBaseStyle = () => {
@@ -2872,10 +2940,8 @@ internal static class MapHtmlDocumentBuilder
                                });
                              }
 
-                            const matchingOrderMarker = (window.__gawelaLastMarkers || []).find(candidate =>
-                              candidate && stop.id && String(candidate.id) === String(stop.id));
                             const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
-                              createScaledPopupHtml(buildPinPopupHtml(matchingOrderMarker || stop))
+                              createScaledPopupHtml(buildPinPopupHtml(stop))
                             );
                              const marker = new ttSdk.Marker({ element: buildMarkerElement(stop, true), draggable: true, anchor: 'center' })
                                .setLngLat([stop.displayLon, stop.displayLat])
@@ -2932,26 +2998,19 @@ internal static class MapHtmlDocumentBuilder
 
                              if (window.chrome && window.chrome.webview && stop.id) {
                                 stickyPopupOrderId = String(stop.id);
+                                // Selection is independent of popup rendering and must reach the WPF host first.
+                                window.chrome.webview.postMessage(`routeSelect:${stop.id}`);
                                 popup.addTo(map);
                                 scalePopupElement(popup);
                                 enableOrderPopupInteraction(popup);
                                 bringOrderPopupToFront(popup);
                                 // Use the same message path as normal map pins for reliable details selection.
                                 // Use one authoritative selection message for route markers.
-                                window.chrome.webview.postMessage(`routeSelect:${stop.id}`);
                               }
                              };
-                             markerEl.addEventListener('pointerup', (evt) => {
-                               evt.stopPropagation();
-                               if (evt && typeof evt.button === 'number' && evt.button !== 0) {
-                                 return;
-                               }
-                               selectRouteStopFromMarker();
-                             });
-                             markerEl.addEventListener('click', (evt) => {
-                               evt.stopPropagation();
-                               selectRouteStopFromMarker();
-                             });
+                             markerEl.dataset.gawelaRouteStopId = String(stop.id);
+                             marker.__gawelaSelectRouteStop = selectRouteStopFromMarker;
+                             marker.__gawelaPrepareRouteSelection = () => { draggedDuringInteraction = false; };
 
                              if (routePopupVisible || (stop.id && stickyPopupOrderId && String(stop.id) === stickyPopupOrderId)) {
                                popup.addTo(map);
@@ -2983,7 +3042,14 @@ internal static class MapHtmlDocumentBuilder
                          };
 
                          window.gawelaHighlightRouteStop = function(orderId) {
+                           const previousId = highlightedRouteStopId;
                            highlightedRouteStopId = (orderId || '').toString().trim();
+                           if (previousId && previousId !== highlightedRouteStopId) {
+                             const previousMarker = routeMarkerMap.get(previousId);
+                             const previousPopup = previousMarker && previousMarker.getPopup();
+                             if (previousPopup) previousPopup.remove();
+                             if (stickyPopupOrderId === previousId) stickyPopupOrderId = '';
+                           }
                            applyRouteStopHighlight();
                            const marker = routeMarkerMap.get(highlightedRouteStopId);
                            if (!marker) return;
@@ -3005,16 +3071,25 @@ internal static class MapHtmlDocumentBuilder
 
                          window.gawelaSetStickyPopupOrderId = function(orderId) {
                            const normalized = (orderId || '').toString().trim();
+                           const previousId = stickyPopupOrderId;
                            stickyPopupOrderId = normalized;
-                           if (normalized || routePopupVisible) {
+                           if (previousId && previousId !== normalized) {
+                             [markerMap.get(previousId), routeMarkerMap.get(previousId)].forEach(marker => {
+                               const popup = marker && marker.getPopup();
+                               if (popup) popup.remove();
+                             });
+                           }
+                           if (routePopupVisible) {
                              return;
                            }
 
                            mapMarkers.forEach(m => {
+                             if (normalized && String(m.__gawelaOrderId || '') === normalized) return;
                              const p = m.getPopup();
                              if (p) p.remove();
                            });
                            routeMarkers.forEach(m => {
+                             if (normalized && String(m.__gawelaOrderId || '') === normalized) return;
                              const p = m.getPopup();
                              if (p) p.remove();
                            });

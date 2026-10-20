@@ -30,6 +30,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
     private readonly BackupManager _backupManager;
     private readonly IOrderRepository? _orderRepository;
     private readonly ITourRecordStore? _tourRecordStore;
+    private readonly IVehicleDataStore? _xmlImportVehicleStore;
     private readonly IOrderMutationRepository? _orderMutationRepository;
     private readonly ISettingsRepository? _settingsRepository;
     private readonly AppDataSyncService? _dataSyncService;
@@ -168,7 +169,8 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         AppDataSyncService? dataSyncService = null,
         AppStorageMode activeStorageMode = AppStorageMode.JsonFiles,
         ITourRecordStore? tourRecordStore = null,
-        IAppDataHistoryService? historyService = null)
+        IAppDataHistoryService? historyService = null,
+        IVehicleDataStore? vehicleDataStore = null)
         : base("Settings", "Appearance, backup policy and restore operations.")
     {
         _repository = settingsStore;
@@ -176,6 +178,7 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         _backupManager = new BackupManager();
         _orderRepository = orderRepository;
         _tourRecordStore = tourRecordStore;
+        _xmlImportVehicleStore = vehicleDataStore;
         _orderMutationRepository = orderRepository as IOrderMutationRepository;
         _settingsRepository = settingsRepository;
         _dataSyncService = dataSyncService;

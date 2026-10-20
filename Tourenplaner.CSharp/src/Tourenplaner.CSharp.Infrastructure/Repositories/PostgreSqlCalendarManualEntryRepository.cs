@@ -1,4 +1,4 @@
-﻿using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 using Tourenplaner.CSharp.Infrastructure.Services;
 
@@ -23,7 +23,7 @@ public sealed class PostgreSqlCalendarManualEntryRepository : ICalendarManualEnt
     public async Task<IReadOnlyList<CalendarManualEntry>> LoadAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -47,7 +47,7 @@ public sealed class PostgreSqlCalendarManualEntryRepository : ICalendarManualEnt
             .ToList();
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -78,7 +78,7 @@ public sealed class PostgreSqlCalendarManualEntryRepository : ICalendarManualEnt
         var normalizedId = (entryId ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(normalizedId)) return;
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         await using var command = connection.CreateCommand();

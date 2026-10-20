@@ -47,7 +47,9 @@ public sealed class AsyncCommand : ICommand
             }
 
             AppMessageBox.Show(
-                $"Der Vorgang konnte nicht abgeschlossen werden.{Environment.NewLine}{Environment.NewLine}{ex.Message}",
+                PostgreSqlCapacityError.IsCapacityError(ex)
+                    ? "Die Datenbank hat derzeit keine freie Verbindung. Bitte kurz warten und den Vorgang erneut versuchen."
+                    : $"Der Vorgang konnte nicht abgeschlossen werden.{Environment.NewLine}{Environment.NewLine}{ex.Message}",
                 "Fehler",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);

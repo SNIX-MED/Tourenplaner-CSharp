@@ -128,6 +128,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         RecalculateCommand = new AsyncCommand(RecalculateAndSaveAsync, () => SelectedTour is not null);
+        ConfirmAddressReviewCommand = new AsyncCommand(ConfirmAddressReviewAsync);
         SaveAssignmentCommand = new AsyncCommand(SaveSelectedAssignmentAsync, () => SelectedTour is not null && !IsTourLockedByMap(SelectedTour.TourId));
         OpenTourOnMapCommand = new AsyncCommand(OpenSelectedTourOnMapAsync, () => SelectedTour is not null);
         EditTourOnMapCommand = new AsyncCommand(OpenSelectedTourOnMapForEditAsync, () => SelectedTour is not null);
@@ -177,6 +178,59 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     public ICommand RefreshCommand { get; }
 
     public ICommand RecalculateCommand { get; }
+    public ICommand ConfirmAddressReviewCommand { get; }
+    public bool HasSelectedTourAddressReview => _loadedTours.Any(t => t.Id == SelectedTour?.TourId && t.AddressReviewOrderIds.Count > 0);
+
+    private async Task ConfirmAddressReviewAsync()
+    {
+        if (SelectedTour is null || !EnsureTourCanBeModified(SelectedTour.TourId)) return;
+        var tour = (await _tourRepository.LoadAsync()).FirstOrDefault(t => t.Id == SelectedTour.TourId);
+        if (tour is null || tour.AddressReviewOrderIds.Count == 0) return;
+        var tourBeforeReview = System.Text.Json.JsonSerializer.Serialize(tour);
+        var snapshotTour = TourReconciliationPersistenceService.CreateSnapshot([tour]);
+        var orders = (await _orderRepository.GetAllAsync()).ToList();
+        var destinationsBeforeReview = TourAddressReviewService.DestinationSnapshot(snapshotTour, orders);
+        var reconciliation = TourOrderReferenceService.ReconcileActiveToursWithOrders(new List<TourRecord> { tour }, orders);
+        if (tour.IsArchived || reconciliation.DeletedTourIds.Contains(tour.Id))
+        {
+            StatusText = "Die Tour ist nicht mehr aktiv. Die Tourübersicht wird aktualisiert.";
+            await RefreshAsync();
+            return;
+        }
+        await TourAddressReviewService.RecalculateAsync(tour, orders, await _settingsRepository.LoadAsync(),
+            await _vehicleRepository.LoadAsync(), LocalUserSessionService.CurrentUserName);
+        if (!string.IsNullOrEmpty(tour.AddressReviewRoutingError))
+        {
+            AppMessageBox.Show(tour.AddressReviewRoutingError, "Fahrtziel prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (AppMessageBox.Show("Lieferadressen, Route und Zeiten dieser Tour sind geprüft?\n\nBetroffene Aufträge: " +
+                string.Join(", ", tour.AddressReviewOrderIds), "Adressänderung geprüft", MessageBoxButton.YesNo,
+                MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (!EnsureTourCanBeModified(tour.Id)) return;
+        tour.AddressReviewOrderIds.Clear();
+        var originalTours = await _tourRepository.LoadAsync();
+        var currentTour = originalTours.FirstOrDefault(t => t.Id == tour.Id);
+        if (currentTour is null || System.Text.Json.JsonSerializer.Serialize(currentTour) != tourBeforeReview ||
+            TourAddressReviewService.DestinationSnapshot(snapshotTour, await _orderRepository.GetAllAsync()) != destinationsBeforeReview)
+        {
+            await HandleConcurrencyConflictAsync(tour.Id);
+            return;
+        }
+        var updatedTours = originalTours.Select(t => t.Id == tour.Id ? tour : t).ToList();
+        try
+        {
+            await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, updatedTours,
+                new TourOrderReferenceReconciliationResult(0, [tour.Id], [], []));
+        }
+        catch (ConcurrencyConflictException)
+        {
+            await HandleConcurrencyConflictAsync(tour.Id);
+            return;
+        }
+        _dataSyncService.PublishTours(_instanceId);
+        await RefreshAsync();
+    }
 
     public ICommand SaveAssignmentCommand { get; }
 
@@ -2522,6 +2576,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                                (capacity.IsOverCapacity ? 1 : 0) +
                                (tour.EmployeeIds?.Count > 0 ? 0 : 1) +
                                (assignments.Count > 0 ? 0 : 1);
+            if (tour.AddressReviewOrderIds.Count > 0) warningCount++;
             var allowedWeight = capacity.AllowedWeightKg.GetValueOrDefault();
             var utilizationPercent = allowedWeight > 0
                 ? (int)Math.Round(totalWeight * 100d / allowedWeight)
@@ -2544,7 +2599,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 AssignmentConflicts = resourceConflictCount,
                 WarningCount = warningCount,
                 HasWarnings = warningCount > 0,
-                WarningText = warningCount == 0 ? "Keine Warnungen" : $"{warningCount} Warnung{(warningCount == 1 ? string.Empty : "en")}",
+                HasAddressReview = tour.AddressReviewOrderIds.Count > 0,
+                WarningText = tour.AddressReviewOrderIds.Count > 0 ? TourAddressReviewService.Warning : warningCount == 0 ? "Keine Warnungen" : $"{warningCount} Warnung{(warningCount == 1 ? string.Empty : "en")}",
                 DurationText = FormatDuration(metrics.DurationMinutes),
                 DistanceText = $"{metrics.DistanceKm:0.0} km",
                 TimeRangeText = $"{schedule.Start:HH:mm}–{schedule.End:HH:mm}",
@@ -2643,8 +2699,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 DepartureText = BuildCalendarDepartureText(stop),
                 DisplayTime = BuildCalendarDisplayTime(stop),
                 TimeLabel = "Ankunft",
-                ProductLines = BuildCalendarProductLines(order, stop),
-                WeightText = BuildCalendarStopWeightText(order, stop)
+                ProductLines = BuildCalendarProductLines(order, stop, tour.Id.ToString()),
+                WeightText = BuildCalendarStopWeightText(order, stop, tour.Id.ToString())
             });
         }
 
@@ -2722,11 +2778,11 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             stop.PlannedArrivalPessimistic);
     }
 
-    private static IReadOnlyList<string> BuildCalendarProductLines(Order? order, TourStopRecord stop)
+    private static IReadOnlyList<string> BuildCalendarProductLines(Order? order, TourStopRecord stop, string? tourId = null)
     {
         if (order?.Products is not null && order.Products.Count > 0)
         {
-            return order.Products
+            return OrderDeliveryWeightService.ResolveStopProducts(order, stop.DeliveryId, tourId)
                 .Select(p =>
                 {
                     var name = (p.Name ?? string.Empty).Trim();
@@ -2744,7 +2800,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         if (order is not null)
         {
-            var orderWeight = order.ResolveTotalWeightKg();
+            var orderWeight = OrderDeliveryWeightService.ResolveStopWeightKg(order, stop.DeliveryId, tourId);
             if (orderWeight > 0)
             {
                 return [$"Gewicht: {orderWeight:0.##} kg"];
@@ -2755,15 +2811,12 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return fallbackWeight > 0 ? [$"Gewicht: {fallbackWeight} kg"] : [];
     }
 
-    private static string BuildCalendarStopWeightText(Order? order, TourStopRecord stop)
+    private static string BuildCalendarStopWeightText(Order? order, TourStopRecord stop, string? tourId = null)
     {
         if (order is not null)
         {
-            var total = order.ResolveTotalWeightKg();
-            if (total > 0)
-            {
-                return $"Total: {total:0.##} kg";
-            }
+            var total = OrderDeliveryWeightService.ResolveStopWeightKg(order, stop.DeliveryId, tourId);
+            return $"Total: {total:0.##} kg";
         }
 
         var fallbackWeight = ParseWeightKg(stop.Gewicht);
@@ -3247,7 +3300,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                         ? preview.ArrivalRange
                         : BuildArrivalRangeText(stop),
                 Departure = departure,
-                Weight = isCompanyStop || isPauseStop ? string.Empty : BuildStopWeightText(sourceOrder, stop),
+                Weight = isCompanyStop || isPauseStop ? string.Empty : BuildStopWeightText(sourceOrder, stop, SelectedTour.TourId.ToString()),
                 Conflict = isCompanyStop || isPauseStop ? string.Empty : (stop.ScheduleConflict ? (string.IsNullOrWhiteSpace(stop.ScheduleConflictText) ? "Yes" : stop.ScheduleConflictText) : string.Empty),
                 HasConflict = !isCompanyStop && !isPauseStop && stop.ScheduleConflict,
                 ServiceTimeText = isCompanyStop || isPauseStop ? string.Empty : $"{Math.Max(0, stop.ServiceMinutes)} min Aufenthalt",
@@ -3286,6 +3339,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private void UpdateSelectedTourSummary()
     {
         SelectedTourWarnings.Clear();
+        OnPropertyChanged(nameof(HasSelectedTourAddressReview));
         if (SelectedTour?.Source is null)
         {
             SelectedTourLoadSummaryText = string.Empty;
@@ -3413,12 +3467,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return 0;
     }
 
-    private static string BuildStopWeightText(Order? order, TourStopRecord stop)
+    private static string BuildStopWeightText(Order? order, TourStopRecord stop, string? tourId = null)
     {
-        var orderWeight = order is null
-            ? 0
-            : (int)Math.Ceiling(Math.Max(0d, order.ResolveTotalWeightKg()));
-        var weight = orderWeight > 0 ? orderWeight : ParseWeightKg(stop.Gewicht);
+        var weight = order is null ? ParseWeightKg(stop.Gewicht) :
+            (int)Math.Ceiling(Math.Max(0d, OrderDeliveryWeightService.ResolveStopWeightKg(order, stop.DeliveryId, tourId)));
         return weight > 0 ? $"{weight:N0} kg" : string.Empty;
     }
 
@@ -3533,6 +3585,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return new TourRecord
         {
             Id = source.Id,
+            AddressReviewOrderIds = source.AddressReviewOrderIds.ToList(),
+            AddressReviewRoutingError = source.AddressReviewRoutingError,
             RouteGeometrySignature = source.RouteGeometrySignature,
             RouteGeometryPoints = (source.RouteGeometryPoints ?? []).Select(point => new GeoPoint(point.Latitude, point.Longitude)).ToList(),
             Date = source.Date,
@@ -3817,6 +3871,10 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var warnings = new List<TourPlanningWarningItem>();
+        if (targetTour.AddressReviewOrderIds.Count > 0)
+            warnings.Add(new TourPlanningWarningItem(TourAddressReviewService.Warning,
+                "Aufträge: " + string.Join(", ", targetTour.AddressReviewOrderIds) + ". " + targetTour.AddressReviewRoutingError,
+                "Lieferadressen, Route und Zeiten prüfen und anschließend «Adressänderung geprüft» bestätigen."));
 
         var assignmentConflicts = (knownAssignmentConflicts ?? _conflictService.FindSameDayAssignmentConflicts(allTours))
             .Where(c => c.TourIdA == targetTourId || c.TourIdB == targetTourId)
@@ -4065,26 +4123,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private int CalculateTourWeightKg(TourRecord tour)
     {
-        var orderIds = (tour.Stops ?? [])
-            .Where(IsCustomerStop)
-            .Select(stop => (stop.Auftragsnummer ?? string.Empty).Trim())
-            .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var orderWeight = orderIds.Count > 0
-            ? orderIds.Sum(orderId =>
-                _ordersById.TryGetValue(orderId, out var order)
-                    ? (int)Math.Ceiling(Math.Max(0d, order.ResolveTotalWeightKg()))
-                    : 0)
-            : _ordersById.Values
-                .Where(order =>
-                    !order.IsArchived &&
-                    string.Equals(
-                        (order.AssignedTourId ?? string.Empty).Trim(),
-                        tour.Id.ToString(CultureInfo.InvariantCulture),
-                        StringComparison.OrdinalIgnoreCase))
-                .Sum(order => (int)Math.Ceiling(Math.Max(0d, order.ResolveTotalWeightKg())));
+        var orderWeight = OrderDeliveryWeightService.ResolveTourOrderWeightKg(tour, _ordersById.Values);
 
         return orderWeight + (int)Math.Ceiling((tour.AdditionalMaterials ?? []).Sum(x => Math.Max(0, x.WeightKg)));
     }
@@ -4295,6 +4334,7 @@ internal readonly record struct TourPlanningWarningItem(
 
 public sealed class TourOverviewItem
 {
+    public bool HasAddressReview { get; set; }
     public int TourId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Date { get; set; } = string.Empty;

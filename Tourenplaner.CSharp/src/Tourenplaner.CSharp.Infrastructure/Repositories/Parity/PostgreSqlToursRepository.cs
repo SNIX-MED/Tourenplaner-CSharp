@@ -1,4 +1,4 @@
-﻿using Tourenplaner.CSharp.Application.Common;
+using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Services;
@@ -24,7 +24,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
     public async Task<IReadOnlyList<TourRecord>> LoadAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -51,7 +51,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
             .ToList();
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -137,7 +137,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
             .GroupBy(x => x.Id.Trim(), StringComparer.OrdinalIgnoreCase).Select(x => x.Last()).ToList();
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -215,7 +215,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
     public async Task<TourRecord?> GetByIdAsync(int tourId, CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -241,7 +241,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
         var nextToken = DateTimeOffset.UtcNow;
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -297,7 +297,7 @@ public sealed class PostgreSqlToursRepository : ITourRecordStore, ITourRecordMut
     public async Task DeleteAsync(int tourId, string? concurrencyToken = null, CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);

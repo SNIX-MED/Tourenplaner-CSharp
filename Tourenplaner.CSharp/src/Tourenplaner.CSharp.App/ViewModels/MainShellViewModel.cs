@@ -183,7 +183,8 @@ public sealed partial class MainShellViewModel : ObservableObject
             dataSyncService,
             repositories.StorageMode,
             repositories.TourRecordStore,
-            historyService);
+            historyService,
+            repositories.VehicleDataStore);
         _settingsSection = settings;
         var gps = new GpsSectionViewModel();
         _gpsSection = gps;

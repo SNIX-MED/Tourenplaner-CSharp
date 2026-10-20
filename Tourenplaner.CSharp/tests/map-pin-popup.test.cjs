@@ -55,7 +55,47 @@ function runMapPinPopupTests(source) {
   assert(source.includes("popupEl.addEventListener('wheel'"), 'Mouse wheel input over an info card must be forwarded to map zoom');
   assert(source.includes("changeMapZoom(evt.deltaY < 0 ? 0.75 : -0.75, around)"), 'Info-card wheel zoom must preserve the pointer position');
 
-  return 21;
+  const stickyStart = source.indexOf('window.gawelaSetStickyPopupOrderId = function(orderId) {');
+  const stickyEnd = source.indexOf('window.gawelaClearTempSearchMarker', stickyStart);
+  const states = { a: true, b: true, c: true };
+  const pins = Object.keys(states).map(id => ({ __gawelaOrderId: id,
+    getPopup: () => ({ remove() { states[id] = false; } }) }));
+  const stickyApi = new Function('window', 'mapMarkers', 'routeMarkers', 'markerMap', 'routeMarkerMap',
+    "let stickyPopupOrderId = ''; let routePopupVisible = false;" + source.slice(stickyStart, stickyEnd) +
+    ';return {select: window.gawelaSetStickyPopupOrderId, all: () => {routePopupVisible = true;}};')({}, pins.slice(0, 1), pins.slice(1),
+      new Map(pins.slice(0, 1).map(p => [p.__gawelaOrderId, p])), new Map(pins.slice(1).map(p => [p.__gawelaOrderId, p])));
+  stickyApi.select('b');
+  assert(!states.a && states.b && !states.c, 'Changing selection must close previous order and route cards');
+  stickyApi.select('');
+  assert(!states.b, 'Deselection must close the selected card');
+  stickyApi.all();
+  states.a = true;
+  stickyApi.select('');
+  assert(states.a, 'Explicit show-all mode must remain available');
+  stickyApi.select('b');
+  states.b = true;
+  stickyApi.select('');
+  assert(!states.b, 'Explicitly closing the selected order must dismiss its card even in show-all mode');
+  assert(regular.includes("class='gawela-info-card-close'"), 'Each card must have a manual close button');
+  assert(regular.includes("aria-label='Infokarte schließen'"), 'Close button must have an accessible label');
+  const closeStart = source.indexOf('const closeCard = evt => {');
+  const closeEnd = source.indexOf("popupEl.addEventListener('click', closeCard, true)", closeStart);
+  let removed = false;
+  const popupEl = {};
+  const closeApi = new Function('popup', 'popupEl', 'let activeOrderPopupElement = popupEl;' + source.slice(closeStart, closeEnd) +
+    ';return {close:closeCard,active:()=>activeOrderPopupElement};')({remove(){removed = true;}}, popupEl);
+  const close = closeApi.close;
+  const event = {target:{closest:()=>({})},preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;}};
+  close(event);
+  assert(removed && event.prevented && event.stopped, 'Close must remove popup and stop marker selection');
+  assert(closeApi.active() === null, 'Closing must clear the active popup reference');
+  removed = false;
+  close({...event, button:2});
+  assert(!removed, 'Right-click must not close the card');
+  close({...event, button:0, detail:0});
+  assert(removed, 'Keyboard activation must close the card');
+  assert(!source.includes("popupEl.addEventListener('pointerup', closeCard"), 'Closing must not remove DOM before click finishes');
+  return 32;
 }
 
 if (typeof module !== 'undefined') {

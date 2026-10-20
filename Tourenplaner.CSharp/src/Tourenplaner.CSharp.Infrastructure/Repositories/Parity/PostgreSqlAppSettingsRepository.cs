@@ -22,7 +22,7 @@ public sealed class PostgreSqlAppSettingsRepository : IAppSettingsStore
     public async Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         await using var command = connection.CreateCommand();
@@ -45,7 +45,7 @@ public sealed class PostgreSqlAppSettingsRepository : IAppSettingsStore
     {
         ArgumentNullException.ThrowIfNull(settings);
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         var expected = RepositoryConcurrencyToken.Parse(settings.ConcurrencyToken);

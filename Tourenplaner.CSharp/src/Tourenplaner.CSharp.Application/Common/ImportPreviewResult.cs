@@ -28,4 +28,11 @@ public sealed class ImportPreviewItem
     public string DeliveryType { get; set; } = string.Empty;
     public string OrderTypeLabel { get; set; } = string.Empty;
     public List<string> Changes { get; set; } = new();
+    public List<ImportTourAddressChange> TourAddressChanges { get; set; } = new();
+}
+
+public sealed record ImportTourAddressChange(string OrderId, int TourId, string TourName,
+    string TourDate, string OldAddress, string NewAddress)
+{
+    public string Description => $"Auftrag {OrderId} · Tour {TourName} ({TourDate}): {OldAddress} → {NewAddress}";
 }

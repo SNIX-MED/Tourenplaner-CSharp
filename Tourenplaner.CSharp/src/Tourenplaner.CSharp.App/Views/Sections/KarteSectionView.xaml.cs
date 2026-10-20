@@ -263,7 +263,7 @@ public partial class KarteSectionView : UserControl
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedRouteStop))
         {
-            QueueMapRefresh(MapRefreshOperation.RouteSelection);
+            QueueMapRefresh(MapRefreshOperation.MarkerSelection | MapRefreshOperation.RouteSelection);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.RouteStops))
         {
@@ -327,7 +327,7 @@ public partial class KarteSectionView : UserControl
                  e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowProducts) ||
                  e.PropertyName == nameof(KarteSectionViewModel.MapPinInfoCardShowTotalWeight))
         {
-            QueueMapRefresh(MapRefreshOperation.Markers, UiRefreshDebounceMilliseconds);
+            QueueMapRefresh(MapRefreshOperation.Markers | MapRefreshOperation.RouteWithoutAutoCenter, UiRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.TemporarySearchPinRevision))
         {
@@ -1064,14 +1064,29 @@ public partial class KarteSectionView : UserControl
             .Select(r =>
             {
                 var visual = vm.ResolveOrderVisualInfo(r.OrderId, r.DeliveryId);
-                var overlapAddress = vm.ResolveOrderOverlapAddress(r.OrderId);
+                var infoCard = vm.ResolveRoutePinInfoCard(r);
                 return new
                 {
                     id = r.MarkerId,
                     orderNumber = r.OrderId,
                     deliveryNumber = r.DeliverySequenceNumber,
-                    street = overlapAddress.Street,
-                    postalCodeCity = overlapAddress.PostalCodeCity,
+                    customer = infoCard.Customer,
+                    notes = infoCard.Notes,
+                    products = infoCard.ProductLines,
+                    totalWeightKgText = infoCard.TotalWeightKgText,
+                    deliveryDate = infoCard.DeliveryDate,
+                    deliveryPeriod = infoCard.DeliveryPeriod,
+                    deliveryCanOccurEarlier = infoCard.DeliveryCanOccurEarlier,
+                    isAlternativeLiefertour = infoCard.IsAlternativeLiefertour,
+                    showName = vm.MapPinInfoCardShowName,
+                    showOrderNumber = vm.MapPinInfoCardShowOrderNumber,
+                    showStreet = vm.MapPinInfoCardShowStreet,
+                    showPostalCodeCity = vm.MapPinInfoCardShowPostalCodeCity,
+                    showNotes = vm.MapPinInfoCardShowNotes,
+                    showProducts = vm.MapPinInfoCardShowProducts,
+                    showTotalWeight = vm.MapPinInfoCardShowTotalWeight,
+                    street = infoCard.Street,
+                    postalCodeCity = infoCard.PostalCodeCity,
                     position = r.Position,
                     label = r.DisplayPosition,
                     avisoStatus = visual.AvisoStatusLabel,
@@ -1133,7 +1148,7 @@ public partial class KarteSectionView : UserControl
 
         var id = vm.SelectedRouteStop is { IsLegSelected: true }
             ? string.Empty
-            : vm.SelectedOrder?.OrderId ?? string.Empty;
+            : vm.SelectedOrder?.MarkerId ?? vm.SelectedRouteStop?.MarkerId ?? string.Empty;
         var jsonId = JsonSerializer.Serialize(id);
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetStickyPopupOrderId === 'function') window.gawelaSetStickyPopupOrderId({jsonId});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaHighlightMarker === 'function') window.gawelaHighlightMarker({jsonId});");

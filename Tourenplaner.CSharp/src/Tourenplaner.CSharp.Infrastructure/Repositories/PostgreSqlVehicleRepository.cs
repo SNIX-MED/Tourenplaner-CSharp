@@ -1,4 +1,4 @@
-﻿using Tourenplaner.CSharp.Application.Abstractions;
+using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Services;
 
@@ -23,7 +23,7 @@ public sealed class PostgreSqlVehicleRepository : IVehicleRepository
     public async Task<IReadOnlyList<Vehicle>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -47,7 +47,7 @@ public sealed class PostgreSqlVehicleRepository : IVehicleRepository
             .ToList();
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);

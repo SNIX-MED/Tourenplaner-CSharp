@@ -6,6 +6,26 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 public class JsonToursRepositoryTests
 {
     [Fact]
+    public async Task AddressReview_PersistsAcrossReloadAndNormalizesLegacyNullValues()
+    {
+        var root = CreateTempRoot();
+        var file = Path.Combine(root, "tours.json");
+        try
+        {
+            var repository = new JsonToursRepository(file);
+            await repository.UpsertAsync(new TourRecord { Id = 7, AddressReviewOrderIds = [" A-1 ", "a-1", ""],
+                AddressReviewRoutingError = " Fahrtziel prüfen " });
+            var stored = Assert.Single(await new JsonToursRepository(file).LoadAsync());
+            Assert.Equal(new[] { "A-1" }, stored.AddressReviewOrderIds);
+            Assert.Equal("Fahrtziel prüfen", stored.AddressReviewRoutingError);
+            await File.WriteAllTextAsync(file, "[{\"id\":7,\"addressReviewOrderIds\":null,\"addressReviewRoutingError\":null}]");
+            stored = Assert.Single(await repository.LoadAsync());
+            Assert.Empty(stored.AddressReviewOrderIds);
+            Assert.Empty(stored.AddressReviewRoutingError);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+    [Fact]
     public async Task LoadAsync_NormalizesDatesAndStops()
     {
         var root = CreateTempRoot();

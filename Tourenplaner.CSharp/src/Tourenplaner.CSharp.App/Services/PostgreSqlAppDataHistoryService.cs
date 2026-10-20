@@ -66,7 +66,7 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -90,7 +90,7 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
     {
         var count = Math.Clamp(maximumCount, 1, 500);
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         await using var command = connection.CreateCommand();
@@ -122,7 +122,7 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
     {
         var normalizedDays = Math.Clamp(retentionDays, 1, 3650);
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         return await CleanupExpiredEntriesCoreAsync(connection, schema, normalizedDays, cancellationToken);
@@ -138,7 +138,7 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
             _history.Reset();
 
             await using var connection = _connectionFactory.CreateConnection(_settings);
-            await connection.OpenAsync(cancellationToken);
+            await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
             var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
             await using var command = connection.CreateCommand();
             command.CommandText = $"""SELECT COALESCE(MAX(change_id), 0) FROM "{schema}"."change_history" WHERE client_instance = @client;""";
@@ -224,7 +224,7 @@ public sealed class PostgreSqlAppDataHistoryService : IAppDataHistoryService
     private async Task<List<AuditRow>> LoadPendingRowsAsync(CancellationToken cancellationToken)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         await using var command = connection.CreateCommand();
         command.CommandText = $"""

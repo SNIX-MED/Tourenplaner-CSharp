@@ -40,6 +40,9 @@ public sealed class WebfleetTourDispatchService
     {
         var errors = new List<string>();
         if (tour is null) return ["Die Tour fehlt."];
+        if (tour.AddressReviewOrderIds.Count > 0)
+            errors.Add(TourAddressReviewService.Warning + ": Aufträge " + string.Join(", ", tour.AddressReviewOrderIds) +
+                ". Bitte die Adressänderung unter Touren prüfen und bestätigen. " + tour.AddressReviewRoutingError);
         if (vehicle is null || string.IsNullOrWhiteSpace(vehicle.WebfleetObjectUid)) errors.Add("Dem Tourfahrzeug ist noch kein WEBFLEET-Fahrzeug zugeordnet.");
         foreach (var stop in tour.Stops.Where(IsDispatchableStop))
         {

@@ -39,7 +39,7 @@ public sealed class PostgreSqlCollaborationLockService : ICollaborationLockServi
         try
         {
             await using var connection = _connectionFactory.CreateConnection(_settings);
-            await connection.OpenAsync(cancellationToken);
+            await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
             await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
             var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
             await using var command = connection.CreateCommand();
@@ -118,7 +118,7 @@ public sealed class PostgreSqlCollaborationLockService : ICollaborationLockServi
     private async Task DeleteLocksAsync((string Kind, string Id)? key, CancellationToken cancellationToken)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         await using var command = connection.CreateCommand();
         command.CommandText = key is null
@@ -145,7 +145,7 @@ public sealed class PostgreSqlCollaborationLockService : ICollaborationLockServi
                 {
                     if (_heldLocks.Count == 0) continue;
                     await using var connection = _connectionFactory.CreateConnection(_settings);
-                    await connection.OpenAsync(cancellationToken);
+                    await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
                     var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
                     await using var command = connection.CreateCommand();
                     command.CommandText = $"""

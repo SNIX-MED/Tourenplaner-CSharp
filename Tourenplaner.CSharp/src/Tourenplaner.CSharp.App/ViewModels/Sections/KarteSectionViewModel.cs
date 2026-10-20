@@ -971,6 +971,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(DetailManualTotalWeightInfoText));
                 OnPropertyChanged(nameof(DetailEffectiveTotalWeightText));
                 OnPropertyChanged(nameof(DetailProductsTotalWeightText));
+                OnPropertyChanged(nameof(IsWholeOrderWeightEditable));
                 OnPropertyChanged(nameof(DetailEmail));
                 OnPropertyChanged(nameof(DetailPhone));
                 OnPropertyChanged(nameof(DetailDeliveryType));
@@ -1108,10 +1109,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
     }
     public bool HasDetailNotes => !string.IsNullOrWhiteSpace(DetailNotes);
-    public string DetailManualTotalWeightKgText => FindSelectedOrderModel()?.ManualTotalWeightKg?.ToString("0.##", CultureInfo.CurrentCulture) ?? string.Empty;
+    public bool IsWholeOrderWeightEditable => FindSelectedOrderModel() is { } order && order.Deliveries.Count <= 1;
+    public string DetailManualTotalWeightKgText => IsWholeOrderWeightEditable ? FindSelectedOrderModel()?.ManualTotalWeightKg?.ToString("0.##", CultureInfo.CurrentCulture) ?? string.Empty : string.Empty;
     public string DetailManualTotalWeightInfoText => FindSelectedOrderModel()?.ManualTotalWeightInfo ?? string.Empty;
     public string DetailProductsTotalWeightText => FindSelectedOrderModel() is { } order
-        ? $"Gesamtgewicht aller Produkte: {order.Products.Sum(OrderProductFormatter.ResolveTotalWeightKg).ToString("0.##", CultureInfo.CurrentCulture)} kg"
+        ? $"{(FindSelectedDelivery(order) is not null && order.Deliveries.Count > 1 ? "Gewicht dieser Teillieferung" : "Gesamtgewicht aller Produkte")}: {GetSelectedDeliveryProducts().Sum(OrderProductFormatter.ResolveTotalWeightKg).ToString("0.##", CultureInfo.CurrentCulture)} kg"
         : "Gesamtgewicht aller Produkte: 0 kg";
     public string DetailEffectiveTotalWeightText => FindSelectedOrderModel() is { } order
         ? $"Verwendetes Gesamtgewicht: {ResolveSelectedDeliveryWeight(order).ToString("0.##", CultureInfo.CurrentCulture)} kg"

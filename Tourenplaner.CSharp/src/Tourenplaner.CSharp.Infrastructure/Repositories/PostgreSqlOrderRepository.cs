@@ -1,4 +1,4 @@
-﻿using Npgsql;
+using Npgsql;
 using Tourenplaner.CSharp.Application.Abstractions;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
@@ -25,7 +25,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
     public async Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -51,7 +51,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
             .ToList();
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -129,7 +129,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
         }
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -155,7 +155,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
         var nextToken = DateTimeOffset.UtcNow;
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -215,7 +215,7 @@ public sealed class PostgreSqlOrderRepository : IOrderRepository, IOrderMutation
         }
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);

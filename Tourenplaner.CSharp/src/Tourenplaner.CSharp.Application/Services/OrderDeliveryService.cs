@@ -1,4 +1,5 @@
 using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Application.Common;
 using System.Text.RegularExpressions;
 
 namespace Tourenplaner.CSharp.Application.Services;
@@ -343,10 +344,14 @@ public sealed class OrderDeliveryService
     public double ResolveWeightKg(Order order, OrderDelivery delivery)
     {
         Normalize(order);
+        if (order.Deliveries.Count <= 1 && order.Products.All(p =>
+                (delivery.Lines ?? []).Where(l => string.Equals(l.OrderProductPositionId, p.PositionId, StringComparison.OrdinalIgnoreCase))
+                    .Sum(l => Math.Max(0, l.Quantity)) == Math.Max(0, OrderProductInfo.NormalizeQuantity(p.Quantity))))
+            return order.ResolveTotalWeightKg();
         var products = order.Products.ToDictionary(x => x.PositionId, StringComparer.OrdinalIgnoreCase);
         return (delivery.Lines ?? []).Sum(line =>
             products.TryGetValue(line.OrderProductPositionId, out var product)
-                ? Math.Max(0d, product.UnitWeightKg) * Math.Max(0, line.Quantity)
+                ? Math.Max(0, OrderProductWeightNormalization.ResolveUnitWeightKg(product)) * Math.Max(0, line.Quantity)
                 : 0d);
     }
 

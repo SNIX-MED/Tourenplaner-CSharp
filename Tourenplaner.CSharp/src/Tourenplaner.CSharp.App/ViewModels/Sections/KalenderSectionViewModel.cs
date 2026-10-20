@@ -9,6 +9,8 @@ using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
+using Tourenplaner.CSharp.Application.Services;
+
 namespace Tourenplaner.CSharp.App.ViewModels.Sections;
 
 public sealed class KalenderSectionViewModel : SectionViewModelBase
@@ -1089,8 +1091,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 OrderId = ResolveOrderId(order, stop),
                 OrderAddress = FormatOrderAddress(order, stop),
                 DeliveryAddress = FormatDeliveryAddress(order, stop),
-                ProductLines = BuildProductLines(order, stop),
-                WeightText = BuildWeightText(order, stop)
+                ProductLines = BuildProductLines(order, stop, tour.Id.ToString()),
+                WeightText = BuildWeightText(order, stop, tour.Id.ToString())
             });
         }
 
@@ -1192,11 +1194,11 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
-    private static List<string> BuildProductLines(Order? order, TourStopRecord stop)
+    private static List<string> BuildProductLines(Order? order, TourStopRecord stop, string? tourId = null)
     {
         if (order?.Products is not null && order.Products.Count > 0)
         {
-            return order.Products
+            return OrderDeliveryWeightService.ResolveStopProducts(order, stop.DeliveryId, tourId)
                 .Select(p =>
                 {
                     var name = (p.Name ?? string.Empty).Trim();
@@ -1214,7 +1216,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
 
         if (order is not null)
         {
-            var orderWeight = order.ResolveTotalWeightKg();
+            var orderWeight = OrderDeliveryWeightService.ResolveStopWeightKg(order, stop.DeliveryId, tourId);
             if (orderWeight > 0)
             {
                 return [$"Gewicht: {orderWeight:0.##} kg"];
@@ -1227,15 +1229,12 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             : [];
     }
 
-    private static string BuildWeightText(Order? order, TourStopRecord stop)
+    private static string BuildWeightText(Order? order, TourStopRecord stop, string? tourId = null)
     {
         if (order is not null)
         {
-            var total = order.ResolveTotalWeightKg();
-            if (total > 0)
-            {
-                return $"Total: {total:0.##} kg";
-            }
+            var total = OrderDeliveryWeightService.ResolveStopWeightKg(order, stop.DeliveryId, tourId);
+            return $"Total: {total:0.##} kg";
         }
 
         var parsed = ParseStopWeight(stop.Gewicht);

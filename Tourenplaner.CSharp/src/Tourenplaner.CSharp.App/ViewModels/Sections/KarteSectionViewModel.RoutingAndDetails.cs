@@ -827,7 +827,7 @@ public sealed partial class KarteSectionViewModel
             return order.Products ?? [];
         }
         var quantities = (delivery.Lines ?? []).ToDictionary(x => x.OrderProductPositionId, x => x.Quantity, StringComparer.OrdinalIgnoreCase);
-        return (order.Products ?? []).Select(x => quantities.TryGetValue(x.PositionId, out var quantity)
+        return (order.Products ?? []).Select(x => quantities.TryGetValue(x.PositionId, out var quantity) && quantity > 0
             ? new OrderProductInfo
             {
                 PositionId = x.PositionId,
@@ -836,8 +836,8 @@ public sealed partial class KarteSectionViewModel
                 Supplier = x.Supplier,
                 ExpectedDelivery = x.ExpectedDelivery,
                 Quantity = quantity,
-                UnitWeightKg = x.UnitWeightKg,
-                WeightKg = x.UnitWeightKg * quantity,
+                UnitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(x),
+                WeightKg = Math.Max(0, OrderProductFormatter.ResolveUnitWeightKg(x)) * Math.Max(0, quantity),
                 Dimensions = x.Dimensions,
                 DeliveryStatus = x.DeliveryStatus
             }
@@ -1078,7 +1078,10 @@ public sealed partial class KarteSectionViewModel
         return BuildVisibleRouteGeometry(
             _routeGeometryPoints,
             lastDeliveryStop.Latitude,
-            lastDeliveryStop.Longitude);
+            lastDeliveryStop.Longitude,
+            RouteStops.TakeWhile(stop => !ReferenceEquals(stop, lastDeliveryStop))
+                .Where(stop => !IsCompanyStop(stop) && !IsPauseStop(stop) && HasValidCoordinate(stop))
+                .Select(stop => new GeoPoint(stop.Latitude, stop.Longitude)).ToList());
     }
 
     public IReadOnlyList<OsrmRouteTrafficSegment> GetRouteTrafficSegmentSnapshot()
@@ -1102,11 +1105,27 @@ public sealed partial class KarteSectionViewModel
     internal static IReadOnlyList<GeoPoint> BuildVisibleRouteGeometry(
         IReadOnlyList<GeoPoint> geometry,
         double latitude,
-        double longitude)
+        double longitude,
+        IReadOnlyList<GeoPoint>? precedingStops = null)
+    {
+        // A route can pass the final destination on its way to an earlier stop.
+        // Only search for its arrival after all preceding stops have been visited.
+        var startIndex = 0;
+        foreach (var stop in precedingStops ?? [])
+        {
+            var precedingIndex = FindClosestGeometryIndex(geometry, stop.Latitude, stop.Longitude, startIndex);
+            if (precedingIndex >= 0) startIndex = precedingIndex;
+        }
+        var bestIndex = FindClosestGeometryIndex(geometry, latitude, longitude, startIndex);
+        return bestIndex < 0 ? geometry.ToList() : geometry.Take(bestIndex + 1).ToList();
+    }
+
+    private static int FindClosestGeometryIndex(IReadOnlyList<GeoPoint> geometry, double latitude,
+        double longitude, int startIndex)
     {
         var bestIndex = -1;
         var bestDistanceSquared = double.MaxValue;
-        for (var i = 0; i < geometry.Count; i++)
+        for (var i = startIndex; i < geometry.Count; i++)
         {
             var latitudeDelta = geometry[i].Latitude - latitude;
             var longitudeDelta = geometry[i].Longitude - longitude;
@@ -1118,17 +1137,12 @@ public sealed partial class KarteSectionViewModel
             }
         }
 
-        return bestIndex < 0
-            ? geometry.ToList()
-            : geometry.Take(bestIndex + 1).ToList();
+        return bestIndex;
     }
 
     public string GetActiveRoutePolylineColor()
     {
-        var totalWeightKg = RouteStops
-            .Where(x => !IsCompanyStop(x))
-            .Select(x => FindOrderWeightKg(x.OrderId))
-            .Sum();
+        var totalWeightKg = ResolveDraftRouteOrderWeightKg();
         totalWeightKg += ResolveAdditionalMaterialWeightKg(_currentAdditionalMaterials);
         var assignments = BuildVehicleAssignments(
             _currentRouteVehicleId,
@@ -2852,6 +2866,7 @@ public sealed partial class KarteSectionViewModel
 
             await SaveChangedToursAndOrdersAsync(originalTours, tours, originalOrders, _allOrders);
             wasCommitted = true;
+            SetRouteChanged(false);
             var successMessage = TourNotificationMessageFormatter.FormatTourCreatedMessage(tour);
             StatusText = successMessage;
             ToastNotificationService.ShowInfo(successMessage);
@@ -2875,6 +2890,12 @@ public sealed partial class KarteSectionViewModel
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             await RefreshAsync();
+        }
+        catch (Exception ex) when (PostgreSqlCapacityError.IsCapacityError(ex))
+        {
+            StatusText = PostgreSqlCapacityError.SaveMessage(wasCommitted);
+            AppMessageBox.Show(StatusText, wasCommitted ? "Tour gespeichert – Aktualisierung offen" : "Datenbank ausgelastet",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (IOException ioEx)
         {
@@ -2988,6 +3009,8 @@ public sealed partial class KarteSectionViewModel
             // Keep the token of the freshly loaded record so PostgreSQL performs an
             // optimistic-concurrency update instead of treating the tour as a new row.
             updated.ConcurrencyToken = existingTour.ConcurrencyToken;
+            updated.AddressReviewOrderIds = existingTour.AddressReviewOrderIds.ToList();
+            updated.AddressReviewRoutingError = existingTour.AddressReviewRoutingError;
 
             updated.VehicleId = string.IsNullOrWhiteSpace(vehicleId) ? null : vehicleId.Trim();
             updated.TrailerId = string.IsNullOrWhiteSpace(trailerId) ? null : trailerId.Trim();
@@ -3043,6 +3066,7 @@ public sealed partial class KarteSectionViewModel
 
             await SaveChangedToursAndOrdersAsync(originalTours, tours, originalOrders, _allOrders);
             wasCommitted = true;
+            SetRouteChanged(false);
             if (_loadedTourLeaseId == tourId) _loadedTourEditConcurrencyToken = updated.ConcurrencyToken;
             var successMessage = TourNotificationMessageFormatter.FormatTourUpdatedMessage(updated);
             StatusText = successMessage;
@@ -3074,6 +3098,12 @@ public sealed partial class KarteSectionViewModel
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             await RefreshAsync();
+        }
+        catch (Exception ex) when (PostgreSqlCapacityError.IsCapacityError(ex))
+        {
+            StatusText = PostgreSqlCapacityError.SaveMessage(wasCommitted);
+            AppMessageBox.Show(StatusText, wasCommitted ? "Tour gespeichert – Aktualisierung offen" : "Datenbank ausgelastet",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (IOException ioEx)
         {
@@ -3218,6 +3248,8 @@ public sealed partial class KarteSectionViewModel
     {
         return new TourRecord
         {
+            AddressReviewOrderIds = source.AddressReviewOrderIds.ToList(),
+            AddressReviewRoutingError = source.AddressReviewRoutingError,
             Id = source.Id,
             Date = (source.Date ?? string.Empty).Trim(),
             Name = (source.Name ?? string.Empty).Trim(),
@@ -4133,7 +4165,7 @@ public sealed partial class KarteSectionViewModel
                     ResolveTimeWindow(stop.OrderId),
                     string.IsNullOrWhiteSpace(arrivalText) ? stop.EtaText : arrivalText,
                     ResolveArrivalRangeText(stop.OrderId),
-                    ResolveWeightText(stop.OrderId),
+                    ResolveWeightText(stop.OrderId, stop.DeliveryId),
                     stop.EmployeeInfoText,
                     GetPauseStopsAfter(stop).Sum(x => Math.Max(0, x.PlannedStayMinutes)),
                     ResolveOrderNotes(stop.OrderId));
@@ -4270,18 +4302,15 @@ public sealed partial class KarteSectionViewModel
             stop.PlannedArrivalPessimistic);
     }
 
-    private string ResolveWeightText(string orderId)
+    private string ResolveWeightText(string orderId, string? deliveryId = null)
     {
         var normalizedOrderId = (orderId ?? string.Empty).Trim();
         var order = _allOrders.FirstOrDefault(candidate =>
             string.Equals(candidate.Id, normalizedOrderId, StringComparison.OrdinalIgnoreCase));
         if (order is not null)
         {
-            var currentWeight = order.ResolveTotalWeightKg();
-            if (currentWeight > 0)
-            {
-                return $"{currentWeight:0.##} kg";
-            }
+            var currentWeight = OrderDeliveryWeightService.ResolveStopWeightKg(order, deliveryId, ResolveCurrentTourId().ToString());
+            return $"{currentWeight:0.##} kg";
         }
 
         var stop = FindCurrentTourStop(normalizedOrderId);
@@ -4811,10 +4840,7 @@ public sealed partial class KarteSectionViewModel
 
     private void UpdateRouteSummary()
     {
-        var totalWeightKg = RouteStops
-            .Where(IsOrderStop)
-            .Select(x => FindOrderWeightKg(x.OrderId))
-            .Sum();
+        var totalWeightKg = ResolveDraftRouteOrderWeightKg();
         totalWeightKg += ResolveAdditionalMaterialWeightKg(_currentAdditionalMaterials);
         var summaryVehicleId = _currentRouteVehicleId;
         var summaryTrailerId = _currentRouteTrailerId;
@@ -4994,24 +5020,7 @@ public sealed partial class KarteSectionViewModel
 
     private int ResolveSavedTourTotalWeightKg(TourRecord tour)
     {
-        var orderIds = (tour.Stops ?? [])
-            .Where(stop => IsCustomerTourStop(stop) && !IsManualTourStop(stop))
-            .Select(ExtractTourStopOrderId)
-            .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
-            .Select(orderId => orderId.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var totalWeightKg = orderIds.Count > 0
-            ? orderIds.Sum(FindOrderWeightKg)
-            : _allOrders
-                .Where(order =>
-                    !order.IsArchived &&
-                    string.Equals(
-                        (order.AssignedTourId ?? string.Empty).Trim(),
-                        tour.Id.ToString(CultureInfo.InvariantCulture),
-                        StringComparison.OrdinalIgnoreCase))
-                .Sum(order => FindOrderWeightKg(order.Id));
+        var totalWeightKg = OrderDeliveryWeightService.ResolveTourOrderWeightKg(tour, _allOrders);
 
         return totalWeightKg + ResolveAdditionalMaterialWeightKg(tour.AdditionalMaterials);
     }
@@ -5195,10 +5204,7 @@ public sealed partial class KarteSectionViewModel
 
     private bool ConfirmCapacityWarning(string? vehicleId, string? trailerId, string? secondaryVehicleId, string? secondaryTrailerId, IReadOnlyList<TourAdditionalMaterial>? additionalMaterials = null)
     {
-        var totalWeightKg = RouteStops
-            .Where(x => !IsCompanyStop(x))
-            .Select(x => FindOrderWeightKg(x.OrderId))
-            .Sum();
+        var totalWeightKg = ResolveDraftRouteOrderWeightKg();
         totalWeightKg += ResolveAdditionalMaterialWeightKg(additionalMaterials ?? _currentAdditionalMaterials);
         var assignments = BuildVehicleAssignments(vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId);
         var warning = TourCapacityWarningService.EvaluateFleet(_vehicleData, assignments, totalWeightKg);
@@ -5330,21 +5336,14 @@ public sealed partial class KarteSectionViewModel
         return lines.Count == 0 ? null : string.Join(Environment.NewLine, lines);
     }
 
-    private int FindOrderWeightKg(string? orderId)
+    private int ResolveDraftRouteOrderWeightKg()
     {
-        var normalizedOrderId = (orderId ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalizedOrderId))
+        var stops = RouteStops.Where(IsOrderStop).Select(s => new TourStopRecord
         {
-            return 0;
-        }
-
-        var order = _allOrders.FirstOrDefault(x => string.Equals(x.Id, normalizedOrderId, StringComparison.OrdinalIgnoreCase));
-        if (order is null)
-        {
-            return 0;
-        }
-
-        return (int)Math.Ceiling(Math.Max(0d, order.ResolveTotalWeightKg()));
+            Auftragsnummer = s.OrderId, DeliveryId = s.DeliveryId
+        }).ToList();
+        return stops.Count == 0 ? 0 : OrderDeliveryWeightService.ResolveTourOrderWeightKg(
+            new TourRecord { Id = ResolveCurrentTourId(), Stops = stops }, _allOrders);
     }
 
     private string ResolveDeliveryTypeText(string? orderId)
@@ -6160,6 +6159,7 @@ public sealed partial class KarteSectionViewModel
 
     public async Task SaveDetailManualTotalWeightAsync(string? value, string? info)
     {
+        if (!IsWholeOrderWeightEditable) return;
         var selected = FindSelectedOrderModel();
         var order = selected is null ? null : OrderEditPersistenceService.CreateCandidate(selected);
         if (order is null)
@@ -8619,6 +8619,25 @@ public sealed partial class KarteSectionViewModel
         userPreference.MapDetailsPanelExpanded = IsDetailsPanelExpanded;
         settings.SetUserPreference(currentUserName, userPreference);
         await _settingsRepository.SaveAsync(settings);
+    }
+
+    public MapOrderItem ResolveRoutePinInfoCard(RouteStopItem stop)
+    {
+        var order = _allOrders.FirstOrDefault(o => string.Equals(o.Id, stop.OrderId, StringComparison.OrdinalIgnoreCase));
+        if (order is not null && !stop.IsManualStop && !stop.IsPauseStop)
+        {
+            var delivery = (order.Deliveries ?? []).FirstOrDefault(d =>
+                !string.IsNullOrWhiteSpace(stop.DeliveryId) && string.Equals(d.Id, stop.DeliveryId, StringComparison.OrdinalIgnoreCase));
+            if (delivery is null && string.IsNullOrWhiteSpace(stop.DeliveryId))
+            {
+                var assigned = (order.Deliveries ?? []).Where(d => d.Status != OrderDeliveryStatus.Cancelled &&
+                    d.AssignedTourId == ResolveCurrentTourId().ToString(CultureInfo.InvariantCulture)).ToList();
+                if (assigned.Count == 1) delivery = assigned[0];
+            }
+            return BuildMapOrderItem(order, delivery);
+        }
+        return new MapOrderItem { OrderId = stop.OrderId, DeliveryId = stop.DeliveryId,
+            Customer = stop.Customer, Street = stop.Address, Address = stop.Address };
     }
 
     private MapOrderItem BuildMapOrderItem(Order order, bool isDimmed = false)

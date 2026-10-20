@@ -10,6 +10,112 @@ namespace Tourenplaner.CSharp.Tests.Application;
 [Collection("Karte collaboration")]
 public sealed class KarteSearchDetailsTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RoutePinSelectionOpensCorrectDetailsEvenWithoutVisibleFreePin(bool partial)
+    {
+        var order = CreateOrder();
+        order.Products = [new() { PositionId = "P", Name = "Produkt", Quantity = 10, UnitWeightKg = 5 }];
+        if (partial)
+            order.Deliveries = [new() { Id = "D1", SequenceNumber = 1, Lines = [new() { OrderProductPositionId = "P", Quantity = 3 }] },
+                new() { Id = "D2", SequenceNumber = 2, Lines = [new() { OrderProductPositionId = "P", Quantity = 7 }] }];
+        var vm = CreateViewModel(new FixedOrderStore(order));
+        await vm.RefreshAsync();
+        vm.MapOrders.Clear();
+        var stop = new RouteStopItem { OrderId = order.Id, DeliveryId = partial ? "D2" : string.Empty,
+            Customer = order.CustomerName, Latitude = 47, Longitude = 8 };
+        vm.RouteStops.Add(stop);
+        vm.SelectRouteStopByOrderId(stop.MarkerId);
+        Assert.Same(stop, vm.SelectedRouteStop);
+        Assert.Equal(order.Id, vm.SelectedOrder?.OrderId);
+        if (partial) Assert.Equal("D2", vm.SelectedOrder?.DeliveryId);
+        Assert.True(vm.IsDetailsOpen);
+        vm.CloseDetailsCommand.Execute(null);
+        Assert.Null(vm.SelectedOrder);
+        Assert.Null(vm.SelectedRouteStop);
+        Assert.True(vm.IsDetailsPanelExpanded);
+        // Selecting the same pin again must keep its right-side details open.
+        vm.SelectRouteStopByOrderId(stop.MarkerId);
+        Assert.Same(stop, vm.SelectedRouteStop);
+        Assert.True(vm.IsDetailsOpen);
+    }
+    [Fact]
+    public async Task RouteInfoCardIncludesFullOrderDataWithoutVisibleFreePin()
+    {
+        var order = CreateOrder();
+        order.DeliveryAddress = new() { Street = "Teststrasse", HouseNumber = "1", PostalCode = "8000", City = "Zürich" };
+        order.Notes = "Zufahrt beachten";
+        order.DeliveryPeriod = "Lieferung KW 44";
+        order.Products = [new() { PositionId = "P", Name = "Produkt", Quantity = 2, UnitWeightKg = 20, WeightKg = 40 }];
+        var vm = CreateViewModel(new FixedOrderStore(order));
+        await vm.RefreshAsync();
+        vm.MapOrders.Clear();
+        var card = vm.ResolveRoutePinInfoCard(new() { OrderId = order.Id });
+        Assert.Equal(order.CustomerName, card.Customer);
+        Assert.Equal("8000 Zürich", card.PostalCodeCity);
+        Assert.Equal(order.Notes, card.Notes);
+        Assert.Equal(order.DeliveryPeriod, card.DeliveryPeriod);
+        Assert.Contains(card.ProductLines, p => p.Contains("Produkt"));
+        Assert.Equal("40", card.TotalWeightKgText);
+    }
+
+    [Fact]
+    public async Task RouteInfoCardUsesExactPartialDeliveryEvenWithoutVisiblePin()
+    {
+        var order = CreateOrder();
+        order.Products = [new() { PositionId = "P", Name = "Produkt", Quantity = 10, UnitWeightKg = 5, WeightKg = 50 }];
+        order.Deliveries = [new() { Id = "D1", SequenceNumber = 1, Notes = "Teil eins", Lines = [new() { OrderProductPositionId = "P", Quantity = 3 }] },
+            new() { Id = "D2", SequenceNumber = 2, Notes = "Teil zwei", Lines = [new() { OrderProductPositionId = "P", Quantity = 7 }] }];
+        var vm = CreateViewModel(new FixedOrderStore(order));
+        await vm.RefreshAsync();
+        vm.MapOrders.Clear();
+        var card = vm.ResolveRoutePinInfoCard(new() { OrderId = order.Id, DeliveryId = "D2" });
+        Assert.Contains("Lieferung Teil 2", card.Customer);
+        Assert.Equal("Lieferung 2/2: Teil zwei", card.Notes);
+        Assert.Equal("35", card.TotalWeightKgText);
+        Assert.Equal("7 × Produkt", Assert.Single(card.ProductLines));
+    }
+
+    [Fact]
+    public void ManualRouteInfoCardRetainsItsOwnNameAndAddress()
+    {
+        var card = CreateViewModel().ResolveRoutePinInfoCard(new() { OrderId = "manual:1", IsManualStop = true,
+            Customer = "Zwischenstopp", Address = "Hauptstrasse 5" });
+        Assert.Equal("Zwischenstopp", card.Customer);
+        Assert.Equal("Hauptstrasse 5", card.Street);
+    }
+    [Fact]
+    public async Task PartialDeliveryWeightsMatchAcrossPinDetailsDraftAndSavedTour()
+    {
+        var order = CreateOrder();
+        order.ManualTotalWeightKg = 900;
+        order.Products = [new() { PositionId = "P", Name = "Produkt", Quantity = 10, UnitWeightKg = 5, WeightKg = 50 }];
+        order.Deliveries = [new() { Id = "D1", SequenceNumber = 1, Lines = [new() { OrderProductPositionId = "P", Quantity = 3 }] },
+            new() { Id = "D2", SequenceNumber = 2, Lines = [new() { OrderProductPositionId = "P", Quantity = 7 }] }];
+        var vm = CreateViewModel(new FixedOrderStore(order));
+        await vm.RefreshAsync();
+        var pin = vm.MapOrders.Single(p => p.DeliveryId == "D1");
+        Assert.Equal("15", pin.TotalWeightKgText);
+        vm.SelectedOrder = pin;
+        Assert.Equal("Gewicht dieser Teillieferung: 15 kg", vm.DetailProductsTotalWeightText);
+        Assert.False(vm.IsWholeOrderWeightEditable);
+        vm.RouteStops.Add(new() { OrderId = order.Id, DeliveryId = "D1", Customer = "Kunde", Latitude = 47, Longitude = 8 });
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        typeof(KarteSectionViewModel).GetMethod("UpdateRouteSummary", flags)!.Invoke(vm, null);
+        Assert.Equal("Totalgewicht: 15 kg", vm.RouteTotalWeightText);
+        var saved = new TourRecord { Id = 19, Stops = [new() { Auftragsnummer = order.Id, DeliveryId = "D1" }] };
+        Assert.Equal(15, typeof(KarteSectionViewModel).GetMethod("ResolveSavedTourTotalWeightKg", flags)!.Invoke(vm, [saved]));
+        vm.SelectedOrder = vm.MapOrders.Single(p => p.DeliveryId == "D2");
+        Assert.Equal("Gewicht dieser Teillieferung: 35 kg", vm.DetailProductsTotalWeightText);
+        vm.RouteStops.Add(new() { OrderId = order.Id, DeliveryId = "D2", Customer = "Kunde", Latitude = 47, Longitude = 8 });
+        typeof(KarteSectionViewModel).GetMethod("UpdateRouteSummary", flags)!.Invoke(vm, null);
+        Assert.Equal("Totalgewicht: 50 kg", vm.RouteTotalWeightText);
+        // Duplicate representations of the same delivery must not add its load twice.
+        vm.RouteStops.Add(new() { OrderId = order.Id, DeliveryId = "D1", Customer = "Kunde", Latitude = 47, Longitude = 8 });
+        typeof(KarteSectionViewModel).GetMethod("UpdateRouteSummary", flags)!.Invoke(vm, null);
+        Assert.Equal("Totalgewicht: 50 kg", vm.RouteTotalWeightText);
+    }
     [Fact]
     public void ReloadedStreetGeometrySurvivesFailureOnlyWithMatchingSavedSignature()
     {
@@ -460,6 +566,45 @@ public sealed class KarteSearchDetailsTests
 
         Assert.Equal(3, visibleRoute.Count);
         Assert.Equal(completeRoute[2], visibleRoute[^1]);
+    }
+
+    [Fact]
+    public void HiddenReturnLeg_DoesNotCutAtFinalStopPassedBeforePartialDelivery()
+    {
+        var start = new GeoPoint(47.1, 8.1);
+        var finalStop = new GeoPoint(47.2, 8.2);
+        var partialStop = new GeoPoint(47.3, 8.3);
+        var geometry = new List<GeoPoint> { start, finalStop, partialStop, finalStop, start };
+        var vm = CreateViewModel();
+        vm.RouteStops.Add(new() { OrderId = "A", DeliveryId = "D1", Latitude = partialStop.Latitude, Longitude = partialStop.Longitude });
+        vm.RouteStops.Add(new() { OrderId = "B", Latitude = finalStop.Latitude, Longitude = finalStop.Longitude });
+        GetPrivateField<List<GeoPoint>>(vm, "_routeGeometryPoints").AddRange(geometry);
+
+        Assert.Equal(geometry.Take(4), vm.GetRouteGeometrySnapshot());
+        vm.ToggleReturnToCompanyLegVisibility();
+        Assert.Equal(geometry, vm.GetRouteGeometrySnapshot());
+    }
+
+    [Fact]
+    public void HiddenReturnLeg_RespectsAllEarlierStopsInOrder()
+    {
+        var a = new GeoPoint(47.1, 8.1);
+        var b = new GeoPoint(47.2, 8.2);
+        var c = new GeoPoint(47.3, 8.3);
+        IReadOnlyList<GeoPoint> geometry = [c, b, a, b, c, a];
+        var visible = KarteSectionViewModel.BuildVisibleRouteGeometry(geometry, c.Latitude, c.Longitude, [a, b]);
+        Assert.Equal(geometry.Take(5), visible);
+    }
+
+    [Fact]
+    public void HiddenReturnLeg_AllowsConsecutivePartialDeliveriesAtSameLocation()
+    {
+        var start = new GeoPoint(47, 8);
+        var destination = new GeoPoint(47.1, 8.1);
+        var visible = KarteSectionViewModel.BuildVisibleRouteGeometry([start, destination, start],
+            destination.Latitude, destination.Longitude, [destination]);
+        Assert.Equal(new[] { start, destination }, visible);
+        Assert.Empty(KarteSectionViewModel.BuildVisibleRouteGeometry([], 47, 8, [destination]));
     }
 
     [Fact]

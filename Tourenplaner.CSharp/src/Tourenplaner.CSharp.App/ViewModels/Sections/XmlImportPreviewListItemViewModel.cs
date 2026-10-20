@@ -55,6 +55,8 @@ public sealed class XmlImportPreviewListItemViewModel
         var changeSummary = item.Changes.Count == 0
             ? "Keine Änderungen erkannt."
             : string.Join(" | ", item.Changes);
+        if (item.TourAddressChanges.Count > 0)
+            (label, background, border, foreground) = ("Tour prüfen", "#FFFBEB", "#FCD34D", "#92400E");
 
         return new XmlImportPreviewListItemViewModel(
             label,

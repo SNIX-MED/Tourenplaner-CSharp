@@ -11,6 +11,23 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class ToursSectionViewModelTests
 {
     [Fact]
+    public async Task AddressReview_ShowsInTourListDetailsAndWarningFilter()
+    {
+        var tour = CreateTour(19);
+        tour.AddressReviewOrderIds = ["A-1"];
+        tour.AddressReviewRoutingError = "Fahrtziel zuerst prüfen.";
+        var viewModel = new ToursSectionViewModel(new ControlledTourStore([tour]), new SingleOrderRepository(),
+            new EmptyEmployeeStore(), new EmptyVehicleStore(), new DefaultSettingsStore());
+        await viewModel.RefreshAsync();
+        viewModel.SelectedTour = Assert.Single(viewModel.Tours);
+        Assert.True(viewModel.SelectedTour.HasAddressReview);
+        Assert.Equal("Adresse geändert – Planung prüfen", viewModel.SelectedTour.WarningText);
+        Assert.True(viewModel.HasSelectedTourAddressReview);
+        Assert.Contains(viewModel.SelectedTourWarnings, w => w.Title == "Adresse geändert – Planung prüfen");
+        viewModel.ShowOnlyToursWithWarnings = true;
+        Assert.Single(viewModel.Tours);
+    }
+    [Fact]
     public async Task MapViewMode_DoesNotBlockTourModifications()
     {
         var viewModel = CreateViewModelWithTour(19);

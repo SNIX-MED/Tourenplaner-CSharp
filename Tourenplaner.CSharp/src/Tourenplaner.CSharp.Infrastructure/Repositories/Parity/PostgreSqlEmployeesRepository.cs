@@ -1,4 +1,4 @@
-﻿using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Repositories;
 using Tourenplaner.CSharp.Infrastructure.Services;
 
@@ -23,7 +23,7 @@ public sealed class PostgreSqlEmployeesRepository : IEmployeeDataStore, IEmploye
     public async Task<IReadOnlyList<Employee>> LoadAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -64,7 +64,7 @@ public sealed class PostgreSqlEmployeesRepository : IEmployeeDataStore, IEmploye
             .ToList();
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
 
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
@@ -95,7 +95,7 @@ public sealed class PostgreSqlEmployeesRepository : IEmployeeDataStore, IEmploye
         var normalizedId = (employeeId ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(normalizedId)) return;
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         await using var command = connection.CreateCommand();

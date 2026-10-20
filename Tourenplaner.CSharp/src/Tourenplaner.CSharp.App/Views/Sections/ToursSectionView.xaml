@@ -454,6 +454,9 @@
                                                     <TextBlock Margin="0,4,0,0"
                                                                Foreground="{DynamicResource Brush.TextMuted}"
                                                                Text="{Binding StopCount, StringFormat={}{0} Stopps}" />
+                                                    <TextBlock Margin="0,4,12,0" Foreground="#B45309" FontWeight="SemiBold"
+                                                               TextWrapping="Wrap" Text="Adresse geändert – Planung prüfen"
+                                                               Visibility="{Binding HasAddressReview, Converter={StaticResource BoolToVisibilityConverter}}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1"
                                                             VerticalAlignment="Center"
@@ -1065,6 +1068,15 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="1" Width="220" Orientation="Vertical">
+                            <Button Height="36" Margin="0,0,0,8" Content="Adressänderung geprüft"
+                                    Command="{Binding ConfirmAddressReviewCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers><DataTrigger Binding="{Binding HasSelectedTourAddressReview}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                             <Button Height="36"
                                     Margin="0,0,0,8"
                                     Content="Route neu berechnen"

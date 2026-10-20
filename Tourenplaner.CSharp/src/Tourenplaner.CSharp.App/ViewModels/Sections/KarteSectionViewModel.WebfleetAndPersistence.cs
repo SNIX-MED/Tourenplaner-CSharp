@@ -39,6 +39,7 @@ public sealed partial class KarteSectionViewModel
             return;
         }
 
+        var tourBeforeConfirmation = JsonSerializer.Serialize(tour);
         // Die aus dem Repository geladene Tour kann vor der Einführung der
         // Zeitfenster gespeichert worden sein. Vor jeder WEBFLEET-Synchronisierung
         // deshalb die Ankunftszeiten und die daraus abgeleitete Toleranz frisch
@@ -69,6 +70,7 @@ public sealed partial class KarteSectionViewModel
         }
         var vehicle = new Vehicle { Id = driver.Id, Name = driver.DisplayName, WebfleetObjectUid = driver.WebfleetObjectUid, WebfleetObjectNumber = driver.WebfleetObjectNumber };
         var currentOrders = await _orderRepository.GetAllAsync(cancellationToken);
+        var destinationsBeforeConfirmation = TourAddressReviewService.DestinationSnapshot([tour], currentOrders);
         var dispatch = new WebfleetTourDispatchService(currentOrders);
         var errors = dispatch.Validate(tour, vehicle);
         if (errors.Count > 0)
@@ -96,7 +98,21 @@ public sealed partial class KarteSectionViewModel
         }
 
         // The confirmation dialog may remain open while another client edits an order.
+        var latestTours = (await _tourRepository.LoadAsync(cancellationToken)).ToList();
+        var latestTour = latestTours.FirstOrDefault(t => t.Id == tour.Id);
+        if (latestTour is null || JsonSerializer.Serialize(latestTour) != tourBeforeConfirmation)
+        {
+            AppMessageBox.Show("Die Tour wurde zwischenzeitlich geändert. Bitte die aktuelle Planung prüfen und den Versand erneut starten.",
+                "WEBFLEET-Versand prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         currentOrders = await _orderRepository.GetAllAsync(cancellationToken);
+        if (TourAddressReviewService.DestinationSnapshot([tour], currentOrders) != destinationsBeforeConfirmation)
+        {
+            AppMessageBox.Show("Ein Fahrtziel wurde zwischenzeitlich geändert. Bitte Route und Zeiten prüfen und den Versand erneut starten.",
+                "WEBFLEET-Versand prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         dispatch = new WebfleetTourDispatchService(currentOrders);
         errors = dispatch.Validate(tour, vehicle);
         if (errors.Count > 0)

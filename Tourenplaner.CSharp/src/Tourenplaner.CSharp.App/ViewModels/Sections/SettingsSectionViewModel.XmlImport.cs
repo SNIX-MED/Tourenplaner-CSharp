@@ -148,6 +148,7 @@ public sealed partial class SettingsSectionViewModel
         ClearXmlImportPinIssues();
         ImportStatusMessage = "Importiere geprüfte Aufträge aus XML...";
 
+        ImportResult? committedImport = null;
         try
         {
             if (!IsCurrentPreviewFile())
@@ -162,11 +163,35 @@ public sealed partial class SettingsSectionViewModel
 
             var importService = new OrderImportService();
             var tours = await LoadToursForXmlImportAsync();
+            // Reload the impact immediately before confirmation; assignments may have changed since preview.
+            var currentPreview = await importService.PreviewImportAsync(_previewedXmlOrders.ToList(), _orderRepository, tours);
+            var addressChanges = currentPreview.Items.SelectMany(x => x.TourAddressChanges).ToList();
+            if (addressChanges.Count > 0 && !XmlTourAddressChangeConfirmation.Show(addressChanges))
+            {
+                ImportStatusMessage = "Import abgebrochen. Es wurden keine Änderungen übernommen.";
+                return;
+            }
+            tours = await LoadToursForXmlImportAsync();
+            var confirmedPreview = await importService.PreviewImportAsync(_previewedXmlOrders.ToList(), _orderRepository, tours);
+            var confirmedChanges = confirmedPreview.Items.SelectMany(x => x.TourAddressChanges).ToList();
+            if (!addressChanges.SequenceEqual(confirmedChanges))
+            {
+                ImportStatusMessage = "Aufträge oder Tourzuordnungen wurden zwischenzeitlich geändert. Bitte die Importvorschau erneut prüfen.";
+                _hasPendingXmlImportPreview = false;
+                RaiseXmlImportPreviewStateChanged();
+                return;
+            }
             var result = await importService.ImportOrdersAsync(
                 _previewedXmlOrders.ToList(),
                 _orderRepository,
                 markAsXmlImported: true,
                 tours: tours);
+            committedImport = result;
+            _hasPendingXmlImportPreview = false;
+            RaiseXmlImportPreviewStateChanged();
+
+            // Persist the review marker before network calls so failures cannot hide a changed destination.
+            await UpdateImportedTourAddressesAsync(result, recalculate: false);
 
             var parserErrorCount = XmlImportPreviewErrors.Count;
             if (result.Errors.Any())
@@ -184,7 +209,10 @@ public sealed partial class SettingsSectionViewModel
 
             var pinIssues = await EvaluateImportedPinAssignmentsAsync(result);
             ApplyXmlImportPinIssues(pinIssues);
-            _dataSyncService?.PublishOrders(_instanceId);
+            var tourWarnings = await UpdateImportedTourAddressesAsync(result, recalculate: true);
+            foreach (var warning in tourWarnings)
+                if (!XmlImportPreviewWarnings.Contains(warning)) XmlImportPreviewWarnings.Add(warning);
+            RaiseXmlImportPreviewStateChanged();
 
             var appSettings = await _repository.LoadAsync();
             appSettings.XmlImportFilePath = XmlImportFilePath;
@@ -197,22 +225,32 @@ public sealed partial class SettingsSectionViewModel
 
             var totalErrorCount = parserErrorCount + result.Errors.Count;
             ImportStatusMessage = BuildXmlImportCompletionMessage(result, totalErrorCount, XmlImportPinIssueItems.Count);
+            if (result.TourAddressChanges.Count > 0)
+                ImportStatusMessage += $" {result.TourAddressChanges.Select(c => c.TourId).Distinct().Count()} Tour(en): Adresse geändert – Planung prüfen. Bitte unter Touren die Lieferadressen, Route und Zeiten prüfen.";
+            if (tourWarnings.Count > 0) ImportStatusMessage += Environment.NewLine + string.Join(Environment.NewLine, tourWarnings);
             StatusText = $"XML Import abgeschlossen: {result.CreatedOrders} neu, {result.UpdatedOrders} aktualisiert, {result.UnchangedOrders} unverändert.";
             AppMessageBox.Show(
                 ImportStatusMessage + Environment.NewLine + Environment.NewLine +
-                (pinIssues.Count == 0 && totalErrorCount == 0
+                (pinIssues.Count == 0 && totalErrorCount == 0 && tourWarnings.Count == 0
                     ? "Alle importierten Aufträge wurden geprüft."
                     : "Offene Prüfergebnisse finden Sie unten bei den Importwarnungen."),
                 "XML-Import abgeschlossen", MessageBoxButton.OK,
-                pinIssues.Count == 0 && totalErrorCount == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                pinIssues.Count == 0 && totalErrorCount == 0 && tourWarnings.Count == 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {
-            ImportStatusMessage = $"Importfehler: {ex.Message}";
-            StatusText = $"XML Import fehlgeschlagen: {ex.Message}";
+            ImportStatusMessage = committedImport is null ? $"Importfehler: {ex.Message}" :
+                $"Die Aufträge wurden bereits importiert. Die anschließende Tour-/Adressprüfung konnte nicht abgeschlossen werden: {ex.Message} Bitte die betroffenen Touren vor dem Versand prüfen.";
+            StatusText = committedImport is null ? $"XML Import fehlgeschlagen: {ex.Message}" : "XML-Aufträge importiert; Tour-/Adressprüfung noch offen.";
+            if (committedImport is not null) XmlImportPreviewWarnings.Add(ImportStatusMessage);
         }
         finally
         {
+            if (committedImport is not null)
+            {
+                _dataSyncService?.PublishOrders(_instanceId);
+                _dataSyncService?.PublishTours(_instanceId);
+            }
             IsImportingOrders = false;
             RaiseXmlImportCommandStates();
         }
@@ -224,6 +262,18 @@ public sealed partial class SettingsSectionViewModel
                _hasPendingXmlImportPreview &&
                _previewedXmlOrders.Count > 0 &&
                IsCurrentPreviewFile();
+    }
+
+    private async Task<IReadOnlyList<string>> UpdateImportedTourAddressesAsync(ImportResult result, bool recalculate)
+    {
+        if (result.TourAddressChanges.Count == 0) return [];
+        await XmlImportTourAddressUpdateService.UpdateAsync(result.TourAddressChanges, recalculate,
+            _tourRecordStore!, _orderRepository!, _repository, _xmlImportVehicleStore, LocalUserSessionService.CurrentUserName);
+        if (!recalculate) return [];
+        return (await LoadToursForXmlImportAsync()).Where(t => t.AddressReviewOrderIds.Count > 0 &&
+                !string.IsNullOrWhiteSpace(t.AddressReviewRoutingError) &&
+                result.TourAddressChanges.Any(c => t.AddressReviewOrderIds.Contains(c.OrderId)))
+            .Select(t => $"Tour {t.Name} ({t.Date}): {t.AddressReviewRoutingError}").ToList();
     }
 
     private void ApplyXmlImportPreview(

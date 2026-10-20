@@ -22,6 +22,10 @@ internal static class TourNormalizer
 
         source.Date = NormalizeDateString(source.Date);
         source.Name = (source.Name ?? string.Empty).Trim();
+        source.AddressReviewOrderIds = (source.AddressReviewOrderIds ?? [])
+            .Select(id => (id ?? string.Empty).Trim()).Where(id => id.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        source.AddressReviewRoutingError = (source.AddressReviewRoutingError ?? string.Empty).Trim();
         source.StartTime = string.IsNullOrWhiteSpace(source.StartTime) ? "08:00" : source.StartTime.Trim();
         source.RouteMode = string.IsNullOrWhiteSpace(source.RouteMode) ? "car" : source.RouteMode.Trim();
         source.VehicleId = string.IsNullOrWhiteSpace(source.VehicleId) ? null : source.VehicleId.Trim();

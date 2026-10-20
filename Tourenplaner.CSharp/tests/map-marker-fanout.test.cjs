@@ -4,10 +4,16 @@ function runMarkerFanOutTests(source) {
   const start = source.indexOf('const normalizeOverlapAddressPart =');
   const end = source.indexOf('const scheduleMarkerFanOutRecompute =', start);
   if (start < 0 || end < 0) throw new Error('Map fan-out helpers not found');
-  const create = new Function('map', 'window', 'markerScale', 'mapMarkers', 'markerMap', 'routeMarkerMap = new Map()',
-    "let hoveredOverlapGroupKey = ''; let overlapHoverResetHandle = 0; let routeStopHitTargets = []; const scheduleMarkerFanOutRecompute = () => {}; " +
+  const build = new Function('map', 'window', 'markerScale', 'mapMarkers', 'markerMap', 'routeMarkerMap = new Map()',
+    "let hoveredOverlapGroupKey = ''; let overlapHoverResetHandle = 0; let routeStopHitTargets = []; const scheduleMarkerFanOutRecompute = () => {}; const updateMarkerScreenClusterState = () => {}; " +
     source.slice(start, end) +
     '; return { spread: spreadOverlappingMarkers, resolve: resolveVisibleMarkerFanOut, resolveLayer: resolveVisibleMarkersForLayer, recompute: recomputeVisibleMarkerFanOut, hover: setHoveredOverlapGroupKey, move: handleOverlapPointerMove, leave: scheduleOverlapHoverReset, group: () => hoveredOverlapGroupKey, hitTargets: () => routeStopHitTargets };');
+  const create = (map, state, scale, pins, markerMap, routeMap = new Map()) => {
+    for (const marker of [...pins, ...markerMap.values(), ...routeMap.values()]) {
+      marker.getElement ??= () => ({});
+    }
+    return build(map, state, scale, pins, markerMap, routeMap);
+  };
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
   let checks = 0;
   for (const zoom of [6, 10, 15]) {
@@ -48,7 +54,9 @@ function runMarkerFanOutTests(source) {
       const hovered = api.spread([b], remaining.__overlapGroupKey)[0];
       assert(distance(hovered) >= 32 - 1e-7, 'Hover must preserve separation');
       api.recompute();
-      assert(position && position[1] === remaining.displayLat, 'Existing marker must move when route changes');
+      const resolvedOrder = api.resolveLayer('order').find(pin => pin.id === b.id);
+      assert(position && position[0] === resolvedOrder.displayLon && position[1] === resolvedOrder.displayLat,
+        'Existing marker must use the current joint collision layout when route changes');
       const many = api.spread([b, { ...b, id: 'c' }, { ...b, id: 'd' }], '');
       assert(new Set(many.map(p => p.displayLat + '|' + p.displayLon)).size === 3, 'All remaining orders must have separate positions');
       state.__gawelaLastRoutePayload.routeStops = [{ ...a, lon: 9 }];
@@ -69,7 +77,7 @@ function runMarkerFanOutTests(source) {
       routeApi.recompute();
       const compactGap = Math.abs(routePins.get('a').position.lng - routePins.get('b').position.lng);
       assert(compactGap > 0, 'Tour-only view must fan out coincident stops');
-      const groupKey = routeApi.spread([a, b], '', false)[0].__overlapGroupKey;
+      const groupKey = routeApi.resolveLayer('route')[0].__overlapGroupKey;
       routeApi.hover(groupKey);
       routeApi.recompute();
       const expandedGap = Math.abs(routePins.get('a').position.lng - routePins.get('b').position.lng);
@@ -140,6 +148,31 @@ function runMarkerFanOutTests(source) {
       timers.clear();
       assert(routeApi.group() === '', 'Leaving group again must collapse');
       checks += 5;
+
+      // A three-pin cluster must stay collapsed when hovering its shared address,
+      // including when two members are partial deliveries of the same order.
+      for (const partial of [false, true]) {
+        const clusterMarkers = [
+          { ...a, id: 'part-1', orderNumber: partial ? '4711' : 'A', deliveryNumber: partial ? 1 : null },
+          { ...a, id: 'part-2', orderNumber: partial ? '4711' : 'B', deliveryNumber: partial ? 2 : null },
+          { ...a, id: 'normal', orderNumber: 'C' }
+        ];
+        state.__gawelaLastMarkers = clusterMarkers;
+        state.__gawelaLastRoutePayload.routeStops = [];
+        const clusterApi = create(map, state, scale, [], new Map());
+        const compact = clusterApi.resolve();
+        const representative = compact.find(pin => pin.__screenClusterCount === 3);
+        assert(representative, 'Three overlapping pins must form a numbered cluster');
+        clusterApi.hover(representative.__overlapGroupKey);
+        const hovered = clusterApi.resolve();
+        assert(hovered.filter(pin => !pin.__screenClusterHidden).length === 1,
+          'Hover must not split a numbered cluster, with or without partial deliveries');
+        assert(hovered.find(pin => !pin.__screenClusterHidden).__screenClusterCount === 3,
+          'Hover must preserve the cluster count');
+        assert(hovered.every((pin, index) => pin.lat === clusterMarkers[index].lat && pin.lon === clusterMarkers[index].lon),
+          'Cluster hover must preserve real coordinates');
+        checks += 4;
+      }
     }
   }
   return checks;

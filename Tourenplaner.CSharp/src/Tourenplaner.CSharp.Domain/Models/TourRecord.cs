@@ -15,6 +15,8 @@ public sealed class TourRecord
     public string? SecondaryVehicleId { get; set; }
     public string? SecondaryTrailerId { get; set; }
     public bool IsArchived { get; set; }
+    public List<string> AddressReviewOrderIds { get; set; } = new();
+    public string AddressReviewRoutingError { get; set; } = string.Empty;
     public Dictionary<string, int> TravelTimeCache { get; set; } = new();
     public Dictionary<string, TourTravelTimeProfile> TravelTimeProfileCache { get; set; } = new();
     public List<GeoPoint> RouteGeometryPoints { get; set; } = new();

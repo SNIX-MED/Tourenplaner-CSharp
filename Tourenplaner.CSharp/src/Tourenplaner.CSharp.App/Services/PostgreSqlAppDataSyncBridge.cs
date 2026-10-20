@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Npgsql;
 using Tourenplaner.CSharp.Domain.Models;
 using Tourenplaner.CSharp.Infrastructure.Services;
@@ -42,7 +42,7 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
             args.ClientInstanceId));
 
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT pg_notify(@channel, @payload);";
         command.Parameters.AddWithValue("channel", ChannelName);
@@ -103,11 +103,12 @@ public sealed class PostgreSqlAppDataSyncBridge : IAppDataSyncBridge, IDisposabl
 
     private async Task ListenUntilDisconnectedAsync(CancellationToken cancellationToken)
     {
-        await using var connection = _connectionFactory.CreateConnection(_settings);
+        // LISTEN owns a physical connection for its lifetime and must not consume a query-pool slot.
+        await using var connection = _connectionFactory.CreateConnection(_settings, dedicatedListener: true);
         connection.Notification += OnNotification;
         try
         {
-            await connection.OpenAsync(cancellationToken);
+            await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
             await using var command = connection.CreateCommand();
             command.CommandText = $"""LISTEN "{ChannelName}";""";
             await command.ExecuteNonQueryAsync(cancellationToken);

@@ -101,7 +101,7 @@ public sealed class MapHtmlDocumentBuilderTests
     {
         var html = MapHtmlDocumentBuilder.Build(null, true, true, null, false, true, true, false, false, true, true, 1d, 0);
 
-        Assert.Contains("const applyScreenCollisionLayout = markers =>", html, StringComparison.Ordinal);
+        Assert.Contains("const applyScreenCollisionLayout = (markers, collisionMarkers = markers) =>", html, StringComparison.Ordinal);
         Assert.Contains("const collisionDistance = Math.max(16, Math.min(23, 18 * markerScale))", html, StringComparison.Ordinal);
         Assert.Contains("__screenClusterCount = group.length", html, StringComparison.Ordinal);
         Assert.Contains("currentZoom) && currentZoom >= 15.5", html, StringComparison.Ordinal);
@@ -125,8 +125,8 @@ public sealed class MapHtmlDocumentBuilderTests
         Assert.Contains("window.gawelaSetMarkerPopupHoverEnabled = function(enabled)", html, StringComparison.Ordinal);
         Assert.Contains("mapMarkers.forEach(closeMarkerPopupAfterHover);", html, StringComparison.Ordinal);
         Assert.Contains("routeMarkers.forEach(closeMarkerPopupAfterHover);", html, StringComparison.Ordinal);
-        Assert.Contains("const matchingOrderMarker = (window.__gawelaLastMarkers || []).find", html, StringComparison.Ordinal);
-        Assert.Contains("createScaledPopupHtml(buildPinPopupHtml(matchingOrderMarker || stop))", html, StringComparison.Ordinal);
+        Assert.Contains("createScaledPopupHtml(buildPinPopupHtml(stop))", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("buildPinPopupHtml(matchingOrderMarker || stop)", html, StringComparison.Ordinal);
         Assert.DoesNotContain("createScaledPopupHtml('')", html, StringComparison.Ordinal);
         Assert.Equal(2, CountOccurrences(html, "openMarkerPopupOnHover(marker);"));
         Assert.Equal(2, CountOccurrences(html, "closeMarkerPopupAfterHover(marker);"));

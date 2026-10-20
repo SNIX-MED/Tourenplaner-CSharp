@@ -22,7 +22,7 @@ public sealed class PostgreSqlVehicleDataRepository : IVehicleDataStore
     public async Task<VehicleDataRecord> LoadAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         await using var command = connection.CreateCommand();
@@ -40,7 +40,7 @@ public sealed class PostgreSqlVehicleDataRepository : IVehicleDataStore
         ArgumentNullException.ThrowIfNull(payload);
         var normalized = VehicleNormalizer.NormalizePayload(payload);
         await using var connection = _connectionFactory.CreateConnection(_settings);
-        await connection.OpenAsync(cancellationToken);
+        await PostgreSqlConnectionFactory.OpenAsync(connection, cancellationToken);
         await _schemaInitializer.EnsureSchemaAsync(connection, _settings, cancellationToken);
         var schema = PostgreSqlSchemaInitializer.NormalizeSchema(_settings.Schema);
         var expected = RepositoryConcurrencyToken.Parse(normalized.ConcurrencyToken);

@@ -12,6 +12,7 @@ public class ImportResult
     public List<string> Errors { get; set; } = new();
     public List<string> ChangedOrderIds { get; set; } = new();
     public List<string> ProcessedOrderIds { get; set; } = new();
+    public List<ImportTourAddressChange> TourAddressChanges { get; set; } = new();
     public DateTime ImportedAt { get; set; }
 }
 
@@ -50,7 +51,11 @@ public class OrderImportService : IOrderImportService
                 ValidateDeliveryReconciliation(existingOrder, importedOrder);
                 var difference = OrderImportDifferenceAnalyzer.Analyze(existingOrder, importedOrder);
 
-                preview.Items.Add(BuildPreviewItem(existingOrder, importedOrder, difference));
+                var item = BuildPreviewItem(existingOrder, importedOrder, difference);
+                item.TourAddressChanges = FindTourAddressChanges(existingOrder, importedOrder, tours);
+                foreach (var change in item.TourAddressChanges)
+                    item.Changes.Insert(0, change.Description + ". Das Fahrtziel dieses eingeplanten Stopps wird geändert. Die Stoppreihenfolge bleibt erhalten.");
+                preview.Items.Add(item);
                 IncrementPreviewCount(preview, difference.Action);
             }
             catch (Exception ex)
@@ -107,6 +112,7 @@ public class OrderImportService : IOrderImportService
                 }
 
                 ReconcileDeliveries(existingOrder, importedOrder, applyChanges: true);
+                result.TourAddressChanges.AddRange(FindTourAddressChanges(existingOrder, importedOrder, tours));
                 ApplyImportedData(existingOrder, importedOrder);
                 result.UpdatedOrders++;
                 result.ProcessedOrderIds.Add(existingOrder.Id);
@@ -243,6 +249,9 @@ public class OrderImportService : IOrderImportService
 
     private static void ApplyImportedData(Order existingOrder, Order importedOrder)
     {
+        // Until geocoding succeeds, the previous coordinates must never describe the new address.
+        if (!existingOrder.IsLocationManuallySet && HasDeliveryLocationChanged(existingOrder, importedOrder))
+            existingOrder.Location = null;
         var manualLocationAddressChanged =
             OrderImportDifferenceAnalyzer.HasManualLocationAddressChanged(existingOrder, importedOrder);
         if (existingOrder.IsLocationManuallySet)
@@ -277,6 +286,33 @@ public class OrderImportService : IOrderImportService
         existingOrder.IstVorauszahlungBezahlt = importedOrder.IstVorauszahlungBezahlt;
         existingOrder.IsArchived = importedOrder.IsArchived;
         existingOrder.IsXmlImported = importedOrder.IsXmlImported;
+    }
+
+    private static List<ImportTourAddressChange> FindTourAddressChanges(Order? existing, Order imported,
+        IEnumerable<TourRecord>? tours)
+    {
+        if (existing is null) return [];
+        // A confirmed manual pin may use a corrected display address while remembering the XML source.
+        var manualSourceChanged = OrderImportDifferenceAnalyzer.HasManualLocationAddressChanged(existing, imported);
+        if (existing.IsLocationManuallySet && !manualSourceChanged) return [];
+        static string Address(Order order) => OrderAddressFormatting.BuildAddressLine(
+            order.DeliveryAddress?.Street, order.DeliveryAddress?.HouseNumber,
+            order.DeliveryAddress?.PostalCode, order.DeliveryAddress?.City);
+        var oldAddress = Address(existing);
+        var newAddress = Address(imported);
+        if (!manualSourceChanged && !HasDeliveryLocationChanged(existing, imported)) return [];
+        return (tours ?? []).Where(t => !t.IsArchived && t.Stops.Any(s =>
+                !TourStopIdentity.IsCompanyStop(s) &&
+                string.Equals(s.Auftragsnummer?.Trim(), existing.Id.Trim(), StringComparison.OrdinalIgnoreCase)))
+            .Select(t => new ImportTourAddressChange(existing.Id, t.Id, t.Name, t.Date, oldAddress, newAddress)).ToList();
+    }
+
+    private static bool HasDeliveryLocationChanged(Order existing, Order imported)
+    {
+        static string Address(Order order) => OrderAddressFormatting.BuildAddressLine(order.DeliveryAddress?.Street,
+            order.DeliveryAddress?.HouseNumber, order.DeliveryAddress?.PostalCode, order.DeliveryAddress?.City);
+        return OrderAddressFormatting.NormalizeForComparison(Address(existing), OrderAddressComparisonProfile.XmlReimport) !=
+            OrderAddressFormatting.NormalizeForComparison(Address(imported), OrderAddressComparisonProfile.XmlReimport);
     }
 
     private static string BuildOrderErrorMessage(string? orderId, Exception ex)
