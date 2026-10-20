@@ -175,6 +175,39 @@ function runMarkerFanOutTests(source) {
       }
     }
   }
+  const identityMap = {
+    getZoom: () => 15,
+    project: ([lon, lat]) => ({x: lon * 32768, y: lat * 32768}),
+    unproject: ([x, y]) => ({lng: x / 32768, lat: y / 32768})
+  };
+  const delivery = {id:'order::delivery::d1',lat:47,lon:8};
+  const otherDelivery = {...delivery,id:'order::delivery::d2'};
+  const identityState = {__gawelaLastMarkers:[delivery, {...delivery}, otherDelivery],
+    __gawelaLastRoutePayload:{routeStops:[delivery]}};
+  let closes=0;
+  const oldElement={style:{}};
+  const oldPin={__gawelaOrderId:delivery.id,getElement:()=>oldElement,getPopup:()=>({remove(){closes++;}})};
+  const identityApi=create(identityMap,identityState,1,[oldPin],new Map());
+  const unique=identityApi.resolve();
+  assert(unique.filter(pin=>pin.id===delivery.id).length===1,'Exact loaded delivery must have only its route pin');
+  assert(unique.some(pin=>pin.id===otherDelivery.id&&pin.__gawelaMarkerLayer==='order'),'Other deliveries of the same order must remain visible');
+  identityApi.recompute();
+  assert(oldElement.style.display==='none'&&closes===1,'Route payload must hide and close an already rendered duplicate free pin');
+  identityState.__gawelaLastRoutePayload.routeStops=[];
+  const unloaded=identityApi.resolve();
+  assert(unloaded.filter(pin=>pin.id===delivery.id).length===1,'Clearing the route must restore one free delivery without duplicates');
+  identityState.__gawelaLastRoutePayload.routeStops=[{...delivery,id:delivery.id.toUpperCase()}];
+  assert(identityApi.resolve().filter(pin=>pin.id.toLowerCase()===delivery.id).length===1,'Pin identity matching must ignore casing like the host');
+  checks+=5;
+  const retainedStart=source.indexOf('const renderedOrderIds =');
+  const retainedEnd=source.indexOf('const bounds =',retainedStart);
+  const retain=new Function('resolvedMarkers','markers',source.slice(retainedStart,retainedEnd));
+  const retained=[];
+  retain(retained,[delivery,{...delivery},otherDelivery]);
+  assert(retained.length===2,'Hidden delivery DOM markers must also be deduplicated');
+  assert(retained.every(pin=>pin.__screenClusterHidden&&pin.__gawelaDuplicateOrderPin),'Hidden markers retained for route clearing must never display as free pins');
+  assert(retained.every(pin=>pin.displayLat===47&&pin.displayLon===8),'Retained markers must preserve their real position');
+  checks+=3;
   return checks;
 }
 if (typeof module !== 'undefined') {

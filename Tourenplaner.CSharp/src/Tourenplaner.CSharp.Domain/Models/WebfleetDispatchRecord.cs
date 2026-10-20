@@ -15,6 +15,7 @@ public sealed class WebfleetStopDispatchRecord
 {
     public string StopId { get; set; } = string.Empty;
     public string WebfleetOrderId { get; set; } = string.Empty;
+    public DateOnly? ScheduledDate { get; set; }
     public int StateCode { get; set; }
     public string StateLabel { get; set; } = "Nicht gesendet";
     public DateTimeOffset? StateChangedAtUtc { get; set; }

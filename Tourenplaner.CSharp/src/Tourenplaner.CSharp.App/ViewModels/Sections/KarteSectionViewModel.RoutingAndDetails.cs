@@ -138,16 +138,15 @@ public sealed partial class KarteSectionViewModel
         var analysis = _webfleetTrackPoints.Count > 1
             ? BuildWebfleetArrivalAnalysisPayload(_webfleetLiveTrack.ObjectUid, _webfleetLiveTrack.Date, _webfleetTrackPoints)
             : $"Kein Positionsverlauf für den {_webfleetLiveTrack.Date:dd.MM.yyyy} verfügbar.";
-        _webfleetTrackStatusText = string.IsNullOrWhiteSpace(_webfleetTrackWarning) ? analysis
-            : analysis.StartsWith("arrival-analysis:", StringComparison.Ordinal)
-                ? $"{analysis}\nwarning:{_webfleetTrackWarning}"
-                : $"{analysis} {_webfleetTrackWarning}";
+        // A loaded trace needs no explanatory/warning text. Keep the optional
+        // arrival table, and only report when no usable trace is available.
+        _webfleetTrackStatusText = analysis;
         OnPropertyChanged(nameof(WebfleetTrackStatusText));
     }
 
     public void SetWebfleetTrackFailure(string message)
     {
-        _webfleetTrackStatusText = message;
+        _webfleetTrackStatusText = "Fahrzeugverlauf konnte nicht geladen werden.";
         OnPropertyChanged(nameof(WebfleetTrackStatusText));
         StatusText = message;
     }
@@ -1591,6 +1590,15 @@ public sealed partial class KarteSectionViewModel
         selectedStop.EmployeeInfoText = dialog.EmployeeInfoText;
 
         var selectedAvisoStatus = NormalizeAvisoStatus(dialog.SelectedAvisoStatus);
+        RefreshDriveTimesFromCurrentRoute();
+        if ((string.Equals(selectedAvisoStatus, "Informiert", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(selectedAvisoStatus, "Bestätigt", StringComparison.OrdinalIgnoreCase)) &&
+            !string.IsNullOrWhiteSpace(selectedStop.ScheduleConflictText))
+        {
+            MarkRouteChanged();
+            StatusText = "Aufenthalt geändert. Avisierung nicht möglich: Bitte zuerst den Zeitfensterkonflikt lösen.";
+            return;
+        }
         var avisoStatusChanged = false;
         var keepFixedArrivalWindow = false;
         if (order is not null &&
@@ -2846,6 +2854,7 @@ public sealed partial class KarteSectionViewModel
             var originalTours = CloneItems(tours);
             var originalOrders = CloneItems(_allOrders);
             var nextId = _mapRouteService.DetermineNextTourId(tours);
+            if (!EnsureCurrentRouteTimingReady()) return;
             var tour = _mapRouteService.BuildTour(
                 ToMapRouteStops(),
                 nextId,
@@ -3004,6 +3013,7 @@ public sealed partial class KarteSectionViewModel
             TourRecord updated;
             if (hasDraftRouteStops)
             {
+                if (!EnsureCurrentRouteTimingReady()) return;
                 updated = _mapRouteService.BuildTour(
                     ToMapRouteStops(),
                     tourId,
@@ -3025,6 +3035,8 @@ public sealed partial class KarteSectionViewModel
                 updated.Name = string.IsNullOrWhiteSpace(routeName) ? $"Tour {tourId}" : routeName.Trim();
                 updated.Date = (routeDate ?? string.Empty).Trim();
                 updated.StartTime = string.IsNullOrWhiteSpace(startTime) ? "08:00" : startTime.Trim();
+                if (updated.Date != existingTour.Date || updated.StartTime != existingTour.StartTime)
+                    _scheduleService.ApplySchedule(updated);
             }
 
             // BuildTour creates a new TourRecord and therefore has no database version.
@@ -3184,11 +3196,7 @@ public sealed partial class KarteSectionViewModel
         _savedTours.Clear();
         _savedTours.AddRange(allTours
             .Where(t => !t.IsArchived)
-            .Select(t =>
-            {
-                _scheduleService.ApplySchedule(t);
-                return t;
-            })
+
             .OrderByDescending(t => ParseDateForSort(t.Date))
             .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase));
 
@@ -3272,6 +3280,9 @@ public sealed partial class KarteSectionViewModel
         {
             AddressReviewOrderIds = source.AddressReviewOrderIds.ToList(),
             AddressReviewRoutingError = source.AddressReviewRoutingError,
+            ScheduleVersion = source.ScheduleVersion,
+            ScheduleCalculatedAtUtc = source.ScheduleCalculatedAtUtc,
+            ScheduleTrafficBufferPercentages = source.ScheduleTrafficBufferPercentages.ToList(),
             Id = source.Id,
             Date = (source.Date ?? string.Empty).Trim(),
             Name = (source.Name ?? string.Empty).Trim(),
@@ -3293,6 +3304,13 @@ public sealed partial class KarteSectionViewModel
                     TimeWindowEnd = (stop.TimeWindowEnd ?? string.Empty).Trim(),
                     PlannedArrivalOptimistic = (stop.PlannedArrivalOptimistic ?? string.Empty).Trim(),
                     ServiceMinutes = stop.ServiceMinutes,
+                    CalculatedArrivalOptimistic = stop.CalculatedArrivalOptimistic,
+                    CalculatedArrival = stop.CalculatedArrival,
+                    CalculatedArrivalPessimistic = stop.CalculatedArrivalPessimistic,
+                    CalculatedDeparture = stop.CalculatedDeparture,
+                    CalculatedTrafficBufferMinutes = stop.CalculatedTrafficBufferMinutes,
+                    ArrivalWindowStart = stop.ArrivalWindowStart,
+                    ArrivalWindowEnd = stop.ArrivalWindowEnd,
                     PlannedArrival = (stop.PlannedArrival ?? string.Empty).Trim(),
                     PlannedArrivalPessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim(),
                     IsArrivalWindowFixed = stop.IsArrivalWindowFixed,
@@ -3439,6 +3457,7 @@ public sealed partial class KarteSectionViewModel
         StatusText = "Tour auf Karte geladen (Nur Ansicht).";
         RaiseCommandStates();
         UpdateRouteSummary();
+        RefreshDriveTimesFromCurrentRoute();
     }
 
     private async Task<bool> EnsureLoadedTourOrderLeasesAsync(IEnumerable<string> orderIds, CollaborationResourceLease? expectedTourLease = null)
@@ -3701,10 +3720,7 @@ public sealed partial class KarteSectionViewModel
                             ? Math.Max(0, stop.ServiceMinutes)
                             : isManual ? Math.Max(0, stop.ServiceMinutes) : ResolvePlannedStayMinutes(stop.ServiceMinutes, ExtractTourStopOrderId(stop)),
                         FixedArrivalRangeText = stop.IsArrivalWindowFixed
-                            ? TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(
-                                stop.PlannedArrivalOptimistic,
-                                stop.PlannedArrival,
-                                stop.PlannedArrivalPessimistic)
+                            ? FormatStoredArrivalWindow(stop)
                             : string.Empty,
                         EmployeeInfoText = isPause ? string.Empty : stop.EmployeeInfoText ?? string.Empty
                     };
@@ -3940,6 +3956,13 @@ public sealed partial class KarteSectionViewModel
             TimeWindowEnd = (stop.TimeWindowEnd ?? string.Empty).Trim(),
             PlannedArrivalOptimistic = (stop.PlannedArrivalOptimistic ?? string.Empty).Trim(),
             ServiceMinutes = stop.ServiceMinutes,
+            CalculatedArrivalOptimistic = stop.CalculatedArrivalOptimistic,
+            CalculatedArrival = stop.CalculatedArrival,
+            CalculatedArrivalPessimistic = stop.CalculatedArrivalPessimistic,
+            CalculatedDeparture = stop.CalculatedDeparture,
+            CalculatedTrafficBufferMinutes = stop.CalculatedTrafficBufferMinutes,
+            ArrivalWindowStart = stop.ArrivalWindowStart,
+            ArrivalWindowEnd = stop.ArrivalWindowEnd,
             PlannedArrival = (stop.PlannedArrival ?? string.Empty).Trim(),
             PlannedArrivalPessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim(),
             IsArrivalWindowFixed = stop.IsArrivalWindowFixed,
@@ -4174,7 +4197,7 @@ public sealed partial class KarteSectionViewModel
 
         var stops = routeStops.Select((stop, index) =>
             {
-                var arrivalText = ResolveArrivalTimeText(stop.OrderId);
+                var arrivalText = ResolveArrivalTimeText(stop.OrderId, stop.DeliveryId);
                 return new RouteExportStopInfo(
                     stop.Position,
                     ToAlphaLabel(index + 1),
@@ -4184,9 +4207,9 @@ public sealed partial class KarteSectionViewModel
                     stop.OrderId,
                     stop.Latitude,
                     stop.Longitude,
-                    ResolveTimeWindow(stop.OrderId),
+                    ResolveTimeWindow(stop.OrderId, stop.DeliveryId),
                     string.IsNullOrWhiteSpace(arrivalText) ? stop.EtaText : arrivalText,
-                    ResolveArrivalRangeText(stop.OrderId),
+                    ResolveArrivalRangeText(stop.OrderId, stop.DeliveryId),
                     ResolveWeightText(stop.OrderId, stop.DeliveryId),
                     stop.EmployeeInfoText,
                     GetPauseStopsAfter(stop).Sum(x => Math.Max(0, x.PlannedStayMinutes)),
@@ -4246,19 +4269,24 @@ public sealed partial class KarteSectionViewModel
             : $"{baseName} {suffix}";
     }
 
-    private string ResolveTimeWindow(string orderId)
+    private static string FormatStoredArrivalWindow(TourStopRecord stop) =>
+        string.IsNullOrWhiteSpace(stop.PlannedArrivalOptimistic) || string.IsNullOrWhiteSpace(stop.PlannedArrivalPessimistic)
+            ? string.Empty : stop.PlannedArrivalOptimistic + " - " + stop.PlannedArrivalPessimistic;
+
+    private string ResolveTimeWindow(string orderId, string? deliveryId = null)
     {
-        var stop = FindCurrentTourStop(orderId);
+        var displayed = RouteStops.FirstOrDefault(candidate =>
+            string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrWhiteSpace(deliveryId) || string.Equals(candidate.DeliveryId, deliveryId, StringComparison.OrdinalIgnoreCase)));
+        if (!string.IsNullOrWhiteSpace(displayed?.EtaRangeText)) return displayed.EtaRangeText;
+        var stop = FindCurrentTourStop(orderId, deliveryId);
 
         if (stop is null)
         {
             return string.Empty;
         }
 
-        var arrivalRange = TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(
-            stop.PlannedArrivalOptimistic,
-            stop.PlannedArrival,
-            stop.PlannedArrivalPessimistic);
+        var arrivalRange = FormatStoredArrivalWindow(stop);
         if (!string.IsNullOrWhiteSpace(arrivalRange))
         {
             return arrivalRange;
@@ -4272,16 +4300,17 @@ public sealed partial class KarteSectionViewModel
         return stop.TimeWindowStart ?? stop.TimeWindowEnd ?? string.Empty;
     }
 
-    private string ResolveArrivalTimeText(string orderId)
+    private string ResolveArrivalTimeText(string orderId, string? deliveryId = null)
     {
         var currentRouteStop = RouteStops.FirstOrDefault(candidate =>
-            string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrWhiteSpace(deliveryId) || string.Equals(candidate.DeliveryId, deliveryId, StringComparison.OrdinalIgnoreCase)));
         if (!string.IsNullOrWhiteSpace(currentRouteStop?.EtaText))
         {
             return currentRouteStop.EtaText.Trim();
         }
 
-        var stop = FindCurrentTourStop(orderId);
+        var stop = FindCurrentTourStop(orderId, deliveryId);
 
         if (stop is null)
         {
@@ -4302,26 +4331,24 @@ public sealed partial class KarteSectionViewModel
             : $"{realistic} ({optimistic} - {pessimistic})";
     }
 
-    private string ResolveArrivalRangeText(string orderId)
+    private string ResolveArrivalRangeText(string orderId, string? deliveryId = null)
     {
         var currentRouteStop = RouteStops.FirstOrDefault(candidate =>
-            string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrWhiteSpace(deliveryId) || string.Equals(candidate.DeliveryId, deliveryId, StringComparison.OrdinalIgnoreCase)));
         if (!string.IsNullOrWhiteSpace(currentRouteStop?.EtaRangeText))
         {
             return currentRouteStop.EtaRangeText.Trim();
         }
 
-        var stop = FindCurrentTourStop(orderId);
+        var stop = FindCurrentTourStop(orderId, deliveryId);
 
         if (stop is null)
         {
             return string.Empty;
         }
 
-        return TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(
-            stop.PlannedArrivalOptimistic,
-            stop.PlannedArrival,
-            stop.PlannedArrivalPessimistic);
+        return FormatStoredArrivalWindow(stop);
     }
 
     private string ResolveWeightText(string orderId, string? deliveryId = null)
@@ -4339,7 +4366,7 @@ public sealed partial class KarteSectionViewModel
         return stop?.Gewicht ?? string.Empty;
     }
 
-    private TourStopRecord? FindCurrentTourStop(string? orderId)
+    private TourStopRecord? FindCurrentTourStop(string? orderId, string? deliveryId = null)
     {
         var normalizedOrderId = (orderId ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(normalizedOrderId))
@@ -4352,7 +4379,8 @@ public sealed partial class KarteSectionViewModel
             ? _savedTours.FirstOrDefault(tour => tour.Id == currentTourId)
             : null;
         var currentStop = (currentTour?.Stops ?? [])
-            .FirstOrDefault(stop => IsMatchingTourStop(stop, normalizedOrderId));
+            .FirstOrDefault(stop => IsMatchingTourStop(stop, normalizedOrderId) &&
+                (string.IsNullOrWhiteSpace(deliveryId) || string.Equals(stop.DeliveryId, deliveryId, StringComparison.OrdinalIgnoreCase)));
         if (currentStop is not null)
         {
             return currentStop;
@@ -4361,7 +4389,8 @@ public sealed partial class KarteSectionViewModel
         return _savedTours
             .Where(tour => !tour.IsArchived)
             .SelectMany(tour => tour.Stops ?? [])
-            .FirstOrDefault(stop => IsMatchingTourStop(stop, normalizedOrderId));
+            .FirstOrDefault(stop => IsMatchingTourStop(stop, normalizedOrderId) &&
+                (string.IsNullOrWhiteSpace(deliveryId) || string.Equals(stop.DeliveryId, deliveryId, StringComparison.OrdinalIgnoreCase)));
     }
 
     private static bool IsMatchingTourStop(TourStopRecord stop, string orderId) =>
@@ -6804,6 +6833,17 @@ public sealed partial class KarteSectionViewModel
 
         var previousStatus = NormalizeAvisoStatus(order.AvisoStatus);
         var normalizedStatus = NormalizeAvisoStatus(nextStatus);
+        if ((string.Equals(normalizedStatus, "Informiert", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(normalizedStatus, "Bestätigt", StringComparison.OrdinalIgnoreCase)) && RouteStops.Any(x =>
+                string.Equals(x.OrderId, order.Id, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(x.ScheduleConflictText)))
+        {
+            StatusText = "Avisierung nicht möglich: Bitte zuerst den Zeitfensterkonflikt lösen.";
+            _suppressDetailAvisoStatusSave = true;
+            try { DetailSelectedAvisoStatus = previousStatus; }
+            finally { _suppressDetailAvisoStatusSave = false; }
+            return;
+        }
         if (string.Equals(previousStatus, normalizedStatus, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -6850,33 +6890,12 @@ public sealed partial class KarteSectionViewModel
                         keepFixedArrivalWindow;
         var routeStop = RouteStops.FirstOrDefault(stop =>
             string.Equals(stop.OrderId, order.Id, StringComparison.OrdinalIgnoreCase));
-        var fixedRange = routeStop is not null && TryParseArrivalRange(routeStop.EtaRangeText, out var start, out var end)
-            ? (Start: start, End: end)
-            : ((string Start, string End)?)null;
-
-        var tours = (await _tourRepository.LoadAsync()).ToList();
+        // Keep repository snapshots untouched if validation or persistence fails.
+        var tours = CloneItems(await _tourRepository.LoadAsync());
         var changedTours = new List<TourRecord>();
         foreach (var tour in tours)
         {
-            var stop = (tour.Stops ?? []).FirstOrDefault(candidate =>
-                string.Equals(ExtractTourStopOrderId(candidate), order.Id, StringComparison.OrdinalIgnoreCase));
-            if (stop is null)
-            {
-                continue;
-            }
-
-            stop.IsArrivalWindowFixed = shouldFix;
-            if (shouldFix && fixedRange.HasValue)
-            {
-                stop.PlannedArrivalOptimistic = fixedRange.Value.Start;
-                stop.PlannedArrivalPessimistic = fixedRange.Value.End;
-            }
-            else if (!shouldFix)
-            {
-                _scheduleService.ApplySchedule(tour);
-            }
-
-            changedTours.Add(tour);
+            if (ApplyOrderArrivalWindowFixation(tour, order.Id, shouldFix)) changedTours.Add(tour);
         }
 
         if (changedTours.Count == 0)
@@ -6899,6 +6918,33 @@ public sealed partial class KarteSectionViewModel
         }
 
         await LoadSavedToursAsync(ResolveCurrentTourId());
+    }
+
+    private bool ApplyOrderArrivalWindowFixation(TourRecord tour, string orderId, bool shouldFix)
+    {
+        var targets = tour.Stops.Where(stop => string.Equals(ExtractTourStopOrderId(stop), orderId, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (targets.Count == 0) return false;
+        foreach (var stop in targets)
+        {
+            if (shouldFix && !stop.IsArrivalWindowFixed)
+            {
+                var displayed = tour.Id == ResolveCurrentTourId()
+                    ? RouteStops.FirstOrDefault(item => MatchesScheduleStop(item, stop)) : null;
+                if (displayed is not null && TryParseArrivalRange(displayed.EtaRangeText, out var start, out var end))
+                {
+                    stop.PlannedArrivalOptimistic = start;
+                    stop.PlannedArrivalPessimistic = end;
+                    stop.ArrivalWindowStart = null;
+                    stop.ArrivalWindowEnd = null;
+                }
+            }
+            // Existing promises and windows of the same order on other tours must never be replaced by the current pin's window.
+            stop.IsArrivalWindowFixed = shouldFix;
+        }
+        _scheduleService.ApplySchedule(tour);
+        if (shouldFix && targets.Any(stop => stop.ScheduleConflict))
+            throw new InvalidOperationException("Avisierung nicht möglich: " + string.Join(" ", targets.Where(stop => stop.ScheduleConflict).Select(stop => stop.ScheduleConflictText)));
+        return true;
     }
 
     private static bool ShouldKeepFixedArrivalWindowAfterAvisoReset(string previousStatus, string nextStatus)
@@ -8304,142 +8350,165 @@ public sealed partial class KarteSectionViewModel
         }
     }
 
-    private void RefreshDriveTimesFromCurrentRoute()
+    private async Task RecalculateScheduleAsync()
     {
-        ClearRouteStopEtaValues();
-
-        var routedStops = RouteStops
-            .Where(x => !IsPauseStop(x))
-            .Where(HasValidCoordinate)
-            .ToList();
-
-        if (routedStops.Count < 2 || _routeLegs.Count == 0)
+        if (IsLoadedTourReadOnly) await StartSelectedTourEditingAsync();
+        if (!CanModifyCurrentRoute()) return;
+        if (IsRouteCalculating || _routeLegs.Count != RouteStops.Count(x => !IsPauseStop(x) && HasValidCoordinate(x)) - 1)
         {
-            if (!RouteStops.Any(IsOrderStop))
-            {
-                ClearDriveTimes();
-            }
-
+            StatusText = "Die Fahrzeiten werden noch geladen. Bitte danach den Zeitplan neu berechnen.";
             return;
         }
+        RefreshDriveTimesFromCurrentRoute();
+        _hasUnsavedRouteChanges = true;
+        RaiseCommandStates();
+        if (!RouteStops.Any(x => !string.IsNullOrWhiteSpace(x.ScheduleConflictText)))
+            StatusText = "Zeitplan als Vorschau neu berechnet. Bitte Zeitfenster prüfen und die Tour speichern.";
+    }
 
-        var start = BuildStartDateTime();
-        var optimisticCurrent = start;
-        var realisticCurrent = start;
-        var pessimisticCurrent = start;
-        var totalDriveMinutes = 0;
-        var totalTrafficBufferMinutes = 0;
-        var totalStayMinutes = 0;
-        var totalDistanceKm = 0d;
-        var sb = new StringBuilder();
+    private bool EnsureCurrentRouteTimingReady()
+    {
+        if (!IsRouteCalculating && _routeLegs.Count == RouteStops.Count(x => !IsPauseStop(x) && HasValidCoordinate(x)) - 1)
+            return true;
+        StatusText = "Bitte warten, bis die Fahrzeiten berechnet sind, und die Tour danach speichern.";
+        return false;
+    }
 
-        var routeLegIndex = 0;
-        RouteStopItem? previousRoutedStop = null;
-
-        foreach (var stop in RouteStops)
+    // Read-only tours render the persisted snapshot. Drafts and explicit recalculations use the same service as saving.
+    private void RefreshDriveTimesFromCurrentRoute()
+    {
+        var saved = IsLoadedTourReadOnly ? _savedTours.FirstOrDefault(x => x.Id == ResolveCurrentTourId()) : null;
+        if (saved is not null)
         {
-            if (IsPauseStop(stop))
-            {
-                stop.EtaText = realisticCurrent.ToString("HH:mm");
-                stop.EtaRangeText = BuildTimeRangeText(optimisticCurrent, realisticCurrent, pessimisticCurrent);
-                totalStayMinutes += Math.Max(0, stop.PlannedStayMinutes);
-                optimisticCurrent = optimisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
-                realisticCurrent = realisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
-                pessimisticCurrent = pessimisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
-                continue;
-            }
-
-            if (!HasValidCoordinate(stop))
-            {
-                continue;
-            }
-
-            if (previousRoutedStop is null)
-            {
-                stop.EtaText = start.ToString("HH:mm");
-                stop.EtaRangeText = string.Empty;
-                previousRoutedStop = stop;
-                continue;
-            }
-
-            if (routeLegIndex >= _routeLegs.Count)
-            {
-                break;
-            }
-
-            var leg = _routeLegs[routeLegIndex];
-            var isReturnToCompanyLeg = stop.IsRouteEnd;
-
-            var realisticDepart = realisticCurrent;
-            optimisticCurrent = optimisticCurrent.AddMinutes(leg.OptimisticDurationMinutes);
-            realisticCurrent = realisticCurrent.AddMinutes(leg.RealisticDurationMinutes);
-            pessimisticCurrent = pessimisticCurrent.AddMinutes(leg.PessimisticDurationMinutes);
-            var trafficBufferMinutes = TrafficBufferService.CalculateBufferMinutes(
-                leg.RealisticDurationMinutes,
-                realisticDepart,
-                _trafficBufferPercentFrom0500To0730,
-                _trafficBufferPercentFrom0730To0900,
-                _trafficBufferPercentFrom0900To1530,
-                _trafficBufferPercentFrom1530To1830);
-            if (trafficBufferMinutes > 0)
-            {
-                optimisticCurrent = optimisticCurrent.AddMinutes(trafficBufferMinutes);
-                realisticCurrent = realisticCurrent.AddMinutes(trafficBufferMinutes);
-                pessimisticCurrent = pessimisticCurrent.AddMinutes(trafficBufferMinutes);
-                previousRoutedStop.AddTrafficBufferAfter(trafficBufferMinutes);
-                totalTrafficBufferMinutes += trafficBufferMinutes;
-            }
-            var arrive = realisticCurrent;
-            var calculatedRangeText = BuildTimeRangeText(optimisticCurrent, realisticCurrent, pessimisticCurrent);
-            var legRangeText = string.IsNullOrWhiteSpace(stop.FixedArrivalRangeText)
-                ? calculatedRangeText
-                : stop.FixedArrivalRangeText;
-            totalDriveMinutes += leg.DurationMinutes;
-            totalDistanceKm += leg.DistanceKm;
-
-            previousRoutedStop.SetNextLeg(
-                durationText: FormatDuration(leg.DurationMinutes),
-                distanceText: $"{leg.DistanceKm:0.0} km",
-                departureText: realisticDepart.ToString("HH:mm"),
-                arrivalText: arrive.ToString("HH:mm"),
-                arrivalRangeText: legRangeText,
-                accentColorHex: routeLegIndex % 2 == 0 ? "#7BC6A4" : "#8EC6E8");
-
-            sb.AppendLine($"{BuildStopLabel(previousRoutedStop, isFrom: true)} -> {BuildStopLabel(stop, isFrom: false)}");
-            sb.AppendLine($"{leg.DurationMinutes} min | {leg.DistanceKm:0.0} km");
-            if (trafficBufferMinutes > 0)
-            {
-                sb.AppendLine($"Staupuffer: {trafficBufferMinutes} min");
-            }
-            sb.AppendLine($"{realisticDepart:HH:mm} -> {arrive:HH:mm}");
-            if (!string.IsNullOrWhiteSpace(legRangeText))
-            {
-                sb.AppendLine($"Fenster: {legRangeText}");
-            }
-            if (routeLegIndex < _routeLegs.Count - 1)
-            {
-                sb.AppendLine();
-            }
-
-            stop.EtaText = arrive.ToString("HH:mm");
-            stop.EtaRangeText = legRangeText;
-            if (!IsCompanyStop(stop) && !IsPauseStop(stop))
-            {
-                totalStayMinutes += Math.Max(0, stop.PlannedStayMinutes);
-                optimisticCurrent = optimisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
-                realisticCurrent = realisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
-                pessimisticCurrent = pessimisticCurrent.AddMinutes(Math.Max(0, stop.PlannedStayMinutes));
-            }
-
-            previousRoutedStop = stop;
-            routeLegIndex++;
+            RenderSchedule(saved, saved.Stops.OrderBy(x => x.Order).ToList());
+            return;
         }
+        if (RouteStops.Count < 2 || _routeLegs.Count != RouteStops.Count(x => !IsPauseStop(x) && HasValidCoordinate(x)) - 1)
+        {
+            ClearRouteStopEtaValues();
+            foreach (var item in RouteStops) item.ScheduleConflictText = string.Empty;
+            ClearDriveTimes();
+            return;
+        }
+        var preview = new TourRecord { Date = BuildStartDateTime().ToString("dd.MM.yyyy"), StartTime = BuildStartDateTime().ToString("HH:mm") };
+        TourStopRecord? previous = null;
+        var legIndex = 0;
+        var savedStops = _savedTours.FirstOrDefault(x => x.Id == ResolveCurrentTourId())?.Stops;
+        for (var i = 0; i < RouteStops.Count; i++)
+        {
+            var item = RouteStops[i];
+            var original = savedStops?.FirstOrDefault(x => MatchesScheduleStop(item, x));
+            var stop = original is null ? new TourStopRecord() : CloneTourStop(original);
+            stop.Id = "preview:" + i;
+            stop.Order = i + 1;
+            stop.StopKind = IsPauseStop(item) ? PauseStopKind : IsCompanyStop(item) ? "company" : item.IsManualStop ? ManualStopKind : string.Empty;
+            stop.Auftragsnummer = IsCompanyStop(item) ? (item.IsRouteEnd ? TourStopIdentity.CompanyEndOrderNumber : TourStopIdentity.CompanyStartOrderNumber) : item.OrderId;
+            stop.ServiceMinutes = IsCompanyStop(item) ? 0 : Math.Max(0, item.PlannedStayMinutes);
+            preview.Stops.Add(stop);
+            if (previous is not null)
+            {
+                var profile = new TourTravelTimeProfile();
+                if (!IsPauseStop(item) && HasValidCoordinate(item) && legIndex < _routeLegs.Count)
+                {
+                    var leg = _routeLegs[legIndex++];
+                    profile = new() { OptimisticMinutes = leg.OptimisticDurationMinutes, RealisticMinutes = leg.RealisticDurationMinutes, PessimisticMinutes = leg.PessimisticDurationMinutes };
+                }
+                preview.TravelTimeProfileCache[previous.Id + "|" + stop.Id] = profile;
+            }
+            previous = stop;
+        }
+        _scheduleService.ApplySchedule(preview);
+        RenderSchedule(preview, preview.Stops);
+    }
 
-        var end = realisticCurrent;
-        RouteDistanceKm = totalDistanceKm;
-        RouteTimingSummary = $"Start: {start:HH:mm} | Fahrt: {totalDriveMinutes} min | Staupuffer: {totalTrafficBufferMinutes} min | Aufenthalt: {totalStayMinutes} min | Ende: {end:HH:mm}";
-        RouteOperationalSummaryText = $"Gesamt Fahrzeit: {FormatDuration(totalDriveMinutes)} | Staupuffer: {FormatDuration(totalTrafficBufferMinutes)} | Gesamt Distanz: {totalDistanceKm:0.0} km | Start: {start:HH:mm} | Ende: {end:HH:mm}";
-        DriveTimesText = sb.Length == 0 ? "Noch keine Stopps geplant." : sb.ToString().TrimEnd();
+    private static bool MatchesScheduleStop(RouteStopItem item, TourStopRecord stop)
+    {
+        // UI anchors use __company_start__/__company_end__; persisted stops use company:start/company:end.
+        if (item.IsRouteStart || item.OrderId == TourStopIdentity.CompanyStartStopId)
+            return string.Equals(stop.Id, TourStopIdentity.CompanyStartStopId, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(stop.Auftragsnummer, TourStopIdentity.CompanyStartOrderNumber, StringComparison.OrdinalIgnoreCase);
+        if (item.IsRouteEnd || item.OrderId == TourStopIdentity.CompanyEndStopId)
+            return string.Equals(stop.Id, TourStopIdentity.CompanyEndStopId, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(stop.Auftragsnummer, TourStopIdentity.CompanyEndOrderNumber, StringComparison.OrdinalIgnoreCase);
+        return !string.IsNullOrWhiteSpace(item.DeliveryId)
+            ? string.Equals(item.DeliveryId, stop.DeliveryId, StringComparison.OrdinalIgnoreCase)
+            : string.Equals(item.OrderId, stop.Id, StringComparison.OrdinalIgnoreCase) ||
+              string.Equals(item.OrderId, ExtractTourStopOrderId(stop), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void RenderSchedule(TourRecord tour, IReadOnlyList<TourStopRecord> stops)
+    {
+        ClearRouteStopEtaValues();
+        var conflicts = new List<string>();
+        var drive = 0;
+        var buffer = 0;
+        var stay = 0;
+        var distance = 0d;
+        var legIndex = 0;
+        RouteStopItem? previousRouted = null;
+        TourStopRecord? previousRecord = null;
+        for (var i = 0; i < RouteStops.Count; i++)
+        {
+            var item = RouteStops[i];
+            var stop = tour.Id > 0 ? stops.FirstOrDefault(x => MatchesScheduleStop(item, x)) : stops.ElementAtOrDefault(i);
+            if (stop is null) continue;
+            item.EtaText = stop.PlannedArrival;
+            item.EtaRangeText = IsCompanyStop(item) || IsPauseStop(item) ? string.Empty :
+                string.IsNullOrWhiteSpace(stop.PlannedArrivalOptimistic) || string.IsNullOrWhiteSpace(stop.PlannedArrivalPessimistic)
+                ? string.Empty : stop.PlannedArrivalOptimistic + " - " + stop.PlannedArrivalPessimistic;
+            item.ScheduleConflictText = stop.ScheduleConflict ? stop.ScheduleConflictText : string.Empty;
+            if (stop.ScheduleConflict) conflicts.Add(item.Customer + ": " + stop.ScheduleConflictText);
+            stay += Math.Max(0, stop.ServiceMinutes) + Math.Max(0, stop.WaitMinutes);
+            if (IsPauseStop(item)) { previousRecord = stop; continue; }
+            if (previousRouted is not null)
+            {
+                var leg = _routeLegs.ElementAtOrDefault(legIndex++) ?? new OsrmRouteLeg(0, 0);
+                var storedKey = previousRecord?.Id + "|" + stop.Id;
+                var duration = tour.TravelTimeProfileCache.TryGetValue(storedKey, out var storedProfile)
+                    ? storedProfile.RealisticMinutes
+                    : tour.TravelTimeCache.TryGetValue(storedKey, out var storedDuration) ? storedDuration : leg.DurationMinutes;
+                var trafficBuffer = ResolveDisplayedTrafficBufferMinutes(tour, previousRecord, stop, duration);
+                buffer += trafficBuffer;
+                drive += duration;
+                distance += leg.DistanceKm;
+                previousRouted.SetNextLeg(FormatDuration(duration), $"{leg.DistanceKm:0.0} km",
+                    previousRecord?.PlannedDeparture ?? tour.StartTime, stop.PlannedArrival, item.EtaRangeText,
+                    legIndex % 2 == 1 ? "#7BC6A4" : "#8EC6E8");
+                if (trafficBuffer > 0) previousRouted.AddTrafficBufferAfter(trafficBuffer);
+            }
+            previousRouted = item;
+            previousRecord = stop;
+        }
+        RouteDistanceKm = distance;
+        var end = stops.LastOrDefault()?.PlannedDeparture ?? "--";
+        RouteTimingSummary = $"Start: {tour.StartTime} | Fahrt: {drive} min | Staupuffer: {buffer} min | Aufenthalt: {stay} min | Ende: {end}";
+        RouteOperationalSummaryText = $"Gesamt Fahrzeit: {FormatDuration(drive)} | Staupuffer: {FormatDuration(buffer)} | Gesamt Distanz: {distance:0.0} km | Start: {tour.StartTime} | Ende: {end}";
+        DriveTimesText = conflicts.Count > 0 ? string.Join(Environment.NewLine, conflicts) : RouteTimingSummary;
+        if (conflicts.Count > 0) StatusText = "Zeitfenster prüfen: " + string.Join(" | ", conflicts);
+        else if (tour.Id > 0 && tour.ScheduleVersion < TourScheduleService.CurrentVersion)
+            StatusText = "Gespeicherter Zeitplan: Für die neue Zeitfensterprüfung die Tour bearbeiten, Fahrzeiten prüfen und speichern.";
+    }
+
+    private static int ResolveDisplayedTrafficBufferMinutes(TourRecord tour, TourStopRecord? previous, TourStopRecord stop, int driveMinutes)
+    {
+        if (stop.CalculatedTrafficBufferMinutes > 0 ||
+            (tour.ScheduleVersion >= TourScheduleService.CurrentVersion && stop.CalculatedArrival.HasValue))
+            return Math.Max(0, stop.CalculatedTrafficBufferMinutes);
+        // Older snapshots contain the buffer in their arrival times, but have no separate buffer field.
+        // Recover it from the saved timeline, never from the current workplace's settings.
+        if (previous is null || !TimeOnly.TryParse(previous.PlannedDeparture, out var departure) ||
+            !TimeOnly.TryParse(stop.PlannedArrival, out var arrival)) return 0;
+        var baseline = departure.ToTimeSpan().Add(TimeSpan.FromMinutes(Math.Max(0, driveMinutes)));
+        var actual = arrival.ToTimeSpan();
+        while (actual < departure.ToTimeSpan()) actual = actual.Add(TimeSpan.FromDays(1));
+        var waitStart = stop.IsArrivalWindowFixed ? stop.PlannedArrivalOptimistic : stop.TimeWindowStart;
+        if (TimeOnly.TryParse(waitStart, out var windowStart))
+        {
+            var constraint = windowStart.ToTimeSpan();
+            if (actual.TotalDays >= 1 && constraint < departure.ToTimeSpan()) constraint += TimeSpan.FromDays(1);
+            if (constraint > baseline) baseline = constraint;
+        }
+        return Math.Max(0, (int)Math.Round((actual - baseline).TotalMinutes));
     }
 
     private static string BuildTimeRangeText(DateTime optimistic, DateTime realistic, DateTime pessimistic)
@@ -8840,7 +8909,7 @@ public sealed partial class KarteSectionViewModel
     {
         if (!_employeeIdsByWebfleetObjectUid.TryGetValue(objectUid, out var employeeId))
         {
-            return "Für die Ankunftsanalyse fehlt die Mitarbeiterzuordnung.";
+            return string.Empty;
         }
 
         var tour = _savedTours
@@ -8851,14 +8920,14 @@ public sealed partial class KarteSectionViewModel
             .FirstOrDefault();
         if (tour is null)
         {
-            return $"Keine Tour des Mitarbeiters für den {date:dd.MM.yyyy} gefunden; Ankunftsanalyse nicht möglich.";
+            return string.Empty;
         }
 
         var analysisTour = BuildCurrentArrivalAnalysisTour(tour);
         var results = WebfleetArrivalAnalysisService.Analyze(analysisTour, trackPoints, date);
         if (results.Count == 0)
         {
-            return WebfleetArrivalAnalysisService.BuildSummary(results);
+            return string.Empty;
         }
 
         var displayModel = WebfleetArrivalAnalysisService.BuildDisplayModel(results);
@@ -8870,6 +8939,8 @@ public sealed partial class KarteSectionViewModel
 
     private TourRecord BuildCurrentArrivalAnalysisTour(TourRecord tour)
     {
+        // Actual arrivals are compared with the committed promise, never an unsaved draft.
+        if (tour.ScheduleVersion >= TourScheduleService.CurrentVersion) return tour;
         if (tour.Id != ResolveCurrentTourId() || !RouteStops.Any(IsOrderStop))
         {
             return tour;
@@ -8880,7 +8951,8 @@ public sealed partial class KarteSectionViewModel
         {
             var orderId = ExtractTourStopOrderId(stop);
             var routeStop = RouteStops.FirstOrDefault(candidate =>
-                string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase));
+                string.Equals(candidate.OrderId, orderId, StringComparison.OrdinalIgnoreCase) &&
+                (string.IsNullOrWhiteSpace(stop.DeliveryId) || string.Equals(candidate.DeliveryId, stop.DeliveryId, StringComparison.OrdinalIgnoreCase)));
             if (routeStop is null || !TryParseArrivalRange(routeStop.EtaRangeText, out var start, out var end))
             {
                 continue;
@@ -8900,28 +8972,38 @@ public sealed partial class KarteSectionViewModel
     private static void PreserveFixedArrivalWindows(TourRecord updatedTour, TourRecord existingTour)
     {
         var existingByOrderId = (existingTour.Stops ?? [])
-            .Where(stop => stop.IsArrivalWindowFixed)
-            .GroupBy(ExtractTourStopOrderId, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(ScheduleStopKey, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         foreach (var stop in updatedTour.Stops ?? [])
         {
-            var orderId = ExtractTourStopOrderId(stop);
+            var orderId = ScheduleStopKey(stop);
             if (string.IsNullOrWhiteSpace(orderId) || !existingByOrderId.TryGetValue(orderId, out var existing))
             {
                 continue;
             }
 
+            stop.TimeWindowStart = existing.TimeWindowStart;
+            stop.TimeWindowEnd = existing.TimeWindowEnd;
+            stop.WaitMinutes = existing.WaitMinutes;
+            if (!existing.IsArrivalWindowFixed) continue;
             stop.IsArrivalWindowFixed = true;
             stop.PlannedArrivalOptimistic = existing.PlannedArrivalOptimistic;
             stop.PlannedArrivalPessimistic = existing.PlannedArrivalPessimistic;
+            stop.ArrivalWindowStart = existing.ArrivalWindowStart;
+            stop.ArrivalWindowEnd = existing.ArrivalWindowEnd;
         }
     }
+
+    private static string ScheduleStopKey(TourStopRecord stop) =>
+        !string.IsNullOrWhiteSpace(stop.DeliveryId) ? "delivery:" + stop.DeliveryId :
+        IsCustomerTourStop(stop) && !IsManualTourStop(stop) ? "order:" + ExtractTourStopOrderId(stop) : "stop:" + stop.Id;
 
     private void ApplyCurrentAvisoArrivalWindowFixations(TourRecord tour)
     {
         foreach (var stop in tour.Stops ?? [])
         {
+            if (stop.IsArrivalWindowFixed) continue;
             var orderId = ExtractTourStopOrderId(stop);
             var order = _allOrders.FirstOrDefault(candidate =>
                 string.Equals(candidate.Id, orderId, StringComparison.OrdinalIgnoreCase));
@@ -9680,6 +9762,13 @@ public sealed class RouteStopItem : ObservableObject
     {
         get => _fixedArrivalRangeText;
         set => SetProperty(ref _fixedArrivalRangeText, value ?? string.Empty);
+    }
+
+    private string _scheduleConflictText = string.Empty;
+    public string ScheduleConflictText
+    {
+        get => _scheduleConflictText;
+        set => SetProperty(ref _scheduleConflictText, value);
     }
 
     public string AvisoStatus

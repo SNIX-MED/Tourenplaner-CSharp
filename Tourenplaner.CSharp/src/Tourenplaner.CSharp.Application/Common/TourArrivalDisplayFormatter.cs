@@ -39,6 +39,11 @@ public static class TourArrivalDisplayFormatter
         var realistic = TryParseTime(realisticText, out var parsedRealistic)
             ? parsedRealistic
             : optimistic;
+        if (pessimistic < optimistic)
+        {
+            pessimistic = pessimistic.AddDays(1);
+            if (realistic < optimistic) realistic = realistic.AddDays(1);
+        }
 
         var displayedRange = BuildDisplayedArrivalRange(optimistic, realistic, pessimistic);
         var displayedOptimistic = displayedRange.Optimistic.ToString("HH:mm", CultureInfo.InvariantCulture);

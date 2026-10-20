@@ -8,6 +8,51 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class WebfleetTourDispatchServiceTests
 {
     [Fact]
+    public void DispatchDateFollowsRoundedArrivalAcrossMidnight()
+    {
+        var tour = new TourRecord { Date = "28.10.2026" };
+        var stop = new TourStopRecord { CalculatedArrival = new DateTime(2026, 10, 28, 23, 58, 0),
+            ArrivalWindowStart = new DateTime(2026, 10, 28, 23, 45, 0), ArrivalWindowEnd = new DateTime(2026, 10, 29, 0, 45, 0) };
+        var window = ((DateTimeOffset? PlannedArrival, int? Tolerance))typeof(WebfleetTourDispatchService)
+            .GetMethod("BuildWebfleetArrivalWindow", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [tour, stop])!;
+        var date = typeof(WebfleetTourDispatchService).GetMethod("ResolveDispatchDate", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [tour, window.PlannedArrival]);
+        Assert.Equal(new DateOnly(2026, 10, 29), date);
+    }
+
+    [Fact]
+    public void SynchronizationIncludesPreviouslyDispatchedDatesAfterStopRemoval()
+    {
+        var previous = new WebfleetDispatchRecord { Stops = [new() { ScheduledDate = new DateOnly(2026, 10, 29) }] };
+        var dates = (IEnumerable<DateOnly>)typeof(WebfleetTourDispatchService)
+            .GetMethod("ResolveSynchronizationDates", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [new TourRecord { Date = "28.10.2026" }, new[] { new DateOnly(2026, 10, 28) }, previous])!;
+        Assert.Equal(new[] { new DateOnly(2026, 10, 28), new DateOnly(2026, 10, 29) }, dates);
+    }
+    [Fact]
+    public void DispatchRejectsUnresolvedScheduleConflicts()
+    {
+        var tour = new TourRecord { Stops = [new() { StopKind = "manual", Lat = 47, Lon = 8,
+            ScheduleConflict = true, ScheduleConflictText = "Zeitfenster widerspricht der Stoppreihenfolge." }] };
+        Assert.Contains(new WebfleetTourDispatchService().Validate(tour, new Vehicle { WebfleetObjectUid = "vehicle" }),
+            error => error.Contains("Stoppreihenfolge"));
+    }
+
+    [Fact]
+    public void WebfleetUsesPersistedAbsoluteWindowAcrossMidnight()
+    {
+        var stop = new TourStopRecord { CalculatedArrival = new DateTime(2026, 10, 29, 0, 17, 0),
+            ArrivalWindowStart = new DateTime(2026, 10, 28, 23, 45, 0),
+            ArrivalWindowEnd = new DateTime(2026, 10, 29, 1, 45, 0) };
+        var result = ((DateTimeOffset? PlannedArrival, int? ArrivalToleranceMinutes))typeof(WebfleetTourDispatchService)
+            .GetMethod("BuildWebfleetArrivalWindow", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [new TourRecord { Date = "28.10.2026" }, stop])!;
+        Assert.Equal(120, result.ArrivalToleranceMinutes);
+        Assert.Equal(29, result.PlannedArrival!.Value.Day);
+        Assert.Equal("00:15", result.PlannedArrival.Value.ToString("HH:mm"));
+    }
+
+    [Fact]
     public async Task PreviewCannotSendCustomerStopWithoutCurrentOrderData()
     {
         var tour = new TourRecord { Id = 20, Date = "19.10.2026", Stops =

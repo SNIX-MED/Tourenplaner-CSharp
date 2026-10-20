@@ -892,16 +892,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             }
         }
 
-        var incompleteScheduleTours = _loadedTours
-            .Where(HasIncompleteStopSchedule)
-            .ToList();
-        foreach (var tour in incompleteScheduleTours)
-        {
-            _scheduleService.ApplySchedule(tour);
-        }
-
         var companyStopsNormalized = NormalizeCompanyStops(_loadedTours, settings);
-        if (tourReconciliation.HasChanges || companyStopsNormalized || incompleteScheduleTours.Count > 0)
+        if (tourReconciliation.HasChanges || companyStopsNormalized)
         {
             await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, _loadedTours, tourReconciliation);
             _dataSyncService.PublishTours(_instanceId);
@@ -2565,7 +2557,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         Tours.Clear();
         foreach (var tour in tourList.OrderBy(t => t.Date).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
         {
-            var schedule = _scheduleService.BuildSchedule(tour);
+            var schedule = TourScheduleService.ReadSchedule(tour);
             var metrics = BuildTourOrderMetrics(tour);
             var employeeText = BuildEmployeeFirstNameText(tour.EmployeeIds ?? []);
             var totalWeight = CalculateTourWeightKg(tour);
@@ -2734,10 +2726,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private static string BuildCalendarWindowText(TourStopRecord stop)
     {
-        var arrivalRange = TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(
-            stop.PlannedArrivalOptimistic,
-            stop.PlannedArrival,
-            stop.PlannedArrivalPessimistic);
+        var arrivalRange = FormatStoredCalendarWindow(stop);
         if (!string.IsNullOrWhiteSpace(arrivalRange))
         {
             return arrivalRange;
@@ -2772,11 +2761,12 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
     private static string BuildArrivalRangeText(TourStopRecord stop)
     {
-        return TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(
-            stop.PlannedArrivalOptimistic,
-            stop.PlannedArrival,
-            stop.PlannedArrivalPessimistic);
+        return FormatStoredCalendarWindow(stop);
     }
+
+    private static string FormatStoredCalendarWindow(TourStopRecord stop) =>
+        string.IsNullOrWhiteSpace(stop.PlannedArrivalOptimistic) || string.IsNullOrWhiteSpace(stop.PlannedArrivalPessimistic)
+            ? string.Empty : stop.PlannedArrivalOptimistic.Trim() + " - " + stop.PlannedArrivalPessimistic.Trim();
 
     private static IReadOnlyList<string> BuildCalendarProductLines(Order? order, TourStopRecord stop, string? tourId = null)
     {
@@ -2886,6 +2876,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             {
                 Date = tour.Date,
                 StartTime = tour.StartTime,
+                ScheduleTrafficBufferPercentages = tour.ScheduleTrafficBufferPercentages.ToList(),
                 TravelTimeCache = new Dictionary<string, int>(tour.TravelTimeCache),
                 TravelTimeProfileCache = (tour.TravelTimeProfileCache ?? new Dictionary<string, TourTravelTimeProfile>()).ToDictionary(
                     kv => kv.Key,
@@ -2898,7 +2889,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 Stops = orderedStopsOverride
             };
 
-        var schedule = _scheduleService.BuildSchedule(scheduleSource);
+        var schedule = orderedStopsOverride is null ? TourScheduleService.ReadSchedule(tour) : _scheduleService.BuildSchedule(scheduleSource);
         var totalDurationMinutes = Math.Max(0, (int)Math.Round((schedule.End - schedule.Start).TotalMinutes));
         var orderedStops = (orderedStopsOverride ?? tour.Stops)
             .OrderBy(s => s.Order)
@@ -3592,6 +3583,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             Date = source.Date,
             Name = source.Name,
             StartTime = source.StartTime,
+            ScheduleVersion = source.ScheduleVersion,
+            ScheduleCalculatedAtUtc = source.ScheduleCalculatedAtUtc,
+            ScheduleTrafficBufferPercentages = source.ScheduleTrafficBufferPercentages.ToList(),
             RouteMode = source.RouteMode,
             VehicleId = source.VehicleId,
             TrailerId = source.TrailerId,
@@ -3628,6 +3622,13 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 PlannedArrivalOptimistic = stop.PlannedArrivalOptimistic,
                 ServiceMinutes = stop.ServiceMinutes,
                 PlannedArrival = stop.PlannedArrival,
+                CalculatedArrivalOptimistic = stop.CalculatedArrivalOptimistic,
+                CalculatedArrival = stop.CalculatedArrival,
+                CalculatedArrivalPessimistic = stop.CalculatedArrivalPessimistic,
+                CalculatedDeparture = stop.CalculatedDeparture,
+                CalculatedTrafficBufferMinutes = stop.CalculatedTrafficBufferMinutes,
+                ArrivalWindowStart = stop.ArrivalWindowStart,
+                ArrivalWindowEnd = stop.ArrivalWindowEnd,
                 PlannedArrivalPessimistic = stop.PlannedArrivalPessimistic,
                 IsArrivalWindowFixed = stop.IsArrivalWindowFixed,
                 PlannedDeparture = stop.PlannedDeparture,

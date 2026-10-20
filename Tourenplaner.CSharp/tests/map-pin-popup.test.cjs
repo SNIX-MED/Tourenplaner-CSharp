@@ -79,16 +79,96 @@ function runMapPinPopupTests(source) {
   assert(regular.includes("class='gawela-info-card-close'"), 'Each card must have a manual close button');
   assert(regular.includes("aria-label='Infokarte schließen'"), 'Close button must have an accessible label');
   const closeStart = source.indexOf('const closeCard = evt => {');
-  const closeEnd = source.indexOf("popupEl.addEventListener('click', closeCard, true)", closeStart);
+  const closeEnd = source.indexOf('popupEl.__gawelaCloseCard = closeCard;', closeStart);
   let removed = false;
   const popupEl = {};
-  const closeApi = new Function('popup', 'popupEl', 'let activeOrderPopupElement = popupEl;' + source.slice(closeStart, closeEnd) +
-    ';return {close:closeCard,active:()=>activeOrderPopupElement};')({remove(){removed = true;}}, popupEl);
+  const dismissed = new Set();
+  let underlyingRemoved = false;
+  const overlappingMarkers = new Map([['route-a', {getPopup:()=>({remove(){underlyingRemoved=true;}})}]]);
+  const closeApi = new Function('popup', 'popupEl', 'dismissedOrderPopupIds', 'markerMap','routeMarkerMap', 'let stickyPopupOrderId = "route-a"; let activeOrderPopupElement = popupEl;' + source.slice(closeStart, closeEnd) +
+    ';return {close:closeCard,active:()=>activeOrderPopupElement,sticky:()=>stickyPopupOrderId};')({__gawelaOrderId:'route-a',remove(){removed = true;}}, popupEl, dismissed, overlappingMarkers, new Map());
   const close = closeApi.close;
   const event = {target:{closest:()=>({})},preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;}};
   close(event);
   assert(removed && event.prevented && event.stopped, 'Close must remove popup and stop marker selection');
   assert(closeApi.active() === null, 'Closing must clear the active popup reference');
+  const delegationStart = source.indexOf('const findOrderCardClosePopup =');
+  const delegationEnd = source.indexOf('const enableOrderPopupInteraction =', delegationStart);
+  const captureHandlers = {};
+  new Function('window', source.slice(delegationStart,delegationEnd))({addEventListener(type,handler,capture){
+    assert(capture===true,'Close delegation must precede SDK handlers');captureHandlers[type]=handler;
+  }});
+  const container = {__gawelaCloseCard:close};
+  const button = {closest(selector){return selector==='.gawela-order-popup'?container:null;}};
+  const makeCloseEvent = () => ({button:0,target:{closest(selector){return selector==='.gawela-info-card-close'?button:null;}},
+    preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;}});
+  removed=false;
+  const press=makeCloseEvent();captureHandlers.pointerdown(press);
+  assert(removed&&press.stopped&&press.prevented,'Card must close on press even if SDK never delivers a click');
+  for (const type of ['mousedown','pointerup','mouseup','click']) {
+    const gesture={...makeCloseEvent(),target:{closest:()=>null}};
+    captureHandlers[type](gesture);
+    assert(gesture.stopped&&gesture.prevented,'Release retargeted to map must not select an underlying pin');
+  }
+  let currentHandlerCalled=false;
+  container.__gawelaCloseCard=()=>{currentHandlerCalled=true;};
+  captureHandlers.click(makeCloseEvent());
+  assert(currentHandlerCalled,'Delegation must use the latest popup binding after DOM reuse');
+  const unrelated={target:{closest:()=>null},stopImmediatePropagation(){throw Error('Unrelated click blocked');}};
+  captureHandlers.click(unrelated);
+  assert(true,'Unrelated controls must not be intercepted');
+  container.__gawelaCloseCard=close;
+  removed=false;
+  captureHandlers.pointerdown({...makeCloseEvent(),button:2});
+  assert(!removed,'Right-click must leave the card open');
+  captureHandlers.pointerdown({...makeCloseEvent(),isPrimary:false});
+  assert(!removed,'Secondary touch must leave the card open');
+  for(const reset of ['pointercancel','blur']) {
+    captureHandlers.pointerdown(makeCloseEvent());
+    captureHandlers[reset]();
+    captureHandlers.click(unrelated);
+    assert(true,'Cancelled close gesture must not swallow later keyboard clicks');
+  }
+  captureHandlers.pointerdown(makeCloseEvent());
+  captureHandlers.pointerdown(unrelated);
+  captureHandlers.click(unrelated);
+  assert(true,'A new map gesture must clear close suppression when the previous click was never delivered');
+  assert(dismissed.has('route-a') && closeApi.sticky() === '', 'Closing a selected route card must clear sticky opening and retain manual dismissal');
+  assert(underlyingRemoved, 'Closing must also remove an overlapping popup of the same order');
+  const orderHighlightStart = source.indexOf('window.gawelaHighlightMarker = function(orderId) {');
+  const orderHighlightEnd = source.indexOf('window.gawelaHighlightRouteStop =',orderHighlightStart);
+  let orderOpened = false;
+  const orderWindow = {};
+  new Function('window','dismissedOrderPopupIds','markerMap','map','scalePopupElement','enableOrderPopupInteraction','bringOrderPopupToFront',
+    source.slice(orderHighlightStart,orderHighlightEnd))(orderWindow,dismissed,
+      new Map([['route-a',{getLngLat:()=>[8,47],getPopup:()=>({addTo(){orderOpened=true;}})}]]),{easeTo(){}},()=>{},()=>{},()=>{});
+  orderWindow.gawelaHighlightMarker('route-a');
+  assert(!orderOpened, 'Host order highlight must respect manual dismissal as well as route highlight');
+  const routeHighlightStart = source.indexOf('window.gawelaHighlightRouteStop = function(orderId) {');
+  const routeHighlightEnd = source.indexOf('window.gawelaSetRouteInfo', routeHighlightStart);
+  let opened = 0;
+  const routeWindow = {};
+  const routePin = {getLngLat:()=>[8,47],getPopup:()=>({addTo(){opened++;},remove(){}})};
+  new Function('window','routeMarkerMap','dismissedOrderPopupIds','map','scalePopupElement','enableOrderPopupInteraction','bringOrderPopupToFront','applyRouteStopHighlight',
+    'let highlightedRouteStopId="route-a"; let stickyPopupOrderId="";' + source.slice(routeHighlightStart,routeHighlightEnd))(
+      routeWindow,new Map([['route-a',routePin],['route-b',routePin]]),dismissed,{easeTo(){}},()=>{},()=>{},()=>{},()=>{});
+  routeWindow.gawelaHighlightRouteStop('route-a');
+  assert(opened===0, 'Repeated host highlight must not reopen a manually closed selected route card');
+  routeWindow.gawelaHighlightRouteStop('route-b');
+  assert(opened===1, 'Selecting another route pin must still open its card');
+  routeWindow.gawelaHighlightRouteStop('route-a');
+  assert(opened===2 && !dismissed.has('route-a'), 'Selecting the dismissed route pin again must allow its card');
+  let sdkAdds=0, sdkRemoves=0, sdkOpen=false;
+  const sdkPopup={isOpen:()=>sdkOpen,addTo(){if(sdkOpen)sdkRemoves++;sdkOpen=true;sdkAdds++;},remove(){sdkOpen=false;sdkRemoves++;}};
+  const stableWindow={};
+  const stablePin={getLngLat:()=>[8,47],getPopup:()=>sdkPopup};
+  new Function('window','routeMarkerMap','dismissedOrderPopupIds','map','scalePopupElement','enableOrderPopupInteraction','bringOrderPopupToFront','applyRouteStopHighlight',
+    'let highlightedRouteStopId=""; let stickyPopupOrderId="";' + source.slice(routeHighlightStart,routeHighlightEnd))(
+      stableWindow,new Map([['a',stablePin]]),new Set(),{easeTo(){}},()=>{},()=>{},()=>{},()=>{});
+  stableWindow.gawelaHighlightRouteStop('a');
+  stableWindow.gawelaHighlightRouteStop('a');
+  stableWindow.gawelaHighlightRouteStop('a');
+  assert(sdkAdds===1&&sdkRemoves===0,'Repeated route highlights must not re-add an already open SDK popup');
   removed = false;
   close({...event, button:2});
   assert(!removed, 'Right-click must not close the card');
@@ -111,7 +191,23 @@ function runMapPinPopupTests(source) {
   listeners.click(productClick);
   assert(extraLines.every(line=>line.hidden) && toggle.textContent==='Mehr anzeigen', 'Next click must collapse products again');
   assert(!listeners.pointerup, 'Expansion must not move the button before the click event');
-  return 35;
+  const updateStart=source.indexOf("let lastHostRoutePayload = '';");
+  const updateEnd=source.indexOf('window.gawelaSetRoute = function',updateStart);
+  let routeRebuilds=0;
+  const updateWindow={gawelaSetRoute(){routeRebuilds++;}};
+  new Function('window',source.slice(updateStart,updateEnd))(updateWindow);
+  const routeData=[{id:'a',products:['Produkt'],color:'#00ff00'}];
+  const geometry=[{lat:47,lon:8},{lat:48,lon:9}];
+  updateWindow.gawelaUpdateRoute(routeData,geometry,'blue',[],false);
+  updateWindow.gawelaUpdateRoute(JSON.parse(JSON.stringify(routeData)),geometry,'blue',[],false);
+  assert(routeRebuilds===1,'Identical host refresh after selection must preserve the popup DOM');
+  updateWindow.gawelaUpdateRoute([{...routeData[0],products:['Neu']}],geometry,'blue',[],false);
+  assert(routeRebuilds===2,'Changed card content must still rebuild the route');
+  updateWindow.gawelaUpdateRoute(routeData,[{lat:49,lon:9}],'blue',[],false);
+  assert(routeRebuilds===3,'Changed geometry must still update');
+  updateWindow.gawelaUpdateRoute(routeData,[{lat:49,lon:9}],'blue',[],true);
+  assert(routeRebuilds===4,'Explicit centering must not be suppressed');
+  return 58;
 }
 
 if (typeof module !== 'undefined') {

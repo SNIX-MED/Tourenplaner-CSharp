@@ -4,6 +4,13 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public class TourArrivalDisplayFormatterTests
 {
+    [Theory]
+    [InlineData("10:30", "09:30", "11:30", "09:30 - 11:30")]
+    [InlineData("23:45", "00:10", "00:45", "23:45 - 00:45")]
+    public void TextFormattingOnlyAdvancesTheDayForAnOvernightRange(string early, string realistic, string late, string expected)
+    {
+        Assert.Equal(expected, TourArrivalDisplayFormatter.BuildDisplayedArrivalRangeText(early, realistic, late));
+    }
     [Fact]
     public void BuildDisplayedArrivalRange_ForShortCongestionFreeLeg_UsesOneHourWindow()
     {

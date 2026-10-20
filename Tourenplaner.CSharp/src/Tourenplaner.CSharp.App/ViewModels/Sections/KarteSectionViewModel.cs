@@ -277,6 +277,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
         RefreshCommand = new AsyncCommand(RefreshAsync);
         SearchCommand = new AsyncCommand(SearchAsync);
+        RecalculateScheduleCommand = new AsyncCommand(RecalculateScheduleAsync);
         CenterSelectedOrderCommand = new DelegateCommand(CenterSelectedOrder, () => SelectedOrder is not null);
         AddToRouteCommand = new DelegateCommand(AddSelectedOrderToRoute, CanAddSelectedOrderToCurrentRoute);
         AddToNewTourCommand = new DelegateCommand(AddSelectedOrderToNewTour, CanAddSelectedOrderToNewTour);
@@ -332,6 +333,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public ICommand RefreshCommand { get; }
     public ICommand SearchCommand { get; }
+    public ICommand RecalculateScheduleCommand { get; }
 
     public ICommand CenterSelectedOrderCommand { get; }
 

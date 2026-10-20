@@ -18,6 +18,13 @@ public sealed class TourStopRecord
     public string PlannedArrivalOptimistic { get; set; } = string.Empty;
     public int ServiceMinutes { get; set; }
     public string PlannedArrival { get; set; } = string.Empty;
+    public DateTime? CalculatedArrivalOptimistic { get; set; }
+    public DateTime? CalculatedArrival { get; set; }
+    public DateTime? CalculatedArrivalPessimistic { get; set; }
+    public DateTime? CalculatedDeparture { get; set; }
+    public DateTime? ArrivalWindowStart { get; set; }
+    public DateTime? ArrivalWindowEnd { get; set; }
+    public int CalculatedTrafficBufferMinutes { get; set; }
     public string PlannedArrivalPessimistic { get; set; } = string.Empty;
     public bool IsArrivalWindowFixed { get; set; }
     public string PlannedDeparture { get; set; } = string.Empty;

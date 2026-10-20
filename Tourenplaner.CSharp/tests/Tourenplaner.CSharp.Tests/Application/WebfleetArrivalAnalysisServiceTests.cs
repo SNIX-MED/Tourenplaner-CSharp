@@ -6,6 +6,29 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class WebfleetArrivalAnalysisServiceTests
 {
     [Fact]
+    public void AnalyzeUsesStoredAbsoluteWindowOnFollowingDay()
+    {
+        var date = new DateOnly(2026, 10, 28);
+        var next = date.AddDays(1);
+        var tour = new TourRecord { Stops = [new() { Id = "A", Order = 1, Lat = 47, Lon = 8,
+            PlannedArrivalOptimistic = "00:00", PlannedArrivalPessimistic = "01:00",
+            ArrivalWindowStart = next.ToDateTime(new TimeOnly(0, 0), DateTimeKind.Local),
+            ArrivalWindowEnd = next.ToDateTime(new TimeOnly(1, 0), DateTimeKind.Local) }] };
+        var result = Assert.Single(WebfleetArrivalAnalysisService.Analyze(tour, [Point(next, 0, 15, 47, 8)], date));
+        Assert.True(result.ArrivedWithinWindow);
+        Assert.Equal(29, result.WindowStart!.Value.Day);
+    }
+
+    [Fact]
+    public void LegacyOvernightWindowRemainsComparable()
+    {
+        var date = new DateOnly(2026, 10, 28);
+        var tour = new TourRecord { Stops = [new() { Id = "A", Order = 1, Lat = 47, Lon = 8,
+            PlannedArrivalOptimistic = "23:45", PlannedArrivalPessimistic = "00:45" }] };
+        var result = Assert.Single(WebfleetArrivalAnalysisService.Analyze(tour, [Point(date.AddDays(1), 0, 15, 47, 8)], date));
+        Assert.True(result.ArrivedWithinWindow);
+    }
+    [Fact]
     public void Analyze_DetectsFirstTrackEntryAndEvaluatesArrivalWindow()
     {
         var date = new DateOnly(2026, 10, 2);

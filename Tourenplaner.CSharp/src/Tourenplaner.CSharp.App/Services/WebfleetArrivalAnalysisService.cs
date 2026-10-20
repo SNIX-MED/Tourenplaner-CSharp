@@ -51,8 +51,11 @@ public static class WebfleetArrivalAnalysisService
                      .Where(IsAnalyzableStop)
                      .OrderBy(stop => stop.Order > 0 ? stop.Order : int.MaxValue))
         {
-            var windowStart = ParseTourTime(tourDate, stop.PlannedArrivalOptimistic);
-            var windowEnd = ParseTourTime(tourDate, stop.PlannedArrivalPessimistic);
+            var windowStart = stop.ArrivalWindowStart.HasValue
+                ? new DateTimeOffset(stop.ArrivalWindowStart.Value) : ParseTourTime(tourDate, stop.PlannedArrivalOptimistic);
+            var windowEnd = stop.ArrivalWindowEnd.HasValue
+                ? new DateTimeOffset(stop.ArrivalWindowEnd.Value) : ParseTourTime(tourDate, stop.PlannedArrivalPessimistic);
+            if (windowEnd < windowStart && !stop.ArrivalWindowEnd.HasValue) windowEnd = windowEnd?.AddDays(1);
             var candidateFrom = windowStart?.AddHours(-3) ?? new DateTimeOffset(tourDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local));
             var candidateTo = windowEnd?.AddHours(3) ?? candidateFrom.AddDays(1);
             var actualArrival = points.FirstOrDefault(point =>

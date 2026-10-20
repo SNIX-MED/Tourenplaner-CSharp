@@ -399,6 +399,11 @@ public partial class KarteSectionView : UserControl
     private async Task ProcessMapRefreshQueueAsync(int debounceMilliseconds)
     {
         var revision = Interlocked.Increment(ref _mapRefreshRevision);
+        // PropertyChanged runs inside setters: selecting a route stop notifies us
+        // before its order details have been selected. Never send that intermediate
+        // state back to JavaScript (it would close the just-clicked popup).
+        // Yield to finish the complete synchronous selection transaction first.
+        await Task.Yield();
         if (debounceMilliseconds > 0)
         {
             await Task.Delay(debounceMilliseconds);
@@ -1133,7 +1138,7 @@ public partial class KarteSectionView : UserControl
         var routeInfoJson = JsonSerializer.Serialize(vm.RoutingProviderStatusText);
         var allowAutoCenterJson = allowAutoCenter ? "true" : "false";
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetPlannedTourOverlays === 'function') window.gawelaSetPlannedTourOverlays({overlaysJson});");
-        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRoute === 'function') window.gawelaSetRoute({routeJson}, {geometryJson}, {routeColorJson}, {trafficSegmentsJson}, {allowAutoCenterJson});");
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaUpdateRoute === 'function') window.gawelaUpdateRoute({routeJson}, {geometryJson}, {routeColorJson}, {trafficSegmentsJson}, {allowAutoCenterJson});");
         await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaSetRouteInfo === 'function') window.gawelaSetRouteInfo({routeInfoJson});");
         await HighlightSelectedRouteStopAsync();
         await HighlightPlannedTourOverlayAsync();

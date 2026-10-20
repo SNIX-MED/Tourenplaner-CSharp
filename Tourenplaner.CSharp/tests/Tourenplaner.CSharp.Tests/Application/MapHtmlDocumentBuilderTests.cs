@@ -60,9 +60,10 @@ public sealed class MapHtmlDocumentBuilderTests
             html,
             StringComparison.Ordinal);
         Assert.Contains(
-            "window.gawelaSetRoute(last.routeStops, last.geometryPoints, last.routeColor, last.trafficSegments, false)",
+            "ensureRouteLayer(path, last.routeColor)",
             html,
             StringComparison.Ordinal);
+        Assert.DoesNotContain("window.gawelaSetRoute(last.routeStops", html, StringComparison.Ordinal);
     }
 
     [Fact]

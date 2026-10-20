@@ -69,9 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Bestaetigte Auftragssuche behaelt den gesuchten Pin als Treffer bei
-          - Ausgegraute Pins sind mit 70 Prozent Deckkraft besser sichtbar
-          - Archivierte und geloeschte Auftraege werden aus den Suchvorschlaegen entfernt
+          - Einheitliche gespeicherte Tourzeitfenster mit Staupuffer und Firmenzeiten
+          - Infokarten von Tour-Pins lassen sich zuverlaessig schliessen und wechseln ohne Flackern
+          - Doppelte Auftragspins verhindert, Teillieferungen und Suchausgrauung bleiben korrekt
+          - Fahrzeugverlauf zeigt nur bei fehlendem Verlauf oder Ladefehler einen kurzen Hinweis
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

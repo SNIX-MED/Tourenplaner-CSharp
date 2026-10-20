@@ -356,9 +356,36 @@ internal static class MapHtmlDocumentBuilder
                      fleetTrackDatePickerEl.querySelectorAll('[data-fleet-month]').forEach(button => button.addEventListener('click', () => { fleetTrackCalendarMonth = new Date(year, month + Number(button.dataset.fleetMonth), 1); renderFleetTrackCalendar(); }));
                      fleetTrackDatePickerEl.querySelectorAll('[data-fleet-date]').forEach(button => button.addEventListener('click', () => { const [selectedYear, selectedMonth, selectedDay] = button.dataset.fleetDate.split('-').map(Number); fleetTrackSelectedDate = new Date(selectedYear, selectedMonth - 1, selectedDay); fleetTrackCalendarMonth = new Date(selectedYear, selectedMonth - 1, 1); fleetTrackDatePickerEl.classList.remove('open'); fleetTrackDateEl.classList.remove('open'); renderFleetTrackCalendar(); }));
                    };
+                   // A child of the scrollable content is clipped regardless of its z-index.
+                   // Render the calendar at document level and anchor it to the date field.
+                   if (fleetTrackDatePickerEl) document.body.appendChild(fleetTrackDatePickerEl);
+                   const closeFleetTrackCalendar = () => {
+                     if (fleetTrackDatePickerEl) fleetTrackDatePickerEl.classList.remove('open');
+                     if (fleetTrackDateEl) fleetTrackDateEl.classList.remove('open');
+                   };
+                   const positionFleetTrackCalendar = () => {
+                     if (!fleetTrackDatePickerEl || !fleetTrackDateEl || !fleetTrackDatePickerEl.classList.contains('open')) return;
+                     const rect = fleetTrackDateEl.getBoundingClientRect();
+                     const width = Math.min(264, Math.max(0, window.innerWidth - 16));
+                     fleetTrackDatePickerEl.style.position = 'fixed';
+                     fleetTrackDatePickerEl.style.width = `${width}px`;
+                     fleetTrackDatePickerEl.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+                     const height = fleetTrackDatePickerEl.offsetHeight;
+                     const below = rect.bottom + 6;
+                     const top = below + height <= window.innerHeight - 8 ? below : Math.max(8, rect.top - height - 6);
+                     fleetTrackDatePickerEl.style.top = `${top}px`;
+                     fleetTrackDatePickerEl.style.maxHeight = `${Math.max(0, window.innerHeight - top - 8)}px`;
+                     fleetTrackDatePickerEl.style.overflowY = 'auto';
+                   };
                    renderFleetTrackCalendar();
-                   if (fleetTrackDateEl) fleetTrackDateEl.addEventListener('click', () => { fleetTrackDatePickerEl.classList.toggle('open'); fleetTrackDateEl.classList.toggle('open'); });
-                   const setFleetTracksOverlayOpen = (open) => { if (!fleetTracksOverlayEl) return; fleetTracksOverlayEl.classList.toggle('open', open); fleetTracksOverlayEl.setAttribute('aria-hidden', open ? 'false' : 'true'); };
+                   if (fleetTrackDateEl) fleetTrackDateEl.addEventListener('click', () => { fleetTrackDatePickerEl.classList.toggle('open'); fleetTrackDateEl.classList.toggle('open'); positionFleetTrackCalendar(); });
+                   window.addEventListener('resize', positionFleetTrackCalendar);
+                   if (fleetTracksOverlayEl) fleetTracksOverlayEl.addEventListener('scroll', positionFleetTrackCalendar, true);
+                   document.addEventListener('keydown', evt => { if (evt.key === 'Escape') closeFleetTrackCalendar(); });
+                   document.addEventListener('pointerdown', evt => {
+                     if (fleetTrackDatePickerEl && fleetTrackDateEl && !fleetTrackDatePickerEl.contains(evt.target) && !fleetTrackDateEl.contains(evt.target)) closeFleetTrackCalendar();
+                   });
+                   const setFleetTracksOverlayOpen = (open) => { if (!fleetTracksOverlayEl) return; if (!open) closeFleetTrackCalendar(); fleetTracksOverlayEl.classList.toggle('open', open); fleetTracksOverlayEl.setAttribute('aria-hidden', open ? 'false' : 'true'); };
                    if (fleetTracksToggleEl) fleetTracksToggleEl.addEventListener('click', () => setFleetTracksOverlayOpen(!fleetTracksOverlayEl.classList.contains('open')));
                    if (fleetTracksCloseEl) fleetTracksCloseEl.addEventListener('click', () => setFleetTracksOverlayOpen(false));
                    if (fleetTrackLoadEl) fleetTrackLoadEl.addEventListener('click', requestFleetTrackLoad);
@@ -661,6 +688,7 @@ internal static class MapHtmlDocumentBuilder
                          let routePopupVisible = false;
                          let markerPopupHoverEnabled = true;
                          let stickyPopupOrderId = '';
+                         const dismissedOrderPopupIds = new Set();
                          let activeOrderPopupElement = null;
                          let routeStopHitTargets = [];
                          let routeStopCanvasClickBound = false;
@@ -678,7 +706,8 @@ internal static class MapHtmlDocumentBuilder
                            if (!marker || typeof marker.getPopup !== 'function') return;
                            const popup = marker.getPopup();
                            if (!popup) return;
-                           popup.addTo(map);
+                           dismissedOrderPopupIds.delete(String(marker.__gawelaOrderId || ''));
+                           if (typeof popup.isOpen !== 'function' || !popup.isOpen()) popup.addTo(map);
                            scalePopupElement(popup);
                            enableOrderPopupInteraction(popup);
                            bringOrderPopupToFront(popup);
@@ -735,6 +764,44 @@ internal static class MapHtmlDocumentBuilder
                            activeOrderPopupElement = popupEl;
                          };
 
+                         // Handle the X before SDK/document marker handlers can consume the gesture.
+                         // Delegation survives popup DOM replacement and works for every order-card layer.
+                         const findOrderCardClosePopup = evt => {
+                           const target = evt && evt.target;
+                           const button = target && typeof target.closest === 'function' ? target.closest('.gawela-info-card-close') : null;
+                           if (!button) return null;
+                           const element = button.closest('.gawela-order-popup');
+                           return element && typeof element.__gawelaCloseCard === 'function' ? element : null;
+                         };
+                         let orderCardCloseGesture = false;
+                         window.addEventListener('pointerdown', evt => {
+                           if (evt.isPrimary === false) return;
+                           orderCardCloseGesture = false;
+                           const element = findOrderCardClosePopup(evt);
+                           if (!element || (typeof evt.button === 'number' && evt.button !== 0)) return;
+                           orderCardCloseGesture = true;
+                           element.__gawelaCloseCard(evt);
+                         }, true);
+                         // A cancelled touch/pen gesture or focus loss may never produce a click.
+                         // Do not let its click-through guard swallow a later keyboard action.
+                         window.addEventListener('pointercancel', () => { orderCardCloseGesture = false; }, true);
+                         window.addEventListener('blur', () => { orderCardCloseGesture = false; }, true);
+                         ['pointerup', 'mousedown', 'mouseup', 'click'].forEach(type => {
+                           window.addEventListener(type, evt => {
+                             // Removing a popup retargets the release/click to the map underneath.
+                             if (orderCardCloseGesture) {
+                               evt.preventDefault();
+                               evt.stopImmediatePropagation();
+                               if (type === 'click') orderCardCloseGesture = false;
+                               return;
+                             }
+                             if (type === 'click') {
+                               const element = findOrderCardClosePopup(evt);
+                               if (element) element.__gawelaCloseCard(evt);
+                             }
+                           }, true);
+                         });
+
                          const enableOrderPopupInteraction = (popup) => {
                            const popupEl = popup && typeof popup.getElement === 'function' ? popup.getElement() : null;
                            if (!popupEl) return;
@@ -753,8 +820,7 @@ internal static class MapHtmlDocumentBuilder
                                changeMapZoom(evt.deltaY < 0 ? 0.75 : -0.75, around);
                              }, { passive: false });
                            }
-                           if (popupEl.dataset.gawelaCloseBound !== 'true') {
-                             popupEl.dataset.gawelaCloseBound = 'true';
+                           {
                              const closeCard = evt => {
                                const button = evt.target && typeof evt.target.closest === 'function'
                                  ? evt.target.closest('.gawela-info-card-close') : null;
@@ -762,11 +828,26 @@ internal static class MapHtmlDocumentBuilder
                                if (typeof evt.button === 'number' && evt.button !== 0) return;
                                evt.preventDefault();
                                evt.stopImmediatePropagation();
+                               const orderId = String(popup.__gawelaOrderId || '');
+                               if (orderId) {
+                                 dismissedOrderPopupIds.add(orderId);
+                                 if (stickyPopupOrderId === orderId) stickyPopupOrderId = '';
+                                 // The selected order can have both an order marker and a route marker.
+                                 // Their identical cards overlap; removing only the top one exposes the other.
+                                 [markerMap.get(orderId), routeMarkerMap.get(orderId)].forEach(marker => {
+                                   const otherPopup = marker && marker.getPopup();
+                                   if (otherPopup && otherPopup !== popup) otherPopup.remove();
+                                 });
+                               }
                                if (activeOrderPopupElement === popupEl) activeOrderPopupElement = null;
                                popup.remove();
                              };
                              // Keep the element in place until click, so the release cannot click through to the map.
-                             popupEl.addEventListener('click', closeCard, true);
+                             popupEl.__gawelaCloseCard = closeCard;
+                             if (popupEl.dataset.gawelaCloseBound !== 'true') {
+                               popupEl.dataset.gawelaCloseBound = 'true';
+                               popupEl.addEventListener('click', evt => popupEl.__gawelaCloseCard(evt), true);
+                             }
                            }
                            if (popupEl.dataset.gawelaProductsToggleBound !== 'true') {
                              popupEl.dataset.gawelaProductsToggleBound = 'true';
@@ -1082,11 +1163,22 @@ internal static class MapHtmlDocumentBuilder
                           const resolveVisibleMarkerFanOut = () => {
                            const originalMarkers = window.__gawelaLastMarkers || [];
                            const routeStops = window.__gawelaLastRoutePayload?.routeStops || [];
+                           // Route pins own their exact delivery identity. Other deliveries of
+                           // the same order remain independent pins, even at identical coordinates.
+                           const routeIds = new Set(routeStops.map(marker => String(marker.id || '').trim().toLowerCase()).filter(Boolean));
+                           const seenOrderIds = new Set();
+                           const freeMarkers = originalMarkers.filter(marker => {
+                             const id = String(marker.id || '').trim().toLowerCase();
+                             if (!id) return true;
+                             if (routeIds.has(id) || seenOrderIds.has(id)) return false;
+                             seenOrderIds.add(id);
+                             return true;
+                           });
                            // Free pins and planned route stops at the same address form one
                            // visual group. Both sides move away from the shared center so a
                            // route marker never remains hidden underneath a free pin.
                            const combinedMarkers = [
-                             ...originalMarkers.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'order', __gawelaLayerIndex: index })),
+                             ...freeMarkers.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'order', __gawelaLayerIndex: index })),
                              ...routeStops.map((marker, index) => ({ ...marker, __gawelaMarkerLayer: 'route', __gawelaLayerIndex: index }))
                            ];
                            // Cluster membership must use the compact layout. Hover expansion must
@@ -1102,6 +1194,17 @@ internal static class MapHtmlDocumentBuilder
 
                          const recomputeVisibleMarkerFanOut = () => {
                             const resolvedMarkers = resolveVisibleMarkerFanOut();
+                           // The two layers arrive separately from the host. Hide free pins
+                           // left from an earlier payload as soon as the route owns that ID.
+                           const visibleOrderIds = new Set(resolvedMarkers.filter(marker => marker.__gawelaMarkerLayer === 'order').map(marker => marker.id));
+                           mapMarkers.forEach(marker => {
+                             marker.__gawelaDuplicateOrderPin = !visibleOrderIds.has(marker.__gawelaOrderId);
+                             if (!marker.__gawelaDuplicateOrderPin) return;
+                             const element = marker.getElement();
+                             if (element && element.style) { element.style.display = 'none'; element.style.pointerEvents = 'none'; }
+                             const popup = typeof marker.getPopup === 'function' ? marker.getPopup() : null;
+                             if (popup) popup.remove();
+                           });
                            routeStopHitTargets = [];
                            resolvedMarkers.forEach(markerData => {
                              const isRouteMarker = markerData.__gawelaMarkerLayer === 'route';
@@ -1215,6 +1318,9 @@ internal static class MapHtmlDocumentBuilder
                          let suppressRoutePointerClick = false;
                          const routeMarkerFromEvent = evt => {
                            const target = evt && evt.target;
+                           // SDK popups may be descendants of the marker element. Their buttons
+                           // must reach the popup handlers rather than selecting the route on pointerup.
+                           if (target && typeof target.closest === 'function' && target.closest('.gawela-info-card')) return null;
                            const element = target && typeof target.closest === 'function'
                              ? target.closest('[data-gawela-route-stop-id]') : null;
                            return element ? routeMarkerMap.get(element.dataset.gawelaRouteStopId) : null;
@@ -2384,7 +2490,12 @@ internal static class MapHtmlDocumentBuilder
                           scheduleMarkerFanOutRecompute();
                           if (window.__gawelaLastRoutePayload) {
                             const last = window.__gawelaLastRoutePayload;
-                             window.gawelaSetRoute(last.routeStops, last.geometryPoints, last.routeColor, last.trafficSegments, false);
+                            // styledata also fires for source updates. Restore style layers without
+                            // destroying markers and their currently open cards.
+                            const path = last.geometryPoints.map(toMapCoordinate).filter(p => Array.isArray(p));
+                            ensureRouteLayer(path, last.routeColor);
+                            renderTrafficRouteSegments(path, last.trafficSegments);
+                            ensureRouteLayersOnTop();
                            }
                           if (window.__gawelaLastPlannedTourOverlays) {
                             window.gawelaSetPlannedTourOverlays(window.__gawelaLastPlannedTourOverlays);
@@ -2474,6 +2585,16 @@ internal static class MapHtmlDocumentBuilder
                            // joint layout. Otherwise colocated free and route pins alternate
                            // between two positions and visibly flicker.
                            const resolvedMarkers = resolveVisibleMarkersForLayer('order');
+                           // Retain a hidden DOM marker when the route currently owns this
+                           // identity. It can be restored by the layout pass if the route is
+                           // cleared after this independent order payload has arrived.
+                           const renderedOrderIds = new Set(resolvedMarkers.map(marker => String(marker.id || '').trim().toLowerCase()));
+                           markers.forEach(marker => {
+                             const id = String(marker.id || '').trim().toLowerCase();
+                             if (!id || renderedOrderIds.has(id)) return;
+                             renderedOrderIds.add(id);
+                             resolvedMarkers.push({ ...marker, displayLat: marker.lat, displayLon: marker.lon, __screenClusterHidden: true, __gawelaDuplicateOrderPin: true });
+                           });
                            const bounds = new ttSdk.LngLatBounds();
                            let hasBounds = false;
 
@@ -2488,6 +2609,8 @@ internal static class MapHtmlDocumentBuilder
                                .setPopup(popup)
                                .addTo(map);
                              marker.__gawelaOrderId = m.id ? String(m.id) : '';
+                             marker.__gawelaDuplicateOrderPin = m.__gawelaDuplicateOrderPin === true;
+                             popup.__gawelaOrderId = marker.__gawelaOrderId;
                               const markerEl = marker.getElement();
                               const overlapGroupKey = m && m.__overlapGroupKey ? String(m.__overlapGroupKey) : '';
                               markerEl.dataset.overlapGroupKey = overlapGroupKey;
@@ -2519,8 +2642,9 @@ internal static class MapHtmlDocumentBuilder
                                evt.stopPropagation();
                                if (zoomToScreenCluster(marker)) return;
                                if (window.chrome && window.chrome.webview && m.id) {
+                                 dismissedOrderPopupIds.delete(String(m.id));
                                  stickyPopupOrderId = String(m.id);
-                                 popup.addTo(map);
+                                 if (typeof popup.isOpen !== 'function' || !popup.isOpen()) popup.addTo(map);
                                  scalePopupElement(popup);
                                  enableOrderPopupInteraction(popup);
                                  bringOrderPopupToFront(popup);
@@ -2528,8 +2652,8 @@ internal static class MapHtmlDocumentBuilder
                                }
                              });
 
-                             if (routePopupVisible || (m.id && stickyPopupOrderId && String(m.id) === stickyPopupOrderId)) {
-                               popup.addTo(map);
+                             if (m.__screenClusterHidden !== true && !dismissedOrderPopupIds.has(String(m.id || '')) && (routePopupVisible || (m.id && stickyPopupOrderId && String(m.id) === stickyPopupOrderId))) {
+                               if (typeof popup.isOpen !== 'function' || !popup.isOpen()) popup.addTo(map);
                                scalePopupElement(popup);
                                enableOrderPopupInteraction(popup);
                                if (m.id && stickyPopupOrderId && String(m.id) === stickyPopupOrderId) {
@@ -2840,6 +2964,15 @@ internal static class MapHtmlDocumentBuilder
                            highlightedRouteMarkerElement = markerEl;
                          };
 
+                         let lastHostRoutePayload = '';
+                         window.gawelaUpdateRoute = function(routeStops, geometryPoints, routeColor, trafficSegments, allowAutoCenter) {
+                           const payload = JSON.stringify([routeStops, geometryPoints, routeColor, trafficSegments]);
+                           // Detail-selection notifications are not route changes. Preserve the current
+                           // marker/popup DOM; internal layout/style refreshes still call gawelaSetRoute directly.
+                           if (allowAutoCenter === false && payload === lastHostRoutePayload) return;
+                           window.gawelaSetRoute(routeStops, geometryPoints, routeColor, trafficSegments, allowAutoCenter);
+                           lastHostRoutePayload = payload;
+                         };
                          window.gawelaSetRoute = function(routeStops, geometryPoints, routeColor, trafficSegments, allowAutoCenter) {
                            window.__gawelaLastRoutePayload = {
                              routeStops: Array.isArray(routeStops) ? routeStops : [],
@@ -2936,6 +3069,7 @@ internal static class MapHtmlDocumentBuilder
                                .setPopup(popup)
                                .addTo(map);
                              marker.__gawelaOrderId = stop.id ? String(stop.id) : '';
+                             popup.__gawelaOrderId = marker.__gawelaOrderId;
                             const markerEl = marker.getElement();
                              markerEl.style.cursor = 'pointer';
                              markerEl.style.pointerEvents = 'auto';
@@ -2985,10 +3119,11 @@ internal static class MapHtmlDocumentBuilder
                               if (zoomToScreenCluster(marker)) return;
 
                              if (window.chrome && window.chrome.webview && stop.id) {
+                                dismissedOrderPopupIds.delete(String(stop.id));
                                 stickyPopupOrderId = String(stop.id);
                                 // Selection is independent of popup rendering and must reach the WPF host first.
                                 window.chrome.webview.postMessage(`routeSelect:${stop.id}`);
-                                popup.addTo(map);
+                                if (typeof popup.isOpen !== 'function' || !popup.isOpen()) popup.addTo(map);
                                 scalePopupElement(popup);
                                 enableOrderPopupInteraction(popup);
                                 bringOrderPopupToFront(popup);
@@ -3000,8 +3135,8 @@ internal static class MapHtmlDocumentBuilder
                              marker.__gawelaSelectRouteStop = selectRouteStopFromMarker;
                              marker.__gawelaPrepareRouteSelection = () => { draggedDuringInteraction = false; };
 
-                             if (routePopupVisible || (stop.id && stickyPopupOrderId && String(stop.id) === stickyPopupOrderId)) {
-                               popup.addTo(map);
+                             if (!dismissedOrderPopupIds.has(String(stop.id || '')) && (routePopupVisible || (stop.id && stickyPopupOrderId && String(stop.id) === stickyPopupOrderId))) {
+                               if (typeof popup.isOpen !== 'function' || !popup.isOpen()) popup.addTo(map);
                                scalePopupElement(popup);
                                enableOrderPopupInteraction(popup);
                                if (stop.id && stickyPopupOrderId && String(stop.id) === stickyPopupOrderId) {
@@ -3017,12 +3152,13 @@ internal static class MapHtmlDocumentBuilder
                         };
 
                          window.gawelaHighlightMarker = function(orderId) {
+                           if (dismissedOrderPopupIds.has(String(orderId || ''))) return;
                            const marker = markerMap.get(orderId);
-                           if (!marker) return;
+                           if (!marker || marker.__gawelaDuplicateOrderPin) return;
                            map.easeTo({ center: marker.getLngLat(), duration: 350 });
                            const popup = marker.getPopup();
                            if (popup) {
-                             popup.addTo(map);
+                             if (typeof popup.isOpen !== 'function' || !popup.isOpen()) popup.addTo(map);
                              scalePopupElement(popup);
                              enableOrderPopupInteraction(popup);
                              bringOrderPopupToFront(popup);
@@ -3038,13 +3174,14 @@ internal static class MapHtmlDocumentBuilder
                              if (previousPopup) previousPopup.remove();
                              if (stickyPopupOrderId === previousId) stickyPopupOrderId = '';
                            }
+                           if (previousId !== highlightedRouteStopId) dismissedOrderPopupIds.delete(highlightedRouteStopId);
                            applyRouteStopHighlight();
                            const marker = routeMarkerMap.get(highlightedRouteStopId);
                            if (!marker) return;
                            map.easeTo({ center: marker.getLngLat(), duration: 350 });
                            const popup = marker.getPopup();
-                           if (popup) {
-                             popup.addTo(map);
+                           if (popup && !dismissedOrderPopupIds.has(highlightedRouteStopId)) {
+                             if (typeof popup.isOpen !== 'function' || !popup.isOpen()) popup.addTo(map);
                              scalePopupElement(popup);
                              enableOrderPopupInteraction(popup);
                              bringOrderPopupToFront(popup);
@@ -3229,19 +3366,22 @@ internal static class MapHtmlDocumentBuilder
                          const scalePopupElement = function() {};
 
                          window.gawelaSetAllMarkerPopupsVisible = function(visible) {
+                           if (visible && !routePopupVisible) dismissedOrderPopupIds.clear();
                            routePopupVisible = !!visible;
                            mapMarkers.forEach(m => {
                              const p = m.getPopup();
                              if (!p) return;
+                             if (m.__gawelaDuplicateOrderPin) { p.remove(); return; }
+                             if (dismissedOrderPopupIds.has(String(m.__gawelaOrderId || ''))) { p.remove(); return; }
                              if (routePopupVisible) {
-                               p.addTo(map);
+                               if (typeof p.isOpen !== 'function' || !p.isOpen()) p.addTo(map);
                                scalePopupElement(p);
                                enableOrderPopupInteraction(p);
                              }
                              else {
                                const markerId = (m && m.__gawelaOrderId) ? String(m.__gawelaOrderId) : '';
                                if (stickyPopupOrderId && markerId === stickyPopupOrderId) {
-                                 p.addTo(map);
+                                 if (typeof p.isOpen !== 'function' || !p.isOpen()) p.addTo(map);
                                  scalePopupElement(p);
                                  enableOrderPopupInteraction(p);
                                  bringOrderPopupToFront(p);
@@ -3253,15 +3393,16 @@ internal static class MapHtmlDocumentBuilder
                            routeMarkers.forEach(m => {
                              const p = m.getPopup();
                              if (!p) return;
+                             if (dismissedOrderPopupIds.has(String(m.__gawelaOrderId || ''))) { p.remove(); return; }
                              if (routePopupVisible) {
-                               p.addTo(map);
+                               if (typeof p.isOpen !== 'function' || !p.isOpen()) p.addTo(map);
                                scalePopupElement(p);
                                enableOrderPopupInteraction(p);
                              }
                              else {
                                const markerId = (m && m.__gawelaOrderId) ? String(m.__gawelaOrderId) : '';
                                if (stickyPopupOrderId && markerId === stickyPopupOrderId) {
-                                 p.addTo(map);
+                                 if (typeof p.isOpen !== 'function' || !p.isOpen()) p.addTo(map);
                                  scalePopupElement(p);
                                  enableOrderPopupInteraction(p);
                                  bringOrderPopupToFront(p);

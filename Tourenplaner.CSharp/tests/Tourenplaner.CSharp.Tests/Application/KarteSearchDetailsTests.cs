@@ -11,6 +11,112 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class KarteSearchDetailsTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void TrackStatus_OnlyShowsTextWhenNoUsableTrackExists(int count)
+    {
+        var vm = CreateViewModel();
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var points = (List<WebfleetTrackPoint>)typeof(KarteSectionViewModel).GetProperty("_webfleetTrackPoints", flags)!.GetValue(vm)!;
+        for (var i = 0; i < count; i++)
+            points.Add(new(DateTimeOffset.Now.AddMinutes(i), 47 + i * .01, 8, null, null));
+        SetPrivateField(vm, "_webfleetTrackWarning", "Kein WEBFLEET-Fahrer hinterlegt.");
+        typeof(KarteSectionViewModel).GetMethod("PublishWebfleetTrackStatus", flags)!.Invoke(vm, null);
+        if (count > 1) Assert.Empty(vm.WebfleetTrackStatusText);
+        else Assert.StartsWith("Kein Positionsverlauf für den", vm.WebfleetTrackStatusText);
+        Assert.DoesNotContain("WEBFLEET-Fahrer", vm.WebfleetTrackStatusText);
+        Assert.Equal(count, points.Count);
+    }
+
+    [Fact]
+    public void TrackFailure_ShowsShortMessageAndKeepsDiagnosticInGeneralStatus()
+    {
+        var vm = CreateViewModel();
+        vm.SetWebfleetTrackFailure("WEBFLEET: test diagnostic");
+        Assert.Equal("Fahrzeugverlauf konnte nicht geladen werden.", vm.WebfleetTrackStatusText);
+        Assert.Equal("WEBFLEET: test diagnostic", vm.StatusText);
+    }
+
+    [Theory]
+    [InlineData("222016", false)]
+    [InlineData("unrelated search", true)]
+    public async Task SearchPins_ExcludeLoadedDeliveryAndKeepRemainingDeliveryIdentity(string search, bool dimmed)
+    {
+        var order = CreateOrder();
+        order.Products = [new() { PositionId = "P", Name = "Produkt", Quantity = 10, UnitWeightKg = 5 }];
+        order.Deliveries = [
+            new() { Id = "D1", SequenceNumber = 1, Status = OrderDeliveryStatus.Planned, AssignedTourId = "42", Lines = [new() { OrderProductPositionId = "P", Quantity = 3 }] },
+            new() { Id = "D2", SequenceNumber = 2, Status = OrderDeliveryStatus.ReadyForPlanning, Lines = [new() { OrderProductPositionId = "P", Quantity = 7 }] }
+        ];
+        var vm = CreateViewModel(new FixedOrderStore(order));
+        await vm.RefreshAsync();
+        vm.RouteStops.Add(new() { OrderId = order.Id, DeliveryId = "D1", Latitude = 47, Longitude = 8 });
+        SetPrivateField(vm, "_mapSearchDimNonMatchingPins", true);
+        vm.SearchText = search;
+        var pin = Assert.Single(vm.GetMapMarkerSnapshot());
+        Assert.Equal("D2", pin.DeliveryId);
+        Assert.Equal(order.Id + "::delivery::D2", pin.MarkerId);
+        Assert.Equal(dimmed, pin.IsDimmed);
+        Assert.Equal(35m, decimal.Parse(pin.TotalWeightKgText, System.Globalization.CultureInfo.CurrentCulture));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AvailableTrackWithoutAnalysisTour_ShowsNoMessage(bool employeeAssigned)
+    {
+        var vm = CreateViewModel();
+        if (employeeAssigned)
+            SetPrivateField(vm, "_employeeIdsByWebfleetObjectUid", new Dictionary<string, string> { ["vehicle"] = "employee" });
+        var date = new DateOnly(2026, 10, 19);
+        var points = new List<WebfleetTrackPoint>
+        {
+            new(new DateTimeOffset(2026, 10, 19, 8, 0, 0, TimeSpan.FromHours(2)), 47, 8, null, null),
+            new(new DateTimeOffset(2026, 10, 19, 9, 0, 0, TimeSpan.FromHours(2)), 47.1, 8.1, null, null)
+        };
+        var text = (string)typeof(KarteSectionViewModel).GetMethod("BuildWebfleetArrivalAnalysisPayload",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(vm, ["vehicle", date, points])!;
+        Assert.Empty(text);
+        Assert.Equal(2, points.Count);
+    }
+
+    [Theory]
+    [InlineData("ResolveTimeWindow", "09:00 - 10:00")]
+    [InlineData("ResolveArrivalRangeText", "09:00 - 10:00")]
+    [InlineData("ResolveArrivalTimeText", "09:15")]
+    public void ExportUsesSelectedPartialDeliveryTimes(string method, string expected)
+    {
+        var vm = CreateViewModel();
+        vm.RouteStops.Add(new() { OrderId = "222016", DeliveryId = "d1", EtaText = "08:15", EtaRangeText = "08:00 - 09:00" });
+        vm.RouteStops.Add(new() { OrderId = "222016", DeliveryId = "d2", EtaText = "09:15", EtaRangeText = "09:00 - 10:00" });
+        var actual = typeof(KarteSectionViewModel).GetMethod(method, System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.NonPublic)!.Invoke(vm, ["222016", "d2"]);
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void CalendarPreservesStoredPromiseWithoutRoundingAgain()
+    {
+        var stop = new TourStopRecord { PlannedArrivalOptimistic = "07:15", PlannedArrivalPessimistic = "08:15", PlannedArrival = "08:20" };
+        var text = typeof(ToursSectionViewModel).GetMethod("BuildCalendarWindowText", System.Reflection.BindingFlags.Static |
+            System.Reflection.BindingFlags.NonPublic)!.Invoke(null, [stop]);
+        Assert.Equal("07:15 - 08:15", text);
+    }
+
+    [Fact]
+    public void ArrivalAnalysisKeepsCommittedWindowWhileDraftIsChanged()
+    {
+        var vm = CreateViewModel();
+        SetPrivateField(vm, "_activeTourId", 42);
+        vm.RouteStops.Add(new() { OrderId = "222016", EtaText = "12:00", EtaRangeText = "12:00 - 13:00" });
+        var tour = new TourRecord { Id = 42, ScheduleVersion = 2,
+            Stops = [new() { Id = "A", Auftragsnummer = "222016", PlannedArrivalOptimistic = "08:00", PlannedArrivalPessimistic = "09:00" }] };
+        var result = (TourRecord)typeof(KarteSectionViewModel).GetMethod("BuildCurrentArrivalAnalysisTour",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(vm, [tour])!;
+        Assert.Equal("08:00", result.Stops[0].PlannedArrivalOptimistic);
+    }
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task RoutePinSelectionOpensCorrectDetailsEvenWithoutVisibleFreePin(bool partial)
@@ -330,6 +436,38 @@ public sealed class KarteSearchDetailsTests
     private static T GetPrivateField<T>(KarteSectionViewModel vm, string name) =>
         (T)typeof(KarteSectionViewModel).GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(vm)!;
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public async Task LoadedTourDisplaysSavedWindowWithoutRecalculation(int version)
+    {
+        var store = new ChangingPreviewTourStore();
+        store.Current.ScheduleVersion = version;
+        var saved = store.Current.Stops.Single();
+        saved.PlannedArrival = "07:17";
+        saved.PlannedDeparture = "07:32";
+        saved.PlannedArrivalOptimistic = "07:15";
+        saved.PlannedArrivalPessimistic = "09:15";
+        var order = CreateOrder(); order.AssignedTourId = "42";
+        var vm = CreateViewModel(new FixedOrderStore(order), store);
+        await vm.RefreshAsync();
+        // Finish the fixture's initial order-reference reconciliation before persisting a snapshot.
+        store.Current.ScheduleVersion = version;
+        saved.PlannedArrival = "07:17";
+        saved.PlannedDeparture = "07:32";
+        saved.PlannedArrivalOptimistic = "07:15";
+        saved.PlannedArrivalPessimistic = "09:15";
+        await vm.RefreshAsync();
+        await vm.FocusTourAsync(42);
+        typeof(KarteSectionViewModel).GetMethod("RefreshDriveTimesFromCurrentRoute",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(vm, null);
+        var stop = Assert.Single(vm.RouteStops, x => x.OrderId == "222016");
+        Assert.Equal("07:17", stop.EtaText);
+        Assert.Equal("07:15 - 09:15", stop.EtaRangeText);
+        Assert.Equal(version, store.Current.ScheduleVersion);
+        Assert.Equal("09:15", store.Current.Stops.Single().PlannedArrivalPessimistic);
+    }
+
     [Fact]
     public async Task FailedTrackReloadRetainsDisplayedVehicleAndTrack()
     {
@@ -348,7 +486,139 @@ public sealed class KarteSearchDetailsTests
         await load;
         Assert.Equal("old-truck", session.ObjectUid);
         Assert.Single(vm.GetWebfleetTrackSnapshot());
-        Assert.Contains("Test offline", vm.WebfleetTrackStatusText);
+        Assert.Equal("Fahrzeugverlauf konnte nicht geladen werden.", vm.WebfleetTrackStatusText);
+        Assert.Contains("Test offline", vm.StatusText);
+    }
+
+    [Fact]
+    public async Task DraftPreviewAndSavedScheduleUseIdenticalCalculation()
+    {
+        var vm = CreateViewModel();
+        await vm.RefreshAsync();
+        vm.RouteStops.Clear();
+        vm.RouteStops.Add(new() { OrderId = "__company_start__", IsCompanyAnchor = true, Latitude = 47, Longitude = 8 });
+        vm.RouteStops.Add(new() { OrderId = "222016", Latitude = 47.1, Longitude = 8.1, PlannedStayMinutes = 15 });
+        vm.RouteStops.Add(new() { OrderId = "__company_end__", IsCompanyAnchor = true, Latitude = 47, Longitude = 8 });
+        var legs = GetPrivateField<List<OsrmRouteLeg>>(vm, "_routeLegs");
+        legs.Clear();
+        legs.Add(new(new RouteLegTravelTimeProfile(80, 90, 130), 100));
+        legs.Add(new(new RouteLegTravelTimeProfile(15, 20, 25), 20));
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        typeof(KarteSectionViewModel).GetMethod("RefreshDriveTimesFromCurrentRoute", flags)!.Invoke(vm, null);
+        var displayed = vm.RouteStops[1];
+        var routeStops = (IReadOnlyList<Tourenplaner.CSharp.Application.Common.MapRouteStop>)typeof(KarteSectionViewModel)
+            .GetMethod("ToMapRouteStops", flags)!.Invoke(vm, null)!;
+        var tour = new Tourenplaner.CSharp.Application.Services.MapRouteService().BuildTour(
+            routeStops, 42, "Test", vm.RouteDate, vm.RouteStartHour + ":" + vm.RouteStartMinute, "Firma", "Adresse", new GeoPoint(47, 8));
+        typeof(KarteSectionViewModel).GetMethod("ApplyCurrentRouteTravelTimeCaches", flags)!.Invoke(vm, [tour]);
+        GetPrivateField<Tourenplaner.CSharp.Application.Services.TourScheduleService>(vm, "_scheduleService").ApplySchedule(tour);
+        var saved = Assert.Single(tour.Stops, x => x.Auftragsnummer == "222016");
+        Assert.Equal(saved.PlannedArrival, displayed.EtaText);
+        Assert.Equal(saved.PlannedArrivalOptimistic + " - " + saved.PlannedArrivalPessimistic, displayed.EtaRangeText);
+        Assert.Equal(saved.ScheduleConflictText, displayed.ScheduleConflictText);
+        GetPrivateField<List<TourRecord>>(vm, "_savedTours").Add(tour);
+        SetPrivateField(vm, "_activeTourId", 42);
+        SetPrivateField(vm, "_loadedTourLeaseId", 42);
+        foreach (var editing in new[] { false, true })
+        {
+            SetPrivateField(vm, "_isLoadedTourEditing", editing);
+            typeof(KarteSectionViewModel).GetMethod("RefreshDriveTimesFromCurrentRoute", flags)!.Invoke(vm, null);
+            var start = vm.RouteStops[0];
+            var end = vm.RouteStops[2];
+            Assert.Equal(tour.Stops[0].PlannedArrival, start.EtaText);
+            Assert.Equal(tour.Stops[2].PlannedArrival, end.EtaText);
+            Assert.NotEmpty(start.EtaText);
+            Assert.NotEmpty(end.EtaText);
+            Assert.Equal("1h 30min", start.NextLegDurationText);
+            Assert.Equal("100.0 km", start.NextLegDistanceText.Replace(',', '.'));
+            Assert.Equal(saved.PlannedArrival, start.NextLegArrivalText);
+            Assert.Equal("20min", displayed.NextLegDurationText);
+            Assert.Equal("20.0 km", displayed.NextLegDistanceText.Replace(',', '.'));
+            Assert.Equal(end.EtaText, displayed.NextLegArrivalText);
+        }
+        var savedBuffer = tour.Stops[1].CalculatedTrafficBufferMinutes;
+        Assert.True(savedBuffer > 0);
+        tour.ScheduleVersion = 0;
+        foreach (var stop in tour.Stops) stop.CalculatedTrafficBufferMinutes = 0;
+        SetPrivateField(vm, "_isLoadedTourEditing", false);
+        for (var i = 0; i < 2; i++)
+        {
+            typeof(KarteSectionViewModel).GetMethod("RefreshDriveTimesFromCurrentRoute", flags)!.Invoke(vm, null);
+            Assert.Equal(savedBuffer, vm.RouteStops[0].TrafficBufferAfterMinutes);
+            Assert.Contains($"Staupuffer: {savedBuffer} min", vm.RouteTimingSummary);
+            Assert.Equal(saved.PlannedArrival, displayed.EtaText);
+        }
+    }
+
+    [Theory]
+    [InlineData("05:00", "06:47", 93, "", 14)]
+    [InlineData("05:00", "07:00", 93, "07:00", 0)]
+    [InlineData("23:30", "00:17", 33, "", 14)]
+    public void LegacyBufferDisplayUsesSavedTimelineAndExcludesWaiting(string departure, string arrival, int drive, string waitStart, int expected)
+    {
+        var result = typeof(KarteSectionViewModel).GetMethod("ResolveDisplayedTrafficBufferMinutes",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.Invoke(null,
+            [new TourRecord(), new TourStopRecord { PlannedDeparture = departure },
+                new TourStopRecord { PlannedArrival = arrival, TimeWindowStart = waitStart }, drive]);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void RebuildingTourPreservesSeparateFixedWindowsForPartialDeliveriesAndLegacyIds()
+    {
+        var existing = new TourRecord { Stops =
+        [
+            new() { Id = "old1", Auftragsnummer = "222016", DeliveryId = "d1", IsArrivalWindowFixed = true,
+                PlannedArrivalOptimistic = "08:00", PlannedArrivalPessimistic = "09:00" },
+            new() { Id = "old2", Auftragsnummer = "222016", DeliveryId = "d2", IsArrivalWindowFixed = true,
+                PlannedArrivalOptimistic = "10:00", PlannedArrivalPessimistic = "11:00" },
+            new() { Id = "222017", Auftragsnummer = "222017", IsArrivalWindowFixed = true,
+                PlannedArrivalOptimistic = "12:00", PlannedArrivalPessimistic = "13:00" }
+        ] };
+        var rebuilt = new TourRecord { Stops =
+        [new() { Id = "new1", Auftragsnummer = "222016", DeliveryId = "d1" },
+            new() { Id = "new2", Auftragsnummer = "222016", DeliveryId = "d2" },
+            new() { Id = "auftrag:222017", Auftragsnummer = "222017" }] };
+        typeof(KarteSectionViewModel).GetMethod("PreserveFixedArrivalWindows",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.Invoke(null, [rebuilt, existing]);
+        Assert.Equal(new[] { "08:00", "10:00", "12:00" }, rebuilt.Stops.Select(x => x.PlannedArrivalOptimistic));
+        Assert.All(rebuilt.Stops, x => Assert.True(x.IsArrivalWindowFixed));
+    }
+
+    [Fact]
+    public void AvisoFixationUsesEachDeliveryWindowAndDoesNotCopyItToOtherTours()
+    {
+        var vm = CreateViewModel();
+        SetPrivateField(vm, "_activeTourId", 42);
+        vm.RouteStops.Add(new() { OrderId = "222016", DeliveryId = "d1", EtaRangeText = "08:00 - 09:00" });
+        vm.RouteStops.Add(new() { OrderId = "222016", DeliveryId = "d2", EtaRangeText = "09:00 - 10:00" });
+        var current = new TourRecord { Id = 42, Date = "28.10.2026", StartTime = "08:00", Stops =
+        [new() { Id = "s1", Order = 1, Auftragsnummer = "222016", DeliveryId = "d1" },
+            new() { Id = "s2", Order = 2, Auftragsnummer = "222016", DeliveryId = "d2" }] };
+        var other = new TourRecord { Id = 99, Date = "28.10.2026", StartTime = "12:00", Stops =
+        [new() { Id = "s3", Order = 1, Auftragsnummer = "222016", DeliveryId = "d3",
+            PlannedArrivalOptimistic = "12:00", PlannedArrivalPessimistic = "13:00" }] };
+        var method = typeof(KarteSectionViewModel).GetMethod("ApplyOrderArrivalWindowFixation",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        method.Invoke(vm, [current, "222016", true]);
+        method.Invoke(vm, [other, "222016", true]);
+        Assert.Equal(new[] { "08:00", "09:00" }, current.Stops.Select(x => x.PlannedArrivalOptimistic));
+        Assert.Equal("12:00", other.Stops.Single().PlannedArrivalOptimistic);
+        Assert.All(current.Stops, stop => Assert.True(stop.IsArrivalWindowFixed));
+    }
+
+    [Fact]
+    public void ClearingDraftOrLosingLegsClearsStaleTimingAndBlocksSave()
+    {
+        var vm = CreateViewModel();
+        vm.RouteStops.Add(new() { OrderId = "company:start", IsCompanyAnchor = true, Latitude = 47, Longitude = 8 });
+        vm.RouteStops.Add(new() { OrderId = "222016", Latitude = 48, Longitude = 8,
+            EtaText = "12:00", EtaRangeText = "12:00 - 13:00", ScheduleConflictText = "Alt" });
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        typeof(KarteSectionViewModel).GetMethod("RefreshDriveTimesFromCurrentRoute", flags)!.Invoke(vm, null);
+        Assert.All(vm.RouteStops, stop => Assert.Empty(stop.EtaText));
+        Assert.All(vm.RouteStops, stop => Assert.Empty(stop.ScheduleConflictText));
+        Assert.False((bool)typeof(KarteSectionViewModel).GetMethod("EnsureCurrentRouteTimingReady", flags)!.Invoke(vm, null)!);
     }
 
     [Fact]
@@ -368,7 +638,7 @@ public sealed class KarteSearchDetailsTests
     }
 
     [Fact]
-    public void TrackStatusRefreshPreservesPauseWarning()
+    public void TrackStatusRefreshHidesPauseWarningWhenTrackIsAvailable()
     {
         var vm = CreateViewModel();
         var session = GetPrivateField<WebfleetLiveTrackSession>(vm, "_webfleetLiveTrack");
@@ -378,7 +648,7 @@ public sealed class KarteSearchDetailsTests
         const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
         typeof(KarteSectionViewModel).GetField("_webfleetTrackWarning", flags)!.SetValue(vm, "Pausen konnten nicht geladen werden.");
         typeof(KarteSectionViewModel).GetMethod("PublishWebfleetTrackStatus", flags)!.Invoke(vm, null);
-        Assert.Contains("Pausen konnten nicht geladen werden.", vm.WebfleetTrackStatusText);
+        Assert.Empty(vm.WebfleetTrackStatusText);
     }
 
     private sealed class DeferredWebfleetSettingsStore : IAppSettingsStore

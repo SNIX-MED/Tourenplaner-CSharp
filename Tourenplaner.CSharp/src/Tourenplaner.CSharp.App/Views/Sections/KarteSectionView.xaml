@@ -1581,6 +1581,7 @@
                                                                         </Style>
                                                                     </TextBlock.Style>
                                                                 </TextBlock>
+                                                                <TextBlock Text="{Binding ScheduleConflictText}" Foreground="#B91C1C" FontSize="11" TextWrapping="Wrap" MaxWidth="220" />
                                                                 <TextBlock Text="{Binding EtaRangeText}"
                                                                            HorizontalAlignment="Right"
                                                                            FontSize="11"

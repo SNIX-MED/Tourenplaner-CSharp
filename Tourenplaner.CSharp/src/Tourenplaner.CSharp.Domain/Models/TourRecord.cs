@@ -9,6 +9,9 @@ public sealed class TourRecord
     public List<string> EmployeeIds { get; set; } = new();
     public List<TourAdditionalMaterial> AdditionalMaterials { get; set; } = new();
     public string StartTime { get; set; } = "08:00";
+    public int ScheduleVersion { get; set; }
+    public DateTimeOffset? ScheduleCalculatedAtUtc { get; set; }
+    public List<int> ScheduleTrafficBufferPercentages { get; set; } = new();
     public string RouteMode { get; set; } = "car";
     public string? VehicleId { get; set; }
     public string? TrailerId { get; set; }

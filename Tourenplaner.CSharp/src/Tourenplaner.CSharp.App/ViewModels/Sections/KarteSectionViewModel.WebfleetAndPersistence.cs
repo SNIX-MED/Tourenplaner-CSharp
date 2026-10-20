@@ -40,12 +40,11 @@ public sealed partial class KarteSectionViewModel
         }
 
         var tourBeforeConfirmation = JsonSerializer.Serialize(tour);
-        // Die aus dem Repository geladene Tour kann vor der Einführung der
-        // Zeitfenster gespeichert worden sein. Vor jeder WEBFLEET-Synchronisierung
-        // deshalb die Ankunftszeiten und die daraus abgeleitete Toleranz frisch
-        // aus dem gespeicherten Fahrzeitprofil berechnen.
-        _scheduleService.ApplySchedule(tour);
-
+        if (tour.ScheduleVersion < Tourenplaner.CSharp.Application.Services.TourScheduleService.CurrentVersion)
+        {
+            StatusText = "Bitte die Tour zuerst bearbeiten, die Fahrzeiten und Zeitfenster prüfen und speichern, bevor sie an WEBFLEET gesendet wird.";
+            return;
+        }
         var settings = await _settingsRepository.LoadAsync(cancellationToken);
         var webfleet = await ResolveWebfleetSettingsAsync(settings);
         if (!webfleet.IsEnabled || !webfleet.HasCredentials)

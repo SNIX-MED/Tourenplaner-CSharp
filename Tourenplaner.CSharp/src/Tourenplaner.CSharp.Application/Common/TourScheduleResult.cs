@@ -14,4 +14,5 @@ public sealed record TourStopScheduleEntry(
     bool HasConflict,
     string ConflictText,
     DateTime? OptimisticArrival = null,
-    DateTime? PessimisticArrival = null);
+    DateTime? PessimisticArrival = null,
+    int TrafficBufferMinutes = 0);

@@ -46,6 +46,7 @@ public sealed class WebfleetTourDispatchService
         if (vehicle is null || string.IsNullOrWhiteSpace(vehicle.WebfleetObjectUid)) errors.Add("Dem Tourfahrzeug ist noch kein WEBFLEET-Fahrzeug zugeordnet.");
         foreach (var stop in tour.Stops.Where(IsDispatchableStop))
         {
+            if (stop.ScheduleConflict) errors.Add($"Stopp {stop.Order}: {stop.ScheduleConflictText}");
             try
             {
                 var destination = ResolveDestination(stop);
@@ -111,6 +112,7 @@ public sealed class WebfleetTourDispatchService
         {
             StopId = item.Stop.Id,
             WebfleetOrderId = item.Request.OrderId,
+            ScheduledDate = item.Request.ScheduledDate,
             StateCode = 100,
             StateLabel = item.Action == SynchronizationAction.Unchanged ? "Bereits vorhanden" : "Gesendet",
             StateChangedAtUtc = DateTimeOffset.UtcNow
@@ -153,12 +155,15 @@ public sealed class WebfleetTourDispatchService
                 destination.PostalCode,
                 destination.City,
                 destination.Street,
-                ParseTourDate(tour.Date),
+                ResolveDispatchDate(tour, arrivalWindow.PlannedArrival),
                 arrivalWindow.PlannedArrival,
                 arrivalWindow.ArrivalToleranceMinutes));
         }).ToList();
 
-        var remoteOrdersById = (await client.GetOrdersAsync(settings, vehicle.WebfleetObjectUid, ParseTourDate(tour.Date), cancellationToken))
+        var remoteOrders = new List<WebfleetOrderSnapshot>();
+        foreach (var date in ResolveSynchronizationDates(tour, items.Select(item => item.Request.ScheduledDate), dispatch))
+            remoteOrders.AddRange(await client.GetOrdersAsync(settings, vehicle.WebfleetObjectUid, date, cancellationToken));
+        var remoteOrdersById = remoteOrders
             .GroupBy(order => order.OrderId, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         foreach (var item in items)
@@ -279,6 +284,9 @@ public sealed class WebfleetTourDispatchService
 
     private static (DateTimeOffset? PlannedArrival, int? ArrivalToleranceMinutes) BuildWebfleetArrivalWindow(TourRecord tour, TourStopRecord stop)
     {
+        if (stop.ArrivalWindowStart.HasValue && stop.ArrivalWindowEnd.HasValue && stop.CalculatedArrival.HasValue)
+            return (RoundWebfleetArrival(new DateTimeOffset(stop.CalculatedArrival.Value)),
+                (int)(stop.ArrivalWindowEnd.Value - stop.ArrivalWindowStart.Value).TotalMinutes);
         if (TryParseTourTime(stop.PlannedArrivalOptimistic, out var optimistic) &&
             TryParseTourTime(stop.PlannedArrivalPessimistic, out var pessimistic))
         {
@@ -303,6 +311,13 @@ public sealed class WebfleetTourDispatchService
         // The agreed minute-based rule rounds up from minute 7 (e.g. 09:22 -> 09:30).
         return arrival.Minute % 15 >= 7 ? rounded.AddMinutes(15) : rounded;
     }
+
+    private static DateOnly ResolveDispatchDate(TourRecord tour, DateTimeOffset? roundedArrival) =>
+        roundedArrival.HasValue ? DateOnly.FromDateTime(roundedArrival.Value.DateTime) : ParseTourDate(tour.Date);
+
+    private static IEnumerable<DateOnly> ResolveSynchronizationDates(TourRecord tour, IEnumerable<DateOnly> desiredDates, WebfleetDispatchRecord dispatch) =>
+        desiredDates.Concat(dispatch.Stops.Where(stop => stop.ScheduledDate.HasValue).Select(stop => stop.ScheduledDate!.Value))
+            .Append(ParseTourDate(tour.Date)).Distinct();
 
     private static bool TryParseTourTime(string? value, out TimeOnly time) =>
         TimeOnly.TryParse(value, CultureInfo.GetCultureInfo("de-CH"), DateTimeStyles.None, out time) ||

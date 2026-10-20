@@ -58,10 +58,18 @@ public sealed partial class KarteSectionViewModel
             : new List<Order>();
 
         var nextMapOrders = new List<MapOrderItem>();
-        foreach (var order in matching
-                     .OrderBy(o => o.ScheduledDate)
-                     .ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
+        _dimmedMapOrders.Clear();
+        var visibleOrders = matching.Select(order => (Order: order, IsDimmed: false));
+        if (_mapSearchDimNonMatchingPins && hasSearch)
+            visibleOrders = visibleOrders.Concat(nonMatching.Select(order => (Order: order, IsDimmed: true)));
+        foreach (var entry in visibleOrders
+                     .OrderBy(entry => entry.Order.ScheduledDate)
+                     .ThenBy(entry => entry.Order.CustomerName, StringComparer.OrdinalIgnoreCase))
         {
+            var order = entry.Order;
+            var target = entry.IsDimmed ? _dimmedMapOrders : nextMapOrders;
+            // Search dimming changes appearance, never delivery identity or eligibility.
+            // Both paths must exclude deliveries already represented by route stops.
             var deliveries = (order.Deliveries ?? [])
                 .Where(x => x.Status is OrderDeliveryStatus.ReadyForPlanning or OrderDeliveryStatus.Planned or OrderDeliveryStatus.InTransit)
                 .Where(x => !routeDeliveryIds.Contains(x.Id))
@@ -75,30 +83,19 @@ public sealed partial class KarteSectionViewModel
                     ((IncludeOpenOrders && string.IsNullOrWhiteSpace(order.AssignedTourId)) ||
                      (IncludePlannedOrders && !string.IsNullOrWhiteSpace(order.AssignedTourId))))
                 {
-                    nextMapOrders.Add(BuildMapOrderItem(order));
+                    target.Add(BuildMapOrderItem(order, isDimmed: entry.IsDimmed));
                 }
             }
             else
             {
                 foreach (var delivery in deliveries)
                 {
-                    nextMapOrders.Add(BuildMapOrderItem(order, delivery));
+                    target.Add(BuildMapOrderItem(order, delivery, isDimmed: entry.IsDimmed));
                 }
             }
         }
 
         MapOrders.ReplaceAll(nextMapOrders);
-
-        _dimmedMapOrders.Clear();
-        if (_mapSearchDimNonMatchingPins && hasSearch)
-        {
-            foreach (var order in nonMatching
-                         .OrderBy(o => o.ScheduledDate)
-                         .ThenBy(o => o.CustomerName, StringComparer.OrdinalIgnoreCase))
-            {
-                _dimmedMapOrders.Add(BuildMapOrderItem(order, isDimmed: true));
-            }
-        }
 
         var validOrderIds = _allOrders
             .Select(x => (x.Id ?? string.Empty).Trim())
