@@ -69,11 +69,8 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Zuverlaessige Auswahl geladener Tour-Pins und vollstaendige Infokarten mit Schliessen-Button
-          - Stabile Pin-Gruppen beim Hover und korrigierte Darstellung der Tourlinie
-          - Teillieferungsgewichte anhand der tatsaechlich zugeteilten Mengen
-          - Bestaetigung und Tourpruefung bei XML-Lieferadressaenderungen
-          - Begrenzte PostgreSQL-Verbindungspools und klare Rueckmeldung bei Verbindungsengpaessen
+          - Mehr anzeigen und Weniger anzeigen auf Pin-Infokarten reagieren auf einen einzelnen Klick
+          - Produktlisten lassen sich ohne zeitliche Klicksperre auf- und einklappen
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

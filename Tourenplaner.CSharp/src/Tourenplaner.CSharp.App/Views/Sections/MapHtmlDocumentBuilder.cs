@@ -793,23 +793,11 @@ internal static class MapHtmlDocumentBuilder
                                  scalePopupElement(popup);
                                });
                              };
-                             popupEl.addEventListener('pointerup', (evt) => {
-                               const toggle = findProductsToggle(evt);
-                               if (!toggle) return;
-                               toggle.dataset.gawelaPointerToggleAt = String(Date.now());
-                               toggleProducts(evt, toggle);
-                             });
                              popupEl.addEventListener('click', (evt) => {
                                const toggle = findProductsToggle(evt);
                                if (!toggle) return;
-                               const pointerToggleAt = Number(toggle.dataset.gawelaPointerToggleAt || 0);
-                               if (Date.now() - pointerToggleAt < 500) {
-                                 evt.preventDefault();
-                                 evt.stopPropagation();
-                                 return;
-                               }
                                toggleProducts(evt, toggle);
-                             });
+                             }, true);
                            }
                            if (popupEl.dataset.gawelaBringToFrontBound === 'true') return;
                            popupEl.dataset.gawelaBringToFrontBound = 'true';

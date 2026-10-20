@@ -49,7 +49,7 @@ function runMapPinPopupTests(source) {
   const withTwoProducts = buildPopup({ customer: 'Kunde', showProducts: true, products: ['Produkt 1', 'Produkt 2'] });
   assert(!withTwoProducts.includes('gawela-info-card-products-toggle'), 'Two products must not render the expand button');
   assert(source.includes("toggle.textContent = expanded ? 'Mehr anzeigen' : 'Weniger anzeigen'"), 'Product toggle must support expanding and collapsing');
-  assert(source.includes("popupEl.addEventListener('pointerup'"), 'Product toggle must use delegated handling for asynchronously rendered popup content');
+  assert(!source.includes('gawelaPointerToggleAt'), 'Product toggle must not suppress clicks with a pointer timestamp');
   assert(source.includes("target.closest('.gawela-info-card-products-toggle')"), 'Delegated popup handling must resolve the product toggle at interaction time');
   assert(source.includes('popup.setLngLat(popup.getLngLat())'), 'Popup must be repositioned after its height changes');
   assert(source.includes("popupEl.addEventListener('wheel'"), 'Mouse wheel input over an info card must be forwarded to map zoom');
@@ -95,7 +95,23 @@ function runMapPinPopupTests(source) {
   close({...event, button:0, detail:0});
   assert(removed, 'Keyboard activation must close the card');
   assert(!source.includes("popupEl.addEventListener('pointerup', closeCard"), 'Closing must not remove DOM before click finishes');
-  return 32;
+  const productsStart = source.indexOf("if (popupEl.dataset.gawelaProductsToggleBound !== 'true')");
+  const productsEnd = source.indexOf("if (popupEl.dataset.gawelaBringToFrontBound === 'true')", productsStart);
+  const listeners = {};
+  const extraLines = [{hidden:true}, {hidden:true}];
+  const toggle = {expanded:'false', textContent:'Mehr anzeigen',
+    getAttribute(){return this.expanded;}, setAttribute(name,value){this.expanded=value;}};
+  const productsElement = {dataset:{}, querySelectorAll:()=>extraLines,
+    addEventListener(type,handler){listeners[type]=handler;}};
+  new Function('popupEl','popup','window','bringOrderPopupToFront','scalePopupElement', source.slice(productsStart,productsEnd))(
+    productsElement, {}, {requestAnimationFrame:fn=>fn()}, ()=>{}, ()=>{});
+  const productClick = {target:{closest:()=>toggle},preventDefault(){},stopPropagation(){}};
+  listeners.click(productClick);
+  assert(extraLines.every(line=>!line.hidden) && toggle.textContent==='Weniger anzeigen', 'Click must reveal all additional products');
+  listeners.click(productClick);
+  assert(extraLines.every(line=>line.hidden) && toggle.textContent==='Mehr anzeigen', 'Next click must collapse products again');
+  assert(!listeners.pointerup, 'Expansion must not move the button before the click event');
+  return 35;
 }
 
 if (typeof module !== 'undefined') {
