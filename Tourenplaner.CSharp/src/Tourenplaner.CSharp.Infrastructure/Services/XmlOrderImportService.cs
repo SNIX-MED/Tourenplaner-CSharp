@@ -1,6 +1,8 @@
 ﻿using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Tourenplaner.CSharp.Domain.Models;
 
@@ -168,6 +170,20 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                 {
                     var deliveryConditionResult = DetermineOrderDeliveryCondition(matchedProducts, explicitDeliveryCondition, effectiveMapping);
                     order.Lieferbedingung = deliveryConditionResult.Label;
+                    // Use the same classification as the rest of the application, including
+                    // legacy labels such as Fracht_m_vert. Keep unrelated delivery types untouched.
+                    if (DeliveryMethodExtensions.RequiresMapPin(order.Lieferbedingung))
+                    {
+                        var montageSelected = HasSelectedProductMontage(matchedProducts, effectiveMapping, out var conflictingMontage);
+                        if (conflictingMontage)
+                        {
+                            AddWarning(result, order, index, "widersprüchliche Montage-/Verankerungsauswahl im Produkt-Zusatztext. Bitte Lieferart prüfen.");
+                        }
+                        else if (montageSelected)
+                        {
+                            order.Lieferbedingung = DeliveryMethodExtensions.MitVerteilungMontage;
+                        }
+                    }
                     if (!deliveryConditionResult.WasRecognized)
                     {
                         AddWarning(result, order, index, "keine Lieferart erkannt. Es wird Selbstabholung verwendet.");
@@ -410,6 +426,42 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         DeliveryTypeTresorVerwendungArticleNumbers = sourceMapping.DeliveryTypeTresorVerwendungArticleNumbers,
         DeliveryTypeSelbstabholungArticleNumbers = sourceMapping.DeliveryTypeSelbstabholungArticleNumbers
     };
+
+    // Only explicit option values count. Descriptive prose and delivery-service positions
+    // must not turn an order into a montage delivery.
+    private static bool HasSelectedProductMontage(
+        IReadOnlyList<XElement> products, XmlImportMappingSettings mapping, out bool conflicting)
+    {
+        conflicting = false;
+        var selected = false;
+        foreach (var product in products.Where(product => !ShouldSkipProductPosition(product, mapping)))
+        {
+            var text = ReadString(product, "zusatztext");
+            text = Regex.Replace(text, @"<\s*(?:br\s*/?|/p|/div)\s*>", "\n", RegexOptions.IgnoreCase);
+            text = WebUtility.HtmlDecode(Regex.Replace(text, "<[^>]*>", " "));
+            var choices = Regex.Matches(text,
+                @"(?:^|[\r\n])\s*(?<field>(?:Montage|Wandmontage|Verankerung)\b[^:\r\n]*):\s*(?<value>[^\r\n]*)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            var valuesByField = new Dictionary<string, HashSet<bool>>(StringComparer.OrdinalIgnoreCase);
+            foreach (Match choice in choices)
+            {
+                var value = Regex.Replace(choice.Groups["value"].Value, @"\s+", " ").Trim();
+                var positive = Regex.IsMatch(value, @"^mit (?:Montage|Wandmontage|Verankerung)(?=$|\s|[+(.,;])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                var negative = Regex.IsMatch(value, @"^ohne (?:Montage|Wandmontage|Verankerung)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+                if (!positive && !negative) continue;
+                var field = Regex.Replace(choice.Groups["field"].Value, @"\s+", " ").Trim();
+                if (!valuesByField.TryGetValue(field, out var values))
+                {
+                    values = new HashSet<bool>();
+                    valuesByField.Add(field, values);
+                }
+                values.Add(positive);
+                selected |= positive;
+                conflicting |= values.Count > 1;
+            }
+        }
+        return selected;
+    }
 
     private static DeliveryConditionResult DetermineOrderDeliveryCondition(
         IReadOnlyList<XElement> matchedProducts,

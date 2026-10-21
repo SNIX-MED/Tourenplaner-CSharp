@@ -6,6 +6,86 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 public class XmlOrderImportServiceTests
 {
     [Theory]
+    [InlineData("Verankerung: mit Verankerung", "Fracht_m_vert", "ART", "Mit Verteilung & Montage", false)]
+    [InlineData("Montage: mit Montage", "Fracht_o_vert", "ART", "Mit Verteilung & Montage", false)]
+    [InlineData("Montage: ohne Montage", "Fracht_m_vert", "ART", "Fracht_m_vert", false)]
+    [InlineData("Verankerung: mit Verankerung\nVerankerung: ohne Verankerung", "Post", "ART", "Post", false)]
+    [InlineData("<p>Andere Auswahl: blau</p><p><b>Verankerung:</b> mit&nbsp;Verankerung</p>", "Mit Verteilung", "ART", "Mit Verteilung & Montage", false)]
+    [InlineData("Montage: mit Montage\nMontage: ohne Montage", "Mit Verteilung & Montage", "ART", "Mit Verteilung & Montage", true)]
+    [InlineData("<b>Verankerung Tresore/Safe:</b> mit Verankerung (+CHF 90.00)", "Frei Bordsteinkante", "ART", "Mit Verteilung & Montage", false)]
+    [InlineData("Verankerung Tresore/Safe: MIT   VERANKERUNG an Betonwand", "Mit Verteilung", "ART", "Mit Verteilung & Montage", false)]
+    [InlineData("Verankerung: mit Verankerung", "Mit Verteilung & Montage", "ART", "Mit Verteilung & Montage", false)]
+    [InlineData("Verankerung: ohne Verankerung", "Mit Verteilung", "ART", "Mit Verteilung", false)]
+    [InlineData("Verankerung: mit Verankerungsmaterial", "Mit Verteilung", "ART", "Mit Verteilung", false)]
+    [InlineData("Möglichkeit der Verankerung an der Wand. Lieferung mit Verankerung möglich.", "Mit Verteilung", "ART", "Mit Verteilung", false)]
+    [InlineData("Verankerung: mit Verankerung", "Post", "ART", "Post", false)]
+    [InlineData("Verankerung: mit Verankerung", "Spediteur", "ART", "Spediteur", false)]
+    [InlineData("Verankerung: mit Verankerung", "Selbstabholung", "ART", "Selbstabholung", false)]
+    [InlineData("Verankerung: mit Verankerung", "Tresor-Verwendung", "ART", "Tresor-Verwendung", false)]
+    [InlineData("Verankerung: mit Verankerung", "Tresor-Bordstein", "ART", "Tresor-Bordstein", false)]
+    [InlineData("Verankerung: mit Verankerung", "Mit Verteilung", "TXT", "Mit Verteilung", false)]
+    [InlineData("Verankerung: mit Verankerung\nVerankerung: ohne Verankerung", "Mit Verteilung", "ART", "Mit Verteilung", true)]
+    [InlineData("Montage Unterbau / Schrägdach: mit Montage (+CHF 49.00)", "Mit Verteilung", "ART", "Mit Verteilung & Montage", false)]
+    [InlineData("<b>Montage Schaukästen:</b> MIT   MONTAGE (+CHF 89.00)", "Frei Bordsteinkante", "ART", "Mit Verteilung & Montage", false)]
+    [InlineData("Montage Wandvitrine: mit Montage an Beton-/Backsteinwand (+CHF 135.00)", "Mit Verteilung", "ART", "Mit Verteilung & Montage", false)]
+    [InlineData("Wandmontage inkl. Warenverteilung: mit Wandmontage inkl. Warenverteilung (+CHF 202.50)", "Mit Verteilung", "ART", "Mit Verteilung & Montage", false)]
+    [InlineData("Montage Regale: ohne Montage", "Mit Verteilung", "ART", "Mit Verteilung", false)]
+    [InlineData("Montage Pneuschränke: ohne Montage mit Montagematerial für Betonwand", "Mit Verteilung", "ART", "Mit Verteilung", false)]
+    [InlineData("Montage: mit Montagematerial", "Mit Verteilung", "ART", "Mit Verteilung", false)]
+    [InlineData("Lieferzeit verlängert sich durch Montage. Lieferung mit Montage möglich.", "Mit Verteilung", "ART", "Mit Verteilung", false)]
+    [InlineData("", "Mit Verteilung", "ART", "Mit Verteilung", false)]
+    [InlineData("Montage: mit Montage", "Post", "ART", "Post", false)]
+    [InlineData("Montage: mit Montage", "Spediteur", "ART", "Spediteur", false)]
+    [InlineData("Montage: mit Montage", "Selbstabholung", "ART", "Selbstabholung", false)]
+    [InlineData("Montage: mit Montage", "Tresor-Verwendung", "ART", "Tresor-Verwendung", false)]
+    [InlineData("Montage: mit Montage", "Tresor-Bordstein", "ART", "Tresor-Bordstein", false)]
+    [InlineData("Montage: mit Montage", "Mit Verteilung", "TXT", "Mit Verteilung", false)]
+    [InlineData("Montage: mit Montage\nMontage: ohne Montage", "Mit Verteilung", "ART", "Mit Verteilung", true)]
+    [InlineData("Montage Unterbau: mit Montage<br/>Montage Regale: ohne Montage", "Mit Verteilung", "ART", "Mit Verteilung & Montage", false)]
+    public void LoadOrdersFromFileDetailed_AssignsMontageOnlyForExplicitProductChoices(
+        string text, string delivery, string positionCode, string expected, bool conflict)
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var document = new System.Xml.Linq.XElement("belege",
+                new System.Xml.Linq.XElement("beleg",
+                    new System.Xml.Linq.XElement("ident", "order-1"),
+                    new System.Xml.Linq.XElement("typ", "SALES"),
+                    new System.Xml.Linq.XElement("kopf", "M-1"),
+                    new System.Xml.Linq.XElement("datum", "21.10.2026"),
+                    new System.Xml.Linq.XElement("versandart", delivery),
+                    new System.Xml.Linq.XElement("positionen",
+                        new System.Xml.Linq.XElement("position",
+                            new System.Xml.Linq.XElement("kopfid", "order-1"),
+                            new System.Xml.Linq.XElement("artikel", "PRODUCT"),
+                            new System.Xml.Linq.XElement("bezeichnung", "Produkt"),
+                            new System.Xml.Linq.XElement("menge", "2"),
+                            new System.Xml.Linq.XElement("gewicht", "5"),
+                            new System.Xml.Linq.XElement("poscode", positionCode),
+                            new System.Xml.Linq.XElement("zusatztext", text)),
+                        new System.Xml.Linq.XElement("position",
+                            new System.Xml.Linq.XElement("kopfid", "order-1"),
+                            new System.Xml.Linq.XElement("artikel", "OTHER"),
+                            new System.Xml.Linq.XElement("bezeichnung", "Weiteres Produkt"),
+                            new System.Xml.Linq.XElement("menge", "1"),
+                            new System.Xml.Linq.XElement("gewicht", "3"),
+                            new System.Xml.Linq.XElement("zusatztext", "Montage: ohne Montage")))));
+            document.Save(path);
+            var result = new XmlOrderImportService().LoadOrdersFromFileDetailed(path);
+            Assert.Empty(result.Errors);
+            var order = Assert.Single(result.Orders);
+            Assert.Equal(expected, order.Lieferbedingung);
+            Assert.Equal(positionCode == "TXT" ? 1 : 2, order.Produkte.Count);
+            Assert.Equal(conflict, result.Warnings.Any(warning => warning.Contains("widersprüchliche Montage-/Verankerungsauswahl")));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
     [InlineData("RAB;ZWI;TXT", "poscode", "NS")]
     [InlineData("CUSTOM", "poscode", " ns ")]
     [InlineData("RAB;ZWI;TXT;NS", "positionstyp", "NS")]
