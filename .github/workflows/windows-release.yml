@@ -69,11 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Kreisfarbe manueller Stopps folgt dem Avisierungsstatus und aktualisiert sich sofort
-          - Keine Avisierung noetig wird gruen dargestellt
-          - Zeitfenster-Eingabe entfernt; das Zeitfenster wird automatisch berechnet
-          - Nur Bestaetigt uebernimmt und fixiert das berechnete Zeitfenster
-          - Ein Wechsel zu einem anderen Avisierungsstatus hebt die Fixierung auf
+          - Einheitliche Zeitfensterlogik fuer normale und manuelle Stopps mit maximal zwei Stunden
+          - Informiert fixiert das Zeitfenster; Bestaetigt behaelt dieselbe Zusage
+          - Konfliktpruefung vor Uebernahme einer manuellen Avisierung
+          - Fuenf Minuten Toleranz fuer pessimistische Ankunft, echte erwartete Verspaetungen bleiben sichtbar
+          - Kompakte Zeitfensterhinweise ohne doppelte Meldungen
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

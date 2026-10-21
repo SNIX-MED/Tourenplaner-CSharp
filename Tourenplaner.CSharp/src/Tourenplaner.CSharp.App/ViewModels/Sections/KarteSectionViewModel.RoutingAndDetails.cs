@@ -1541,6 +1541,8 @@ public sealed partial class KarteSectionViewModel
         var isManualStop = IsManualStop(selectedStop);
         if (isManualStop)
         {
+            // Calculate the same current arrival window used for normal stops.
+            RefreshDriveTimesFromCurrentRoute();
             var manualDialog = new ManualRouteStopDialogWindow(
                 selectedStop.Customer,
                 selectedStop.PlannedStayMinutes,
@@ -1553,7 +1555,15 @@ public sealed partial class KarteSectionViewModel
                 return;
             }
 
-            ApplyManualStopAvisoStatus(selectedStop, manualDialog.AvisoStatus);
+            var previousStay = selectedStop.PlannedStayMinutes;
+            selectedStop.PlannedStayMinutes = manualDialog.StayMinutes;
+            if (!TryApplyManualStopAvisoStatus(selectedStop, manualDialog.AvisoStatus, out var avisoError))
+            {
+                selectedStop.PlannedStayMinutes = previousStay;
+                RefreshDriveTimesFromCurrentRoute();
+                AppMessageBox.Show(avisoError, "Avisierung nicht möglich", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             selectedStop.Customer = manualDialog.StopName;
             selectedStop.PlannedStayMinutes = manualDialog.StayMinutes;
             selectedStop.EmployeeInfoText = manualDialog.Notes;
@@ -1711,15 +1721,41 @@ public sealed partial class KarteSectionViewModel
         return Task.CompletedTask;
     }
 
+    internal bool TryApplyManualStopAvisoStatus(RouteStopItem stop, string status, out string error)
+    {
+        if (ArrivalWindowFixation.IsFixedStatus(status) && !EnsureCurrentRouteTimingReady())
+        {
+            error = "Bitte warten, bis die Fahrzeiten berechnet sind, und die Avisierung erneut versuchen.";
+            return false;
+        }
+        var oldStatus = stop.ManualAvisoStatus;
+        var oldStart = stop.ManualWindowStart;
+        var oldEnd = stop.ManualWindowEnd;
+        ApplyManualStopAvisoStatus(stop, status);
+        RefreshDriveTimesFromCurrentRoute();
+        error = ArrivalWindowFixation.IsFixedStatus(status) &&
+                (string.IsNullOrWhiteSpace(stop.ManualWindowStart) || !string.IsNullOrWhiteSpace(stop.ScheduleConflictText))
+            ? (string.IsNullOrWhiteSpace(stop.ScheduleConflictText)
+                ? "Bitte zuerst die Tour berechnen, damit ein gültiges Zeitfenster vorliegt."
+                : stop.ScheduleConflictText)
+            : string.Empty;
+        if (error.Length == 0) return true;
+        stop.ManualAvisoStatus = oldStatus;
+        stop.ManualWindowStart = oldStart;
+        stop.ManualWindowEnd = oldEnd;
+        stop.AvisoStatus = oldStatus;
+        RefreshDriveTimesFromCurrentRoute();
+        return false;
+    }
     internal static void ApplyManualStopAvisoStatus(RouteStopItem stop, string status)
     {
-        var keepPromise = stop.ManualAvisoStatus == "Bestätigt" && status == "Bestätigt";
+        var keepPromise = ArrivalWindowFixation.IsFixedStatus(stop.ManualAvisoStatus) && ArrivalWindowFixation.IsFixedStatus(status);
         stop.ManualAvisoStatus = status;
         if (!keepPromise)
         {
             stop.ManualWindowStart = string.Empty;
             stop.ManualWindowEnd = string.Empty;
-            if (status == "Bestätigt" && TryParseArrivalRange(stop.EtaRangeText, out var start, out var end))
+            if (ArrivalWindowFixation.IsFixedStatus(status) && TryParseArrivalRange(stop.EtaRangeText, out var start, out var end))
             {
                 stop.ManualWindowStart = start;
                 stop.ManualWindowEnd = end;
@@ -3725,7 +3761,7 @@ public sealed partial class KarteSectionViewModel
                         Longitude = isPause ? double.NaN : stop.Lng ?? stop.Lon ?? double.NaN,
                         IsCompanyAnchor = false,
                         IsPauseStop = isPause,
-                        IsManualStop = isManual, ManualAvisoStatus = stop.ManualAvisoStatus, ManualWindowStart = stop.TimeWindowStart, ManualWindowEnd = stop.TimeWindowEnd, AvisoStatus = isManual ? stop.ManualAvisoStatus : string.Empty,
+                        IsManualStop = isManual, ManualAvisoStatus = stop.ManualAvisoStatus, ManualWindowStart = stop.IsArrivalWindowFixed ? stop.PlannedArrivalOptimistic : string.Empty, ManualWindowEnd = stop.IsArrivalWindowFixed ? stop.PlannedArrivalPessimistic : string.Empty, AvisoStatus = isManual ? stop.ManualAvisoStatus : string.Empty,
                         PlannedStayMinutes = isPause
                             ? Math.Max(0, stop.ServiceMinutes)
                             : isManual ? Math.Max(0, stop.ServiceMinutes) : ResolvePlannedStayMinutes(stop.ServiceMinutes, ExtractTourStopOrderId(stop)),
@@ -6898,8 +6934,7 @@ public sealed partial class KarteSectionViewModel
 
     private async Task UpdateArrivalWindowFixationAsync(Order order, string avisoStatus, bool keepFixedArrivalWindow = false)
     {
-        var shouldFix = string.Equals(avisoStatus, "Informiert", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(avisoStatus, "Bestätigt", StringComparison.OrdinalIgnoreCase) ||
+        var shouldFix = ArrivalWindowFixation.IsFixedStatus(avisoStatus) ||
                         keepFixedArrivalWindow;
         var routeStop = RouteStops.FirstOrDefault(stop =>
             string.Equals(stop.OrderId, order.Id, StringComparison.OrdinalIgnoreCase));
@@ -6945,10 +6980,7 @@ public sealed partial class KarteSectionViewModel
                     ? RouteStops.FirstOrDefault(item => MatchesScheduleStop(item, stop)) : null;
                 if (displayed is not null && TryParseArrivalRange(displayed.EtaRangeText, out var start, out var end))
                 {
-                    stop.PlannedArrivalOptimistic = start;
-                    stop.PlannedArrivalPessimistic = end;
-                    stop.ArrivalWindowStart = null;
-                    stop.ArrivalWindowEnd = null;
+                    ArrivalWindowFixation.Apply(stop, shouldFix, start, end);
                 }
             }
             // Existing promises and windows of the same order on other tours must never be replaced by the current pin's window.
@@ -8424,9 +8456,9 @@ public sealed partial class KarteSectionViewModel
             if (item.IsManualStop)
             {
                 stop.ManualAvisoStatus = item.ManualAvisoStatus;
-                stop.TimeWindowStart = item.ManualWindowStart;
-                stop.TimeWindowEnd = item.ManualWindowEnd;
-                stop.IsArrivalWindowFixed = item.ManualAvisoStatus == "Bestätigt" && !string.IsNullOrWhiteSpace(item.ManualWindowStart) && !string.IsNullOrWhiteSpace(item.ManualWindowEnd);
+                stop.TimeWindowStart = string.Empty;
+                stop.TimeWindowEnd = string.Empty;
+                stop.IsArrivalWindowFixed = ArrivalWindowFixation.IsFixedStatus(item.ManualAvisoStatus) && !string.IsNullOrWhiteSpace(item.ManualWindowStart) && !string.IsNullOrWhiteSpace(item.ManualWindowEnd);
                 stop.ArrivalWindowStart = null; stop.ArrivalWindowEnd = null;
                 stop.PlannedArrivalOptimistic = item.ManualWindowStart;
                 stop.PlannedArrivalPessimistic = item.ManualWindowEnd;
@@ -8451,7 +8483,7 @@ public sealed partial class KarteSectionViewModel
         }
         _scheduleService.ApplySchedule(preview);
         RenderSchedule(preview, preview.Stops);
-        foreach (var item in RouteStops.Where(x => x.IsManualStop && x.ManualAvisoStatus == "Bestätigt"))
+        foreach (var item in RouteStops.Where(x => x.IsManualStop && ArrivalWindowFixation.IsFixedStatus(x.ManualAvisoStatus)))
         {
             if (string.IsNullOrWhiteSpace(item.ManualWindowStart) &&
                 TryParseArrivalRange(item.EtaRangeText, out var start, out var end))

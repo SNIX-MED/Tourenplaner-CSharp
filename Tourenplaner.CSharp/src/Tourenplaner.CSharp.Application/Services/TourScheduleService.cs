@@ -8,6 +8,7 @@ public sealed class TourScheduleService
 {
     private static readonly string[] DateFormats = ["dd.MM.yyyy", "yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy"];
     public const int CurrentVersion = 2;
+    public const int PessimisticArrivalToleranceMinutes = 5;
     private int _trafficBufferPercentFrom0500To0730;
     private int _trafficBufferPercentFrom0730To0900;
     private int _trafficBufferPercentFrom0900To1530;
@@ -105,10 +106,12 @@ public sealed class TourScheduleService
                     pessimisticArrival = Max(pessimisticArrival, promisedStart.Value);
                 }
             }
-            if (promisedEnd.HasValue && pessimisticArrival > promisedEnd.Value)
+            if (promisedEnd.HasValue && (realisticArrival > promisedEnd.Value || pessimisticArrival > promisedEnd.Value.AddMinutes(PessimisticArrivalToleranceMinutes)))
             {
                 hasConflict = true;
-                conflictText = $"Berechnete Ankunft bis {pessimisticArrival:HH:mm} überschreitet das fixierte Zeitfenster {promisedEnd:HH:mm}.";
+                conflictText = realisticArrival > promisedEnd.Value
+                    ? $"Ankunft ca. {realisticArrival:HH:mm}, Zeitfenster bis {promisedEnd:HH:mm}."
+                    : $"Bei Verzögerung bis {pessimisticArrival:HH:mm}, Zeitfenster bis {promisedEnd:HH:mm}.";
             }
 
             if (TryParseTime(realisticArrival.Date, stop.TimeWindowStart, out windowStart) &&
@@ -123,12 +126,12 @@ public sealed class TourScheduleService
                 if (realisticArrival > windowEnd)
                 {
                     hasConflict = true;
-                    conflictText = $"Ankunft {realisticArrival:HH:mm} ausserhalb Zeitfenster-Ende {windowEnd:HH:mm}.";
+                    conflictText = $"Ankunft ca. {realisticArrival:HH:mm}, Zeitfenster bis {windowEnd:HH:mm}.";
                 }
-                else if (pessimisticArrival > windowEnd)
+                else if (pessimisticArrival > windowEnd.AddMinutes(PessimisticArrivalToleranceMinutes))
                 {
                     hasConflict = true;
-                    conflictText = $"Pessimistische Ankunft {pessimisticArrival:HH:mm} ausserhalb Zeitfenster-Ende {windowEnd:HH:mm}.";
+                    conflictText = $"Bei Verzögerung Ankunft bis {pessimisticArrival:HH:mm}, Zeitfenster bis {windowEnd:HH:mm}.";
                 }
             }
 
@@ -215,8 +218,12 @@ public sealed class TourScheduleService
             }
             if (isCustomer)
             {
-                if (windowStart > entry.OptimisticArrival || windowEnd < entry.PessimisticArrival)
-                    conflict = AppendConflict(conflict, "Berechnete Ankunft liegt ausserhalb des Kundenzeitfensters; vor Avisierung prüfen.");
+                if (windowStart > entry.OptimisticArrival || windowEnd < entry.Arrival ||
+                    windowEnd.AddMinutes(PessimisticArrivalToleranceMinutes) < entry.PessimisticArrival)
+                {
+                    if (string.IsNullOrWhiteSpace(conflict))
+                        conflict = $"Zeitfenster {windowStart:HH:mm}–{windowEnd:HH:mm} prüfen (Ankunft ca. {entry.Arrival:HH:mm}).";
+                }
                 if ((windowEnd - windowStart).TotalMinutes > 120)
                     conflict = AppendConflict(conflict, "Zeitfenster überschreitet zwei Stunden.");
                 if (previousEnd.HasValue && (windowEnd < previousEnd || windowStart < previousStart))

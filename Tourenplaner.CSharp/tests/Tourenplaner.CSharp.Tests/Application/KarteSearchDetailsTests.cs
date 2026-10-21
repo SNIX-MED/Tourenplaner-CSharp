@@ -11,6 +11,52 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class KarteSearchDetailsTests
 {
     [Fact]
+    public void InformiertToBestaetigtKeepsTheOriginalManualPromise()
+    {
+        var stop = new RouteStopItem { IsManualStop = true, EtaRangeText = "13:30 - 15:30" };
+        KarteSectionViewModel.ApplyManualStopAvisoStatus(stop, "Informiert");
+        stop.EtaRangeText = "14:00 - 16:00";
+        KarteSectionViewModel.ApplyManualStopAvisoStatus(stop, "Bestätigt");
+        Assert.Equal("13:30", stop.ManualWindowStart);
+        Assert.Equal("15:30", stop.ManualWindowEnd);
+    }
+
+    [Theory]
+    [InlineData(100, true)]
+    [InlineData(157, false)]
+    public void ManualAvisoValidationRejectsConflictingPromiseWithoutChangingStatus(int latest, bool expected)
+    {
+        var vm = CreateViewModel();
+        vm.RouteDate = "23.10.2026";
+        vm.RouteStartHour = "13";
+        vm.RouteStartMinute = "00";
+        vm.RouteStops.Clear();
+        vm.RouteStops.Add(new() { OrderId = "company:start", IsCompanyAnchor = true, Latitude = 47, Longitude = 8 });
+        var manual = new RouteStopItem { OrderId = "manual:test", IsManualStop = true, Latitude = 47.1, Longitude = 8.1,
+            EtaRangeText = "13:30 - 15:30", ManualAvisoStatus = "nicht avisiert", AvisoStatus = "nicht avisiert" };
+        vm.RouteStops.Add(manual);
+        GetPrivateField<List<OsrmRouteLeg>>(vm, "_routeLegs").Add(new OsrmRouteLeg(new RouteLegTravelTimeProfile(33, 53, latest), 10));
+        GetPrivateField<Tourenplaner.CSharp.Application.Services.TourScheduleService>(vm, "_scheduleService")
+            .SetTrafficBufferPercentProfile(0, 0, 0, 0);
+        SetPrivateField(vm, "_isRouteCalculating", false);
+        var accepted = vm.TryApplyManualStopAvisoStatus(manual, "Informiert", out var error);
+        Assert.Equal(expected, accepted);
+        if (expected)
+        {
+            Assert.Empty(error);
+            Assert.Equal("Informiert", manual.ManualAvisoStatus);
+            Assert.Equal("13:30", manual.ManualWindowStart);
+        }
+        else
+        {
+            Assert.NotEmpty(error);
+            Assert.Equal("nicht avisiert", manual.ManualAvisoStatus);
+            Assert.Empty(manual.ManualWindowStart);
+            Assert.Empty(manual.ManualWindowEnd);
+        }
+    }
+
+    [Fact]
     public void ManualCircleUpdatesImmediatelyWhenItsOwnStatusChanges()
     {
         var stop = new RouteStopItem { IsManualStop = true };
@@ -37,8 +83,8 @@ public sealed class KarteSearchDetailsTests
         var stop = new RouteStopItem { IsManualStop = true, EtaRangeText = "13:30 - 15:30" };
         KarteSectionViewModel.ApplyManualStopAvisoStatus(stop, status);
         Assert.Equal(color, stop.AvisoBadgeColor);
-        Assert.Equal(status == "Bestätigt" ? "13:30" : "", stop.ManualWindowStart);
-        Assert.Equal(status == "Bestätigt" ? "15:30" : "", stop.ManualWindowEnd);
+        Assert.Equal((status == "Bestätigt" || status == "Informiert") ? "13:30" : "", stop.ManualWindowStart);
+        Assert.Equal((status == "Bestätigt" || status == "Informiert") ? "15:30" : "", stop.ManualWindowEnd);
         if (status == "Bestätigt")
         {
             stop.EtaRangeText = "14:30 - 16:30";

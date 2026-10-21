@@ -125,9 +125,9 @@ public sealed class MapRouteService
                     ? (string.IsNullOrWhiteSpace(x.OrderId) ? $"{ManualStopIdPrefix}{Guid.NewGuid():N}" : x.OrderId)
                     : string.IsNullOrWhiteSpace(x.DeliveryId) ? $"auftrag:{x.OrderId}" : $"auftrag:{x.OrderId}:lieferung:{x.DeliveryId}",
             ManualAvisoStatus = x.ManualAvisoStatus,
-            TimeWindowStart = IsManualRouteStop(x) ? x.ManualWindowStart : string.Empty,
-            TimeWindowEnd = IsManualRouteStop(x) ? x.ManualWindowEnd : string.Empty,
-            IsArrivalWindowFixed = IsManualRouteStop(x) && x.ManualAvisoStatus == "Bestätigt",
+            TimeWindowStart = string.Empty,
+            TimeWindowEnd = string.Empty,
+            IsArrivalWindowFixed = IsManualRouteStop(x) && ArrivalWindowFixation.IsFixedStatus(x.ManualAvisoStatus),
             PlannedArrivalOptimistic = IsManualRouteStop(x) ? x.ManualWindowStart : string.Empty,
             PlannedArrivalPessimistic = IsManualRouteStop(x) ? x.ManualWindowEnd : string.Empty,
             StopKind = IsPauseRouteStop(x) ? PauseStopKind : IsManualRouteStop(x) ? ManualStopKind : string.Empty,

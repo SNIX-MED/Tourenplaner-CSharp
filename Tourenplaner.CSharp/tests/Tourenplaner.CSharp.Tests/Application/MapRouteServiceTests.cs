@@ -19,8 +19,8 @@ public class MapRouteServiceTests
         var manual = Assert.Single(loaded.Stops, x => x.StopKind == "manual");
         Assert.Equal("Bestätigt", manual.ManualAvisoStatus);
         Assert.True(manual.IsArrivalWindowFixed);
-        Assert.Equal("09:00", manual.TimeWindowStart);
-        Assert.Equal("10:00", manual.TimeWindowEnd);
+        Assert.Empty(manual.TimeWindowStart);
+        Assert.Empty(manual.TimeWindowEnd);
         new TourScheduleService(0, 0, 0, 0).ApplySchedule(loaded);
         Assert.Equal("09:00", manual.PlannedArrivalOptimistic);
         Assert.Equal("10:00", manual.PlannedArrivalPessimistic);

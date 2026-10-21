@@ -1,10 +1,60 @@
-﻿using Tourenplaner.CSharp.Application.Services;
+using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Tests.Application;
 
 public class TourScheduleServiceTests
 {
+    [Theory]
+    [InlineData(63, 77, false)]
+    [InlineData(63, 80, false)]
+    [InlineData(63, 81, true)]
+    [InlineData(76, 77, true)]
+    public void ArrivalWarningAllowsFiveMinutesOfPessimisticOverrunButNoExpectedLateness(int realistic, int pessimistic, bool conflict)
+    {
+        foreach (var manual in new[] { false, true })
+        {
+            var stop = new TourStopRecord { Id = "target", StopKind = manual ? "manual" : "", Order = 2,
+                ManualAvisoStatus = "Bestätigt", IsArrivalWindowFixed = true,
+                PlannedArrivalOptimistic = "09:15", PlannedArrivalPessimistic = "10:15" };
+            var tour = new TourRecord { Date = "23.10.2026", StartTime = "09:00",
+                Stops = [new() { Id = "company:start", Order = 1 }, stop], TravelTimeProfileCache = new()
+                { ["company:start|target"] = new() { OptimisticMinutes = 60, RealisticMinutes = realistic, PessimisticMinutes = pessimistic } } };
+            new TourScheduleService(0, 0, 0, 0).ApplySchedule(tour);
+            Assert.Equal(conflict, stop.ScheduleConflict);
+            Assert.Equal("10:15", stop.PlannedArrivalPessimistic);
+            Assert.DoesNotContain("Kundenzeitfensters", stop.ScheduleConflictText);
+        }
+    }
+
+    [Theory]
+    [InlineData(100, false)]
+    [InlineData(157, true)]
+    public void ManualAndNormalStopsUseIdenticalTwoHourWindowsAndConflictChecks(int pessimisticMinutes, bool conflict)
+    {
+        TourRecord Build(bool manual) => new() { Date = "23.10.2026", StartTime = "13:00",
+            Stops = [new() { Id = "company:start", Order = 1 }, new() { Id = "target", Order = 2,
+                StopKind = manual ? "manual" : "", ManualAvisoStatus = "Informiert", ServiceMinutes = 10 }],
+            TravelTimeProfileCache = new() { ["company:start|target"] = new() {
+                OptimisticMinutes = 33, RealisticMinutes = 53, PessimisticMinutes = pessimisticMinutes } } };
+        var service = new TourScheduleService(0, 0, 0, 0);
+        var normal = Build(false);
+        var manual = Build(true);
+        foreach (var tour in new[] { normal, manual })
+        {
+            service.ApplySchedule(tour);
+            var stop = tour.Stops[1];
+            Tourenplaner.CSharp.Application.Common.ArrivalWindowFixation.Apply(stop, true,
+                stop.PlannedArrivalOptimistic, stop.PlannedArrivalPessimistic);
+            service.ApplySchedule(tour);
+            Assert.Equal(conflict, stop.ScheduleConflict);
+            Assert.True((stop.ArrivalWindowEnd - stop.ArrivalWindowStart)?.TotalMinutes <= 120);
+        }
+        Assert.Equal(normal.Stops[1].PlannedArrival, manual.Stops[1].PlannedArrival);
+        Assert.Equal(normal.Stops[1].PlannedArrivalOptimistic, manual.Stops[1].PlannedArrivalOptimistic);
+        Assert.Equal(normal.Stops[1].PlannedArrivalPessimistic, manual.Stops[1].PlannedArrivalPessimistic);
+        Assert.Equal(normal.Stops[1].ScheduleConflictText, manual.Stops[1].ScheduleConflictText);
+    }
     [Fact]
     public void WideManualArrivalRangeDoesNotCauseAvisoWarningButStillDelaysFollowingCustomer()
     {
@@ -22,7 +72,7 @@ public class TourScheduleServiceTests
         Assert.Empty(manual.ScheduleConflictText);
         Assert.Equal("14:28", manual.PlannedDeparture);
         Assert.True(customer.ScheduleConflict);
-        Assert.Contains("fixierte", customer.ScheduleConflictText);
+        Assert.Contains("Zeitfenster", customer.ScheduleConflictText);
         Assert.Equal("14:00", customer.PlannedArrivalPessimistic);
     }
 
