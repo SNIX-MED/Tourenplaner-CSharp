@@ -69,11 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Manuelle Stopps mit optionalem Avisierungsstatus und vereinbartem Zeitfenster
-          - Bestaetigte manuelle Stopps werden im Tourstatus beruecksichtigt
-          - Keine irrefuehrende Kundenzeitfensterwarnung fuer manuelle Stopps ohne Avisierungspflicht
-          - Eigene Touraenderungen verursachen beim erneuten Speichern keinen falschen Mehrbenutzerkonflikt
-          - Echte Versionskonflikte und Zeitfensterkonflikte bleiben geschuetzt
+          - Kreisfarbe manueller Stopps folgt dem Avisierungsstatus und aktualisiert sich sofort
+          - Keine Avisierung noetig wird gruen dargestellt
+          - Zeitfenster-Eingabe entfernt; das Zeitfenster wird automatisch berechnet
+          - Nur Bestaetigt uebernimmt und fixiert das berechnete Zeitfenster
+          - Ein Wechsel zu einem anderen Avisierungsstatus hebt die Fixierung auf
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

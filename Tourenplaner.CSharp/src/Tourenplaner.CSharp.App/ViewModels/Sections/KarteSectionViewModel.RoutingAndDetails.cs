@@ -1544,7 +1544,7 @@ public sealed partial class KarteSectionViewModel
             var manualDialog = new ManualRouteStopDialogWindow(
                 selectedStop.Customer,
                 selectedStop.PlannedStayMinutes,
-                selectedStop.EmployeeInfoText, selectedStop.ManualAvisoStatus, selectedStop.ManualWindowStart, selectedStop.ManualWindowEnd)
+                selectedStop.EmployeeInfoText, selectedStop.ManualAvisoStatus)
             {
                 Owner = System.Windows.Application.Current?.MainWindow
             };
@@ -1553,10 +1553,7 @@ public sealed partial class KarteSectionViewModel
                 return;
             }
 
-            selectedStop.ManualAvisoStatus = manualDialog.AvisoStatus;
-            selectedStop.ManualWindowStart = manualDialog.AvisoStatus == "Keine Avisierung nötig" ? "" : manualDialog.WindowStart;
-            selectedStop.ManualWindowEnd = manualDialog.AvisoStatus == "Keine Avisierung nötig" ? "" : manualDialog.WindowEnd;
-            selectedStop.AvisoStatus = manualDialog.AvisoStatus;
+            ApplyManualStopAvisoStatus(selectedStop, manualDialog.AvisoStatus);
             selectedStop.Customer = manualDialog.StopName;
             selectedStop.PlannedStayMinutes = manualDialog.StayMinutes;
             selectedStop.EmployeeInfoText = manualDialog.Notes;
@@ -1714,6 +1711,22 @@ public sealed partial class KarteSectionViewModel
         return Task.CompletedTask;
     }
 
+    internal static void ApplyManualStopAvisoStatus(RouteStopItem stop, string status)
+    {
+        var keepPromise = stop.ManualAvisoStatus == "Bestätigt" && status == "Bestätigt";
+        stop.ManualAvisoStatus = status;
+        if (!keepPromise)
+        {
+            stop.ManualWindowStart = string.Empty;
+            stop.ManualWindowEnd = string.Empty;
+            if (status == "Bestätigt" && TryParseArrivalRange(stop.EtaRangeText, out var start, out var end))
+            {
+                stop.ManualWindowStart = start;
+                stop.ManualWindowEnd = end;
+            }
+        }
+        stop.AvisoStatus = status;
+    }
     public async Task AddManualRouteStopAsync(double latitude, double longitude)
     {
         if (!EnsureCurrentRouteCanBeModified()) return;
@@ -1760,7 +1773,7 @@ public sealed partial class KarteSectionViewModel
             Longitude = longitude,
             PlannedStayMinutes = dialog.StayMinutes,
             IsManualStop = true,
-            ManualAvisoStatus = dialog.AvisoStatus, ManualWindowStart = dialog.AvisoStatus == "Keine Avisierung nötig" ? "" : dialog.WindowStart, ManualWindowEnd = dialog.AvisoStatus == "Keine Avisierung nötig" ? "" : dialog.WindowEnd,
+            ManualAvisoStatus = dialog.AvisoStatus,
             AvisoStatus = dialog.AvisoStatus,
             EmployeeInfoText = dialog.Notes
         };
@@ -8413,7 +8426,7 @@ public sealed partial class KarteSectionViewModel
                 stop.ManualAvisoStatus = item.ManualAvisoStatus;
                 stop.TimeWindowStart = item.ManualWindowStart;
                 stop.TimeWindowEnd = item.ManualWindowEnd;
-                stop.IsArrivalWindowFixed = item.ManualAvisoStatus == "Bestätigt";
+                stop.IsArrivalWindowFixed = item.ManualAvisoStatus == "Bestätigt" && !string.IsNullOrWhiteSpace(item.ManualWindowStart) && !string.IsNullOrWhiteSpace(item.ManualWindowEnd);
                 stop.ArrivalWindowStart = null; stop.ArrivalWindowEnd = null;
                 stop.PlannedArrivalOptimistic = item.ManualWindowStart;
                 stop.PlannedArrivalPessimistic = item.ManualWindowEnd;
@@ -8438,6 +8451,15 @@ public sealed partial class KarteSectionViewModel
         }
         _scheduleService.ApplySchedule(preview);
         RenderSchedule(preview, preview.Stops);
+        foreach (var item in RouteStops.Where(x => x.IsManualStop && x.ManualAvisoStatus == "Bestätigt"))
+        {
+            if (string.IsNullOrWhiteSpace(item.ManualWindowStart) &&
+                TryParseArrivalRange(item.EtaRangeText, out var start, out var end))
+            {
+                item.ManualWindowStart = start;
+                item.ManualWindowEnd = end;
+            }
+        }
     }
 
     private static bool MatchesScheduleStop(RouteStopItem item, TourStopRecord stop)
@@ -9931,17 +9953,27 @@ public sealed class RouteStopItem : ObservableObject
             return KarteSectionViewModel.BuildRouteStopAddressLine(null, null, Address);
         }
     }
-    public string ManualAvisoStatus { get; set; } = "Keine Avisierung nötig";
+    private string _manualAvisoStatus = "Keine Avisierung nötig";
+    public string ManualAvisoStatus
+    {
+        get => _manualAvisoStatus;
+        set
+        {
+            if (!SetProperty(ref _manualAvisoStatus, value)) return;
+            OnPropertyChanged(nameof(AvisoBadgeColor));
+            OnPropertyChanged(nameof(DisplayAvisoStatus));
+        }
+    }
     public string ManualWindowStart { get; set; } = "";
     public string ManualWindowEnd { get; set; } = "";
     public string DisplayWindow => "--";
     public string DisplayOrder => IsPauseStop || IsManualStop ? string.Empty : (string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId);
     public string DisplayStay => IsCompanyDisplay ? string.Empty : $"{PlannedStayMinutes} min";
-    public string AvisoBadgeColor => IsManualStop && ManualAvisoStatus == "Keine Avisierung nötig" ? "#4EBA74" : AvisoStatusVisualService.ResolveBadgeColor(AvisoStatus);
+    public string AvisoBadgeColor => IsManualStop && ManualAvisoStatus == "Keine Avisierung nötig" ? "#4EBA74" : AvisoStatusVisualService.ResolveBadgeColor(IsManualStop ? ManualAvisoStatus : AvisoStatus);
     public string DisplayEta => string.IsNullOrWhiteSpace(EtaText) ? "--:--" : EtaText;
     public string DisplayAvisoStatus => IsCompanyDisplay || IsPauseStop || (IsManualStop && ManualAvisoStatus == "Keine Avisierung nötig")
         ? string.Empty
-        : AvisoStatus.Trim().ToLowerInvariant() switch
+        : (IsManualStop ? ManualAvisoStatus : AvisoStatus).Trim().ToLowerInvariant() switch
         {
             "informiert" => "Kunde informiert",
             "bestätigt" => "Termin bestätigt",

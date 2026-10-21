@@ -10,6 +10,47 @@ namespace Tourenplaner.CSharp.Tests.Application;
 [Collection("Karte collaboration")]
 public sealed class KarteSearchDetailsTests
 {
+    [Fact]
+    public void ManualCircleUpdatesImmediatelyWhenItsOwnStatusChanges()
+    {
+        var stop = new RouteStopItem { IsManualStop = true };
+        var changed = new List<string?>();
+        stop.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        stop.ManualAvisoStatus = "Informiert";
+        Assert.Equal("#F59E0B", stop.AvisoBadgeColor);
+        Assert.Contains(nameof(stop.AvisoBadgeColor), changed);
+        Assert.Contains(nameof(stop.DisplayAvisoStatus), changed);
+        stop.ManualAvisoStatus = "Bestätigt";
+        Assert.Equal("#16A34A", stop.AvisoBadgeColor);
+        Assert.Equal("Termin bestätigt", stop.DisplayAvisoStatus);
+        stop.ManualAvisoStatus = "Keine Avisierung nötig";
+        Assert.Equal("#4EBA74", stop.AvisoBadgeColor);
+    }
+
+    [Theory]
+    [InlineData("Keine Avisierung nötig", "#4EBA74")]
+    [InlineData("nicht avisiert", "#64748B")]
+    [InlineData("Informiert", "#F59E0B")]
+    [InlineData("Bestätigt", "#16A34A")]
+    public void ManualStatusUsesNormalAvisoColorsAndCapturesCalculatedPromise(string status, string color)
+    {
+        var stop = new RouteStopItem { IsManualStop = true, EtaRangeText = "13:30 - 15:30" };
+        KarteSectionViewModel.ApplyManualStopAvisoStatus(stop, status);
+        Assert.Equal(color, stop.AvisoBadgeColor);
+        Assert.Equal(status == "Bestätigt" ? "13:30" : "", stop.ManualWindowStart);
+        Assert.Equal(status == "Bestätigt" ? "15:30" : "", stop.ManualWindowEnd);
+        if (status == "Bestätigt")
+        {
+            stop.EtaRangeText = "14:30 - 16:30";
+            KarteSectionViewModel.ApplyManualStopAvisoStatus(stop, status);
+            Assert.Equal("13:30", stop.ManualWindowStart);
+            KarteSectionViewModel.ApplyManualStopAvisoStatus(stop, "Keine Avisierung nötig");
+            Assert.Empty(stop.ManualWindowStart);
+            Assert.Empty(stop.ManualWindowEnd);
+            Assert.Equal("#4EBA74", stop.AvisoBadgeColor);
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
