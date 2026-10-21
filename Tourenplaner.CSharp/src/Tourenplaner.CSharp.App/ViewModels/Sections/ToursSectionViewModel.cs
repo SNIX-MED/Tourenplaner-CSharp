@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
@@ -3064,6 +3064,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(orderId => _ordersById.TryGetValue(orderId, out var order) ? order : null)
             .Select(order => string.IsNullOrWhiteSpace(order?.AvisoStatus) ? "nicht avisiert" : order.AvisoStatus.Trim())
+            .Concat((tour.Stops ?? []).Where(IsManualStop).Where(x => x.ManualAvisoStatus != "Keine Avisierung nötig").Select(x => x.ManualAvisoStatus))
             .ToList();
 
         if (avisoStates.Count > 0 && avisoStates.All(status => string.Equals(status, "Bestätigt", StringComparison.OrdinalIgnoreCase)))
@@ -3297,7 +3298,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 ServiceTimeText = isCompanyStop || isPauseStop ? string.Empty : $"{Math.Max(0, stop.ServiceMinutes)} min Aufenthalt",
                 DeliveryType = sourceOrder?.DeliveryType ?? string.Empty,
                 OrderStatus = sourceOrder?.OrderStatus ?? string.Empty,
-                AvisoStatus = sourceOrder?.AvisoStatus ?? string.Empty,
+                AvisoStatus = IsManualStop(stop) ? stop.ManualAvisoStatus : sourceOrder?.AvisoStatus ?? string.Empty,
                 HasNotes = !string.IsNullOrWhiteSpace(sourceOrder?.Notes),
                 NotesPreview = BuildNotesPreview(sourceOrder?.Notes),
                 PinStatusText = sourceOrder?.IsLocationManuallySet == true
@@ -4396,7 +4397,7 @@ public sealed class TourStopOverviewItem
 {
     public bool IsManualStop { get; set; }
     public string AvisoStatus { get; set; } = string.Empty;
-    public string AvisoBadgeColor => IsManualStop ? "#4EBA74" : AvisoStatusVisualService.ResolveBadgeColor(AvisoStatus);
+    public string AvisoBadgeColor => IsManualStop && (string.IsNullOrWhiteSpace(AvisoStatus) || AvisoStatus == "Keine Avisierung nötig") ? "#4EBA74" : AvisoStatusVisualService.ResolveBadgeColor(AvisoStatus);
     public int SourceTourId { get; set; }
     public TourStopRecord Source { get; set; } = new();
     public bool IsCompanyStop { get; set; }

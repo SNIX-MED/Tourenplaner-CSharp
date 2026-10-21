@@ -1,4 +1,4 @@
-﻿using Tourenplaner.CSharp.Application.Common;
+using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Application.Services;
@@ -124,6 +124,12 @@ public sealed class MapRouteService
                 : IsManualRouteStop(x)
                     ? (string.IsNullOrWhiteSpace(x.OrderId) ? $"{ManualStopIdPrefix}{Guid.NewGuid():N}" : x.OrderId)
                     : string.IsNullOrWhiteSpace(x.DeliveryId) ? $"auftrag:{x.OrderId}" : $"auftrag:{x.OrderId}:lieferung:{x.DeliveryId}",
+            ManualAvisoStatus = x.ManualAvisoStatus,
+            TimeWindowStart = IsManualRouteStop(x) ? x.ManualWindowStart : string.Empty,
+            TimeWindowEnd = IsManualRouteStop(x) ? x.ManualWindowEnd : string.Empty,
+            IsArrivalWindowFixed = IsManualRouteStop(x) && x.ManualAvisoStatus == "Bestätigt",
+            PlannedArrivalOptimistic = IsManualRouteStop(x) ? x.ManualWindowStart : string.Empty,
+            PlannedArrivalPessimistic = IsManualRouteStop(x) ? x.ManualWindowEnd : string.Empty,
             StopKind = IsPauseRouteStop(x) ? PauseStopKind : IsManualRouteStop(x) ? ManualStopKind : string.Empty,
             Auftragsnummer = IsPauseRouteStop(x) || IsManualRouteStop(x) ? string.Empty : x.OrderId,
             DeliveryId = IsPauseRouteStop(x) || IsManualRouteStop(x) ? string.Empty : x.DeliveryId,

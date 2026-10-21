@@ -1,4 +1,4 @@
-﻿using Tourenplaner.CSharp.Application.Common;
+using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 
@@ -6,6 +6,26 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public class MapRouteServiceTests
 {
+    [Fact]
+    public void ManualPromiseSurvivesReorderingAndTourPersistence()
+    {
+        var service = new MapRouteService();
+        MapRouteStop[] stops = [new(1, "manual:test", "Abholung", "Adresse", 47, 8, 10,
+            StopKind: "manual", ManualAvisoStatus: "Bestätigt", ManualWindowStart: "09:00", ManualWindowEnd: "10:00"),
+            new(2, "A", "Kunde", "Adresse", 47.1, 8.1)];
+        var moved = service.SwapStops(stops, "manual:test", "A");
+        var tour = service.BuildTour(moved, 1, "Test", "23.10.2026", "07:30");
+        var loaded = System.Text.Json.JsonSerializer.Deserialize<TourRecord>(System.Text.Json.JsonSerializer.Serialize(tour))!;
+        var manual = Assert.Single(loaded.Stops, x => x.StopKind == "manual");
+        Assert.Equal("Bestätigt", manual.ManualAvisoStatus);
+        Assert.True(manual.IsArrivalWindowFixed);
+        Assert.Equal("09:00", manual.TimeWindowStart);
+        Assert.Equal("10:00", manual.TimeWindowEnd);
+        new TourScheduleService(0, 0, 0, 0).ApplySchedule(loaded);
+        Assert.Equal("09:00", manual.PlannedArrivalOptimistic);
+        Assert.Equal("10:00", manual.PlannedArrivalPessimistic);
+    }
+
     [Fact]
     public void SwapStops_ReordersStops_AndReindexesPositions()
     {

@@ -6,6 +6,47 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class TourScheduleServiceTests
 {
     [Fact]
+    public void WideManualArrivalRangeDoesNotCauseAvisoWarningButStillDelaysFollowingCustomer()
+    {
+        var manual = new TourStopRecord { Id = "manual:test", StopKind = "manual", Order = 2, ServiceMinutes = 35 };
+        var customer = new TourStopRecord { Id = "customer", Auftragsnummer = "A", Order = 3,
+            IsArrivalWindowFixed = true, PlannedArrivalOptimistic = "13:00", PlannedArrivalPessimistic = "14:00" };
+        var tour = new TourRecord { Date = "23.10.2026", StartTime = "13:00", Stops = [
+            new() { Id = "company:start", Order = 1 }, manual, customer], TravelTimeProfileCache = new()
+            {
+                ["company:start|manual:test"] = new() { OptimisticMinutes = 10, RealisticMinutes = 53, PessimisticMinutes = 200 },
+                ["manual:test|customer"] = new() { OptimisticMinutes = 10, RealisticMinutes = 10, PessimisticMinutes = 10 }
+            } };
+        new TourScheduleService(0, 0, 0, 0).ApplySchedule(tour);
+        Assert.False(manual.ScheduleConflict);
+        Assert.Empty(manual.ScheduleConflictText);
+        Assert.Equal("14:28", manual.PlannedDeparture);
+        Assert.True(customer.ScheduleConflict);
+        Assert.Contains("fixierte", customer.ScheduleConflictText);
+        Assert.Equal("14:00", customer.PlannedArrivalPessimistic);
+    }
+
+    [Theory]
+    [InlineData("Keine Avisierung nötig", false)]
+    [InlineData("nicht avisiert", false)]
+    [InlineData("Bestätigt", true)]
+    public void ManualStopOnlyWarnsForAnActualFixedPromise(string status, bool expectedConflict)
+    {
+        var stop = new TourStopRecord { Id = "manual:test", StopKind = "manual", Order = 1,
+            ManualAvisoStatus = status, ServiceMinutes = 10, IsArrivalWindowFixed = expectedConflict,
+            PlannedArrivalOptimistic = expectedConflict ? "12:00" : "",
+            PlannedArrivalPessimistic = expectedConflict ? "12:30" : "" };
+        var tour = new TourRecord { Date = "23.10.2026", StartTime = "13:53", Stops = [stop] };
+        new TourScheduleService(0, 0, 0, 0).ApplySchedule(tour);
+        Assert.Equal(expectedConflict, stop.ScheduleConflict);
+        Assert.Equal("14:03", stop.PlannedDeparture);
+        if (!expectedConflict) Assert.Empty(stop.ScheduleConflictText);
+        var loaded = System.Text.Json.JsonSerializer.Deserialize<TourRecord>(System.Text.Json.JsonSerializer.Serialize(tour))!;
+        Assert.Equal(status, loaded.Stops[0].ManualAvisoStatus);
+        Assert.Equal(stop.IsArrivalWindowFixed, loaded.Stops[0].IsArrivalWindowFixed);
+    }
+
+    [Fact]
     public void BuildSchedule_UsesTravelCacheAndFlagsLateWindowConflicts()
     {
         var service = new TourScheduleService(0, 0, 0, 0);

@@ -326,14 +326,15 @@ public sealed partial class KarteSectionViewModel
         }
     }
 
-    private Task SaveTourRecordAsync(
+    private async Task SaveTourRecordAsync(
         TourRecord tour,
         IReadOnlyList<TourRecord> fallbackSnapshot,
         CancellationToken cancellationToken = default)
     {
-        return _tourMutationStore is not null
-            ? _tourMutationStore.UpsertAsync(tour, cancellationToken)
-            : _tourRepository.SaveAsync(fallbackSnapshot, cancellationToken);
+        var expectedToken = tour.ConcurrencyToken;
+        if (_tourMutationStore is not null) await _tourMutationStore.UpsertAsync(tour, cancellationToken);
+        else await _tourRepository.SaveAsync(fallbackSnapshot, cancellationToken);
+        AcceptCommittedTourVersion(tour, expectedToken);
     }
 
     private async Task SaveToursAndOrdersAsync(
@@ -343,14 +344,30 @@ public sealed partial class KarteSectionViewModel
         IReadOnlyList<Order>? ordersToDelete = null,
         CancellationToken cancellationToken = default)
     {
+        var expectedTokens = tours.ToDictionary(x => x.Id, x => x.ConcurrencyToken);
         if (_tourOrderTransactionStore is not null)
         {
             await _tourOrderTransactionStore.SaveAsync(tours, orders, toursToDelete, ordersToDelete, cancellationToken);
+        }
+        else
+        {
+            await _tourRepository.SaveAsync(tours, cancellationToken);
+            // The fallback stores commit independently. A later order failure
+            // cannot roll back the already committed tour version.
+            foreach (var tour in tours) AcceptCommittedTourVersion(tour, expectedTokens[tour.Id]);
+            await _orderRepository.SaveAllAsync(orders, cancellationToken);
             return;
         }
+        foreach (var tour in tours) AcceptCommittedTourVersion(tour, expectedTokens[tour.Id]);
+    }
 
-        await _tourRepository.SaveAsync(tours, cancellationToken);
-        await _orderRepository.SaveAllAsync(orders, cancellationToken);
+    internal void AcceptCommittedTourVersion(TourRecord committed, string? expectedToken)
+    {
+        // Only advance the draft for a write based on its own current version.
+        // Reloading an unrelated/newer snapshot must never acknowledge a remote edit.
+        if (IsLoadedTourEditing && committed.Id == _loadedTourLeaseId &&
+            string.Equals(_loadedTourEditConcurrencyToken, expectedToken, StringComparison.Ordinal))
+            _loadedTourEditConcurrencyToken = committed.ConcurrencyToken;
     }
 
     private Task SaveChangedToursAndOrdersAsync(

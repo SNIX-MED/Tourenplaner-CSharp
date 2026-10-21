@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 
@@ -181,7 +181,8 @@ public sealed class TourScheduleService
             var windowEnd = displayedRange.Pessimistic;
             var validWindow = true;
             var isCustomer = !TourStopIdentity.IsCompanyStop(stop) &&
-                !string.Equals(stop.StopKind, "pause", StringComparison.OrdinalIgnoreCase);
+                !TourStopIdentity.IsPauseStop(stop) &&
+                (!(stop.StopKind == "manual" || stop.Id.StartsWith("manual:", StringComparison.OrdinalIgnoreCase)) || stop.IsArrivalWindowFixed);
             var conflict = entry.ConflictText;
             if (isCustomer && previousStart.HasValue)
             {

@@ -69,11 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Tourbearbeitung: Abfahrtszeit und ungespeicherte Aenderungen bleiben bei Aktualisierungen erhalten
-          - Doppelklick auf die Abfahrtszeit oeffnet ausschliesslich den passenden Dialog
-          - Adresspruefung erhaelt vorhandene Pins; manuelle Platzierung funktioniert auch ohne Suchtreffer
-          - Infokarten zeigen die Lieferfirma und unterscheiden fixe, geplante, provisorische und bestaetigte Termine
-          - Teillieferungsnotizen zeigen die Lieferungsnummer als Titel statt im Notiztext
+          - Manuelle Stopps mit optionalem Avisierungsstatus und vereinbartem Zeitfenster
+          - Bestaetigte manuelle Stopps werden im Tourstatus beruecksichtigt
+          - Keine irrefuehrende Kundenzeitfensterwarnung fuer manuelle Stopps ohne Avisierungspflicht
+          - Eigene Touraenderungen verursachen beim erneuten Speichern keinen falschen Mehrbenutzerkonflikt
+          - Echte Versionskonflikte und Zeitfensterkonflikte bleiben geschuetzt
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

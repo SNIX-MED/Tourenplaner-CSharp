@@ -1544,7 +1544,7 @@ public sealed partial class KarteSectionViewModel
             var manualDialog = new ManualRouteStopDialogWindow(
                 selectedStop.Customer,
                 selectedStop.PlannedStayMinutes,
-                selectedStop.EmployeeInfoText)
+                selectedStop.EmployeeInfoText, selectedStop.ManualAvisoStatus, selectedStop.ManualWindowStart, selectedStop.ManualWindowEnd)
             {
                 Owner = System.Windows.Application.Current?.MainWindow
             };
@@ -1553,6 +1553,10 @@ public sealed partial class KarteSectionViewModel
                 return;
             }
 
+            selectedStop.ManualAvisoStatus = manualDialog.AvisoStatus;
+            selectedStop.ManualWindowStart = manualDialog.AvisoStatus == "Keine Avisierung nötig" ? "" : manualDialog.WindowStart;
+            selectedStop.ManualWindowEnd = manualDialog.AvisoStatus == "Keine Avisierung nötig" ? "" : manualDialog.WindowEnd;
+            selectedStop.AvisoStatus = manualDialog.AvisoStatus;
             selectedStop.Customer = manualDialog.StopName;
             selectedStop.PlannedStayMinutes = manualDialog.StayMinutes;
             selectedStop.EmployeeInfoText = manualDialog.Notes;
@@ -1756,6 +1760,8 @@ public sealed partial class KarteSectionViewModel
             Longitude = longitude,
             PlannedStayMinutes = dialog.StayMinutes,
             IsManualStop = true,
+            ManualAvisoStatus = dialog.AvisoStatus, ManualWindowStart = dialog.AvisoStatus == "Keine Avisierung nötig" ? "" : dialog.WindowStart, ManualWindowEnd = dialog.AvisoStatus == "Keine Avisierung nötig" ? "" : dialog.WindowEnd,
+            AvisoStatus = dialog.AvisoStatus,
             EmployeeInfoText = dialog.Notes
         };
 
@@ -3158,6 +3164,11 @@ public sealed partial class KarteSectionViewModel
             try
             {
                 await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, allTours, cleanup);
+                foreach (var committed in allTours)
+                {
+                    var original = originalTours.FirstOrDefault(x => x.Id == committed.Id);
+                    if (original is not null) AcceptCommittedTourVersion(committed, original.ConcurrencyToken);
+                }
                 _dataSyncService.PublishTours(_instanceId);
             }
             catch (ConcurrencyConflictException conflict)
@@ -3298,6 +3309,7 @@ public sealed partial class KarteSectionViewModel
                     ArrivalWindowEnd = stop.ArrivalWindowEnd,
                     PlannedArrival = (stop.PlannedArrival ?? string.Empty).Trim(),
                     PlannedArrivalPessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim(),
+                    ManualAvisoStatus = stop.ManualAvisoStatus,
                     IsArrivalWindowFixed = stop.IsArrivalWindowFixed,
                     PlannedDeparture = (stop.PlannedDeparture ?? string.Empty).Trim(),
                     WaitMinutes = stop.WaitMinutes,
@@ -3700,7 +3712,7 @@ public sealed partial class KarteSectionViewModel
                         Longitude = isPause ? double.NaN : stop.Lng ?? stop.Lon ?? double.NaN,
                         IsCompanyAnchor = false,
                         IsPauseStop = isPause,
-                        IsManualStop = isManual,
+                        IsManualStop = isManual, ManualAvisoStatus = stop.ManualAvisoStatus, ManualWindowStart = stop.TimeWindowStart, ManualWindowEnd = stop.TimeWindowEnd, AvisoStatus = isManual ? stop.ManualAvisoStatus : string.Empty,
                         PlannedStayMinutes = isPause
                             ? Math.Max(0, stop.ServiceMinutes)
                             : isManual ? Math.Max(0, stop.ServiceMinutes) : ResolvePlannedStayMinutes(stop.ServiceMinutes, ExtractTourStopOrderId(stop)),
@@ -3950,6 +3962,7 @@ public sealed partial class KarteSectionViewModel
             ArrivalWindowEnd = stop.ArrivalWindowEnd,
             PlannedArrival = (stop.PlannedArrival ?? string.Empty).Trim(),
             PlannedArrivalPessimistic = (stop.PlannedArrivalPessimistic ?? string.Empty).Trim(),
+            ManualAvisoStatus = stop.ManualAvisoStatus,
             IsArrivalWindowFixed = stop.IsArrivalWindowFixed,
             PlannedDeparture = (stop.PlannedDeparture ?? string.Empty).Trim(),
             WaitMinutes = stop.WaitMinutes,
@@ -4453,7 +4466,7 @@ public sealed partial class KarteSectionViewModel
                 x.EmployeeInfoText,
                 x.IsPauseStop ? PauseStopKind : x.IsManualStop ? ManualStopKind : string.Empty,
                 x.DeliveryId,
-                x.DeliverySequenceNumber))
+                x.DeliverySequenceNumber, x.ManualAvisoStatus, x.ManualWindowStart, x.ManualWindowEnd))
             .ToList();
     }
 
@@ -4497,6 +4510,7 @@ public sealed partial class KarteSectionViewModel
                                          (stop.OrderId ?? string.Empty).StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase)
                         ? Math.Max(0, stop.ServiceMinutes)
                         : ResolvePlannedStayMinutes(stop.ServiceMinutes, stop.OrderId),
+                    ManualAvisoStatus = stop.ManualAvisoStatus, ManualWindowStart = stop.ManualWindowStart, ManualWindowEnd = stop.ManualWindowEnd, AvisoStatus = stop.ManualAvisoStatus,
                     EmployeeInfoText = stop.EmployeeInfoText
                 });
             }
@@ -4806,7 +4820,7 @@ public sealed partial class KarteSectionViewModel
             var stop = RouteStops[i];
             stop.Position = i + 1;
             stop.DisplayIndex = IsCompanyStop(stop) || IsPauseStop(stop) ? 0 : ++displayIndex;
-            stop.AvisoStatus = IsOrderStop(stop)
+            stop.AvisoStatus = IsManualStop(stop) ? stop.ManualAvisoStatus : IsOrderStop(stop)
                 ? NormalizeAvisoStatus(_allOrders.FirstOrDefault(order =>
                     string.Equals(order.Id, stop.OrderId, StringComparison.OrdinalIgnoreCase))?.AvisoStatus)
                 : string.Empty;
@@ -7602,7 +7616,7 @@ public sealed partial class KarteSectionViewModel
         return orderIds
             .Select(orderId => _allOrders.FirstOrDefault(order => string.Equals(order.Id, orderId, StringComparison.OrdinalIgnoreCase)))
             .Select(order => NormalizeAvisoStatus(order?.AvisoStatus))
-            .ToList();
+            .Concat((tour.Stops ?? []).Where(IsManualTourStop).Where(x => x.ManualAvisoStatus != "Keine Avisierung nötig").Select(x => x.ManualAvisoStatus)).ToList();
 
     }
 
@@ -8394,6 +8408,16 @@ public sealed partial class KarteSectionViewModel
             var item = RouteStops[i];
             var original = savedStops?.FirstOrDefault(x => MatchesScheduleStop(item, x));
             var stop = original is null ? new TourStopRecord() : CloneTourStop(original);
+            if (item.IsManualStop)
+            {
+                stop.ManualAvisoStatus = item.ManualAvisoStatus;
+                stop.TimeWindowStart = item.ManualWindowStart;
+                stop.TimeWindowEnd = item.ManualWindowEnd;
+                stop.IsArrivalWindowFixed = item.ManualAvisoStatus == "Bestätigt";
+                stop.ArrivalWindowStart = null; stop.ArrivalWindowEnd = null;
+                stop.PlannedArrivalOptimistic = item.ManualWindowStart;
+                stop.PlannedArrivalPessimistic = item.ManualWindowEnd;
+            }
             stop.Id = "preview:" + i;
             stop.Order = i + 1;
             stop.StopKind = IsPauseStop(item) ? PauseStopKind : IsCompanyStop(item) ? "company" : item.IsManualStop ? ManualStopKind : string.Empty;
@@ -8985,6 +9009,7 @@ public sealed partial class KarteSectionViewModel
                 continue;
             }
 
+            if (IsManualTourStop(stop)) continue;
             stop.TimeWindowStart = existing.TimeWindowStart;
             stop.TimeWindowEnd = existing.TimeWindowEnd;
             stop.WaitMinutes = existing.WaitMinutes;
@@ -9906,12 +9931,15 @@ public sealed class RouteStopItem : ObservableObject
             return KarteSectionViewModel.BuildRouteStopAddressLine(null, null, Address);
         }
     }
+    public string ManualAvisoStatus { get; set; } = "Keine Avisierung nötig";
+    public string ManualWindowStart { get; set; } = "";
+    public string ManualWindowEnd { get; set; } = "";
     public string DisplayWindow => "--";
     public string DisplayOrder => IsPauseStop || IsManualStop ? string.Empty : (string.IsNullOrWhiteSpace(OrderId) ? "-" : OrderId);
     public string DisplayStay => IsCompanyDisplay ? string.Empty : $"{PlannedStayMinutes} min";
-    public string AvisoBadgeColor => IsManualStop ? "#4EBA74" : AvisoStatusVisualService.ResolveBadgeColor(AvisoStatus);
+    public string AvisoBadgeColor => IsManualStop && ManualAvisoStatus == "Keine Avisierung nötig" ? "#4EBA74" : AvisoStatusVisualService.ResolveBadgeColor(AvisoStatus);
     public string DisplayEta => string.IsNullOrWhiteSpace(EtaText) ? "--:--" : EtaText;
-    public string DisplayAvisoStatus => IsCompanyDisplay || IsPauseStop || IsManualStop
+    public string DisplayAvisoStatus => IsCompanyDisplay || IsPauseStop || (IsManualStop && ManualAvisoStatus == "Keine Avisierung nötig")
         ? string.Empty
         : AvisoStatus.Trim().ToLowerInvariant() switch
         {

@@ -1,8 +1,9 @@
-﻿namespace Tourenplaner.CSharp.Domain.Models;
+namespace Tourenplaner.CSharp.Domain.Models;
 
 public sealed class TourStopRecord
 {
     public string Id { get; set; } = string.Empty;
+    public string ManualAvisoStatus { get; set; } = "Keine Avisierung nötig";
     public string StopKind { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;

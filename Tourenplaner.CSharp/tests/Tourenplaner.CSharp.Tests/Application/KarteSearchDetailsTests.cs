@@ -10,6 +10,137 @@ namespace Tourenplaner.CSharp.Tests.Application;
 [Collection("Karte collaboration")]
 public sealed class KarteSearchDetailsTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TransactionOnlyAcknowledgesSuccessfullyCommittedVersions(bool fail)
+    {
+        var store = new TransactionVersionStore { Fail = fail };
+        var vm = CreateViewModel(new FixedOrderStore(CreateOrder()), store);
+        SetPrivateField(vm, "_activeTourId", 42);
+        SetPrivateField(vm, "_loadedTourLeaseId", 42);
+        SetPrivateField(vm, "_isLoadedTourEditing", true);
+        SetPrivateField(vm, "_loadedTourEditConcurrencyToken", "v1");
+        var tour = ChangingPreviewTourStore.Create("Test", "v1", "07:30");
+        var save = typeof(KarteSectionViewModel).GetMethod("SaveToursAndOrdersAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var task = (Task)save.Invoke(vm, [new List<TourRecord> { tour }, new List<Order>(), null, null, CancellationToken.None])!;
+        if (fail) await Assert.ThrowsAsync<IOException>(() => task);
+        else await task;
+        Assert.Equal(fail ? "v1" : "v2", GetPrivateField<string>(vm, "_loadedTourEditConcurrencyToken"));
+    }
+
+    [Fact]
+    public async Task FallbackOrderFailureDoesNotForgetAlreadyCommittedTourVersion()
+    {
+        var store = new VersionedTourStore();
+        var vm = CreateViewModel(new FailingOrderSaveStore(), store);
+        SetPrivateField(vm, "_activeTourId", 42);
+        SetPrivateField(vm, "_loadedTourLeaseId", 42);
+        SetPrivateField(vm, "_isLoadedTourEditing", true);
+        SetPrivateField(vm, "_loadedTourEditConcurrencyToken", "v1");
+        var tour = ChangingPreviewTourStore.Create("Test", "v1", "07:30");
+        var save = typeof(KarteSectionViewModel).GetMethod("SaveToursAndOrdersAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var task = (Task)save.Invoke(vm, [new List<TourRecord> { tour }, new List<Order>(), null, null, CancellationToken.None])!;
+        await Assert.ThrowsAsync<IOException>(() => task);
+        Assert.Equal("v2", GetPrivateField<string>(vm, "_loadedTourEditConcurrencyToken"));
+        vm.EnsureTourEditVersionIsCurrent(tour);
+    }
+
+    private sealed class FailingOrderSaveStore : IOrderRepository
+    {
+        public Task<IReadOnlyList<Order>> GetAllAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Order>>([]);
+        public Task SaveAllAsync(IEnumerable<Order> orders, CancellationToken cancellationToken = default) => throw new IOException("Test order failure");
+    }
+
+    private sealed class TransactionVersionStore : ITourRecordStore, ITourOrderTransactionStore
+    {
+        public bool Fail { get; init; }
+        public Task<IReadOnlyList<TourRecord>> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TourRecord>>([]);
+        public Task SaveAsync(IEnumerable<TourRecord> tours, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Expected transaction path");
+        public Task SaveAsync(IEnumerable<TourRecord> tours, IEnumerable<Order> orders,
+            IEnumerable<TourRecord>? toursToDelete = null, IEnumerable<Order>? ordersToDelete = null, CancellationToken cancellationToken = default)
+        {
+            if (Fail) throw new IOException("Test transaction failure");
+            foreach (var tour in tours) tour.ConcurrencyToken = "v2";
+            return Task.CompletedTask;
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OwnStopWritesCanBeSavedRepeatedlyWithoutSelfConflict(bool manual)
+    {
+        var store = new VersionedTourStore();
+        var vm = CreateViewModel(new FixedOrderStore(CreateOrder()), store);
+        SetPrivateField(vm, "_activeTourId", 42);
+        SetPrivateField(vm, "_loadedTourLeaseId", 42);
+        SetPrivateField(vm, "_isLoadedTourEditing", true);
+        SetPrivateField(vm, "_loadedTourEditConcurrencyToken", "v1");
+        var tour = ChangingPreviewTourStore.Create("Test", "v1", "07:30");
+        if (manual) tour.Stops.Add(new() { Id = "manual:test", StopKind = "manual", ServiceMinutes = 10 });
+        var save = typeof(KarteSectionViewModel).GetMethod("SaveToursAndOrdersAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            vm.EnsureTourEditVersionIsCurrent(tour);
+            tour.Stops.Last().ServiceMinutes += 5;
+            await (Task)save.Invoke(vm, [new List<TourRecord> { tour }, new List<Order>(), null, null, CancellationToken.None])!;
+            vm.EnsureTourEditVersionIsCurrent(tour);
+        }
+        Assert.Equal("v4", GetPrivateField<string>(vm, "_loadedTourEditConcurrencyToken"));
+        Assert.Throws<Tourenplaner.CSharp.Application.Common.ConcurrencyConflictException>(() =>
+            vm.EnsureTourEditVersionIsCurrent(ChangingPreviewTourStore.Create("Fremde Änderung", "v5", "08:00")));
+    }
+
+    [Fact]
+    public void MaintenanceOnlyAcknowledgesWritesBasedOnTheCurrentDraftVersion()
+    {
+        var vm = CreateViewModel();
+        SetPrivateField(vm, "_activeTourId", 42);
+        SetPrivateField(vm, "_loadedTourLeaseId", 42);
+        SetPrivateField(vm, "_isLoadedTourEditing", true);
+        SetPrivateField(vm, "_loadedTourEditConcurrencyToken", "v1");
+        vm.AcceptCommittedTourVersion(ChangingPreviewTourStore.Create("Eigen", "v2", "07:30"), "v1");
+        Assert.Equal("v2", GetPrivateField<string>(vm, "_loadedTourEditConcurrencyToken"));
+        vm.AcceptCommittedTourVersion(ChangingPreviewTourStore.Create("Fremd", "v4", "07:30"), "v3");
+        Assert.Equal("v2", GetPrivateField<string>(vm, "_loadedTourEditConcurrencyToken"));
+    }
+
+    private sealed class VersionedTourStore : ITourRecordStore
+    {
+        private int _version = 1;
+        public Task<IReadOnlyList<TourRecord>> LoadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TourRecord>>([]);
+        public Task SaveAsync(IEnumerable<TourRecord> tours, CancellationToken cancellationToken = default)
+        {
+            foreach (var tour in tours)
+            {
+                Assert.Equal($"v{_version}", tour.ConcurrencyToken);
+                tour.ConcurrencyToken = $"v{++_version}";
+            }
+            return Task.CompletedTask;
+        }
+    }
+
+    [Theory]
+    [InlineData("Keine Avisierung nötig", "Bestätigt")]
+    [InlineData("Bestätigt", "Bestätigt")]
+    [InlineData("nicht avisiert", "Geplant")]
+    [InlineData("Informiert", "Avisiert")]
+    public async Task ManualStopOnlyAffectsTourConfirmationWhenAvisoIsRequired(string status, string label)
+    {
+        var order = CreateOrder(); order.AvisoStatus = "Bestätigt";
+        var store = new ChangingPreviewTourStore();
+        store.Current.Date = DateTime.Today.AddDays(2).ToString("dd.MM.yyyy");
+        store.Current.Stops.Add(new() { Id = "manual:test", StopKind = "manual", Name = "Test", Order = 2, ManualAvisoStatus = status });
+        var vm = CreateViewModel(new FixedOrderStore(order), store);
+        await vm.RefreshAsync();
+        Assert.Equal(label, vm.TourOverviewItems.Single().StatusLabel);
+    }
+
     [Fact]
     public async Task OverviewRefreshCannotResetEditedDepartureOrDiscardDraftChanges()
     {

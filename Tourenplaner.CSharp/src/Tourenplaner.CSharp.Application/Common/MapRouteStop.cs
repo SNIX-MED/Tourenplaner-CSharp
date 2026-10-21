@@ -1,4 +1,4 @@
-﻿namespace Tourenplaner.CSharp.Application.Common;
+namespace Tourenplaner.CSharp.Application.Common;
 
 public sealed record MapRouteStop(
     int Position,
@@ -11,4 +11,4 @@ public sealed record MapRouteStop(
     string EmployeeInfoText = "",
     string StopKind = "",
     string DeliveryId = "",
-    int? DeliverySequenceNumber = null);
+    int? DeliverySequenceNumber = null, string ManualAvisoStatus = "Keine Avisierung nötig", string ManualWindowStart = "", string ManualWindowEnd = "");
