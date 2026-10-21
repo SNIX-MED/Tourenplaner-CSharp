@@ -3068,7 +3068,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         if (avisoStates.Count > 0 && avisoStates.All(status => string.Equals(status, "Bestätigt", StringComparison.OrdinalIgnoreCase)))
         {
-            return ("Geplant", "#DCFCE7", "#15803D", "\uE73E");
+            return ("Bestätigt", "#DCFCE7", "#15803D", "\uE73E");
         }
 
         if (avisoStates.Count > 0 &&

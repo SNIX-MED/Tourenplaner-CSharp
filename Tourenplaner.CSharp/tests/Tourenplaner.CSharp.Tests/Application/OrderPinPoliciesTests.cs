@@ -5,6 +5,57 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public class OrderPinPoliciesTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Preview_UsesNewSearchResultUnlessStoredPinWasManuallyConfirmed(bool manual)
+    {
+        var order = CreateOrder("Solistrasse", "1", "8180", "Bülach");
+        order.Location = new GeoPoint(47.5246046, 8.5373749);
+        order.IsLocationManuallySet = manual;
+        var result = CreateGeocodingResult(true);
+        Assert.Equal(manual ? order.Location : result.Location,
+            OrderPinValidationPolicy.ResolvePreviewLocation(order, result));
+        Assert.Equal(order.Location, OrderPinValidationPolicy.ResolvePreviewLocation(order, null));
+    }
+
+    [Theory]
+    [InlineData(AddressGeocodingFailureReason.Timeout)]
+    [InlineData(AddressGeocodingFailureReason.ConnectionFailed)]
+    [InlineData(AddressGeocodingFailureReason.RateLimited)]
+    [InlineData(AddressGeocodingFailureReason.NoResult)]
+    public void Import_PreservesExistingLocationWhenLookupFails(AddressGeocodingFailureReason reason)
+    {
+        var order = CreateOrder("Unterwilrain", "16", "6014", "Luzern");
+        order.Location = new GeoPoint(47.0491152, 8.2713488);
+        var resolution = new AddressGeocodingResolution(null, reason);
+
+        Assert.Equal(order.Location, OrderPinValidationPolicy.ResolveImportedLocation(order, resolution.Result));
+    }
+
+    [Fact]
+    public void Import_DoesNotInventLocationWhenLookupFails()
+    {
+        var order = CreateOrder("Solistrasse", "1", "8180", "Bülach");
+        order.Location = null;
+        Assert.Null(OrderPinValidationPolicy.ResolveImportedLocation(order, null));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Import_OnlyReplacesAutomaticLocationWithPreciseResult(bool precise, bool manual)
+    {
+        var order = CreateOrder("Solistrasse", "1", "8180", "Bülach");
+        order.Location = new GeoPoint(47.5246046, 8.5373749);
+        order.IsLocationManuallySet = manual;
+        var result = CreateGeocodingResult(precise);
+
+        Assert.Equal(precise && !manual ? result.Location : order.Location,
+            OrderPinValidationPolicy.ResolveImportedLocation(order, result));
+    }
+
     [Fact]
     public void ValidationPolicy_AcceptsUnchangedAddressWithoutGeocoding()
     {

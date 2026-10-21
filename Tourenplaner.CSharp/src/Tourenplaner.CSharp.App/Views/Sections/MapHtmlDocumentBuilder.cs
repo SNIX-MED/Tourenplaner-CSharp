@@ -204,6 +204,12 @@ internal static class MapHtmlDocumentBuilder
                    .gawela-info-card-close:hover { background: #f1f5f9; color: #111827; }
                    .gawela-info-card-close:focus-visible { outline: 2px solid #7e22ce; outline-offset: 2px; }
                    .gawela-info-card-name { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.12; letter-spacing: -0.01em; color: #111827; }
+                   .gawela-info-card-delivery { display: table; margin: 7px 0 0; padding: 4px 7px; border-radius: 6px; font-size: 15px; line-height: 1.3; font-weight: 800; color: #1d4ed8; background: #eff6ff; }
+                   .gawela-info-card-delivery-fixed { color: #b91c1c; background: #fef2f2; }
+                   .gawela-info-card-delivery-confirmed { color: #15803d; background: #dcfce7; }
+                   .gawela-info-card-delivery-provisional { color: #9a3412; background: #fff7ed; }
+                   .gawela-info-card-delivery-period { margin: 6px 0 0; font-size: 15px; line-height: 1.3; font-weight: 700; color: #334155; }
+                   .gawela-info-card-delivery-secondary { margin: 4px 0 0; font-size: 13px; line-height: 1.3; font-weight: 400; color: #64748b; }
                    .gawela-info-card-notes { margin: 6px 0 0; font-size: 15px; line-height: 1.28; font-weight: 700; color: #dc2626; white-space: pre-line; }
                    .gawela-info-card-badge { display: inline-block; font-size: 14px; line-height: 1; padding: 7px 10px; border-radius: 10px; background: #f3f4f6; color: #3f3f46; white-space: nowrap; }
                    .gawela-info-card-section { display: flex; align-items: flex-start; gap: 12px; padding: 12px 18px; border-top: 1px solid #eceef3; }
@@ -1570,15 +1576,20 @@ internal static class MapHtmlDocumentBuilder
                              sections.push(`<section class='gawela-info-card-section'><div><p class='gawela-info-card-line'>Evtl. Liefertour</p></div></section>`);
                            }
 
-                           if (deliveryDate.length > 0) {
-                             sections.push(`<section class='gawela-info-card-section'><div><p class='gawela-info-card-label'>Lieferdatum</p><p class='gawela-info-card-line'>${escapeHtml(deliveryDate)}${deliveryCanOccurEarlier ? ' · früher möglich' : ''}</p></div></section>`);
-                           }
-
-                           if (deliveryPeriod.length > 0) {
-                             sections.push(`<section class='gawela-info-card-section'><div><p class='gawela-info-card-label'>Lieferzeitraum</p><p class='gawela-info-card-line'>${escapeHtml(deliveryPeriod)}</p></div></section>`);
-                           }
-
-                           return `<div class='gawela-info-card'><header class='gawela-info-card-header'><div class='gawela-info-card-heading'><h4 class='gawela-info-card-name'>${escapeHtml(cardName)}</h4>${headerNotes}</div><div class='gawela-info-card-actions'>${headerBadge}<button type='button' class='gawela-info-card-close' aria-label='Infokarte schließen' title='Infokarte schließen'>×</button></div></header>${sections.join('')}</div><div class='gawela-info-card-tail-wrap'><div class='gawela-info-card-tail'></div></div>`;
+                           const dateKind = m && ['fixed', 'provisional', 'planned', 'confirmed'].includes(m.deliveryDateKind) ? m.deliveryDateKind : 'planned';
+                           const dateLabel = dateKind === 'fixed' ? '🔒 FIX' : dateKind === 'confirmed' ? 'Bestätigt' : dateKind === 'provisional' ? 'Provisorisch' : 'Geplant';
+                           const headerDelivery = [
+                             deliveryDate.length > 0
+                               ? `<p class='gawela-info-card-delivery gawela-info-card-delivery-${dateKind}'>${dateLabel} · ${escapeHtml(deliveryDate)}</p>`
+                               : '',
+                             deliveryPeriod.length > 0
+                               ? `<p class='${deliveryDate.length > 0 ? 'gawela-info-card-delivery-secondary' : 'gawela-info-card-delivery-period'}'>Zeitraum · ${escapeHtml(deliveryPeriod)}</p>`
+                               : '',
+                             deliveryDate.length > 0 && deliveryCanOccurEarlier
+                               ? `<p class='gawela-info-card-delivery-secondary'>Früher möglich</p>`
+                               : ''
+                           ].join('');
+                           return `<div class='gawela-info-card'><header class='gawela-info-card-header'><div class='gawela-info-card-heading'><h4 class='gawela-info-card-name'>${escapeHtml(cardName)}</h4>${headerDelivery}${headerNotes}</div><div class='gawela-info-card-actions'>${headerBadge}<button type='button' class='gawela-info-card-close' aria-label='Infokarte schließen' title='Infokarte schließen'>×</button></div></header>${sections.join('')}</div><div class='gawela-info-card-tail-wrap'><div class='gawela-info-card-tail'></div></div>`;
                          };
 
                          const applyBaseStyle = () => {

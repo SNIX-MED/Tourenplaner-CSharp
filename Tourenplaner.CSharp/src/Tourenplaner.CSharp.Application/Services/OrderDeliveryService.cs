@@ -11,6 +11,9 @@ public sealed class OrderDeliveryService
     private static readonly Regex DeliveryNotePrefixPattern = new(
         @"^Lieferung\s+\d+\s*/\s*\d+\s*:\s*",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    public static string RemoveLegacyDeliveryNotePrefix(string? notes) =>
+        DeliveryNotePrefixPattern.Replace((notes ?? string.Empty).Trim(), string.Empty).Trim();
     public bool Normalize(Order order)
     {
         ArgumentNullException.ThrowIfNull(order);
@@ -293,11 +296,10 @@ public sealed class OrderDeliveryService
         var activeDeliveries = order.Deliveries
             .OrderBy(x => x.SequenceNumber)
             .ToList();
-        var total = activeDeliveries.Count;
         for (var index = 0; index < activeDeliveries.Count; index++)
         {
             var delivery = activeDeliveries[index];
-            var existingContent = DeliveryNotePrefixPattern.Replace((delivery.Notes ?? string.Empty).Trim(), string.Empty).Trim();
+            var existingContent = RemoveLegacyDeliveryNotePrefix(delivery.Notes);
             if (string.IsNullOrWhiteSpace(existingContent))
             {
                 existingContent = sourceNotes;
@@ -307,11 +309,7 @@ public sealed class OrderDeliveryService
             {
                 existingContent = $"{existingContent}{Environment.NewLine}{sourceNotes}";
             }
-            var nextNotes = $"Lieferung {index + 1}/{total}:";
-            if (!string.IsNullOrWhiteSpace(existingContent))
-            {
-                nextNotes += $" {existingContent}";
-            }
+            var nextNotes = existingContent;
             if (!string.Equals(delivery.Notes, nextNotes, StringComparison.Ordinal))
             {
                 delivery.Notes = nextNotes;

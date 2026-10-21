@@ -62,17 +62,18 @@ public sealed class XmlImportPinIssueListItemViewModel
         string failureSummary,
         Func<string, Task>? editOrderAsync,
         Func<string, Task>? recheckOrderAsync,
-        Func<string, Task>? showInfoAsync = null)
+        Func<string, Task>? showInfoAsync = null,
+        bool lookupFailed = false)
     {
         return new XmlImportPinIssueListItemViewModel(
-            "Keine Zuordnung",
+            lookupFailed ? "Prüfung nicht möglich" : "Keine Zuordnung",
             "#FEF2F2",
             "#FECACA",
             "#B91C1C",
             orderId,
             customerName,
             addressLine,
-            "Der Pin konnte keiner konkreten Adresse zugeordnet werden.",
+            lookupFailed ? "Die Adressprüfung konnte nicht abgeschlossen werden. Bitte erneut prüfen." : "Der Pin konnte keiner konkreten Adresse zugeordnet werden.",
             failureSummary,
             editOrderAsync,
             recheckOrderAsync,

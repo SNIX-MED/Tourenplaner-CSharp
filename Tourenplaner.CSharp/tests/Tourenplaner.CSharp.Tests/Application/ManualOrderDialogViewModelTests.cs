@@ -6,6 +6,24 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class ManualOrderDialogViewModelTests
 {
     [Fact]
+    public void LegacyPartialDeliveryNotesSurviveSaveAndReloadWithoutPrefixesOrSourceMutation()
+    {
+        var source = CreateOrder();
+        source.Deliveries = [new() { Id = "D1", SequenceNumber = 1, Notes = "Lieferung 1/2: Rampe links" },
+            new() { Id = "D2", SequenceNumber = 2, Notes = "Lieferung 2/2:" }];
+        var vm = new ManualOrderDialogViewModel(source);
+        Assert.Equal("Rampe links", vm.DeliveryNotes[0].Notes);
+        Assert.Empty(vm.DeliveryNotes[1].Notes);
+        Assert.True(vm.TryBuildOrder(out var saved, out var error), error);
+        var reopened = new ManualOrderDialogViewModel(saved!);
+        Assert.Equal("Rampe links", reopened.DeliveryNotes[0].Notes);
+        Assert.Empty(reopened.DeliveryNotes[1].Notes);
+        Assert.Equal("Notizen Lieferung 2/2", reopened.DeliveryNotes[1].Heading);
+        Assert.Equal("Lieferung 1/2: Rampe links", source.Deliveries[0].Notes);
+        Assert.Equal("Lieferung 2/2:", source.Deliveries[1].Notes);
+    }
+
+    [Fact]
     public void DeliveryPeriod_LoadsAndSavesFreeTextWithoutDeliveryDate()
     {
         var source = CreateOrder();
@@ -346,8 +364,8 @@ public class ManualOrderDialogViewModelTests
             new OrderDelivery { Id = "D2", SequenceNumber = 2, Notes = "Teil zwei" }
         ];
         var vm = new ManualOrderDialogViewModel(source);
-        Assert.Equal("Notizen Lieferung Teil 1", vm.DeliveryNotes[0].Heading);
-        Assert.Equal("Notizen Lieferung Teil 2", vm.DeliveryNotes[1].Heading);
+        Assert.Equal("Notizen Lieferung 1/2", vm.DeliveryNotes[0].Heading);
+        Assert.Equal("Notizen Lieferung 2/2", vm.DeliveryNotes[1].Heading);
         Assert.True(vm.TryBuildOrder(out var result, out var error), error);
         Assert.Equal("Allgemeine Notiz", result!.Notes);
         Assert.Equal("Teil eins", result.Deliveries[0].Notes);

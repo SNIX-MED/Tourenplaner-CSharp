@@ -69,10 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Einheitliche gespeicherte Tourzeitfenster mit Staupuffer und Firmenzeiten
-          - Infokarten von Tour-Pins lassen sich zuverlaessig schliessen und wechseln ohne Flackern
-          - Doppelte Auftragspins verhindert, Teillieferungen und Suchausgrauung bleiben korrekt
-          - Fahrzeugverlauf zeigt nur bei fehlendem Verlauf oder Ladefehler einen kurzen Hinweis
+          - Tourbearbeitung: Abfahrtszeit und ungespeicherte Aenderungen bleiben bei Aktualisierungen erhalten
+          - Doppelklick auf die Abfahrtszeit oeffnet ausschliesslich den passenden Dialog
+          - Adresspruefung erhaelt vorhandene Pins; manuelle Platzierung funktioniert auch ohne Suchtreffer
+          - Infokarten zeigen die Lieferfirma und unterscheiden fixe, geplante, provisorische und bestaetigte Termine
+          - Teillieferungsnotizen zeigen die Lieferungsnummer als Titel statt im Notiztext
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.ComponentModel;
 using System.Globalization;
@@ -1636,48 +1636,33 @@ public sealed partial class KarteSectionViewModel
 
     }
 
-    public async Task EditRouteStartTimeAsync()
+    public Task EditRouteStartTimeAsync()
     {
-        if (!EnsureCurrentRouteCanBeModified()) return;
-
+        if (!EnsureCurrentRouteCanBeModified()) return Task.CompletedTask;
         var dialog = new RouteStartTimeDialogWindow(RouteStartTime)
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
-        if (dialog.ShowDialog() != true || string.Equals(dialog.SelectedTime, RouteStartTime, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        var parts = dialog.SelectedTime.Split(':');
-        RouteStartHour = parts[0];
-        RouteStartMinute = parts[1];
-        ApplyRouteStartTime();
-
-        var tourId = ResolveCurrentTourId();
-        if (tourId <= 0)
-        {
-            StatusText = $"Abfahrtszeit auf {RouteStartTime} geändert.";
-            return;
-        }
-
-        var tours = (await _tourRepository.LoadAsync()).ToList();
-        var tour = tours.FirstOrDefault(candidate => candidate.Id == tourId);
-        if (tour is null)
-        {
-            StatusText = "Die Abfahrtszeit wurde geändert, die Tour konnte aber nicht gespeichert werden.";
-            return;
-        }
-
-        tour.StartTime = RouteStartTime;
-        _scheduleService.ApplySchedule(tour);
-        await SaveTourRecordAsync(tour, tours);
-        _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
-        await LoadSavedToursAsync(tourId);
-        SetRouteChanged(false);
-        StatusText = $"Abfahrtszeit auf {RouteStartTime} geändert und Tourzeiten neu berechnet.";
+        if (dialog.ShowDialog() == true) ApplyEditedRouteStartTime(dialog.SelectedTime);
+        return Task.CompletedTask;
     }
 
+    internal void ApplyEditedRouteStartTime(string time)
+    {
+        if (!CanModifyCurrentRoute() || string.Equals(time, RouteStartTime, StringComparison.Ordinal)) return;
+        if (!TimeOnly.TryParseExact(time, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)) return;
+        var wasSuppressed = _suppressRouteChangeTracking;
+        _suppressRouteChangeTracking = true;
+        try
+        {
+            RouteStartHour = parsed.Hour.ToString("00", CultureInfo.InvariantCulture);
+            RouteStartMinute = parsed.Minute.ToString("00", CultureInfo.InvariantCulture);
+        }
+        finally { _suppressRouteChangeTracking = wasSuppressed; }
+        MarkRouteChanged();
+        ApplyRouteStartTimeFromInput();
+        StatusText = "Abfahrtszeit geändert. Bitte die Tour speichern.";
+    }
     public Task AddPauseAfterSelectedRouteStopAsync()
     {
         if (!EnsureCurrentRouteCanBeModified()) return Task.CompletedTask;
@@ -5511,6 +5496,7 @@ public sealed partial class KarteSectionViewModel
 
     private int ResolveCurrentTourId()
     {
+        if (_activeTourId > 0) return _activeTourId;
         var selectedTourId = SelectedSavedTour?.TourId ?? 0;
         if (selectedTourId > 0)
         {
@@ -7588,21 +7574,11 @@ public sealed partial class KarteSectionViewModel
             return ("Aktiv", "#F3E8FF", "#7E22CE", "\uE768");
         }
 
-        var orderIds = (tour.Stops ?? [])
-            .Where(stop => IsCustomerTourStop(stop) && !IsManualTourStop(stop))
-            .Select(ExtractTourStopOrderId)
-            .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
-            .Select(orderId => orderId.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var avisoStates = orderIds
-            .Select(orderId => _allOrders.FirstOrDefault(order => string.Equals(order.Id, orderId, StringComparison.OrdinalIgnoreCase)))
-            .Select(order => NormalizeAvisoStatus(order?.AvisoStatus))
-            .ToList();
+        var avisoStates = ResolveTourAvisoStates(tour);
 
         if (avisoStates.Count > 0 && avisoStates.All(status => string.Equals(status, "Bestätigt", StringComparison.OrdinalIgnoreCase)))
         {
-            return ("Geplant", "#DCFCE7", "#15803D", "\uE73E");
+            return ("Bestätigt", "#DCFCE7", "#15803D", "\uE73E");
         }
 
         if (avisoStates.Count > 0 &&
@@ -7614,11 +7590,30 @@ public sealed partial class KarteSectionViewModel
         return ("Geplant", "#FEE2E2", "#DC2626", "\uE121");
     }
 
+    private List<string> ResolveTourAvisoStates(TourRecord tour)
+    {
+        var orderIds = (tour.Stops ?? [])
+            .Where(stop => IsCustomerTourStop(stop) && !IsManualTourStop(stop))
+            .Select(ExtractTourStopOrderId)
+            .Where(orderId => !string.IsNullOrWhiteSpace(orderId))
+            .Select(orderId => orderId.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return orderIds
+            .Select(orderId => _allOrders.FirstOrDefault(order => string.Equals(order.Id, orderId, StringComparison.OrdinalIgnoreCase)))
+            .Select(order => NormalizeAvisoStatus(order?.AvisoStatus))
+            .ToList();
+
+    }
+
     private void ApplyTourOverviewSelection(SavedTourOverviewItem? selection)
     {
         _selectedTourOverviewId = selection?.TourId ?? 0;
         OnPropertyChanged(nameof(PlannedTourOverlayHighlightTourId));
         RebuildPlannedTourRouteOverlays();
+        // Rebuilding the overview can clear and restore its selection. It must
+        // never replace the loaded route's time or discard its unsaved changes.
+        if (_activeTourId > 0) return;
         if (_selectedTourOverviewId <= 0)
         {
             UpdateRouteSummary();
@@ -8739,14 +8734,20 @@ public sealed partial class KarteSectionViewModel
         var deliveryService = new OrderDeliveryService();
         var totalWeightKg = delivery is null ? order.ResolveTotalWeightKg() : deliveryService.ResolveWeightKg(order, delivery);
         var isAssigned = delivery is null ? IsOrderAssignedOrInDraftRoute(order) : !string.IsNullOrWhiteSpace(delivery.AssignedTourId);
+        var assignedTourId = delivery is null ? order.AssignedTourId : delivery.AssignedTourId;
+        var assignedTour = _savedTours.FirstOrDefault(t => t.Id.ToString(CultureInfo.InvariantCulture) == assignedTourId);
+        var avisoStates = assignedTour is null ? [] : ResolveTourAvisoStates(assignedTour);
+        var tourConfirmed = avisoStates.Count > 0 && avisoStates.All(status =>
+            string.Equals(status, "Bestätigt", StringComparison.OrdinalIgnoreCase));
+        var cardDate = OrderDeliveryDateDisplayService.BuildCardDate(order, _savedTours, delivery, tourConfirmed);
         return new MapOrderItem
         {
             OrderId = order.Id,
             DeliveryId = delivery?.Id ?? string.Empty,
             DeliverySequenceNumber = delivery?.SequenceNumber,
             Customer = delivery is null || order.Deliveries.Count <= 1
-                ? NormalizeUiText(order.CustomerName)
-                : $"{NormalizeUiText(order.CustomerName)} · Lieferung Teil {delivery.SequenceNumber}",
+                ? ResolveRouteStopName(order)
+                : $"{ResolveRouteStopName(order)} · Lieferung Teil {delivery.SequenceNumber}",
             Address = NormalizeUiText(order.Address),
             Street = ResolveStreet(order),
             PostalCodeCity = ResolvePostalCodeCity(order),
@@ -8754,7 +8755,8 @@ public sealed partial class KarteSectionViewModel
             ProductLines = delivery is null ? BuildProductLineItems(order.Products) : BuildDeliveryProductLines(order, delivery),
             TotalWeightKgText = totalWeightKg.ToString("0.##", CultureInfo.CurrentCulture),
             ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),
-            DeliveryDate = OrderDeliveryDateDisplayService.BuildDisplayText(order, _savedTours, delivery),
+            DeliveryDate = cardDate.Text,
+            DeliveryDateKind = cardDate.Kind,
             DeliveryCanOccurEarlier = order.DeliveryCanOccurEarlier,
             DeliveryPeriod = order.DeliveryPeriod,
             IsAlternativeLiefertour = order.IsAlternativeDeliveryEnabled &&
@@ -9463,6 +9465,7 @@ public sealed class MapOrderItem
     public string TotalWeightKgText { get; set; } = string.Empty;
     public string ScheduledDate { get; set; } = string.Empty;
     public string DeliveryDate { get; set; } = string.Empty;
+    public string DeliveryDateKind { get; set; } = string.Empty;
     public string DeliveryPeriod { get; set; } = string.Empty;
     public bool DeliveryCanOccurEarlier { get; set; }
     public bool IsAlternativeLiefertour { get; set; }

@@ -1044,7 +1044,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             };
             _existingDeliveries.Add(copy);
             if (existingOrder.Deliveries?.Count > 1)
-                DeliveryNotes.Add(new DeliveryNoteInput(copy.Id, copy.SequenceNumber, copy.Notes, true));
+                DeliveryNotes.Add(new DeliveryNoteInput(copy.Id, copy.SequenceNumber, copy.Notes, true, existingOrder.Deliveries.Count));
         }
         if (_existingDeliveries.Count == 1)
         {
@@ -1305,18 +1305,20 @@ public sealed class DeliveryNoteInput : INotifyPropertyChanged
 {
     private string _notes;
     private readonly bool _isPartialDelivery;
+    private readonly int _totalDeliveries;
 
-    public DeliveryNoteInput(string deliveryId, int sequenceNumber, string notes, bool isPartialDelivery = false)
+    public DeliveryNoteInput(string deliveryId, int sequenceNumber, string notes, bool isPartialDelivery = false, int totalDeliveries = 2)
     {
         DeliveryId = deliveryId;
         SequenceNumber = sequenceNumber;
-        _notes = notes ?? string.Empty;
+        _notes = Tourenplaner.CSharp.Application.Services.OrderDeliveryService.RemoveLegacyDeliveryNotePrefix(notes);
         _isPartialDelivery = isPartialDelivery;
+        _totalDeliveries = totalDeliveries;
     }
 
     public string DeliveryId { get; }
     public int SequenceNumber { get; }
-    public string Heading => _isPartialDelivery ? $"Notizen Lieferung Teil {SequenceNumber}" : "Notizen";
+    public string Heading => _isPartialDelivery ? $"Notizen Lieferung {SequenceNumber}/{_totalDeliveries}" : "Notizen";
     public string Notes
     {
         get => _notes;

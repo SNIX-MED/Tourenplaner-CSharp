@@ -969,6 +969,7 @@ public partial class KarteSectionView : UserControl
             products = x.ProductLines,
             totalWeightKgText = x.TotalWeightKgText,
             deliveryDate = x.DeliveryDate,
+            deliveryDateKind = x.DeliveryDateKind,
             deliveryPeriod = x.DeliveryPeriod,
             deliveryCanOccurEarlier = x.DeliveryCanOccurEarlier,
             isAlternativeLiefertour = x.IsAlternativeLiefertour,
@@ -1080,6 +1081,7 @@ public partial class KarteSectionView : UserControl
                     products = infoCard.ProductLines,
                     totalWeightKgText = infoCard.TotalWeightKgText,
                     deliveryDate = infoCard.DeliveryDate,
+                    deliveryDateKind = infoCard.DeliveryDateKind,
                     deliveryPeriod = infoCard.DeliveryPeriod,
                     deliveryCanOccurEarlier = infoCard.DeliveryCanOccurEarlier,
                     isAlternativeLiefertour = infoCard.IsAlternativeLiefertour,
@@ -1576,11 +1578,18 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
-        if (RouteStopsList.SelectedItem is not RouteStopItem)
+        // MouseDoubleClick is raised separately by the ListBox even when the
+        // start-time TextBlock handled MouseLeftButtonDown. Use the clicked row,
+        // not a possibly stale SelectedItem, and never open stay editing for anchors.
+        if (e.OriginalSource is not DependencyObject source ||
+            ItemsControl.ContainerFromElement(RouteStopsList, source) is not ListBoxItem { DataContext: RouteStopItem clicked } ||
+            clicked.IsCompanyAnchor)
         {
             return;
         }
 
+        e.Handled = true;
+        RouteStopsList.SelectedItem = clicked;
         await vm.EditSelectedRouteStopStayMinutesAsync();
     }
 

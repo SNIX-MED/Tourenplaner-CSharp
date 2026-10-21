@@ -776,6 +776,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             var normalized = NormalizeTimeInputPartForEditing(value);
             if (SetProperty(ref _routeStartHour, normalized))
             {
+                if (_suppressRouteChangeTracking) return;
                 MarkRouteChanged();
                 ApplyRouteStartTimeFromInput();
                 ScheduleTourOverviewStartTimeAutoSave();
@@ -792,6 +793,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             var normalized = NormalizeTimeInputPartForEditing(value);
             if (SetProperty(ref _routeStartMinute, normalized))
             {
+                if (_suppressRouteChangeTracking) return;
                 MarkRouteChanged();
                 ApplyRouteStartTimeFromInput();
                 ScheduleTourOverviewStartTimeAutoSave();

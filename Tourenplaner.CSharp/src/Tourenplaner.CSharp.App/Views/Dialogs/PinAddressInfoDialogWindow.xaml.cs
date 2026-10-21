@@ -51,7 +51,7 @@ public partial class PinAddressInfoDialogWindow : Window
         FoundText.Text = result is null
             ? failureSummary
             : $"Nächster TomTom-Treffer: {result.ResultFreeformAddress ?? originalAddress} ({result.MatchType})";
-        MovePinButton.IsEnabled = result is not null || initialLocation is not null;
+        MovePinButton.IsEnabled = !string.IsNullOrWhiteSpace(_tomTomApiKey);
         SaveButton.IsEnabled = pendingResolutionTask is null && initialLocation is not null && !requireManualPlacement;
         UpdatePositionText(manuallyPlaced: initialLocation is not null);
     }
@@ -69,8 +69,10 @@ public partial class PinAddressInfoDialogWindow : Window
                 FoundText.Text = _result is null
                     ? _failureSummary
                     : $"Nächster TomTom-Treffer: {_result.ResultFreeformAddress ?? _originalAddress} ({_result.MatchType})";
-                MovePinButton.IsEnabled = _result is not null || _initialLocation is not null;
+                MovePinButton.IsEnabled = !string.IsNullOrWhiteSpace(_tomTomApiKey);
                 SaveButton.IsEnabled = (_result is not null || _initialLocation is not null) && !_requireManualPlacement;
+                _selectedLocation ??= _result?.Location;
+                UpdatePositionText();
             }
             catch (Exception ex)
             {
@@ -80,11 +82,6 @@ public partial class PinAddressInfoDialogWindow : Window
             }
         }
 
-        if (_result is null && _initialLocation is null)
-        {
-            ShowMapMessage(_failureSummary);
-            return;
-        }
         if (string.IsNullOrWhiteSpace(_tomTomApiKey))
         {
             ShowMapMessage("TomTom-API-Key fehlt. Die Kartenvorschau kann nicht geladen werden.");
@@ -164,7 +161,8 @@ public partial class PinAddressInfoDialogWindow : Window
     private string BuildMapHtml()
     {
         var apiKey = JsonSerializer.Serialize(_tomTomApiKey);
-        var initialLocation = _initialLocation ?? _result!.Location;
+        var initialLocation = _initialLocation ?? _result?.Location ?? new GeoPoint(46.798562, 8.231974);
+        var hasLocation = _initialLocation is not null || _result is not null;
         var latitude = initialLocation.Latitude.ToString("R", CultureInfo.InvariantCulture);
         var longitude = initialLocation.Longitude.ToString("R", CultureInfo.InvariantCulture);
         var resetLocation = _result?.Location ?? initialLocation;
@@ -180,7 +178,7 @@ public partial class PinAddressInfoDialogWindow : Window
             <style>html,body,#map{width:100%;height:100%;margin:0}.pin{width:28px;height:28px;border-radius:50% 50% 50% 0;background:#98008f;border:3px solid white;box-shadow:0 2px 8px #0008;transform:rotate(-45deg)}.reference-pin{width:22px;height:22px;border-radius:50%;background:#2563eb;border:3px solid white;box-shadow:0 2px 8px #0008;position:relative}.reference-pin:after{content:'';position:absolute;inset:6px;border-radius:50%;background:white}.edit-note{position:absolute;z-index:2;top:12px;left:50%;transform:translateX(-50%);padding:8px 12px;border-radius:8px;background:#fff;color:#172033;box-shadow:0 2px 10px #0004;font:600 13px Segoe UI;display:none}.pin-legend{position:absolute;z-index:2;left:12px;bottom:12px;padding:7px 10px;border-radius:8px;background:#fffffff2;color:#334155;box-shadow:0 2px 10px #0003;font:600 12px Segoe UI;display:none}.pin-legend span+span{margin-left:12px}.legend-manual{color:#98008f}.legend-tomtom{color:#2563eb}</style>
             </head><body><div id="note" class="edit-note">Auf die Karte klicken oder den Pin ziehen</div><div id="pinLegend" class="pin-legend"><span class="legend-manual">● Manueller Pin</span><span class="legend-tomtom">● TomTom-Adresse</span></div><div id="map"></div>
             <script>
-            (()=>{const apiKey={{apiKey}},initial=[{{longitude}},{{latitude}}],resetPosition=[{{resetLongitude}},{{resetLatitude}}],showReferenceMarker={{showReferenceMarker}},label={{label}};
+            (()=>{const hasLocation={{hasLocation.ToString().ToLowerInvariant()}},apiKey={{apiKey}},initial=[{{longitude}},{{latitude}}],resetPosition=[{{resetLongitude}},{{resetLatitude}}],showReferenceMarker={{showReferenceMarker}},label={{label}};
             const post=message=>{if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(JSON.stringify(message));};
             const cssCandidates=['https://api.tomtom.com/maps-sdk-for-web/cdn/5.x/5.64.0/maps/maps.css','https://api.tomtom.com/maps-sdk-for-web/cdn/5.x/5.51.0/maps/maps.css'];
             const jsCandidates=['https://api.tomtom.com/maps-sdk-for-web/cdn/5.x/5.64.0/maps/maps-web.min.js','https://api.tomtom.com/maps-sdk-for-web/cdn/5.x/5.51.0/maps/maps-web.min.js'];
@@ -192,13 +190,13 @@ public partial class PinAddressInfoDialogWindow : Window
               await loadFirst(cssCandidates,loadCss);
               await loadFirst(jsCandidates,loadScript);
               if(!(window.tt&&typeof window.tt.map==='function'))throw new Error('TomTom Maps SDK ist nicht verfügbar.');
-              let mapReady=false;const map=window.tt.map({key:apiKey,container:'map',center:initial,zoom:16,language:'de-DE'});map.addControl(new window.tt.NavigationControl(),'top-right');
+              let mapReady=false;const map=window.tt.map({key:apiKey,container:'map',center:initial,zoom:hasLocation?16:7,language:'de-DE'});map.addControl(new window.tt.NavigationControl(),'top-right');
               const element=document.createElement('div');element.className='pin';element.title=label;
-              const marker=new window.tt.Marker({element,draggable:false}).setLngLat(initial).addTo(map);let editing=false;
+              const marker=new window.tt.Marker({element,draggable:false}).setLngLat(initial);if(hasLocation)marker.addTo(map);let editing=false;
               let referenceMarker=null;
               if(showReferenceMarker){const referenceElement=document.createElement('div');referenceElement.className='reference-pin';referenceElement.title='TomTom-Position der aktuellen Lieferadresse';referenceMarker=new window.tt.Marker({element:referenceElement,draggable:false}).setLngLat(resetPosition).addTo(map);document.getElementById('pinLegend').style.display='block';}
               const sendPosition=()=>{const p=marker.getLngLat();post({type:'position',latitude:p.lat,longitude:p.lng,manual:editing});};
-              marker.on('dragend',sendPosition);map.on('click',e=>{if(!editing)return;marker.setLngLat(e.lngLat);sendPosition();});
+              marker.on('dragend',sendPosition);map.on('click',e=>{if(!editing)return;marker.setLngLat(e.lngLat).addTo(map);sendPosition();});
               map.on('load',()=>{mapReady=true;if(showReferenceMarker){const bounds=new window.tt.LngLatBounds();bounds.extend(initial);bounds.extend(resetPosition);map.fitBounds(bounds,{padding:70,maxZoom:16,duration:0});}post({type:'ready'});});
               map.on('error',event=>{if(!mapReady)post({type:'error',message:event&&event.error&&event.error.message?`Kartenvorschau: ${event.error.message}`:'Die TomTom-Karte konnte nicht geladen werden.'});});
               window.gawelaEnablePinEdit=()=>{editing=true;marker.setDraggable(true);document.getElementById('note').style.display='block';};

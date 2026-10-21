@@ -5,6 +5,28 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class OrderDeliveryServiceTests
 {
+    [Fact]
+    public void EmptyPartialDeliveryNotesStayEmptyAndDistributionIsIdempotent()
+    {
+        var order = NewOrder(1);
+        order.Deliveries = [new() { Id = "D1", SequenceNumber = 1, Notes = "Lieferung 1/2:" },
+            new() { Id = "D2", SequenceNumber = 2, Notes = "Lieferung 2/2:" }];
+        Assert.True(_service.DistributeOrderNotesToDeliveries(order));
+        Assert.All(order.Deliveries, d => Assert.Empty(d.Notes));
+        Assert.False(_service.DistributeOrderNotesToDeliveries(order));
+    }
+
+    [Theory]
+    [InlineData("Lieferung 1/2:", "")]
+    [InlineData("Lieferung 1/2: Rampe links", "Rampe links")]
+    [InlineData("Empfang anrufen\nLieferung 1/2: bleibt im Inhalt", "Empfang anrufen\nLieferung 1/2: bleibt im Inhalt")]
+    public void NoteEditorDisplaysDeliveryNumberAsHeadingAndPreservesUserContent(string stored, string content)
+    {
+        var input = new Tourenplaner.CSharp.App.Views.Dialogs.DeliveryNoteInput("D1", 1, stored, true, 2);
+        Assert.Equal("Notizen Lieferung 1/2", input.Heading);
+        Assert.Equal(content, input.Notes);
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
@@ -26,7 +48,7 @@ public sealed class OrderDeliveryServiceTests
         {
             Assert.Empty(order.Notes);
             for (var i = 0; i < count; i++)
-                Assert.Equal($"Lieferung {i + 1}/{count}: Spezielle Notiz {i + 1}{Environment.NewLine}Allgemeine Notiz", order.Deliveries[i].Notes);
+                Assert.Equal($"Spezielle Notiz {i + 1}{Environment.NewLine}Allgemeine Notiz", order.Deliveries[i].Notes);
         }
         Assert.False(_service.DistributeOrderNotesToDeliveries(order));
     }
@@ -364,8 +386,8 @@ public sealed class OrderDeliveryServiceTests
         ];
 
         Assert.True(_service.DistributeOrderNotesToDeliveries(order));
-        Assert.Equal("Lieferung 1/2: Beim Kunden anmelden", order.Deliveries[0].Notes);
-        Assert.Equal("Lieferung 2/2: Beim Kunden anmelden", order.Deliveries[1].Notes);
+        Assert.Equal("Beim Kunden anmelden", order.Deliveries[0].Notes);
+        Assert.Equal("Beim Kunden anmelden", order.Deliveries[1].Notes);
         Assert.Empty(order.Notes);
     }
 
@@ -380,8 +402,8 @@ public sealed class OrderDeliveryServiceTests
         ];
 
         Assert.True(_service.DistributeOrderNotesToDeliveries(order));
-        Assert.Equal("Lieferung 1/2: Rampe links", order.Deliveries[0].Notes);
-        Assert.Equal("Lieferung 2/2: Empfang anrufen", order.Deliveries[1].Notes);
+        Assert.Equal("Rampe links", order.Deliveries[0].Notes);
+        Assert.Equal("Empfang anrufen", order.Deliveries[1].Notes);
         Assert.DoesNotContain("Lieferung 1/1: Lieferung", order.Deliveries[0].Notes);
     }
 

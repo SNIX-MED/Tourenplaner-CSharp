@@ -5,6 +5,26 @@ namespace Tourenplaner.CSharp.App.Services;
 
 public static class OrderDeliveryDateDisplayService
 {
+    public sealed record CardDate(string Text, string Kind);
+
+    public static CardDate BuildCardDate(Order order, IEnumerable<TourRecord> tours, OrderDelivery? delivery = null,
+        bool tourConfirmed = false)
+    {
+        var explicitDate = delivery?.PlannedDeliveryDate is { } planned && planned != DateOnly.MinValue
+            ? planned : order.DeliveryDate is { } date && date != DateOnly.MinValue ? date : (DateOnly?)null;
+        var tourId = delivery is null ? order.AssignedTourId : delivery.AssignedTourId;
+        var tourDate = ResolveAssignedTourDate(tourId, tours);
+        var displayedDate = explicitDate ?? tourDate;
+        if (displayedDate is null) return new CardDate(string.Empty, string.Empty);
+
+        // A tour assignment or an aviso confirmation never establishes a fixed date.
+        var isFixed = order.DeliveryDate == displayedDate && !order.DeliveryCanOccurEarlier;
+        var isProvisional = !isFixed && tourDate == displayedDate &&
+                            ResolvePlanningSuffix(order.AvisoStatus) == "Provisorisch";
+        return new CardDate(FormatDate(displayedDate.Value),
+            isFixed ? "fixed" : tourConfirmed && tourDate == displayedDate ? "confirmed" : isProvisional ? "provisional" : "planned");
+    }
+
     public static string BuildDisplayText(Order? order, IEnumerable<TourRecord> tours, OrderDelivery? delivery = null)
     {
         if (order is null)

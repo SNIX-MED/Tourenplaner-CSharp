@@ -18,6 +18,14 @@ internal sealed record OrderPinManualConfirmation(
 
 internal static class OrderPinValidationPolicy
 {
+    public static GeoPoint? ResolvePreviewLocation(Order order, AddressGeocodingResult? result) =>
+        order.IsLocationManuallySet ? order.Location ?? result?.Location : result?.Location ?? order.Location;
+
+    // Import already clears automatic coordinates when the delivery address changes.
+    // A failed or approximate lookup must not erase the remaining valid position.
+    public static GeoPoint? ResolveImportedLocation(Order order, AddressGeocodingResult? result) =>
+        result?.IsPrecise == true && !order.IsLocationManuallySet ? result.Location : order.Location;
+
     public static bool HasDeliveryAddressChanged(Order existing, Order updated) =>
         !string.Equals(BuildAddressKey(existing), BuildAddressKey(updated), StringComparison.Ordinal);
 

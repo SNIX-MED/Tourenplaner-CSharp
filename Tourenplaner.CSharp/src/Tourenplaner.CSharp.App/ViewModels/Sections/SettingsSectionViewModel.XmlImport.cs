@@ -375,9 +375,7 @@ public sealed partial class SettingsSectionViewModel
                 order, TomTomApiKey, cacheFilePath,
                 message => ImportStatusMessage = $"Auftrag {order.Id}: {message}");
             var geocodingResult = geocodingResolution.Result;
-            var nextLocation = geocodingResult?.IsPrecise == true
-                ? geocodingResult.Location
-                : null;
+            var nextLocation = OrderPinValidationPolicy.ResolveImportedLocation(order, geocodingResult);
 
             // Compatibility for pins that were manually corrected before the source
             // metadata was introduced. A stored point that differs from the same
@@ -518,7 +516,8 @@ public sealed partial class SettingsSectionViewModel
                 GetGeocodingFailureSummary(failureReason),
                 EditXmlImportPinIssueOrderAsync,
                 RecheckXmlImportPinIssueAsync,
-                id => ShowXmlImportPinInfoAsync(id, addressLine, geocodingResult, failureReason));
+                id => ShowXmlImportPinInfoAsync(id, addressLine, geocodingResult, failureReason),
+                lookupFailed: failureReason != AddressGeocodingFailureReason.NoResult);
         }
 
         if (!geocodingResult.IsPrecise)
@@ -551,7 +550,7 @@ public sealed partial class SettingsSectionViewModel
         }
 
         // A warning may outlive an edit from another view or another user.
-        if (!string.Equals(originalAddress, BuildXmlImportPinIssueAddress(order), StringComparison.Ordinal) ||
+        if (result is null || !string.Equals(originalAddress, BuildXmlImportPinIssueAddress(order), StringComparison.Ordinal) ||
             (failureReason == AddressGeocodingFailureReason.MissingApiKey && !string.IsNullOrWhiteSpace(TomTomApiKey)))
         {
             originalAddress = BuildXmlImportPinIssueAddress(order);
@@ -562,15 +561,16 @@ public sealed partial class SettingsSectionViewModel
         }
         var dialog = new PinAddressInfoDialogWindow(order, originalAddress, result,
             GetGeocodingFailureSummary(failureReason), TomTomApiKey,
-            order.IsLocationManuallySet ? order.Location : null,
+            OrderPinValidationPolicy.ResolvePreviewLocation(order, result),
             order.IsLocationManuallySet,
-            order.ManualLocationRequiresReview)
+            order.ManualLocationRequiresReview,
+            requireManualPlacement: result is null && !order.IsLocationManuallySet)
         {
             Owner = System.Windows.Application.Current?.Windows.OfType<Window>().FirstOrDefault(window => window.IsActive)
                     ?? System.Windows.Application.Current?.MainWindow
         };
         if (dialog.ShowDialog() != true) return;
-        if (result is null || dialog.SelectedLocation is null)
+        if (dialog.SelectedLocation is null)
         {
             ImportStatusMessage = $"Auftrag {orderId}: ursprüngliche Adresse beibehalten. Die Pin-Zuordnung bleibt zur Prüfung offen.";
             return;
@@ -588,9 +588,8 @@ public sealed partial class SettingsSectionViewModel
         // Work on a copy: a failed save must not alter a shared repository object.
         var updated = System.Text.Json.JsonSerializer.Deserialize<Order>(
             System.Text.Json.JsonSerializer.Serialize(order))!;
-        var selectedResult = result with { Location = dialog.SelectedLocation };
-        if (dialog.UseFoundAddress)
-            PinAddressComparison.ApplyFoundAddress(updated, selectedResult);
+        if (dialog.UseFoundAddress && result is not null)
+            PinAddressComparison.ApplyFoundAddress(updated, result with { Location = dialog.SelectedLocation });
         else
             updated.Location = dialog.SelectedLocation;
         var manuallyConfirmed = dialog.IsSelectedLocationManual || result?.IsPrecise != true;

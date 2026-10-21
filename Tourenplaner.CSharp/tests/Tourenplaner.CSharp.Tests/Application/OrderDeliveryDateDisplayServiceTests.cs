@@ -5,6 +5,71 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public class OrderDeliveryDateDisplayServiceTests
 {
+    [Theory]
+    [InlineData(false, false, "planned")]
+    [InlineData(true, false, "confirmed")]
+    [InlineData(true, true, "fixed")]
+    public void CardDate_ConfirmedTourUsesGreenConfirmationExceptForFixedDates(bool tourConfirmed, bool fixedDate, string kind)
+    {
+        var order = new Order { AssignedTourId = "10", AvisoStatus = "Bestätigt",
+            DeliveryDate = fixedDate ? new DateOnly(2026, 10, 29) : null };
+        var result = OrderDeliveryDateDisplayService.BuildCardDate(order,
+            [new TourRecord { Id = 10, Date = "29.10.2026" }], tourConfirmed: tourConfirmed);
+        Assert.Equal("29.10.2026", result.Text);
+        Assert.Equal(kind, result.Kind);
+    }
+
+    [Fact]
+    public void CardDate_ConfirmedTourDoesNotConfirmDifferentExplicitDeliveryDate()
+    {
+        var order = new Order { AssignedTourId = "10", DeliveryDate = new DateOnly(2026, 10, 30), DeliveryCanOccurEarlier = true };
+        var result = OrderDeliveryDateDisplayService.BuildCardDate(order,
+            [new TourRecord { Id = 10, Date = "29.10.2026" }], tourConfirmed: true);
+        Assert.Equal("planned", result.Kind);
+    }
+
+    [Theory]
+    [InlineData(false, "nicht avisiert", "fixed")]
+    [InlineData(false, "Bestätigt", "fixed")]
+    [InlineData(true, "nicht avisiert", "planned")]
+    public void CardDate_UsesFixedDateContract(bool earlier, string aviso, string expectedKind)
+    {
+        var order = new Order { DeliveryDate = new DateOnly(2026, 10, 29), DeliveryCanOccurEarlier = earlier, AvisoStatus = aviso };
+        var result = OrderDeliveryDateDisplayService.BuildCardDate(order, []);
+        Assert.Equal("29.10.2026", result.Text);
+        Assert.Equal(expectedKind, result.Kind);
+    }
+
+    [Theory]
+    [InlineData("nicht avisiert", "provisional")]
+    [InlineData("Bestätigt", "planned")]
+    [InlineData("Bestaetigt", "planned")]
+    public void CardDate_TourConfirmationNeverCreatesFixedDate(string aviso, string expectedKind)
+    {
+        var order = new Order { AssignedTourId = "10", AvisoStatus = aviso };
+        var result = OrderDeliveryDateDisplayService.BuildCardDate(order, [new TourRecord { Id = 10, Date = "29.10.2026" }]);
+        Assert.Equal("29.10.2026", result.Text);
+        Assert.Equal(expectedKind, result.Kind);
+    }
+
+    [Fact]
+    public void CardDate_PartialDeliveryUsesOwnTourAndDoesNotInheritDifferentFixedDate()
+    {
+        var order = new Order { DeliveryDate = new DateOnly(2026, 10, 28), AssignedTourId = "10", AvisoStatus = "Bestätigt" };
+        var delivery = new OrderDelivery { PlannedDeliveryDate = new DateOnly(2026, 10, 29), IsPlannedDeliveryDateExplicit = true, AssignedTourId = "11" };
+        var result = OrderDeliveryDateDisplayService.BuildCardDate(order,
+            [new TourRecord { Id = 10, Date = "28.10.2026" }, new TourRecord { Id = 11, Date = "29.10.2026" }], delivery);
+        Assert.Equal("29.10.2026", result.Text);
+        Assert.Equal("planned", result.Kind);
+    }
+
+    [Fact]
+    public void CardDate_MissingDateRemainsEmptyDespiteCreationDateOrPeriod()
+    {
+        var order = new Order { ScheduledDate = new DateOnly(2026, 10, 29), DeliveryDate = DateOnly.MinValue, DeliveryPeriod = "KW 44/2026" };
+        Assert.Equal(new OrderDeliveryDateDisplayService.CardDate("", ""), OrderDeliveryDateDisplayService.BuildCardDate(order, []));
+    }
+
     [Fact]
     public void DeliveryWithoutDateNeverFallsBackToOrderCreationDate()
     {

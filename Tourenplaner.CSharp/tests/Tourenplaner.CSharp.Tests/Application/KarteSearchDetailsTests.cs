@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Sections;
 using Tourenplaner.CSharp.Application.Abstractions;
@@ -10,6 +10,69 @@ namespace Tourenplaner.CSharp.Tests.Application;
 [Collection("Karte collaboration")]
 public sealed class KarteSearchDetailsTests
 {
+    [Fact]
+    public async Task OverviewRefreshCannotResetEditedDepartureOrDiscardDraftChanges()
+    {
+        var store = new ChangingPreviewTourStore();
+        store.Current.StartTime = "07:30";
+        var vm = CreateViewModel(new FixedOrderStore(CreateOrder()), store);
+        await vm.RefreshAsync();
+        SetPrivateField(vm, "_activeTourId", 42);
+        SetPrivateField(vm, "_loadedTourLeaseId", 42);
+        SetPrivateField(vm, "_isLoadedTourEditing", true);
+        vm.ApplyEditedRouteStartTime("05:00");
+        Assert.Equal("05", vm.RouteStartHour);
+        Assert.Equal("00", vm.RouteStartMinute);
+        var saves = store.SaveCount;
+        vm.SelectedTourOverviewItem = null;
+        vm.SelectedTourOverviewItem = vm.TourOverviewItems.Single();
+        Assert.Equal("05", vm.RouteStartHour);
+        Assert.Equal("00", vm.RouteStartMinute);
+        Assert.True(GetPrivateField<bool>(vm, "_hasUnsavedRouteChanges"));
+        Assert.Equal(saves, store.SaveCount);
+        Assert.Equal("07:30", store.Current.StartTime);
+        SetPrivateField(vm, "_selectedTourOverviewId", 99);
+        var currentId = typeof(KarteSectionViewModel).GetMethod("ResolveCurrentTourId",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(vm, null);
+        Assert.Equal(42, currentId);
+    }
+
+    [Theory]
+    [InlineData("Bestätigt", "confirmed")]
+    [InlineData("nicht avisiert", "provisional")]
+    public async Task RouteInfoCardDateUsesTheAssignedToursAvisoState(string aviso, string expectedKind)
+    {
+        var order = CreateOrder();
+        order.AssignedTourId = "42";
+        order.AvisoStatus = aviso;
+        order.Products = [new() { PositionId = "P1", Name = "Produkt", Quantity = 1 }];
+        order.Deliveries = [new() { Id = "D1", SequenceNumber = 1, AssignedTourId = "42",
+            Lines = [new() { OrderProductPositionId = "P1", Quantity = 1 }] }];
+        var tours = new ChangingPreviewTourStore();
+        tours.Current.Stops[0].DeliveryId = "D1";
+        tours.Current.Date = DateTime.Today.AddDays(2).ToString("dd.MM.yyyy");
+        var vm = CreateViewModel(new FixedOrderStore(order), tours);
+        await vm.RefreshAsync();
+        var card = vm.ResolveRoutePinInfoCard(new() { OrderId = order.Id, DeliveryId = "D1" });
+        Assert.Equal(expectedKind, card.DeliveryDateKind);
+        Assert.Equal(tours.Current.Date, card.DeliveryDate);
+    }
+
+    [Fact]
+    public async Task RouteInfoCardUsesDeliveryCompanyAndStreetInsteadOfOrderAddress()
+    {
+        var order = CreateOrder();
+        order.CustomerName = "Cham Swiss Properties AG";
+        order.OrderAddress = new() { Name = "Cham Swiss Properties AG", Street = "Fabrikstrasse", HouseNumber = "5", PostalCode = "6330", City = "Cham" };
+        order.DeliveryAddress = new() { Name = "CIAG, Hochhaus Tender", Street = "Teststrasse", HouseNumber = "16", PostalCode = "8400", City = "Winterthur" };
+        var vm = CreateViewModel(new FixedOrderStore(order));
+        await vm.RefreshAsync();
+        var card = vm.ResolveRoutePinInfoCard(new() { OrderId = order.Id });
+        Assert.Equal("CIAG, Hochhaus Tender", card.Customer);
+        Assert.Equal("Teststrasse 16", card.Street);
+        Assert.Equal("8400 Winterthur", card.PostalCodeCity);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -178,7 +241,7 @@ public sealed class KarteSearchDetailsTests
         vm.MapOrders.Clear();
         var card = vm.ResolveRoutePinInfoCard(new() { OrderId = order.Id, DeliveryId = "D2" });
         Assert.Contains("Lieferung Teil 2", card.Customer);
-        Assert.Equal("Lieferung 2/2: Teil zwei", card.Notes);
+        Assert.Equal("Teil zwei", card.Notes);
         Assert.Equal("35", card.TotalWeightKgText);
         Assert.Equal("7 × Produkt", Assert.Single(card.ProductLines));
     }
