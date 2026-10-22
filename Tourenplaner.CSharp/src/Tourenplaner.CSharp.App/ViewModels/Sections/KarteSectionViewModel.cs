@@ -102,6 +102,10 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private int _loadedTourLeaseId;
     private bool _isLoadedTourEditing;
     private bool _hasDeferredRemoteRefresh;
+    private readonly List<AppDataChangedEventArgs> _deferredRemoteChanges = [];
+    private readonly AppDataRefreshQueue _remoteRefreshQueue;
+    private string _displayedTourSnapshot = string.Empty;
+    private string _displayedTourRoutingSnapshot = string.Empty;
     private readonly SemaphoreSlim _tourAccessSyncGate = new(1, 1);
     private string? _loadedTourEditConcurrencyToken;
     private int _webfleetVehicleRevision;
@@ -300,7 +304,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         RefreshWebfleetVehiclesCommand = new AsyncCommand(ToggleWebfleetVehiclesAsync);
         DeleteSelectedTourCommand = new AsyncCommand(DeleteSelectedTourAsync, CanEditOrLeaveSelectedTour);
         OpenSelectedTourOverviewCommand = new AsyncCommand(OpenSelectedTourOverviewAsync, CanOpenSelectedTourOverview);
-        ClearRouteCommand = new DelegateCommand(ClearRoute, () => RouteStops.Any(x => !IsCompanyStop(x)));
+        ClearRouteCommand = new DelegateCommand(() =>
+        {
+            ClearRoute();
+            RefreshDeferredRemoteChangesAsync().Forget();
+        }, () => RouteStops.Any(x => !IsCompanyStop(x)));
         LeaveSelectedTourCommand = new DelegateCommand(LeaveSelectedTour, CanLeaveSelectedTour);
         PreviousTourCommand = new DelegateCommand(SwitchToPreviousTour, CanSwitchToPreviousTour);
         NextTourCommand = new DelegateCommand(SwitchToNextTour, CanSwitchToNextTour);
@@ -315,7 +323,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         SendEmailCommand = new DelegateCommand(SendEmailToSelectedOrder, () => SelectedOrder is not null);
         ShowSelectedOrderTourCommand = new AsyncCommand(ShowSelectedOrderTourAsync, CanShowSelectedOrderTour);
         EditOrderCommand = new AsyncCommand(EditSelectedOrderAsync, () => SelectedOrder is not null);
-        _dataSyncService.OrdersChanged += OnOrdersChanged;
+        _remoteRefreshQueue = new AppDataRefreshQueue(RefreshRemoteBatchAsync);
         _dataSyncService.DataChanged += OnDataChanged;
 
         EnsureCompanyAnchors();
@@ -876,6 +884,13 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         get => _detailSelectedAvisoStatus;
         set
         {
+            // Rebuilding the detail panel can temporarily clear WPF's SelectedItem.
+            // Only an actual status option may trigger a save.
+            if (string.IsNullOrWhiteSpace(value) || !_avisoStatusOptions.Contains(value))
+            {
+                return;
+            }
+
             if (!SetProperty(ref _detailSelectedAvisoStatus, value))
             {
                 return;

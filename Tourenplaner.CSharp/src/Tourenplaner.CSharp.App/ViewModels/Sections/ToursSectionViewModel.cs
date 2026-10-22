@@ -831,11 +831,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     }
 
     public async Task RefreshAsync()
+        => await RefreshAsync(maintainData: true);
+
+    private async Task RefreshAsync(bool maintainData)
     {
         await _refreshGate.WaitAsync();
         try
         {
-            await RefreshCoreAsync();
+            await RefreshCoreAsync(maintainData);
         }
         finally
         {
@@ -843,7 +846,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
     }
 
-    private async Task RefreshCoreAsync()
+    private async Task RefreshCoreAsync(bool maintainData = true)
     {
         await LoadReferenceDataAsync();
         var settings = await _settingsRepository.LoadAsync();
@@ -882,7 +885,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         _loadedTours.AddRange(loadedTours
             .GroupBy(tour => tour.Id)
             .Select(group => group.First()));
-        var tourReconciliation = TourOrderReferenceService.ReconcileActiveToursWithOrders(_loadedTours, _ordersById.Values);
+        var tourReconciliation = maintainData
+            ? TourOrderReferenceService.ReconcileActiveToursWithOrders(_loadedTours, _ordersById.Values)
+            : new TourOrderReferenceReconciliationResult(0, [], [], []);
         foreach (var changedTourId in tourReconciliation.RescheduledTourIds)
         {
             var changedTour = _loadedTours.FirstOrDefault(x => x.Id == changedTourId);
@@ -892,7 +897,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             }
         }
 
-        var companyStopsNormalized = NormalizeCompanyStops(_loadedTours, settings);
+        var companyStopsNormalized = maintainData && NormalizeCompanyStops(_loadedTours, settings);
         if (tourReconciliation.HasChanges || companyStopsNormalized)
         {
             await TourReconciliationPersistenceService.SaveAsync(_tourRepository, originalTours, _loadedTours, tourReconciliation);
@@ -4152,7 +4157,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return;
         }
 
-        _ = RefreshAsync();
+        RefreshAsync(maintainData: false).Forget();
     }
 
     private static bool NormalizeCompanyStops(IReadOnlyList<TourRecord> tours, AppSettings settings)

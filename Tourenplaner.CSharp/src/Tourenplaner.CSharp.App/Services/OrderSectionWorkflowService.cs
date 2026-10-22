@@ -172,6 +172,15 @@ public sealed class OrderSectionWorkflowService
         }
     }
 
+    internal async Task<OrderEditorSaveResult> SaveEditorResultAsync(
+        Order original, Order candidate, CancellationToken cancellationToken = default)
+    {
+        var result = await OrderEditorSaveService.SaveAsync(
+            _orderRepository, _tourRepository, original, candidate, cancellationToken: cancellationToken);
+        if (result.ToursChanged) _dataSyncService.PublishTours(_sourceId);
+        return result;
+    }
+
     public async Task ReconcileToursWithOrdersAsync(
         IEnumerable<Order> orders,
         CancellationToken cancellationToken = default)

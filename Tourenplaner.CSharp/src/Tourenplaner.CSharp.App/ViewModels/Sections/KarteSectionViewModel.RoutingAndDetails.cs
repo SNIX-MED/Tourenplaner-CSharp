@@ -602,7 +602,7 @@ public sealed partial class KarteSectionViewModel
         }
     }
 
-    private async Task RefreshCoreAsync()
+    private async Task<bool> RefreshCoreAsync(bool maintainData = true, int? expectedLoadedTourId = null)
     {
         var previousTomTomApiKey = _tomTomApiKey;
         var previousTomTomEnableTileCache = _tomTomEnableTileCache;
@@ -610,9 +610,18 @@ public sealed partial class KarteSectionViewModel
         var ordersTask = _orderRepository.GetAllAsync();
         var vehiclesTask = _vehicleRepository.LoadAsync();
         var employeesTask = _employeeRepository.LoadAsync();
+        var toursTask = maintainData ? null : _tourRepository.LoadAsync();
         await Task.WhenAll(settingsTask, ordersTask, vehiclesTask, employeesTask);
 
         var settings = await settingsTask;
+        var companyLocation = await AddressGeocodingService.TryGeocodeAddressAsync(
+            settings.CompanyStreet, settings.CompanyPostalCode, settings.CompanyCity,
+            BuildCompanyAddressText(settings.CompanyStreet, settings.CompanyPostalCode, settings.CompanyCity),
+            (settings.TomTomApiKey ?? string.Empty).Trim(), _geocodeCachePath);
+        var remoteTours = toursTask is null ? null : await toursTask;
+        // A new draft may have been started while the read/geocoding was in flight.
+        if (!maintainData && (IsLoadedTourEditing || _hasUnsavedRouteChanges ||
+            (expectedLoadedTourId.HasValue && LoadedTourId != expectedLoadedTourId.Value))) return false;
         _additionalMaterialGroups = (settings.AdditionalMaterialGroups ?? []).ToList();
         var currentUserName = ResolveCurrentSettingsUserName(settings);
         var userPreference = settings.ResolveUserPreference(currentUserName);
@@ -763,13 +772,7 @@ public sealed partial class KarteSectionViewModel
         _defaultRouteStartMinute = defaultMinute;
         NotifyLegendColorsChanged();
         IsDetailsPanelExpanded = userPreference.MapDetailsPanelExpanded;
-        _companyLocation = await AddressGeocodingService.TryGeocodeAddressAsync(
-            settings.CompanyStreet,
-            settings.CompanyPostalCode,
-            settings.CompanyCity,
-            _companyAddress,
-            _tomTomApiKey,
-            _geocodeCachePath);
+        _companyLocation = companyLocation;
         _employeeLabelsById.Clear();
         _employeeLabelsByWebfleetObjectUid.Clear();
         _employeeIdsByWebfleetObjectUid.Clear();
@@ -802,10 +805,10 @@ public sealed partial class KarteSectionViewModel
         _allOrders.AddRange(loadedOrders);
 
         var beforeMaintenance = OrderMaintenancePersistenceService.CreateSnapshot(_allOrders);
-        var statusSynchronized = SyncDerivedOrderStatuses(_allOrders);
-        var deliveriesSynchronized = SynchronizePartialDeliveries(_allOrders);
-        var suspiciousLocationsCleared = AddressGeocodingService.ClearSuspiciousSharedOrderLocations(_allOrders) > 0;
-        var locationBackfilled = await BackfillMissingLocationsAsync();
+        var statusSynchronized = maintainData && SyncDerivedOrderStatuses(_allOrders);
+        var deliveriesSynchronized = maintainData && SynchronizePartialDeliveries(_allOrders);
+        var suspiciousLocationsCleared = maintainData && AddressGeocodingService.ClearSuspiciousSharedOrderLocations(_allOrders) > 0;
+        var locationBackfilled = maintainData && await BackfillMissingLocationsAsync();
         if (statusSynchronized || deliveriesSynchronized || suspiciousLocationsCleared || locationBackfilled)
         {
             await OrderMaintenancePersistenceService.SaveChangesAsync(_orderRepository, beforeMaintenance, _allOrders);
@@ -813,19 +816,21 @@ public sealed partial class KarteSectionViewModel
 
         RefreshOrderFilterOptions();
         RebuildOrderGrid();
-        await LoadSavedToursAsync();
+        await LoadSavedToursAsync(reconcile: maintainData, loadedTours: remoteTours);
         RebuildPlannedTourRouteOverlays();
-        RequestRouteGeometryRebuild();
+        if (maintainData) RequestRouteGeometryRebuild();
         UpdateRouteSummary();
+        return true;
     }
 
-    private async Task RefreshAfterLocalMutationAsync(int? preferredTourId = null, string? preferredOrderId = null)
+    private async Task RefreshAfterLocalMutationAsync(int? preferredTourId = null, string? preferredOrderId = null,
+        bool reconcileTours = true)
     {
         // Successful local writes have already updated _allOrders. Only reload tours,
         // then rebuild the derived UI state instead of reloading every repository and
         // repeating settings/geocoding work through RefreshAsync().
         RebuildOrderGrid(preferredOrderId ?? SelectedOrder?.OrderId);
-        await LoadSavedToursAsync(preferredTourId);
+        await LoadSavedToursAsync(preferredTourId, reconcileTours);
         RebuildPlannedTourRouteOverlays();
         RequestRouteGeometryRebuild();
         UpdateRouteSummary();
@@ -1295,13 +1300,14 @@ public sealed partial class KarteSectionViewModel
             {
                 return;
             }
+            SetRouteChanged(false);
         }
 
         if (_loadedTourLeaseId > 0 && _loadedTourLeaseId != tourId)
         {
             ReleaseLoadedTourLeases();
-            await RefreshDeferredRemoteChangesAsync();
         }
+        if (isChangingTour) await RefreshDeferredRemoteChangesAsync();
 
         await LoadSavedToursAsync(tourId);
         await LoadTourIntoRouteAsync(tourId);
@@ -3190,11 +3196,14 @@ public sealed partial class KarteSectionViewModel
         }
     }
 
-    private async Task LoadSavedToursAsync(int? preferredTourId = null)
+    private async Task LoadSavedToursAsync(int? preferredTourId = null, bool reconcile = true,
+        IReadOnlyList<TourRecord>? loadedTours = null)
     {
-        var allTours = (await _tourRepository.LoadAsync()).ToList();
+        var allTours = (loadedTours ?? await _tourRepository.LoadAsync()).ToList();
         var originalTours = TourReconciliationPersistenceService.CreateSnapshot(allTours);
-        var cleanup = TourOrderReferenceService.ReconcileActiveToursWithOrders(allTours, _allOrders);
+        var cleanup = reconcile
+            ? TourOrderReferenceService.ReconcileActiveToursWithOrders(allTours, _allOrders)
+            : new TourOrderReferenceReconciliationResult(0, [], [], []);
         if (cleanup.HasChanges)
         {
             foreach (var changedTourId in cleanup.RescheduledTourIds)
@@ -3230,7 +3239,7 @@ public sealed partial class KarteSectionViewModel
             }
         }
         var originalOrders = OrderMaintenancePersistenceService.CreateSnapshot(_allOrders);
-        var assignmentsChanged = new OrderDeliveryService().SynchronizeTourAssignments(_allOrders, allTours);
+        var assignmentsChanged = reconcile && new OrderDeliveryService().SynchronizeTourAssignments(_allOrders, allTours);
         if (assignmentsChanged)
         {
             await OrderMaintenancePersistenceService.SaveChangesAsync(_orderRepository, originalOrders, _allOrders);
@@ -3436,6 +3445,9 @@ public sealed partial class KarteSectionViewModel
             }
         }
 
+        // Discard was explicitly confirmed above. Deferred data must be loaded before
+        // selecting another tour, rather than leaving the dirty flag blocking the refresh.
+        if (hasUnsavedChanges) SetRouteChanged(false);
         if (targetTourId <= 0)
         {
             ReleaseLoadedTourLeases();
@@ -3451,7 +3463,7 @@ public sealed partial class KarteSectionViewModel
         await LoadTourIntoRouteAsync(targetTourId);
     }
 
-    private async Task LoadTourIntoRouteAsync(int tourId)
+    private async Task LoadTourIntoRouteAsync(int tourId, bool recalculateRoute = true)
     {
         var tour = _savedTours.FirstOrDefault(x => x.Id == tourId);
         if (tour is null)
@@ -3495,15 +3507,20 @@ public sealed partial class KarteSectionViewModel
             _suppressRouteChangeTracking = false;
         }
 
-        ApplyTourStopsToRoute(tour);
-        ShowSavedTourGeometryImmediately(tour);
-        RequestRouteGeometryRebuild(calculateImmediately: true);
+        ApplyTourStopsToRoute(tour, recalculateRoute);
+        if (recalculateRoute)
+        {
+            ShowSavedTourGeometryImmediately(tour);
+            RequestRouteGeometryRebuild(calculateImmediately: true);
+        }
         SetRouteChanged(false);
         ClearDraftRouteStopRemovalUndoHistory();
         StatusText = "Tour auf Karte geladen (Nur Ansicht).";
         RaiseCommandStates();
         UpdateRouteSummary();
         RefreshDriveTimesFromCurrentRoute();
+        _displayedTourSnapshot = TourDisplaySnapshot(tour);
+        _displayedTourRoutingSnapshot = TourRoutingSnapshot(tour);
     }
 
     private async Task<bool> EnsureLoadedTourOrderLeasesAsync(IEnumerable<string> orderIds, CollaborationResourceLease? expectedTourLease = null)
@@ -3728,7 +3745,7 @@ public sealed partial class KarteSectionViewModel
         OnPropertyChanged(nameof(CanUndoDraftRouteStopRemoval));
     }
 
-    private void ApplyTourStopsToRoute(TourRecord tour)
+    private void ApplyTourStopsToRoute(TourRecord tour, bool requestRouteRebuild = true)
     {
         _suppressRouteChangeTracking = true;
         try
@@ -3788,7 +3805,7 @@ public sealed partial class KarteSectionViewModel
 
             RouteStops.ReplaceAll(nextStops);
 
-            RebuildPositions();
+            RebuildPositions(requestRouteRebuild: requestRouteRebuild);
             RebuildOrderGrid();
         }
         finally
@@ -4860,7 +4877,7 @@ public sealed partial class KarteSectionViewModel
         ToastNotificationService.ShowInfo($"Tour {tourLabel} wurde archiviert.{orderInfo}");
     }
 
-    private void RebuildPositions(bool calculateRouteImmediately = false)
+    private void RebuildPositions(bool calculateRouteImmediately = false, bool requestRouteRebuild = true)
     {
         EnsureCompanyAnchorOrdering();
         var displayIndex = 0;
@@ -4883,7 +4900,7 @@ public sealed partial class KarteSectionViewModel
         UpdateDriveTimePlaceholderState();
         UpdateRouteSummary();
         RebuildPlannedTourRouteOverlays();
-        RequestRouteGeometryRebuild(calculateRouteImmediately);
+        if (requestRouteRebuild) RequestRouteGeometryRebuild(calculateRouteImmediately);
         UpdateStatus();
         RaiseCommandStates();
         NotifyRoutePanelVisibilityChanged();
@@ -6052,7 +6069,8 @@ public sealed partial class KarteSectionViewModel
 
     private async Task EditSelectedOrderAsync()
     {
-        var selected = FindSelectedOrderModel();
+        var source = FindSelectedOrderModel();
+        var selected = source is null ? null : OrderEditPersistenceService.CreateCandidate(source);
         if (selected is null)
         {
             return;
@@ -6135,23 +6153,62 @@ public sealed partial class KarteSectionViewModel
             return;
         }
 
-        _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
-        _allOrders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
-                                  string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
-        _allOrders.Add(updated);
-
-        IReadOnlyList<Order>? ordersToDelete = null;
-        if (!string.Equals(originalId, updated.Id, StringComparison.OrdinalIgnoreCase))
+        OrderEditorSaveResult saveResult;
+        await _orderRefreshGate.WaitAsync();
+        try
         {
-            ordersToDelete = [selected];
-            updated.ConcurrencyToken = null;
+            saveResult = await OrderEditorSaveService.SaveAsync(
+                _orderRepository, _tourRepository, selected, updated, tour => _scheduleService.ApplySchedule(tour));
+            ApplyCommittedEditorResult(originalId, saveResult);
         }
-        await ReconcileToursWithOrdersAsync(_allOrders, ordersToDelete);
-        await RefreshAfterLocalMutationAsync(preferredOrderId: updated.Id);
+        catch
+        {
+            // A failed commit must never leave an edited candidate visible as saved data.
+            try
+            {
+                var committedOrders = await _orderRepository.GetAllAsync();
+                _allOrders.Clear();
+                _allOrders.AddRange(committedOrders);
+                await RefreshAfterLocalMutationAsync(preferredOrderId: originalId, reconcileTours: false);
+            }
+            catch { /* Keep the original save failure if the connection is still unavailable. */ }
+            throw;
+        }
+        finally { _orderRefreshGate.Release(); }
+        updated = saveResult.Order;
+        if (IsLoadedTourEditing && _loadedTourLease is not null &&
+            !await EnsureLoadedTourOrderLeasesAsync(RouteStops.Where(IsOrderStop).Select(s => s.OrderId), _loadedTourLease))
+        {
+            ReleaseLoadedTourLeases();
+            NotifyLoadedTourAccessChanged();
+        }
+        if (saveResult.ToursChanged) _dataSyncService.PublishTours(_instanceId);
+        await RefreshAfterLocalMutationAsync(preferredOrderId: updated.Id, reconcileTours: false);
         SelectedOrder = MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, updated.Id, StringComparison.OrdinalIgnoreCase));
         PublishOrderChange(originalId, updated.Id);
         OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
-        StatusText = $"Auftrag {updated.Id} wurde aktualisiert.";
+        StatusText = saveResult.RequiresAddressReview
+            ? $"Auftrag {updated.Id} wurde aktualisiert. Adresse geändert: Tour neu berechnen, Planung prüfen und erneut avisieren."
+            : $"Auftrag {updated.Id} wurde aktualisiert.";
+    }
+
+    internal void ApplyCommittedEditorResult(string originalId, OrderEditorSaveResult result)
+    {
+        foreach (var commit in result.TourCommits)
+            AcceptCommittedTourVersion(commit.Tour, commit.ExpectedToken);
+        _allOrders.Clear();
+        _allOrders.AddRange(result.CurrentOrders);
+        if (!DeliveryMethodExtensions.CanUseLiefertour(result.Order))
+        {
+            foreach (var stop in RouteStops.Where(s => string.Equals(s.OrderId, originalId, StringComparison.OrdinalIgnoreCase)).ToList())
+                RouteStops.Remove(stop);
+        }
+        RefreshRouteStopsFromOrders(new OrderChangedEventArgs(_instanceId, originalId, result.Order.Id));
+        foreach (var stop in RouteStops.Where(s => string.Equals(s.OrderId, result.Order.Id, StringComparison.OrdinalIgnoreCase)))
+        {
+            stop.AvisoStatus = NormalizeAvisoStatus(result.Order.AvisoStatus);
+            if (result.RequiresAddressReview) stop.FixedArrivalRangeText = string.Empty;
+        }
     }
 
     private async Task<AddressGeocodingResult?> ApplyDeliveryMethodRoutingAsync(Order order, GeoPoint? fallbackLocation = null)
@@ -6845,16 +6902,6 @@ public sealed partial class KarteSectionViewModel
         return changed;
     }
 
-    private void OnOrdersChanged(object? sender, OrderChangedEventArgs args)
-    {
-        if (args.SourceId == _instanceId)
-        {
-            return;
-        }
-
-        _ = ApplyExternalOrderChangeAsync(args);
-    }
-
     private async Task UpdateSelectedAvisoStatusAsync(string? nextStatus)
     {
         var selected = FindSelectedOrderModel();
@@ -7026,53 +7073,6 @@ public sealed partial class KarteSectionViewModel
         return true;
     }
 
-    private async Task ApplyExternalOrderChangeAsync(OrderChangedEventArgs args)
-    {
-        await _orderRefreshGate.WaitAsync();
-        try
-        {
-            await ApplyExternalOrderChangeCoreAsync(args);
-        }
-        finally
-        {
-            _orderRefreshGate.Release();
-        }
-    }
-
-    private async Task ApplyExternalOrderChangeCoreAsync(OrderChangedEventArgs args)
-    {
-        var preferredSelectedOrderId = ResolvePreferredOrderId(args, SelectedOrder?.OrderId);
-        var preferredRouteStopOrderId = ResolvePreferredOrderId(args, SelectedRouteStop?.OrderId);
-
-        var loadedOrders = DeduplicateOrders(await _orderRepository.GetAllAsync());
-        _allOrders.Clear();
-        _allOrders.AddRange(loadedOrders);
-        var beforeMaintenance = OrderMaintenancePersistenceService.CreateSnapshot(_allOrders);
-        var statusChanged = SyncDerivedOrderStatuses(_allOrders);
-        var deliveriesChanged = SynchronizePartialDeliveries(_allOrders);
-        if (statusChanged || deliveriesChanged)
-        {
-            await OrderMaintenancePersistenceService.SaveChangesAsync(_orderRepository, beforeMaintenance, _allOrders);
-            PublishOrderChange(preferredSelectedOrderId, preferredSelectedOrderId);
-        }
-
-        await LoadSavedToursAsync(ResolveCurrentTourId());
-        RefreshOrderFilterOptions();
-        RefreshRouteStopsFromOrders(args);
-        RebuildOrderGrid(preferredSelectedOrderId);
-        UpdateRouteSummary();
-        RebuildPlannedTourRouteOverlays();
-
-        if (string.IsNullOrWhiteSpace(preferredRouteStopOrderId))
-        {
-            SelectedRouteStop = null;
-        }
-        else
-        {
-            SelectedRouteStop = RouteStops.FirstOrDefault(x => string.Equals(x.OrderId, preferredRouteStopOrderId, StringComparison.OrdinalIgnoreCase));
-        }
-    }
-
     private static bool SynchronizePartialDeliveries(IEnumerable<Order> orders)
     {
         var service = new OrderDeliveryService();
@@ -7105,6 +7105,7 @@ public sealed partial class KarteSectionViewModel
     private void RefreshRouteStopsFromOrders(OrderChangedEventArgs args)
     {
         var removedAny = false;
+        var coordinatesChanged = false;
         foreach (var stop in RouteStops.Where(x => IsOrderStop(x) && !IsManualStop(x)).ToList())
         {
             if (!string.IsNullOrWhiteSpace(args.PreviousOrderId) &&
@@ -7127,9 +7128,13 @@ public sealed partial class KarteSectionViewModel
                 ResolveStreet(order),
                 ResolvePostalCodeCity(order),
                 order.Address);
-            stop.Latitude = order.Location?.Latitude ?? stop.Latitude;
-            stop.Longitude = order.Location?.Longitude ?? stop.Longitude;
+            var latitude = order.Location?.Latitude ?? stop.Latitude;
+            var longitude = order.Location?.Longitude ?? stop.Longitude;
+            coordinatesChanged |= !stop.Latitude.Equals(latitude) || !stop.Longitude.Equals(longitude);
+            stop.Latitude = latitude;
+            stop.Longitude = longitude;
             stop.IsArchivedOrder = order.IsArchived;
+            stop.AvisoStatus = NormalizeAvisoStatus(order.AvisoStatus);
         }
 
         if (removedAny)
@@ -7138,7 +7143,7 @@ public sealed partial class KarteSectionViewModel
             return;
         }
 
-        RequestRouteGeometryRebuild();
+        if (coordinatesChanged) RequestRouteGeometryRebuild();
     }
 
     private bool IsRouteStopArchived(string? orderId)
@@ -7184,65 +7189,7 @@ public sealed partial class KarteSectionViewModel
             return;
         }
 
-        if ((args.Kinds & AppDataKind.Settings) != 0 &&
-            (args.Kinds & (AppDataKind.Orders | AppDataKind.Tours | AppDataKind.Vehicles | AppDataKind.Employees)) == AppDataKind.None)
-        {
-            _ = ReloadMapDisplaySettingsAsync();
-            return;
-        }
-
-        _ = RefreshAfterRemoteChangeAsync(args);
-    }
-
-    private async Task RefreshAfterRemoteChangeAsync(AppDataChangedEventArgs args)
-    {
-        await _tourAccessSyncGate.WaitAsync();
-        try { await RefreshAfterRemoteChangeCoreAsync(args); }
-        finally { _tourAccessSyncGate.Release(); }
-    }
-
-    private async Task RefreshAfterRemoteChangeCoreAsync(AppDataChangedEventArgs args)
-    {
-        if (IsLoadedTourEditing)
-        {
-            // Do not replace the backing records/concurrency tokens while local route edits
-            // are in progress. A normal refresh after leaving or saving the tour will pick
-            // up the remote changes and preserve optimistic-concurrency detection.
-            _hasDeferredRemoteRefresh = true;
-            StatusText = "Externe Änderungen liegen vor. Sie werden nach Abschluss der Bearbeitung geladen.";
-            if ((args.Kinds & AppDataKind.Settings) != AppDataKind.None)
-            {
-                await ReloadMapDisplaySettingsAsync();
-            }
-            return;
-        }
-
-        var viewedTourId = IsLoadedTourReadOnly ? LoadedTourId : 0;
-        await RefreshAsync();
-        if (viewedTourId > 0)
-        {
-            await LoadTourIntoRouteAsync(viewedTourId);
-            StatusText = "Tour wurde aktualisiert (Nur Ansicht).";
-        }
-    }
-
-    private async Task RefreshDeferredRemoteChangesAsync()
-    {
-        if (!_hasDeferredRemoteRefresh || IsLoadedTourEditing)
-        {
-            return;
-        }
-
-        _hasDeferredRemoteRefresh = false;
-        try
-        {
-            await RefreshAsync();
-        }
-        catch
-        {
-            _hasDeferredRemoteRefresh = true;
-            throw;
-        }
+        RefreshAfterRemoteChangeAsync(args).Forget(ex => Debug.WriteLine($"Map synchronization failed: {ex.Message}"));
     }
 
     private async Task ReloadMapDisplaySettingsAsync()
@@ -7471,17 +7418,16 @@ public sealed partial class KarteSectionViewModel
         var nextStops = new List<RouteStopItem>();
 
         var position = 1;
-        nextStops.Add(new RouteStopItem
-        {
-            Position = position++,
-            OrderId = CompanyStartStopId,
-            Customer = string.Empty,
-            Address = _companyName,
-            Latitude = _companyLocation?.Latitude ?? double.NaN,
-            Longitude = _companyLocation?.Longitude ?? double.NaN,
-            IsCompanyAnchor = true,
-            PlannedStayMinutes = 0
-        });
+        var start = RouteStops.FirstOrDefault(s => s.OrderId == CompanyStartStopId) ?? new RouteStopItem();
+        start.Position = position++;
+        start.OrderId = CompanyStartStopId;
+        start.Customer = string.Empty;
+        start.Address = _companyName;
+        start.Latitude = _companyLocation?.Latitude ?? double.NaN;
+        start.Longitude = _companyLocation?.Longitude ?? double.NaN;
+        start.IsCompanyAnchor = true;
+        start.PlannedStayMinutes = 0;
+        nextStops.Add(start);
 
         foreach (var stop in movable)
         {
@@ -7490,18 +7436,17 @@ public sealed partial class KarteSectionViewModel
             nextStops.Add(stop);
         }
 
-        nextStops.Add(new RouteStopItem
-        {
-            Position = position,
-            OrderId = CompanyEndStopId,
-            Customer = string.Empty,
-            Address = _companyName,
-            Latitude = _companyLocation?.Latitude ?? double.NaN,
-            Longitude = _companyLocation?.Longitude ?? double.NaN,
-            IsCompanyAnchor = true,
-            PlannedStayMinutes = 0
-        });
-        RouteStops.ReplaceAll(nextStops);
+        var end = RouteStops.FirstOrDefault(s => s.OrderId == CompanyEndStopId) ?? new RouteStopItem();
+        end.Position = position;
+        end.OrderId = CompanyEndStopId;
+        end.Customer = string.Empty;
+        end.Address = _companyName;
+        end.Latitude = _companyLocation?.Latitude ?? double.NaN;
+        end.Longitude = _companyLocation?.Longitude ?? double.NaN;
+        end.IsCompanyAnchor = true;
+        end.PlannedStayMinutes = 0;
+        nextStops.Add(end);
+        if (!RouteStops.SequenceEqual(nextStops)) RouteStops.ReplaceAll(nextStops);
     }
 
     private void EnsureCompanyAnchorOrdering()

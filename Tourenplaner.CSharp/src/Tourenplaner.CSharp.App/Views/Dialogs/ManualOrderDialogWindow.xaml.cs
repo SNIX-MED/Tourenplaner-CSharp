@@ -371,6 +371,9 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     private GeoPoint? _existingLocation;
     private string? _existingAssignedTourId;
+    private string _existingAvisoStatus = "nicht avisiert";
+    private string _existingOrderAddressAdditional = string.Empty;
+    private string _existingDeliveryAddressAdditional = string.Empty;
     private bool _existingIsLocationManuallySet;
     private string _existingManualLocationAddress = string.Empty;
     private bool _existingManualLocationRequiresReview;
@@ -860,6 +863,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             {
                 Name = (OrderAddressName ?? string.Empty).Trim(),
                 ContactPerson = (OrderAddressContactPerson ?? string.Empty).Trim(),
+                Additional = _existingOrderAddressAdditional,
                 Street = (OrderAddressStreet ?? string.Empty).Trim(),
                 HouseNumber = (OrderAddressHouseNumber ?? string.Empty).Trim(),
                 PostalCode = (OrderAddressPostalCode ?? string.Empty).Trim(),
@@ -869,6 +873,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             {
                 Name = deliveryName,
                 ContactPerson = (DeliveryContactPerson ?? string.Empty).Trim(),
+                Additional = _existingDeliveryAddressAdditional,
                 Street = deliveryStreet,
                 HouseNumber = deliveryHouseNumber,
                 PostalCode = deliveryPostalCode,
@@ -904,6 +909,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             IstVorauszahlungBezahlt = IstVorauszahlungBezahlt,
             Notes = (Notes ?? string.Empty).Trim(),
             AssignedTourId = _existingAssignedTourId,
+            AvisoStatus = _existingAvisoStatus,
             Location = _existingLocation,
             IsLocationManuallySet = _existingIsLocationManuallySet,
             ManualLocationAddress = _existingManualLocationAddress,
@@ -963,6 +969,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     public void CopyOrderAddressToDeliveryAddress()
     {
+        _existingDeliveryAddressAdditional = _existingOrderAddressAdditional;
         DeliveryName = (OrderAddressName ?? string.Empty).Trim();
         DeliveryContactPerson = (OrderAddressContactPerson ?? string.Empty).Trim();
         DeliveryStreet = (OrderAddressStreet ?? string.Empty).Trim();
@@ -990,6 +997,9 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             existingOrder.DeliveryAddress?.PostalCode,
             existingOrder.DeliveryAddress?.City);
         _existingAssignedTourId = existingOrder.AssignedTourId;
+        _existingAvisoStatus = existingOrder.AvisoStatus;
+        _existingOrderAddressAdditional = existingOrder.OrderAddress?.Additional ?? string.Empty;
+        _existingDeliveryAddressAdditional = existingOrder.DeliveryAddress?.Additional ?? string.Empty;
         IsXmlImported = existingOrder.IsXmlImported;
         IsEditingEnabled = !IsXmlImported;
         OrderNumber = existingOrder.Id;
@@ -1000,17 +1010,13 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         OrderAddressName = existingOrder.OrderAddress?.Name ?? string.Empty;
         OrderAddressContactPerson = existingOrder.OrderAddress?.ContactPerson ?? string.Empty;
         OrderAddressStreet = existingOrder.OrderAddress?.Street ?? string.Empty;
-        OrderAddressHouseNumber = string.IsNullOrWhiteSpace(existingOrder.OrderAddress?.HouseNumber)
-            ? existingOrder.OrderAddress?.Additional ?? string.Empty
-            : existingOrder.OrderAddress.HouseNumber;
+        OrderAddressHouseNumber = existingOrder.OrderAddress?.HouseNumber ?? string.Empty;
         OrderAddressPostalCode = existingOrder.OrderAddress?.PostalCode ?? string.Empty;
         OrderAddressCity = existingOrder.OrderAddress?.City ?? string.Empty;
         DeliveryName = existingOrder.DeliveryAddress?.Name ?? existingOrder.CustomerName ?? string.Empty;
         DeliveryContactPerson = existingOrder.DeliveryAddress?.ContactPerson ?? string.Empty;
         DeliveryStreet = existingOrder.DeliveryAddress?.Street ?? string.Empty;
-        DeliveryHouseNumber = string.IsNullOrWhiteSpace(existingOrder.DeliveryAddress?.HouseNumber)
-            ? existingOrder.DeliveryAddress?.Additional ?? string.Empty
-            : existingOrder.DeliveryAddress.HouseNumber;
+        DeliveryHouseNumber = existingOrder.DeliveryAddress?.HouseNumber ?? string.Empty;
         DeliveryPostalCode = existingOrder.DeliveryAddress?.PostalCode ?? string.Empty;
         DeliveryCity = existingOrder.DeliveryAddress?.City ?? string.Empty;
         Email = existingOrder.Email ?? string.Empty;

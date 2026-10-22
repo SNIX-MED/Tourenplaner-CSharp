@@ -369,6 +369,7 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
         }
 
         var originalId = existing.Id;
+        existing = OrderEditPersistenceService.CreateCandidate(existing);
         AddressGeocodingResult? updatedGeocodingResult = null;
         var dialog = new ManualOrderDialogWindow(
             existing,
@@ -413,31 +414,29 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             return;
         }
 
-        _allOrders.RemoveAll(x => string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase));
-        _allOrders.RemoveAll(x => !string.Equals(x.Id, originalId, StringComparison.OrdinalIgnoreCase) &&
-                                  string.Equals(x.Id, updated.Id, StringComparison.OrdinalIgnoreCase));
-        _allOrders.Add(updated);
-
-        if (!string.Equals(originalId, updated.Id, StringComparison.OrdinalIgnoreCase))
+        OrderEditorSaveResult saveResult;
+        try
         {
-            if (!await DeleteOrderAsync(originalId, existing.ConcurrencyToken))
-            {
-                return;
-            }
-
-            updated.ConcurrencyToken = null;
+            saveResult = await _workflowService.SaveEditorResultAsync(existing, updated);
         }
-
-        if (!await SaveOrderAsync(updated))
+        catch (ConcurrencyConflictException)
         {
+            await HandleConcurrencyConflictAsync(originalId);
             return;
         }
-        await ReconcileToursWithOrdersAsync(_allOrders);
+        catch
+        {
+            await RefreshFromRepositoryAsync(originalId);
+            throw;
+        }
+        updated = saveResult.Order;
         await RefreshFromRepositoryAsync(updated.Id);
         SelectOrderById(updated.Id);
         PublishOrderChange(originalId, updated.Id);
         OrderPinAssignmentWarningService.ShowIfNeeded(updated, updatedGeocodingResult);
-        StatusText = $"Auftrag {updated.Id} wurde aktualisiert (Post/Spedition/Abholung).";
+        StatusText = saveResult.RequiresAddressReview
+            ? $"Auftrag {updated.Id} wurde aktualisiert. Adresse geändert: Tour neu berechnen, Planung prüfen und erneut avisieren."
+            : $"Auftrag {updated.Id} wurde aktualisiert (Post/Spedition/Abholung).";
     }
 
     private async Task<AddressGeocodingResult?> ApplyDeliveryMethodRoutingAsync(Order order, GeoPoint? fallbackLocation = null)

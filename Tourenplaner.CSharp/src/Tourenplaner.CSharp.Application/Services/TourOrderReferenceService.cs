@@ -24,6 +24,22 @@ public sealed record TourOrderReferenceReconciliationResult(
 
 public static class TourOrderReferenceService
 {
+    /// <summary>Keep stop identities, delivery references and promised windows when an order is renamed.</summary>
+    public static void RenameOrderReferences(IEnumerable<TourRecord> tours, string previousId, string currentId)
+    {
+        foreach (var tour in tours)
+        {
+            foreach (var stop in tour.Stops.Where(IsOrderStop))
+            {
+                if (string.Equals(stop.Auftragsnummer?.Trim(), previousId.Trim(), StringComparison.OrdinalIgnoreCase))
+                    stop.Auftragsnummer = currentId;
+            }
+            tour.AddressReviewOrderIds = tour.AddressReviewOrderIds
+                .Select(id => string.Equals(id, previousId, StringComparison.OrdinalIgnoreCase) ? currentId : id)
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+    }
+
     public static TourOrderReferenceCleanupResult RemoveStopsWithoutOrders(
         IEnumerable<TourRecord> tours,
         IEnumerable<string> existingOrderIds,

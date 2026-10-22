@@ -12,6 +12,88 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 public sealed class PostgreSqlUndoRedoIntegrationTests
 {
     [Fact]
+    public async Task SyncTriggerUpgradeNotifiesOnlyRealChangesAndIncludesEntityKeys()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("TOURENPLANER_POSTGRES_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString)) return;
+        var settings = CreateSettings(connectionString, $"sync_rows_{Guid.NewGuid():N}");
+        PostgreSqlClientContext.Configure(Guid.NewGuid(), "Sync Row Test");
+        var initialized = false;
+        try
+        {
+            await using var writer = new PostgreSqlConnectionFactory().CreateConnection(settings);
+            await writer.OpenAsync();
+            var initializer = new PostgreSqlSchemaInitializer();
+            await initializer.EnsureSchemaAsync(writer, settings);
+            initialized = true;
+            await using (var legacy = writer.CreateCommand())
+            {
+                legacy.CommandText = $"""
+                    DROP TRIGGER orders_app_data_sync ON "{settings.Schema}".orders;
+                    CREATE TRIGGER orders_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{settings.Schema}".orders
+                    FOR EACH STATEMENT EXECUTE FUNCTION "{settings.Schema}".notify_app_data_change();
+                    """;
+                await legacy.ExecuteNonQueryAsync();
+            }
+            await initializer.EnsureSchemaAsync(writer, settings);
+            await initializer.EnsureSchemaAsync(writer, settings); // Repeated initialization must preserve the migration.
+            await using (var shape = writer.CreateCommand())
+            {
+                shape.CommandText = $"""
+                    SELECT count(*) FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = '{settings.Schema}' AND t.tgname LIKE '%_app_data_sync'
+                    AND (t.tgtype::integer & 1) = 0;
+                    """;
+                Assert.Equal(0L, (long)(await shape.ExecuteScalarAsync())!);
+            }
+            await using var listener = new PostgreSqlConnectionFactory().CreateConnection(settings);
+            await listener.OpenAsync();
+            var received = new List<System.Text.Json.JsonElement>();
+            var barrierSeen = false;
+            listener.Notification += (_, notification) =>
+            {
+                using var json = System.Text.Json.JsonDocument.Parse(notification.Payload);
+                if (json.RootElement.TryGetProperty("Barrier", out var barrier)) barrierSeen = true;
+                else received.Add(json.RootElement.Clone());
+            };
+            await using (var listen = listener.CreateCommand())
+            {
+                listen.CommandText = "LISTEN tourenplaner_app_data_sync;";
+                await listen.ExecuteNonQueryAsync();
+            }
+            async Task ExecuteAndDrainAsync(string sql)
+            {
+                received.Clear(); barrierSeen = false;
+                await using var command = writer.CreateCommand();
+                command.CommandText = sql + "\nSELECT pg_notify('tourenplaner_app_data_sync', '{\"Barrier\":true}');";
+                await command.ExecuteNonQueryAsync();
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                while (!barrierSeen) await listener.WaitAsync(timeout.Token);
+            }
+            await ExecuteAndDrainAsync($"INSERT INTO \"{settings.Schema}\".orders(id,payload) VALUES ('A','{{\"Notes\":\"one\"}}');");
+            Assert.Equal("A", Assert.Single(received).GetProperty("CurrentId").GetString());
+            await ExecuteAndDrainAsync($$"""
+                UPDATE "{{settings.Schema}}".orders SET payload=payload WHERE id='missing';
+                UPDATE "{{settings.Schema}}".orders SET payload=payload WHERE id='A';
+                UPDATE "{{settings.Schema}}".orders SET payload=payload || '{"ConcurrencyToken":"new"}'::jsonb WHERE id='A';
+                INSERT INTO "{{settings.Schema}}".orders(id,payload) VALUES ('A','{}') ON CONFLICT DO NOTHING;
+                """);
+            Assert.Empty(received);
+            await ExecuteAndDrainAsync($"UPDATE \"{settings.Schema}\".orders SET payload='{{\"Notes\":\"two\"}}' WHERE id='A';");
+            var update = Assert.Single(received);
+            Assert.Equal("A", update.GetProperty("PreviousId").GetString());
+            Assert.Equal("A", update.GetProperty("CurrentId").GetString());
+            Assert.Equal(1, update.GetProperty("Kinds").GetInt32());
+            await ExecuteAndDrainAsync($"DELETE FROM \"{settings.Schema}\".orders WHERE id='A';");
+            var deletion = Assert.Single(received);
+            Assert.Equal("A", deletion.GetProperty("PreviousId").GetString());
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, deletion.GetProperty("CurrentId").ValueKind);
+        }
+        finally { if (initialized) await DropIsolatedSchemaAsync(settings); }
+    }
+
+    [Fact]
     public async Task ProductStatusEdit_PersistsAcrossRepositoriesAndNotifiesAnotherConnection()
     {
         var connectionString = Environment.GetEnvironmentVariable("TOURENPLANER_POSTGRES_TEST_CONNECTION");

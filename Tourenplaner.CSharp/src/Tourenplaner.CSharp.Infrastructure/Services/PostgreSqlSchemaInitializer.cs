@@ -146,10 +146,25 @@ public sealed class PostgreSqlSchemaInitializer
                 app_name text := current_setting('application_name', true);
                 client_id text;
                 data_kinds integer;
+                entity_key text;
+                previous_key text;
+                current_key text;
             BEGIN
                 IF app_name NOT LIKE 'GAWELA|%' THEN RETURN NULL; END IF;
                 client_id := split_part(app_name, '|', 2);
                 IF client_id = '' THEN RETURN NULL; END IF;
+
+                -- Row triggers fire only for affected rows. Token/timestamp-only updates do not
+                -- change application data and must not start another refresh on every workplace.
+                IF TG_OP = 'UPDATE' AND
+                    ((to_jsonb(OLD) -> 'payload') - 'ConcurrencyToken' - 'concurrencyToken')
+                    IS NOT DISTINCT FROM
+                    ((to_jsonb(NEW) -> 'payload') - 'ConcurrencyToken' - 'concurrencyToken') THEN
+                    RETURN NULL;
+                END IF;
+                entity_key := CASE WHEN TG_TABLE_NAME = 'singletons' THEN 'key' ELSE 'id' END;
+                previous_key := CASE WHEN TG_OP = 'INSERT' THEN NULL ELSE to_jsonb(OLD) ->> entity_key END;
+                current_key := CASE WHEN TG_OP = 'DELETE' THEN NULL ELSE to_jsonb(NEW) ->> entity_key END;
 
                 -- Only singletons has a key column and a row-level sync trigger.
                 -- Keep row access outside the statement-level trigger expression.
@@ -165,6 +180,7 @@ public sealed class PostgreSqlSchemaInitializer
                     WHEN 'orders' THEN 1
                     WHEN 'tour_records' THEN 2
                     WHEN 'employees' THEN 8
+                    WHEN 'vehicles' THEN 4
                     WHEN 'calendar_manual_entries' THEN 32
                     ELSE 0
                     END;
@@ -176,8 +192,8 @@ public sealed class PostgreSqlSchemaInitializer
                     json_build_object(
                         'SourceId', client_id,
                         'Kinds', data_kinds,
-                        'PreviousId', NULL,
-                        'CurrentId', NULL,
+                        'PreviousId', previous_key,
+                        'CurrentId', current_key,
                         'ClientInstanceId', client_id)::text);
                 RETURN NULL;
             END;
@@ -239,22 +255,26 @@ public sealed class PostgreSqlSchemaInitializer
             $triggers$;
 
             DO $sync_triggers$
+            DECLARE
+                table_name text;
+                trigger_name text;
             BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'orders_app_data_sync' AND tgrelid = '"{schema}"."orders"'::regclass AND NOT tgisinternal) THEN
-                    CREATE TRIGGER orders_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{schema}"."orders" FOR EACH STATEMENT EXECUTE FUNCTION "{schema}"."notify_app_data_change"();
-                END IF;
-                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'tour_records_app_data_sync' AND tgrelid = '"{schema}"."tour_records"'::regclass AND NOT tgisinternal) THEN
-                    CREATE TRIGGER tour_records_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{schema}"."tour_records" FOR EACH STATEMENT EXECUTE FUNCTION "{schema}"."notify_app_data_change"();
-                END IF;
-                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'employees_app_data_sync' AND tgrelid = '"{schema}"."employees"'::regclass AND NOT tgisinternal) THEN
-                    CREATE TRIGGER employees_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{schema}"."employees" FOR EACH STATEMENT EXECUTE FUNCTION "{schema}"."notify_app_data_change"();
-                END IF;
-                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'calendar_entries_app_data_sync' AND tgrelid = '"{schema}"."calendar_manual_entries"'::regclass AND NOT tgisinternal) THEN
-                    CREATE TRIGGER calendar_entries_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{schema}"."calendar_manual_entries" FOR EACH STATEMENT EXECUTE FUNCTION "{schema}"."notify_app_data_change"();
-                END IF;
-                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'singletons_app_data_sync' AND tgrelid = '"{schema}"."singletons"'::regclass AND NOT tgisinternal) THEN
-                    CREATE TRIGGER singletons_app_data_sync AFTER INSERT OR UPDATE OR DELETE ON "{schema}"."singletons" FOR EACH ROW EXECUTE FUNCTION "{schema}"."notify_app_data_change"();
-                END IF;
+                FOREACH table_name IN ARRAY ARRAY['orders', 'tour_records', 'employees', 'vehicles', 'calendar_manual_entries', 'singletons'] LOOP
+                    trigger_name := CASE WHEN table_name = 'calendar_manual_entries' THEN 'calendar_entries_app_data_sync'
+                        ELSE table_name || '_app_data_sync' END;
+                    -- Upgrade existing installations once. Do not repeatedly drop valid triggers
+                    -- during ordinary repository reads (or disturb history/collaboration triggers).
+                    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = trigger_name
+                        AND tgrelid = format('%I.%I', '{schema}', table_name)::regclass
+                        AND NOT tgisinternal AND (tgtype::integer & 1) = 0) THEN
+                        EXECUTE format('DROP TRIGGER %I ON %I.%I', trigger_name, '{schema}', table_name);
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = trigger_name
+                        AND tgrelid = format('%I.%I', '{schema}', table_name)::regclass AND NOT tgisinternal) THEN
+                        EXECUTE format('CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON %I.%I FOR EACH ROW EXECUTE FUNCTION %I.notify_app_data_change()',
+                            trigger_name, '{schema}', table_name, '{schema}');
+                    END IF;
+                END LOOP;
             END
             $sync_triggers$;
 

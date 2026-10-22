@@ -6,6 +6,31 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public class TourOrderReferenceServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RenamingOrderPreservesStopIdentityDeliveryWindowAndReview(bool archived)
+    {
+        var stop = new TourStopRecord { Id = "stable-stop", Auftragsnummer = "OLD", DeliveryId = "D1",
+            IsArrivalWindowFixed = true, ArrivalWindowStart = new DateTime(2026, 10, 23, 8, 0, 0),
+            ArrivalWindowEnd = new DateTime(2026, 10, 23, 9, 0, 0) };
+        var tour = new TourRecord { Id = 42, IsArchived = archived, Stops = [stop], AddressReviewOrderIds = ["OLD"] };
+        TourOrderReferenceService.RenameOrderReferences([tour], "old", "NEW");
+        var tours = new List<TourRecord> { tour };
+        TourOrderReferenceService.ReconcileActiveToursWithOrders(tours,
+            [new Order { Id = "NEW", Deliveries = [new() { Id = "D1", AssignedTourId = "42" }] }]);
+
+        Assert.Single(tours);
+        Assert.Same(stop, Assert.Single(tour.Stops));
+        Assert.Equal("NEW", stop.Auftragsnummer);
+        Assert.Equal("stable-stop", stop.Id);
+        Assert.Equal("D1", stop.DeliveryId);
+        Assert.True(stop.IsArrivalWindowFixed);
+        Assert.Equal(new DateTime(2026, 10, 23, 8, 0, 0), stop.ArrivalWindowStart);
+        Assert.Equal(new DateTime(2026, 10, 23, 9, 0, 0), stop.ArrivalWindowEnd);
+        Assert.Equal(["NEW"], tour.AddressReviewOrderIds);
+    }
+
     [Fact]
     public void ReconciliationKeepsDeliveryAddressInsteadOfReplacingItWithBillingAddress()
     {

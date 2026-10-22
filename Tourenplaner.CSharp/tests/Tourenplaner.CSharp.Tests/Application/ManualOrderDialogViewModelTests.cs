@@ -6,6 +6,63 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class ManualOrderDialogViewModelTests
 {
     [Fact]
+    public void CopyingAddressCopiesItsAdditionWithoutChangingSourceOrder()
+    {
+        var source = CreateOrder();
+        source.OrderAddress.Additional = "Büro";
+        source.DeliveryAddress.Additional = "Rampe";
+        var vm = new ManualOrderDialogViewModel(source);
+        vm.CopyOrderAddressToDeliveryAddress();
+        Assert.True(vm.TryBuildOrder(out var saved, out var error), error);
+        Assert.Equal("Büro", saved!.DeliveryAddress.Additional);
+        Assert.Equal("Rampe", source.DeliveryAddress.Additional);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("8")]
+    public void AddressAdditionsSurviveEditingAndAreNeverUsedAsHouseNumbers(string number)
+    {
+        var source = CreateOrder();
+        source.OrderAddress.HouseNumber = source.DeliveryAddress.HouseNumber = number;
+        source.OrderAddress.Additional = "Buchhaltung, 2. Stock";
+        source.DeliveryAddress.Additional = "Rampe hinten";
+        var vm = new ManualOrderDialogViewModel(source);
+        Assert.Equal(number, vm.OrderAddressHouseNumber);
+        Assert.Equal(number, vm.DeliveryHouseNumber);
+        vm.Notes = "Notiz";
+        Assert.True(vm.TryBuildOrder(out var saved, out var error), error);
+        Assert.Equal(number, saved!.OrderAddress.HouseNumber);
+        Assert.Equal(number, saved.DeliveryAddress.HouseNumber);
+        Assert.Equal(source.OrderAddress.Additional, saved.OrderAddress.Additional);
+        Assert.Equal(source.DeliveryAddress.Additional, saved.DeliveryAddress.Additional);
+    }
+
+    [Theory]
+    [InlineData("nicht avisiert")]
+    [InlineData("Informiert")]
+    [InlineData("Bestätigt")]
+    public void EditingAssignedOrder_PreservesAvisoStatusWithoutMutatingSource(string status)
+    {
+        var source = CreateOrder();
+        source.AssignedTourId = "42";
+        source.AvisoStatus = status;
+        var viewModel = new ManualOrderDialogViewModel(source);
+
+        Assert.Equal(status, source.AvisoStatus);
+        viewModel.Notes = "Geänderte Notiz";
+        Assert.True(viewModel.TryBuildOrder(out var saved, out var error), error);
+        Assert.Equal(status, saved!.AvisoStatus);
+        Assert.Equal("42", saved.AssignedTourId);
+        Assert.Equal(status, source.AvisoStatus);
+        Assert.NotEqual(viewModel.Notes, source.Notes);
+
+        var reopened = new ManualOrderDialogViewModel(saved);
+        Assert.True(reopened.TryBuildOrder(out var savedAgain, out error), error);
+        Assert.Equal(status, savedAgain!.AvisoStatus);
+    }
+
+    [Fact]
     public void LegacyPartialDeliveryNotesSurviveSaveAndReloadWithoutPrefixesOrSourceMutation()
     {
         var source = CreateOrder();

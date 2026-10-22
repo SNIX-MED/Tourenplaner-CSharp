@@ -8,8 +8,68 @@ using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 namespace Tourenplaner.CSharp.Tests.Application;
 
 [Collection("Karte collaboration")]
-public sealed class KarteSearchDetailsTests
+public sealed partial class KarteSearchDetailsTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CommittedEditorResultUpdatesRouteWithoutDiscardingDraftChanges(bool addressChanged)
+    {
+        var vm = CreateViewModel();
+        vm.RouteStops.Clear();
+        var stop = new RouteStopItem { OrderId = "OLD", DeliveryId = "D1", PlannedStayMinutes = 37,
+            FixedArrivalRangeText = "08:00 - 09:00", AvisoStatus = "Bestätigt" };
+        vm.RouteStops.Add(stop);
+        SetPrivateField(vm, "_activeTourId", 42);
+        SetPrivateField(vm, "_loadedTourLeaseId", 42);
+        SetPrivateField(vm, "_isLoadedTourEditing", true);
+        SetPrivateField(vm, "_loadedTourEditConcurrencyToken", "before");
+        var order = new Order { Id = "NEW", CustomerName = "Aktueller Kunde", Location = new(47, 8),
+            AvisoStatus = addressChanged ? "nicht avisiert" : "Bestätigt" };
+        var committedTour = new TourRecord { Id = 42, ConcurrencyToken = "after" };
+        var result = new OrderEditorSaveResult(order, true, addressChanged, [order],
+            [new(committedTour, "before")]);
+
+        vm.ApplyCommittedEditorResult("OLD", result);
+
+        Assert.Same(stop, Assert.Single(vm.RouteStops));
+        Assert.Equal("NEW", stop.OrderId);
+        Assert.Equal("D1", stop.DeliveryId);
+        Assert.Equal(37, stop.PlannedStayMinutes);
+        Assert.Equal("Aktueller Kunde", stop.Customer);
+        Assert.Equal(order.AvisoStatus, stop.AvisoStatus);
+        Assert.Equal(addressChanged ? "" : "08:00 - 09:00", stop.FixedArrivalRangeText);
+        vm.EnsureTourEditVersionIsCurrent(committedTour);
+        Assert.Same(order, Assert.Single(GetPrivateField<List<Order>>(vm, "_allOrders")));
+    }
+
+    [Fact]
+    public void EditorCommitCannotAcknowledgeAnUnrelatedTourVersion()
+    {
+        var vm = CreateViewModel();
+        SetPrivateField(vm, "_activeTourId", 42);
+        SetPrivateField(vm, "_loadedTourLeaseId", 42);
+        SetPrivateField(vm, "_isLoadedTourEditing", true);
+        SetPrivateField(vm, "_loadedTourEditConcurrencyToken", "old-draft");
+        var order = new Order { Id = "A" };
+        var tour = new TourRecord { Id = 42, ConcurrencyToken = "committed" };
+        vm.ApplyCommittedEditorResult("A", new(order, true, false, [order], [new(tour, "newer-remote-version")]));
+        Assert.Throws<Tourenplaner.CSharp.Application.Common.ConcurrencyConflictException>(() => vm.EnsureTourEditVersionIsCurrent(tour));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("unknown")]
+    public void ClearedAvisoSelectionDoesNotResetConfirmedStatus(string? selection)
+    {
+        var vm = CreateViewModel();
+        SetPrivateField(vm, "_detailSelectedAvisoStatus", "Bestätigt");
+        vm.DetailSelectedAvisoStatus = selection!;
+        Assert.Equal("Bestätigt", vm.DetailSelectedAvisoStatus);
+    }
+
     [Fact]
     public void InformiertToBestaetigtKeepsTheOriginalManualPromise()
     {
@@ -1431,14 +1491,15 @@ public sealed class KarteSearchDetailsTests
     private static KarteSectionViewModel CreateViewModel(
         IOrderRepository? orderRepository = null,
         ITourRecordStore? tourRepository = null,
-        IAppSettingsStore? settingsRepository = null) => new(
+        IAppSettingsStore? settingsRepository = null,
+        AppDataSyncService? syncService = null) => new(
         orderRepository ?? new OrderStore(),
         tourRepository ?? new EmptyTourStore(),
         new EmptyEmployeeStore(),
         new EmptyVehicleStore(),
         settingsRepository ?? new SettingsStore(),
         Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N")),
-        new AppDataSyncService());
+        syncService ?? new AppDataSyncService());
 
     private sealed class OrderStore : IOrderRepository
     {
