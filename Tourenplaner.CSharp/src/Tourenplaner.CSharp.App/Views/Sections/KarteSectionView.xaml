@@ -2566,7 +2566,12 @@
                                             BorderBrush="{DynamicResource Brush.BorderSoft}"
                                             BorderThickness="1">
                                         <StackPanel>
-                                            <TextBlock FontWeight="Bold"
+                                            <TextBox Padding="0"
+                                                       BorderThickness="0"
+                                                       Background="Transparent"
+                                                       Cursor="IBeam"
+                                                       IsReadOnly="True"
+                                                       FontWeight="Bold"
                                                        Foreground="#DC2626"
                                                        TextWrapping="Wrap"
                                                        Text="{Binding DetailNotes, Mode=OneWay}" />

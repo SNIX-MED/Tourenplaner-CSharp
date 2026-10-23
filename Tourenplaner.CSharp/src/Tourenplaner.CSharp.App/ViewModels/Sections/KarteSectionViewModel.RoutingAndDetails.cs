@@ -2925,6 +2925,8 @@ public sealed partial class KarteSectionViewModel
                 .ToList();
             tour.AdditionalMaterials = CloneAdditionalMaterials(additionalMaterials);
 
+            if (!ConfirmMissingPauseWarning(tour)) return;
+
             var previewTours = tours.ToList();
             previewTours.Add(tour);
             if (!ConfirmAssignmentConflictWarning(previewTours, tour.Id))
@@ -3105,6 +3107,7 @@ public sealed partial class KarteSectionViewModel
 
             var previewTours = tours.ToList();
             previewTours[index] = updated;
+            if (!ConfirmMissingPauseWarning(updated)) return;
             if (!ConfirmAssignmentConflictWarning(previewTours, updated.Id))
             {
                 return;
@@ -5316,6 +5319,20 @@ public sealed partial class KarteSectionViewModel
         var parts = (label ?? string.Empty)
             .Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return parts.Length == 0 ? string.Empty : parts[0];
+    }
+
+    private static bool ConfirmMissingPauseWarning(TourRecord tour)
+    {
+        if (tour.Stops.Any(stop => TourStopIdentity.IsPauseStop(stop) && stop.ServiceMinutes > 0))
+        {
+            return true;
+        }
+
+        return Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
+            "In dieser Tour ist keine Pause eingeplant.\n\nMöchtest du die Tour trotzdem speichern?\nMit Nein kehrst du zur Planung zurück und kannst eine Pause einfügen.",
+            "Keine Pause eingeplant",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning) == MessageBoxResult.Yes;
     }
 
     private bool ConfirmCapacityWarning(string? vehicleId, string? trailerId, string? secondaryVehicleId, string? secondaryTrailerId, IReadOnlyList<TourAdditionalMaterial>? additionalMaterials = null)
@@ -8774,7 +8791,7 @@ public sealed partial class KarteSectionViewModel
             Address = NormalizeUiText(order.Address),
             Street = ResolveStreet(order),
             PostalCodeCity = ResolvePostalCodeCity(order),
-            Notes = NormalizeUiText(delivery?.Notes ?? order.Notes),
+            Notes = NormalizeUiText(!string.IsNullOrWhiteSpace(delivery?.Notes) ? delivery.Notes : order.Notes),
             ProductLines = delivery is null ? BuildProductLineItems(order.Products) : BuildDeliveryProductLines(order, delivery),
             TotalWeightKgText = totalWeightKg.ToString("0.##", CultureInfo.CurrentCulture),
             ScheduledDate = order.ScheduledDate.ToString("yyyy-MM-dd"),

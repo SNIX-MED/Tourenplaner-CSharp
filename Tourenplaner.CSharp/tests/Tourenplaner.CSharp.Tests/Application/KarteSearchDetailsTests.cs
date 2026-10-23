@@ -507,6 +507,39 @@ public sealed partial class KarteSearchDetailsTests
         Assert.Equal("40", card.TotalWeightKgText);
     }
 
+    [Theory]
+    [InlineData("pause", "pause:1", 30, true)]
+    [InlineData("", "pause:legacy", 15, true)]
+    [InlineData("pause", "pause:1", 0, false)]
+    [InlineData("pause", "pause:1", -5, false)]
+    [InlineData("", "auftrag:1", 30, false)]
+    [InlineData("company", "company:start", 30, false)]
+    public void MissingPauseWarning_OnlyAllowsSavingWithoutConfirmationForAnActualPause(
+        string kind, string id, int minutes, bool expected)
+    {
+        var tour = new TourRecord { Stops = [new() { StopKind = kind, Id = id, ServiceMinutes = minutes }] };
+        var confirm = typeof(KarteSectionViewModel).GetMethod("ConfirmMissingPauseWarning",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!;
+
+        // Without a UI, the dialog returns None: saving must require an explicit Yes.
+        Assert.Equal(expected, confirm.Invoke(null, [tour]));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task InfoCardsFallBackToOrderNotesWhenDeliveryNotesAreBlank(string deliveryNotes)
+    {
+        var order = CreateOrder();
+        order.Notes = "Avisierung: Kontakt vor Anlieferung";
+        order.Deliveries = [new() { Id = "D1", SequenceNumber = 1, Notes = deliveryNotes }];
+        var vm = CreateViewModel(new FixedOrderStore(order));
+        await vm.RefreshAsync();
+
+        Assert.Equal(order.Notes, vm.ResolveRoutePinInfoCard(new() { OrderId = order.Id, DeliveryId = "D1" }).Notes);
+        Assert.All(vm.MapOrders.Where(item => item.OrderId == order.Id), item => Assert.Equal(order.Notes, item.Notes));
+    }
+
     [Fact]
     public async Task RouteInfoCardUsesExactPartialDeliveryEvenWithoutVisiblePin()
     {

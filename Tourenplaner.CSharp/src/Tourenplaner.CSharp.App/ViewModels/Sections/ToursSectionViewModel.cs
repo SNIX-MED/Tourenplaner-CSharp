@@ -2560,7 +2560,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .ToDictionary(g => g.Key, g => g.Count());
 
         Tours.Clear();
-        foreach (var tour in tourList.OrderBy(t => t.Date).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (var tour in tourList.OrderBy(t => ParseDate(t.Date) ?? DateTime.MinValue).ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase))
         {
             var schedule = TourScheduleService.ReadSchedule(tour);
             var metrics = BuildTourOrderMetrics(tour);

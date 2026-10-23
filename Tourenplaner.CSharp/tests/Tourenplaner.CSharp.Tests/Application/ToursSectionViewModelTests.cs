@@ -10,6 +10,33 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class ToursSectionViewModelTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TourList_SortsChronologicallyAcrossMonthsAndYears_AndPreservesSelection(bool archived)
+    {
+        var dates = new[] { "02.11.2026", "01.01.2027", "23.10.2026", "31.12.2026", "26.10.2026" };
+        var tours = dates.Select((date, index) =>
+        {
+            var tour = CreateTour(index + 1);
+            tour.Date = date;
+            tour.IsArchived = archived;
+            return tour;
+        }).ToArray();
+        var viewModel = new ToursSectionViewModel(new ControlledTourStore(tours), new SingleOrderRepository(),
+            new EmptyEmployeeStore(), new EmptyVehicleStore(), new DefaultSettingsStore());
+        await viewModel.RefreshAsync();
+        viewModel.ShowArchivedTours = archived;
+
+        Assert.Equal(new[] { 3, 5, 1, 4, 2 }, viewModel.Tours.Select(t => t.TourId));
+        viewModel.SelectedTour = viewModel.Tours.Single(t => t.TourId == 1);
+        viewModel.ShowOnlyToursWithWarnings = true;
+
+        Assert.Equal(new[] { 3, 5, 1, 4, 2 }, viewModel.Tours.Select(t => t.TourId));
+        Assert.Equal(1, viewModel.SelectedTour?.TourId);
+        Assert.Equal(dates, tours.Select(t => t.Date));
+    }
+
     [Fact]
     public async Task AddressReview_ShowsInTourListDetailsAndWarningFilter()
     {

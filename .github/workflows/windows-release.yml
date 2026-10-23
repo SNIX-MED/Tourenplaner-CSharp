@@ -69,11 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Einheitliche Zeitfensterlogik fuer normale und manuelle Stopps mit maximal zwei Stunden
-          - Informiert fixiert das Zeitfenster; Bestaetigt behaelt dieselbe Zusage
-          - Konfliktpruefung vor Uebernahme einer manuellen Avisierung
-          - Fuenf Minuten Toleranz fuer pessimistische Ankunft, echte erwartete Verspaetungen bleiben sichtbar
-          - Kompakte Zeitfensterhinweise ohne doppelte Meldungen
+          - Liefertouren werden chronologisch nach Datum sortiert
+          - Notizen in den Kartendetails koennen markiert und kopiert werden
+          - Infokarten zeigen Auftragsnotizen, wenn Liefernotizen leer sind
+          - Rueckfrage beim Speichern neuer und bearbeiteter Touren ohne eingeplante Pause
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
