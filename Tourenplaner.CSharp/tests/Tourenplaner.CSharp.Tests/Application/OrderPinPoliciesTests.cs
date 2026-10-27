@@ -117,6 +117,45 @@ public class OrderPinPoliciesTests
     }
 
     [Fact]
+    public void AssignmentWarningPolicy_ReturnsNoWarningForConfirmedManualPinWithoutLookup()
+    {
+        var order = CreateOrder("Via Principala", string.Empty, "7031", "Laax");
+        order.Location = new GeoPoint(46.806, 9.258);
+        order.IsLocationManuallySet = true;
+        order.ManualLocationRequiresReview = false;
+
+        var warning = OrderPinAssignmentWarningPolicy.Create(order, geocodingResult: null);
+
+        Assert.Null(warning);
+    }
+
+    [Fact]
+    public void AssignmentWarningPolicy_StillWarnsWhenManualPinRequiresReview()
+    {
+        var order = CreateOrder("Via Principala", string.Empty, "7031", "Laax");
+        order.Location = new GeoPoint(46.806, 9.258);
+        order.IsLocationManuallySet = true;
+        order.ManualLocationRequiresReview = true;
+
+        var warning = OrderPinAssignmentWarningPolicy.Create(order, geocodingResult: null);
+
+        Assert.NotNull(warning);
+    }
+
+    [Fact]
+    public void AssignmentWarningPolicy_StillWarnsWhenManualFlagHasNoLocation()
+    {
+        var order = CreateOrder("Via Principala", string.Empty, "7031", "Laax");
+        order.Location = null;
+        order.IsLocationManuallySet = true;
+        order.ManualLocationRequiresReview = false;
+
+        var warning = OrderPinAssignmentWarningPolicy.Create(order, geocodingResult: null);
+
+        Assert.NotNull(warning);
+    }
+
+    [Fact]
     public void AssignmentWarningPolicy_UsesFallbackAddressWhenDeliveryAddressIsEmpty()
     {
         var order = CreateOrder(string.Empty, string.Empty, string.Empty, string.Empty);

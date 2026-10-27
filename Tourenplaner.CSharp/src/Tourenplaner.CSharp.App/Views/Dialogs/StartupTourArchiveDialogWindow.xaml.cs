@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
+using Tourenplaner.CSharp.Application.Services;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.App.Views.Dialogs;
@@ -12,19 +13,33 @@ public partial class StartupTourArchiveDialogWindow : Window
         DateTime tourDate,
         int tourIndex,
         int tourCount,
-        IReadOnlyList<Order> candidateOrders)
+        IReadOnlyList<Order> orders)
     {
         InitializeComponent();
 
         var tourName = string.IsNullOrWhiteSpace(tour.Name) ? $"Tour {tour.Id}" : tour.Name.Trim();
         TourProgressTextBlock.Text = $"Tour {tourIndex}/{tourCount}";
         TourTitleTextBlock.Text = $"{tourName} ({tour.Id})";
-        TourMetaTextBlock.Text = $"Datum: {tourDate:dd.MM.yyyy} | Aufträge: {candidateOrders.Count}";
+        var ordersById = orders
+            .Where(x => !string.IsNullOrWhiteSpace(x.Id))
+            .GroupBy(x => x.Id.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+        var targets = new TourArchiveOrderService().GetTargets(tour, orders);
+        TourMetaTextBlock.Text = $"Datum: {tourDate:dd.MM.yyyy} | Lieferungen: {targets.Count}";
 
-        foreach (var order in candidateOrders)
+        foreach (var target in targets)
         {
+            if (!ordersById.TryGetValue(target.OrderId, out var order))
+            {
+                continue;
+            }
+
             Orders.Add(new StartupArchiveOrderSelectionItem(
+                target.SelectionKey,
                 order.Id,
+                target.DeliverySequenceNumber.HasValue
+                    ? $"Teillieferung {target.DeliverySequenceNumber.Value}"
+                    : "Vollständiger Auftrag",
                 order.CustomerName,
                 order.Address,
                 isSelected: true));
@@ -32,11 +47,11 @@ public partial class StartupTourArchiveDialogWindow : Window
 
         if (Orders.Count == 0)
         {
-            SelectionHintTextBlock.Text = "Diese Tour enthält keine aktiven Aufträge mehr.";
+            SelectionHintTextBlock.Text = "Diese Tour enthält keine aktiven Lieferungen mehr.";
         }
         else
         {
-            SelectionHintTextBlock.Text = "Haken entfernen, um einzelne Aufträge von der Archivierung auszuschließen.";
+            SelectionHintTextBlock.Text = "Haken entfernen, um Lieferungen wieder zur Planung freizugeben.";
         }
 
         DataContext = this;
@@ -48,10 +63,10 @@ public partial class StartupTourArchiveDialogWindow : Window
 
     public bool CancelAll { get; private set; }
 
-    public IReadOnlyList<string> SelectedOrderIds => Orders
+    public IReadOnlySet<string> SelectedTargetKeys => Orders
         .Where(x => x.IsSelected)
-        .Select(x => x.OrderId)
-        .ToList();
+        .Select(x => x.SelectionKey)
+        .ToHashSet(StringComparer.Ordinal);
 
     private void OnArchiveClicked(object sender, RoutedEventArgs e)
     {
@@ -77,15 +92,27 @@ public partial class StartupTourArchiveDialogWindow : Window
 
 public sealed class StartupArchiveOrderSelectionItem
 {
-    public StartupArchiveOrderSelectionItem(string orderId, string customer, string address, bool isSelected)
+    public StartupArchiveOrderSelectionItem(
+        string selectionKey,
+        string orderId,
+        string deliveryLabel,
+        string customer,
+        string address,
+        bool isSelected)
     {
+        SelectionKey = selectionKey ?? string.Empty;
         OrderId = orderId ?? string.Empty;
+        DeliveryLabel = deliveryLabel ?? string.Empty;
         Customer = customer ?? string.Empty;
         Address = address ?? string.Empty;
         IsSelected = isSelected;
     }
 
+    public string SelectionKey { get; }
+
     public string OrderId { get; }
+
+    public string DeliveryLabel { get; }
 
     public string Customer { get; }
 

@@ -20,6 +20,15 @@ internal static class OrderPinAssignmentWarningPolicy
             return null;
         }
 
+        // A confirmed manual pin is intentionally not geocoded again during ordinary edits.
+        // In that case a null result means "no lookup performed", not "address not found".
+        if (order.IsLocationManuallySet &&
+            order.Location is not null &&
+            !order.ManualLocationRequiresReview)
+        {
+            return null;
+        }
+
         var addressLine = OrderAddressFormatting.BuildAddressLine(
             order.DeliveryAddress?.Street,
             order.DeliveryAddress?.HouseNumber,

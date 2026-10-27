@@ -90,6 +90,84 @@ public sealed class TourArchiveOrderServiceTests
         Assert.Equal("17", order.AssignedTourId);
     }
 
+    [Fact]
+    public void GetTargets_ListsPartialDeliveryFromTourStopWhenAggregateAssignmentIsEmpty()
+    {
+        var order = CreatePartialOrder();
+        order.AssignedTourId = string.Empty;
+        order.Deliveries[0].AssignedTourId = "17";
+        order.Deliveries[0].Status = OrderDeliveryStatus.Planned;
+        var tour = CreateTour(17, order.Id, order.Deliveries[0].Id);
+
+        var target = Assert.Single(_service.GetTargets(tour, [order]));
+
+        Assert.Equal(order.Id, target.OrderId);
+        Assert.Equal(order.Deliveries[0].Id, target.DeliveryId);
+        Assert.Equal(1, target.DeliverySequenceNumber);
+    }
+
+    [Fact]
+    public void Apply_Selection_ArchivesSelectedAndReleasesUnselectedPartialDeliveries()
+    {
+        var order = CreatePartialOrder();
+        order.Deliveries[0].AssignedTourId = "17";
+        order.Deliveries[0].Status = OrderDeliveryStatus.Planned;
+        order.Deliveries[1].AssignedTourId = "17";
+        order.Deliveries[1].Status = OrderDeliveryStatus.Planned;
+        var tour = new TourRecord
+        {
+            Id = 17,
+            Stops =
+            [
+                new TourStopRecord { Id = "S-1", Auftragsnummer = order.Id, DeliveryId = order.Deliveries[0].Id },
+                new TourStopRecord { Id = "S-2", Auftragsnummer = order.Id, DeliveryId = order.Deliveries[1].Id }
+            ]
+        };
+        var targets = _service.GetTargets(tour, [order]);
+        var selected = targets.Where(x => x.DeliveryId == "D-1").Select(x => x.SelectionKey).ToHashSet();
+
+        var result = _service.Apply(tour, [order], selected, DateTimeOffset.Now);
+
+        Assert.Equal(1, result.ArchivedPartialDeliveryCount);
+        Assert.Equal(1, result.ReleasedPartialDeliveryCount);
+        Assert.Equal(OrderDeliveryStatus.Delivered, order.Deliveries[0].Status);
+        Assert.Equal(OrderDeliveryStatus.ReadyForPlanning, order.Deliveries[1].Status);
+        Assert.Null(order.Deliveries[0].AssignedTourId);
+        Assert.Null(order.Deliveries[1].AssignedTourId);
+        Assert.Equal(string.Empty, order.AssignedTourId);
+        Assert.False(order.IsArchived);
+    }
+
+    [Fact]
+    public void Apply_Selection_RefreshesAggregateAssignmentRegardlessOfStopOrder()
+    {
+        var order = CreatePartialOrder();
+        order.AssignedTourId = "17";
+        order.Deliveries[0].AssignedTourId = "17";
+        order.Deliveries[0].Status = OrderDeliveryStatus.Planned;
+        order.Deliveries[1].AssignedTourId = "17";
+        order.Deliveries[1].Status = OrderDeliveryStatus.Planned;
+        var tour = new TourRecord
+        {
+            Id = 17,
+            Stops =
+            [
+                new TourStopRecord { Id = "S-2", Auftragsnummer = order.Id, DeliveryId = order.Deliveries[1].Id },
+                new TourStopRecord { Id = "S-1", Auftragsnummer = order.Id, DeliveryId = order.Deliveries[0].Id }
+            ]
+        };
+        var selected = _service.GetTargets(tour, [order])
+            .Where(x => x.DeliveryId == "D-1")
+            .Select(x => x.SelectionKey)
+            .ToHashSet();
+
+        _service.Apply(tour, [order], selected, DateTimeOffset.Now);
+
+        Assert.Equal(string.Empty, order.AssignedTourId);
+        Assert.Equal(OrderDeliveryStatus.Delivered, order.Deliveries[0].Status);
+        Assert.Equal(OrderDeliveryStatus.ReadyForPlanning, order.Deliveries[1].Status);
+    }
+
     private static Order CreatePartialOrder() => new()
     {
         Id = "A-1",

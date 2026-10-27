@@ -18,6 +18,20 @@ public sealed class TourArchiveOrderService
         return new TourArchiveImpact(targets.WholeOrders.Count, targets.PartialDeliveries.Count);
     }
 
+    public IReadOnlyList<TourArchiveTarget> GetTargets(TourRecord tour, IEnumerable<Order> orders)
+    {
+        var targets = ResolveTargets(tour, orders);
+        return targets.WholeOrders
+            .Select(order => new TourArchiveTarget(
+                CreateSelectionKey(order.Id, null), order.Id, null, null))
+            .Concat(targets.PartialDeliveries.Select(target => new TourArchiveTarget(
+                CreateSelectionKey(target.Order.Id, target.Delivery.Id),
+                target.Order.Id,
+                target.Delivery.Id,
+                target.Delivery.SequenceNumber)))
+            .ToList();
+    }
+
     public TourArchiveResult Apply(
         TourRecord tour,
         IEnumerable<Order> orders,
@@ -25,46 +39,77 @@ public sealed class TourArchiveOrderService
         DateTimeOffset completedAt)
     {
         var targets = ResolveTargets(tour, orders);
-        if (markStopsDelivered)
-        {
-            foreach (var order in targets.WholeOrders)
-            {
-                order.IsArchived = true;
-            }
+        return Apply(targets, _ => markStopsDelivered, tour.Id, completedAt);
+    }
 
-            foreach (var target in targets.PartialDeliveries)
-            {
-                _deliveryService.MarkDelivered(target.Order, target.Delivery.Id, completedAt);
-            }
+    public TourArchiveResult Apply(
+        TourRecord tour,
+        IEnumerable<Order> orders,
+        IReadOnlySet<string> deliveredSelectionKeys,
+        DateTimeOffset completedAt)
+    {
+        var targets = ResolveTargets(tour, orders);
+        return Apply(targets, deliveredSelectionKeys.Contains, tour.Id, completedAt);
+    }
 
-            return new TourArchiveResult(
-                targets.WholeOrders.Count,
-                targets.PartialDeliveries.Count,
-                0,
-                0);
-        }
+    private TourArchiveResult Apply(
+        ArchiveTargets targets,
+        Func<string, bool> shouldMarkDelivered,
+        int tourId,
+        DateTimeOffset completedAt)
+    {
+        var archivedOrders = 0;
+        var archivedPartialDeliveries = 0;
+        var releasedOrders = 0;
+        var releasedPartialDeliveries = 0;
 
         foreach (var order in targets.WholeOrders)
         {
-            ReleaseWholeOrder(order, tour.Id);
+            if (shouldMarkDelivered(CreateSelectionKey(order.Id, null)))
+            {
+                order.IsArchived = true;
+                archivedOrders++;
+            }
+            else
+            {
+                ReleaseWholeOrder(order, tourId);
+                releasedOrders++;
+            }
         }
 
         foreach (var target in targets.PartialDeliveries)
         {
-            target.Delivery.AssignedTourId = null;
-            if (target.Delivery.Status is not OrderDeliveryStatus.Delivered and not OrderDeliveryStatus.Cancelled)
+            if (shouldMarkDelivered(CreateSelectionKey(target.Order.Id, target.Delivery.Id)))
             {
-                target.Delivery.Status = OrderDeliveryStatus.ReadyForPlanning;
+                _deliveryService.MarkDelivered(target.Order, target.Delivery.Id, completedAt);
+                archivedPartialDeliveries++;
             }
-            RefreshAggregateAssignment(target.Order);
+            else
+            {
+                target.Delivery.AssignedTourId = null;
+                if (target.Delivery.Status is not OrderDeliveryStatus.Delivered and not OrderDeliveryStatus.Cancelled)
+                {
+                    target.Delivery.Status = OrderDeliveryStatus.ReadyForPlanning;
+                }
+                RefreshAggregateAssignment(target.Order);
+                releasedPartialDeliveries++;
+            }
+        }
+
+        foreach (var order in targets.PartialDeliveries.Select(x => x.Order).Distinct())
+        {
+            RefreshAggregateAssignment(order);
         }
 
         return new TourArchiveResult(
-            0,
-            0,
-            targets.WholeOrders.Count,
-            targets.PartialDeliveries.Count);
+            archivedOrders,
+            archivedPartialDeliveries,
+            releasedOrders,
+            releasedPartialDeliveries);
     }
+
+    private static string CreateSelectionKey(string orderId, string? deliveryId) =>
+        $"{(orderId ?? string.Empty).Trim().ToUpperInvariant()}\u001f{(deliveryId ?? string.Empty).Trim().ToUpperInvariant()}";
 
     private ArchiveTargets ResolveTargets(TourRecord tour, IEnumerable<Order> orders)
     {
@@ -151,6 +196,12 @@ public sealed record TourArchiveImpact(int WholeOrderCount, int PartialDeliveryC
 {
     public bool HasTargets => WholeOrderCount > 0 || PartialDeliveryCount > 0;
 }
+
+public sealed record TourArchiveTarget(
+    string SelectionKey,
+    string OrderId,
+    string? DeliveryId,
+    int? DeliverySequenceNumber);
 
 public sealed record TourArchiveResult(
     int ArchivedOrderCount,

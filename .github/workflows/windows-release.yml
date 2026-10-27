@@ -69,10 +69,9 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Liefertouren werden chronologisch nach Datum sortiert
-          - Notizen in den Kartendetails koennen markiert und kopiert werden
-          - Infokarten zeigen Auftragsnotizen, wenn Liefernotizen leer sind
-          - Rueckfrage beim Speichern neuer und bearbeiteter Touren ohne eingeplante Pause
+          - Vergangene Liefertouren archivieren Teillieferungen jetzt einzeln und korrekt
+          - Abgewaehlte Lieferungen werden wieder zur Planung freigegeben
+          - Bestaetigte manuelle Pins loesen bei normalen Auftragsaenderungen keine falsche Warnung mehr aus
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

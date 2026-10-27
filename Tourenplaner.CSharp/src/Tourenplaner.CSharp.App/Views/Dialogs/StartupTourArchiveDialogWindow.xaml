@@ -28,7 +28,7 @@
                     <TextBlock Margin="0,8,0,0"
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource Brush.TextMuted}"
-                               Text="Aktive Aufträge sind vorausgewählt. Haken entfernen, wenn ein Auftrag nicht archiviert werden soll." />
+                               Text="Aktive Lieferungen sind vorausgewählt. Haken entfernen, um eine Lieferung wieder zur Planung freizugeben." />
                 </StackPanel>
                 <Border Grid.Column="1"
                         Padding="12,6"
@@ -102,6 +102,10 @@
                                                 Width="180"
                                                 IsReadOnly="True"
                                                 Binding="{Binding OrderId}" />
+                            <DataGridTextColumn Header="Lieferung"
+                                                Width="170"
+                                                IsReadOnly="True"
+                                                Binding="{Binding DeliveryLabel}" />
                             <DataGridTextColumn Header="Kunde"
                                                 Width="200"
                                                 IsReadOnly="True"

@@ -455,20 +455,14 @@ public partial class App : System.Windows.Application
             for (var index = 0; index < pastTours.Count; index++)
             {
                 var tour = pastTours[index];
-                var tourKey = tour.Id.ToString(CultureInfo.InvariantCulture);
                 var tourDate = ParseTourDateOrToday(tour.Date);
-                var candidateOrders = orders
-                    .Where(o => !o.IsArchived &&
-                                string.Equals((o.AssignedTourId ?? string.Empty).Trim(), tourKey, StringComparison.OrdinalIgnoreCase))
-                    .OrderBy(o => o.Id, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
 
                 var dialog = new StartupTourArchiveDialogWindow(
                     tour,
                     tourDate,
                     index + 1,
                     pastTours.Count,
-                    candidateOrders)
+                    orders)
                 {
                     Owner = owner
                 };
@@ -493,23 +487,15 @@ public partial class App : System.Windows.Application
                 tour.IsArchived = true;
                 toursChanged = true;
 
-                var selectedOrderIds = new HashSet<string>(dialog.SelectedOrderIds, StringComparer.OrdinalIgnoreCase);
-                foreach (var order in candidateOrders)
-                {
-                    if (selectedOrderIds.Contains(order.Id))
-                    {
-                        if (!order.IsArchived)
-                        {
-                            order.IsArchived = true;
-                            ordersChanged = true;
-                        }
-                    }
-                    else if (!string.IsNullOrWhiteSpace(order.AssignedTourId))
-                    {
-                        order.AssignedTourId = string.Empty;
-                        ordersChanged = true;
-                    }
-                }
+                var archiveResult = new TourArchiveOrderService().Apply(
+                    tour,
+                    orders,
+                    dialog.SelectedTargetKeys,
+                    DateTimeOffset.Now);
+                ordersChanged |= archiveResult.ArchivedOrderCount > 0 ||
+                                 archiveResult.ArchivedPartialDeliveryCount > 0 ||
+                                 archiveResult.ReleasedOrderCount > 0 ||
+                                 archiveResult.ReleasedPartialDeliveryCount > 0;
             }
 
             if (toursChanged)
