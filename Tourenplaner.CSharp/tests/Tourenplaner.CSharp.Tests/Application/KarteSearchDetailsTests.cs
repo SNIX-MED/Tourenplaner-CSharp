@@ -10,6 +10,28 @@ namespace Tourenplaner.CSharp.Tests.Application;
 [Collection("Karte collaboration")]
 public sealed partial class KarteSearchDetailsTests
 {
+    [Fact]
+    public void MissingDeliveryCityDoesNotDisplayCityFromOrderAddress()
+    {
+        var order = new Order { Address = "Rudolf-Diesel-Str. 12, 8401 Winterthur",
+            OrderAddress = new() { Street = "Rudolf-Diesel-Str. 12", PostalCode = "8401", City = "Winterthur" },
+            DeliveryAddress = new() { Street = "Betriebszentrum Parkhaus A" } };
+        var flags = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
+        Assert.Equal("Betriebszentrum Parkhaus A", typeof(KarteSectionViewModel).GetMethod("ResolveStreet", flags)!.Invoke(null, [order]));
+        Assert.Equal("", typeof(KarteSectionViewModel).GetMethod("ResolvePostalCodeCity", flags)!.Invoke(null, [order]));
+    }
+
+    [Fact]
+    public void MissingDeliveryStreetDoesNotDisplayStreetFromAnotherCity()
+    {
+        var order = new Order { Address = "Rudolf-Diesel-Str. 12, 8401 Winterthur",
+            OrderAddress = new() { Street = "Rudolf-Diesel-Str. 12", PostalCode = "8401", City = "Winterthur" },
+            DeliveryAddress = new() { PostalCode = "8058", City = "Zürich-Flughafen" } };
+        var flags = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
+        Assert.Equal("", typeof(KarteSectionViewModel).GetMethod("ResolveStreet", flags)!.Invoke(null, [order]));
+        Assert.Equal("8058 Zürich-Flughafen", typeof(KarteSectionViewModel).GetMethod("ResolvePostalCodeCity", flags)!.Invoke(null, [order]));
+    }
+
     [Theory]
     [InlineData(true, 47.185123, 7.401235, "Leuzigenstrasse 23, 2540 Grenchen", "Leuzigenstrasse 23, 2540 Grenchen")]
     [InlineData(false, 47.185123, 7.401235, "Leuzigenstrasse 23, 2540 Grenchen", null)]

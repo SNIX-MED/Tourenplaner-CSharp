@@ -6,6 +6,64 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 public class XmlOrderImportServiceTests
 {
     [Theory]
+    [InlineData("Empfänger | Herr Meier | Industriestrasse 1 | CH-8000 Zürich | 12345", "Herr Meier", "8000 Zürich")]
+    [InlineData("Empfänger | Betriebszentrum Parkhaus A | CH-8058 Zürich-Flughafen | 12345", "Betriebszentrum Parkhaus A", "8000 Zürich")]
+    public void DeliveryAddressLineDoesNotMisclassifyContactOrOverrideDifferentBlock(string addressLine, string contact, string postalCity)
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"import-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(file, $$"""
+                <belege><beleg><ident>test</ident><kopf>test</kopf><datum>26.10.2026</datum>
+                <adresskopflieferung>Empfänger
+                {{contact}}
+                {{postalCity}}</adresskopflieferung>
+                <adresszeilelieferung>{{addressLine}}</adresszeilelieferung>
+                </beleg></belege>
+                """);
+            var imported = Assert.Single(new XmlOrderImportService().LoadOrdersFromFileDetailed(file).Orders);
+            Assert.Empty(imported.LieferStrasse);
+            Assert.Equal(contact, imported.LieferKontaktperson);
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Theory]
+    [InlineData("Betriebszentrum Parkhaus A")]
+    [InlineData("Flughafenstrasse")]
+    [InlineData("Flughafenstrasse 12")]
+    public void DeliveryDestinationWithoutHouseNumberSurvivesImportAndMapping(string destination)
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"import-{Guid.NewGuid():N}.xml");
+        try
+        {
+            File.WriteAllText(file, $$"""
+                <belege><beleg>
+                <ident>airport</ident><kopf>222113</kopf><datum>26.10.2026</datum>
+                <adresszeile>Hasler + Co AG | Rudolf-Diesel-Str. 12 | CH-8401 Winterthur | 100290</adresszeile>
+                <lieferperson>Herr Nüssli</lieferperson>
+                <adresskopflieferung>Flughafen Zürich AG
+                Herr Nüssli
+                {{destination}}
+                8058 Zürich-Flughafen</adresskopflieferung>
+                <adresszeilelieferung>Flughafen Zürich AG | {{destination}} | CH-8058 Zürich-Flughafen | 122424</adresszeilelieferung>
+                </beleg></belege>
+                """);
+            var imported = Assert.Single(new XmlOrderImportService().LoadOrdersFromFileDetailed(file).Orders);
+            Assert.Equal(destination, imported.LieferStrasse);
+            Assert.Equal("Herr Nüssli", imported.LieferKontaktperson);
+            Assert.Equal("8058", imported.LieferPLZ);
+            Assert.Equal("Zürich-Flughafen", imported.LieferOrt);
+            var mapped = new Tourenplaner.CSharp.Application.Services.OrderImportMapper().Map(imported);
+            Assert.Equal(destination, mapped.DeliveryAddress.Street);
+            Assert.Equal("8058", mapped.DeliveryAddress.PostalCode);
+            Assert.Equal("Zürich-Flughafen", mapped.DeliveryAddress.City);
+            Assert.Equal("Rudolf-Diesel-Str. 12", mapped.OrderAddress.Street);
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Theory]
     [InlineData("Verankerung: mit Verankerung", "Fracht_m_vert", "ART", "Mit Verteilung & Montage", false)]
     [InlineData("Montage: mit Montage", "Fracht_o_vert", "ART", "Mit Verteilung & Montage", false)]
     [InlineData("Montage: ohne Montage", "Fracht_m_vert", "ART", "Fracht_m_vert", false)]

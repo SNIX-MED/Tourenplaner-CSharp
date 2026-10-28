@@ -8861,6 +8861,10 @@ public sealed partial class KarteSectionViewModel
             return NormalizeUiText(street);
         }
 
+        if (!string.IsNullOrWhiteSpace(order.DeliveryAddress?.PostalCode)
+            || !string.IsNullOrWhiteSpace(order.DeliveryAddress?.City))
+            return string.Empty;
+
         street = BuildStreetLine(order.OrderAddress?.Street, order.OrderAddress?.HouseNumber);
         if (!string.IsNullOrWhiteSpace(street))
         {
@@ -8888,6 +8892,10 @@ public sealed partial class KarteSectionViewModel
         {
             return NormalizeUiText(delivery);
         }
+
+        if (!string.IsNullOrWhiteSpace(order.DeliveryAddress?.Street)
+            || !string.IsNullOrWhiteSpace(order.DeliveryAddress?.HouseNumber))
+            return string.Empty;
 
         var orderAddress = string.Join(' ', new[]
         {

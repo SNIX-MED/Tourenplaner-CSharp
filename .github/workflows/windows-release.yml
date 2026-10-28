@@ -69,9 +69,9 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Suchadressen bleiben beim Hinzufuegen manueller Tourstopps erhalten
-          - Interne IDs manueller Stopps werden in Info-Karten und PDF ausgeblendet
-          - Normale und manuelle Kartenpins lassen sich auch nach Zoom- und Gruppenwechseln nicht ziehen
+          - XML-Lieferadressen ohne Hausnummer bleiben erhalten, etwa Betriebszentrum Parkhaus A
+          - Lieferadressen werden bei Adresssuche und Kartenanzeige nicht mehr mit Auftragsadressen vermischt
+          - Kontaktpersonen und widerspruechliche XML-Adressfelder werden sicher unterschieden
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

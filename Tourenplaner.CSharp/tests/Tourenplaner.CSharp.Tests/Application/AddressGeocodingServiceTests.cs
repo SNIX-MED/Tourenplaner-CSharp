@@ -8,6 +8,20 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public class AddressGeocodingServiceTests
 {
+    [Theory]
+    [InlineData("Betriebszentrum Parkhaus A", "8058", "Zürich-Flughafen", "")]
+    [InlineData("", "8058", "Zürich-Flughafen", "")]
+    [InlineData("Flughafenstrasse", "", "", "")]
+    [InlineData("", "", "", "Rudolf-Diesel-Str. 12, 8401 Winterthur")]
+    public void SeparateDeliveryDestinationNeverUsesOrderAddressFallback(string street, string zip, string city, string expected)
+    {
+        var order = CreateMapOrder("222113", street, "", zip, city);
+        order.Address = "Rudolf-Diesel-Str. 12, 8401 Winterthur";
+        var fallback = typeof(AddressGeocodingService).GetMethod("GetOrderAddressFallback",
+            BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [order]);
+        Assert.Equal(expected, fallback);
+    }
+
     [Fact]
     public void CandidateScoring_PrefersMunicipalityOverMunicipalitySubdivision()
     {

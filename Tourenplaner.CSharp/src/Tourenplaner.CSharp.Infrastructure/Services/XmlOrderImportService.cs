@@ -161,7 +161,8 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
 
                         ApplyExportAddressBlock(order, orderAddressBlock, isDeliveryAddress: false);
                     }
-                    hasDeliveryAddress = ApplyExportAddressBlock(order, ReadString(orderElement, effectiveMapping.OrderDeliveryAddressBlock), isDeliveryAddress: true);
+                    hasDeliveryAddress = ApplyExportAddressBlock(order, ReadString(orderElement, effectiveMapping.OrderDeliveryAddressBlock),
+                        isDeliveryAddress: true, addressLine: ReadString(orderElement, "adresszeilelieferung"));
                 }
 
                 var orderId = ReadString(orderElement, effectiveMapping.OrderId);
@@ -729,15 +730,27 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         return HasCustomerAddress(order);
     }
 
-    private static bool ApplyExportAddressBlock(XmlOrderImportData order, string value, bool isDeliveryAddress)
+    private static bool ApplyExportAddressBlock(XmlOrderImportData order, string value, bool isDeliveryAddress, string? addressLine = null)
     {
         var lines = (value ?? string.Empty).Replace("\r", string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (lines.Length == 0) return false;
         var streetCandidate = lines.Length >= 2 ? lines[^2] : string.Empty;
-        var hasStreet = streetCandidate.Any(char.IsDigit);
+        // ERP address lines explicitly separate the recipient, destination and postal/city fields.
+        // A destination such as "Betriebszentrum Parkhaus A" does not need a house number.
+        var addressParts = (addressLine ?? string.Empty).Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var postalCity = lines[^1];
+        // Only the destination directly before the matching postal/city field is evidence.
+        // Earlier fields can contain contact names; custom mappings can select another block.
+        var postalIndex = addressParts.Length >= 4 ? addressParts.Length - 2 : addressParts.Length - 1;
+        var linePostalCity = postalIndex >= 0 ? addressParts[postalIndex] : string.Empty;
+        if (linePostalCity.StartsWith("CH-", StringComparison.OrdinalIgnoreCase))
+            linePostalCity = linePostalCity[3..].TrimStart();
+        var hasExplicitDestination = postalIndex >= 2
+            && string.Equals(linePostalCity, postalCity, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(addressParts[postalIndex - 1], streetCandidate, StringComparison.OrdinalIgnoreCase);
+        var hasStreet = streetCandidate.Any(char.IsDigit) || hasExplicitDestination;
         var parsed = ParseExportAddressBlock(lines, hasStreet);
         var street = hasStreet ? streetCandidate : string.Empty;
-        var postalCity = lines.Length >= 1 ? lines[^1] : string.Empty;
         var postalParts = postalCity.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         if (isDeliveryAddress)
         {

@@ -122,7 +122,7 @@ public static class AddressGeocodingService
         var street = BuildStreetLine(order.DeliveryAddress?.Street, order.DeliveryAddress?.HouseNumber);
         var postalCode = (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim();
         var city = (order.DeliveryAddress?.City ?? string.Empty).Trim();
-        var fallback = (order.Address ?? string.Empty).Trim();
+        var fallback = GetOrderAddressFallback(order);
         return await TryResolveAddressAsync(street, postalCode, city, fallback, tomTomApiKey, cacheFilePath);
     }
 
@@ -231,7 +231,7 @@ public static class AddressGeocodingService
         var street = BuildStreetLine(order.DeliveryAddress?.Street, order.DeliveryAddress?.HouseNumber);
         var postalCode = (order.DeliveryAddress?.PostalCode ?? string.Empty).Trim();
         var city = (order.DeliveryAddress?.City ?? string.Empty).Trim();
-        var fallback = (order.Address ?? string.Empty).Trim();
+        var fallback = GetOrderAddressFallback(order);
         return await TryResolveAddressWithDiagnosticsAsync(street, postalCode, city, fallback, tomTomApiKey, cacheFilePath, reportProgress);
     }
 
@@ -374,6 +374,16 @@ public static class AddressGeocodingService
         }
 
         return new AddressGeocodingResolution(CreateResolution(bestCandidate, expectation), AddressGeocodingFailureReason.None);
+    }
+
+    private static string GetOrderAddressFallback(Order order)
+    {
+        var delivery = order.DeliveryAddress;
+        // A separate destination must never be geocoded using the billing/order address.
+        return delivery is not null && new[] { delivery.Street, delivery.HouseNumber,
+            delivery.PostalCode, delivery.City }.Any(value => !string.IsNullOrWhiteSpace(value))
+            ? string.Empty
+            : (order.Address ?? string.Empty).Trim();
     }
 
     private static IReadOnlyList<string> BuildQueries(string street, string postalCode, string city, string fallback)
