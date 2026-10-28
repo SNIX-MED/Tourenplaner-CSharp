@@ -1769,6 +1769,17 @@ public sealed partial class KarteSectionViewModel
         }
         stop.AvisoStatus = status;
     }
+    private string? GetSearchPinAddress(double latitude, double longitude)
+    {
+        // The map bridge rounds coordinates to six decimal places.
+        if (!_hasTemporarySearchPin || string.IsNullOrWhiteSpace(_temporarySearchPinLabel)
+            || Math.Abs(latitude - _temporarySearchPinLatitude) > 0.000001
+            || Math.Abs(longitude - _temporarySearchPinLongitude) > 0.000001)
+            return null;
+
+        return _temporarySearchPinLabel;
+    }
+
     public async Task AddManualRouteStopAsync(double latitude, double longitude)
     {
         if (!EnsureCurrentRouteCanBeModified()) return;
@@ -1788,6 +1799,7 @@ public sealed partial class KarteSectionViewModel
             return;
         }
 
+        var searchAddress = GetSearchPinAddress(latitude, longitude);
         var dialog = new ManualRouteStopDialogWindow
         {
             Owner = System.Windows.Application.Current?.MainWindow
@@ -1798,7 +1810,7 @@ public sealed partial class KarteSectionViewModel
         }
 
         StatusText = "Adresse für den neuen Stopp wird ermittelt...";
-        var resolvedAddress = await AddressGeocodingService.TryReverseGeocodeAddressAsync(
+        var resolvedAddress = searchAddress ?? await AddressGeocodingService.TryReverseGeocodeAddressAsync(
             latitude,
             longitude,
             _tomTomApiKey);

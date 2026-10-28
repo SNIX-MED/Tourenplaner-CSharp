@@ -11,6 +11,26 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed partial class KarteSearchDetailsTests
 {
     [Theory]
+    [InlineData(true, 47.185123, 7.401235, "Leuzigenstrasse 23, 2540 Grenchen", "Leuzigenstrasse 23, 2540 Grenchen")]
+    [InlineData(false, 47.185123, 7.401235, "Leuzigenstrasse 23, 2540 Grenchen", null)]
+    [InlineData(true, 47.186, 7.401235, "Leuzigenstrasse 23, 2540 Grenchen", null)]
+    [InlineData(true, 47.185123, 7.402, "Leuzigenstrasse 23, 2540 Grenchen", null)]
+    [InlineData(true, 47.185123, 7.401235, " ", null)]
+    public void ManualStopPreservesAddressOnlyAtActiveSearchPin(bool active, double latitude, double longitude,
+        string label, string? expected)
+    {
+        var vm = CreateViewModel();
+        SetPrivateField(vm, "_hasTemporarySearchPin", active);
+        SetPrivateField(vm, "_temporarySearchPinLatitude", 47.1851234);
+        SetPrivateField(vm, "_temporarySearchPinLongitude", 7.4012346);
+        SetPrivateField(vm, "_temporarySearchPinLabel", label);
+        var address = typeof(KarteSectionViewModel).GetMethod("GetSearchPinAddress",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(vm, [latitude, longitude]);
+        Assert.Equal(expected, address);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void CommittedEditorResultUpdatesRouteWithoutDiscardingDraftChanges(bool addressChanged)

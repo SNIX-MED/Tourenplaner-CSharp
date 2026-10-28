@@ -5,6 +5,22 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class TourPdfHtmlBuilderTests
 {
+    [Theory]
+    [InlineData("manual:bd7208809cfd4b7ebecb91992a89305c", false)]
+    [InlineData("MANUAL:bd7208809cfd4b7ebecb91992a89305c", false)]
+    [InlineData("1001", true)]
+    public void Build_HidesInternalManualStopIds(string orderNumber, bool visible)
+    {
+        var stop = new RouteExportStopInfo(1, "A", "Test", "Leuzigenstrasse 23, 2540 Grenchen",
+            "Gawela", orderNumber, 47, 8, "", "", "", "", "", 0);
+        var snapshot = new RouteExportSnapshot("Tour", "28.10.2026", "07:30", null, null,
+            [stop], [], [], null);
+        var html = TourPdfHtmlBuilder.Build(snapshot, null);
+        Assert.Equal(visible, html.Contains(orderNumber));
+        Assert.Contains("Leuzigenstrasse 23", html);
+        Assert.Contains("Test", html);
+    }
+
     [Fact]
     public void Build_RendersNotesAtCorrespondingStopAndEncodesHtml()
     {

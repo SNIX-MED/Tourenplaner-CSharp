@@ -1268,8 +1268,8 @@ internal static class MapHtmlDocumentBuilder
                              badge.remove();
                              markerElement.removeAttribute('aria-label');
                            }
-                           if (isRouteMarker && typeof marker.setDraggable === 'function') {
-                             marker.setDraggable(!hidden && count <= 1);
+                           if (typeof marker.setDraggable === 'function') {
+                             marker.setDraggable(false);
                            }
                          };
 
@@ -1340,7 +1340,6 @@ internal static class MapHtmlDocumentBuilder
                              if (evt.button !== 0) return;
                              const marker = routeMarkerFromEvent(evt);
                              if (!marker) return;
-                             marker.__gawelaPrepareRouteSelection();
                              routePointerGesture = { id: marker.__gawelaOrderId, pointerId: evt.pointerId,
                                x: evt.clientX, y: evt.clientY };
                            }, true);
@@ -1366,7 +1365,6 @@ internal static class MapHtmlDocumentBuilder
                              evt.preventDefault();
                              if (evt.button !== 0) return;
                              if (evt.detail === 0) {
-                               marker.__gawelaPrepareRouteSelection();
                                marker.__gawelaSelectRouteStop();
                              } else if (!suppressRoutePointerClick) marker.__gawelaSelectRouteStop();
                              suppressRoutePointerClick = false;
@@ -1518,7 +1516,8 @@ internal static class MapHtmlDocumentBuilder
 
                            const customer = m && m.customer ? String(m.customer).trim() : '';
                            const markerId = m && m.id ? String(m.id).trim() : '';
-                           const orderId = m && m.orderNumber ? String(m.orderNumber).trim() : markerId;
+                           const rawOrderId = m && m.orderNumber ? String(m.orderNumber).trim() : markerId;
+                           const orderId = rawOrderId.toLowerCase().startsWith('manual:') ? '' : rawOrderId;
                            const street = m && m.street ? String(m.street).trim() : '';
                            const postalCodeCity = m && m.postalCodeCity ? String(m.postalCodeCity).trim() : '';
                            const notes = m && m.notes ? String(m.notes).trim() : '';
@@ -3075,7 +3074,7 @@ internal static class MapHtmlDocumentBuilder
                             const popup = new ttSdk.Popup({ offset: 12, anchor: 'bottom', closeOnClick: false, closeButton: false }).setHTML(
                               createScaledPopupHtml(buildPinPopupHtml(stop))
                             );
-                             const marker = new ttSdk.Marker({ element: buildMarkerElement(stop, true), draggable: true, anchor: 'center' })
+                             const marker = new ttSdk.Marker({ element: buildMarkerElement(stop, true), draggable: false, anchor: 'center' })
                                .setLngLat([stop.displayLon, stop.displayLat])
                                .setPopup(popup)
                                .addTo(map);
@@ -3104,29 +3103,7 @@ internal static class MapHtmlDocumentBuilder
                                const point = map.project(marker.getLngLat());
                                openMapContextMenu(point, null, stop.id, stop.manualLocationRequiresReview === true ? 'review' : stop.isLocationManuallySet === true);
                              });
-                             let draggedDuringInteraction = false;
-                             marker.on('dragstart', () => {
-                               marker.__gawelaDragging = true;
-                               draggedDuringInteraction = false;
-                               markerEl.style.cursor = 'grabbing';
-                             });
-                             marker.on('drag', () => {
-                               draggedDuringInteraction = true;
-                             });
-                            marker.on('dragend', () => {
-                              marker.__gawelaDragging = false;
-                              markerEl.style.cursor = 'pointer';
-                              const p = marker.getLngLat();
-                               if (window.chrome && window.chrome.webview && stop.id) {
-                                 window.chrome.webview.postMessage(`move:${stop.id}:${p.lat.toFixed(6)}:${p.lng.toFixed(6)}`);
-                               }
-                             });
                              const selectRouteStopFromMarker = () => {
-                              if (draggedDuringInteraction) {
-                                draggedDuringInteraction = false;
-                                return;
-                              }
-
                               if (zoomToScreenCluster(marker)) return;
 
                              if (window.chrome && window.chrome.webview && stop.id) {
@@ -3144,7 +3121,6 @@ internal static class MapHtmlDocumentBuilder
                              };
                              markerEl.dataset.gawelaRouteStopId = String(stop.id);
                              marker.__gawelaSelectRouteStop = selectRouteStopFromMarker;
-                             marker.__gawelaPrepareRouteSelection = () => { draggedDuringInteraction = false; };
 
                              if (!dismissedOrderPopupIds.has(String(stop.id || '')) && (routePopupVisible || (stop.id && stickyPopupOrderId && String(stop.id) === stickyPopupOrderId))) {
                                if (typeof popup.isOpen !== 'function' || !popup.isOpen()) popup.addTo(map);

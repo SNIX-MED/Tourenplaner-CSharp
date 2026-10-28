@@ -9,6 +9,17 @@ function runMapPinPopupTests(source) {
   const buildPopup = create();
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
 
+  for (const showName of [true, false]) {
+    for (const orderNumber of ['manual:bd7208809cfd4b7ebecb91992a89305c', '']) {
+      const html = buildPopup({ id: 'manual:bd7208809cfd4b7ebecb91992a89305c', orderNumber,
+        customer: 'Test', showName, showOrderNumber: true });
+      assert(!html.includes('manual:') && !html.includes('bd7208809cfd4b7ebecb91992a89305c'),
+        'Manual stop cards must never display the internal ID, including title fallback');
+    }
+  }
+  assert(buildPopup({ id: '123', orderNumber: '123', showOrderNumber: true }).includes('123'),
+    'Normal order numbers must remain visible');
+
   const marked = buildPopup({ customer: 'Kunde', isAlternativeLiefertour: true });
   assert(marked.includes('Evtl. Liefertour'), 'Alternative Liefertour must be shown in the popup');
 

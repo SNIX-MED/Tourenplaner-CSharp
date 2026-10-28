@@ -258,7 +258,8 @@ public static class TourPdfHtmlBuilder
     private static string BuildStopHtml(RouteExportStopInfo stop)
     {
         var extras = new List<string>();
-        if (!string.IsNullOrWhiteSpace(stop.OrderNumber))
+        if (!string.IsNullOrWhiteSpace(stop.OrderNumber)
+            && !stop.OrderNumber.Trim().StartsWith("manual:", StringComparison.OrdinalIgnoreCase))
         {
             extras.Add($"Auftrag: {stop.OrderNumber.Trim()}");
         }
