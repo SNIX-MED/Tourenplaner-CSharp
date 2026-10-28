@@ -267,10 +267,7 @@ public class OrderImportService : IOrderImportService
         existingOrder.DeliveryCanOccurEarlier = importedOrder.DeliveryCanOccurEarlier;
         existingOrder.Type = importedOrder.Type;
         existingOrder.OrderAddress = importedOrder.OrderAddress;
-        if (!existingOrder.IsLocationManuallySet || manualLocationAddressChanged)
-        {
-            existingOrder.DeliveryAddress = importedOrder.DeliveryAddress;
-        }
+        existingOrder.DeliveryAddress = importedOrder.DeliveryAddress;
 
         existingOrder.Email = importedOrder.Email;
         existingOrder.Phone = importedOrder.Phone;
@@ -292,9 +289,8 @@ public class OrderImportService : IOrderImportService
         IEnumerable<TourRecord>? tours)
     {
         if (existing is null) return [];
-        // A confirmed manual pin may use a corrected display address while remembering the XML source.
+        // Restoring the XML display address must also refresh already assigned tour stops.
         var manualSourceChanged = OrderImportDifferenceAnalyzer.HasManualLocationAddressChanged(existing, imported);
-        if (existing.IsLocationManuallySet && !manualSourceChanged) return [];
         static string Address(Order order) => OrderAddressFormatting.BuildAddressLine(
             order.DeliveryAddress?.Street, order.DeliveryAddress?.HouseNumber,
             order.DeliveryAddress?.PostalCode, order.DeliveryAddress?.City);

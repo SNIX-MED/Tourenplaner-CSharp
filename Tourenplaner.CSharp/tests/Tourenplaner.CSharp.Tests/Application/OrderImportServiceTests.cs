@@ -8,6 +8,29 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class OrderImportServiceTests
 {
     [Fact]
+    public async Task ReimportRestoresExactXmlSpellingWithoutMovingConfirmedPin()
+    {
+        var xml = CreateSqlOrder("A-1", "Kunde", "Mit Verteilung", "");
+        xml.LieferStrasse = "Betriebszentrum Parkhaus A";
+        xml.LieferPLZ = "8058";
+        xml.LieferOrt = "Zürich-Flughafen";
+        var repository = new FakeOrderRepository([]);
+        var service = new OrderImportService();
+        await service.ImportOrdersAsync([xml], repository);
+        var order = Assert.Single(repository.StoredOrders);
+        order.DeliveryAddress.Street = "BETRIEBSZENTRUM PARKHAUS A";
+        order.IsLocationManuallySet = true;
+        order.Location = new GeoPoint(47, 8);
+        order.ManualLocationAddress = "Betriebszentrum Parkhaus A, 8058 Zürich-Flughafen";
+        await repository.SaveAllAsync([order]);
+        await service.ImportOrdersAsync([xml], repository);
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal(xml.LieferStrasse, stored.DeliveryAddress.Street);
+        Assert.Equal(new GeoPoint(47, 8), stored.Location);
+        Assert.False(stored.ManualLocationRequiresReview);
+    }
+
+    [Fact]
     public async Task ManualSourceChanged_ToPreviouslyCorrectedDisplayAddress_StillMarksTour()
     {
         var xml = CreateSqlOrder("A-1", "Kunde", "Mit Verteilung", "");
@@ -103,10 +126,21 @@ public class OrderImportServiceTests
         await repository.SaveAllAsync(orders);
         var tours = new[] { new TourRecord { Id = 7, Stops = [new() { Auftragsnummer = "A-1" }] } };
         var preview = await service.PreviewImportAsync([xml], repository, tours);
-        Assert.Empty(Assert.Single(preview.Items).TourAddressChanges);
+        Assert.Single(Assert.Single(preview.Items).TourAddressChanges);
         var result = await service.ImportOrdersAsync([xml], repository, tours: tours);
-        Assert.Empty(result.TourAddressChanges);
+        Assert.Single(result.TourAddressChanges);
         Assert.False(Assert.Single(repository.StoredOrders).ManualLocationRequiresReview);
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal("XML-Strasse 25", stored.DeliveryAddress.Street);
+        Assert.Equal("8000", stored.DeliveryAddress.PostalCode);
+        Assert.Equal("Zürich", stored.DeliveryAddress.City);
+        Assert.Equal(new GeoPoint(47, 8), stored.Location);
+        Assert.True(stored.IsLocationManuallySet);
+        var repeated = await service.ImportOrdersAsync([xml], repository, tours: tours);
+        Assert.Empty(repeated.TourAddressChanges);
+        Assert.Equal(0, repeated.UpdatedOrders);
+        Assert.Equal(1, repeated.UnchangedOrders);
+        Assert.Equal("XML-Strasse 25", Assert.Single(repository.StoredOrders).DeliveryAddress.Street);
     }
     [Theory]
     [InlineData("Max Muster", "Max Muster", "")]
@@ -767,15 +801,15 @@ public class OrderImportServiceTests
             [CreateSqlOrder("A-1", "Kunde", "Frei Bordsteinkante", "Notiz")], repository);
 
         var previewItem = Assert.Single(preview.Items);
-        Assert.Equal(ImportPreviewAction.Unchanged, previewItem.Action);
-        Assert.Empty(previewItem.Changes);
-        Assert.Equal(1, result.UnchangedOrders);
-        Assert.Equal(0, result.UpdatedOrders);
+        Assert.Equal(ImportPreviewAction.Update, previewItem.Action);
+        Assert.NotEmpty(previewItem.Changes);
+        Assert.Equal(0, result.UnchangedOrders);
+        Assert.Equal(1, result.UpdatedOrders);
         var stored = Assert.Single(repository.StoredOrders);
         Assert.Equal(new GeoPoint(47.1, 8.2), stored.Location);
         Assert.True(stored.IsLocationManuallySet);
         Assert.False(stored.ManualLocationRequiresReview);
-        Assert.Equal("Musterstraße", stored.DeliveryAddress.Street);
+        Assert.Equal("Musterstrasse", stored.DeliveryAddress.Street);
     }
 
     [Fact]

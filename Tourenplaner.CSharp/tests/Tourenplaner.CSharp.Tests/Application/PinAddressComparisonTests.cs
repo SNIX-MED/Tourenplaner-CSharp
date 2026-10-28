@@ -6,6 +6,24 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class PinAddressComparisonTests
 {
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ConfirmedPositionNeverReplacesXmlDeliveryAddress(bool manual)
+    {
+        var order = new Order { Address = "Rudolf-Diesel-Str. 12, 8401 Winterthur",
+            DeliveryAddress = new() { Name = "Flughafen Zürich AG", ContactPerson = "Herr Nüssli",
+                Street = "Betriebszentrum Parkhaus A", PostalCode = "8058", City = "Zürich-Flughafen" } };
+        var before = System.Text.Json.JsonSerializer.Serialize(order.DeliveryAddress);
+        var position = new GeoPoint(47.45, 8.56);
+        OrderPinValidationPolicy.ApplyManualConfirmation(order, position, manual,
+            "Betriebszentrum Parkhaus A, 8058 Zürich-Flughafen");
+        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(order.DeliveryAddress));
+        Assert.Equal("Rudolf-Diesel-Str. 12, 8401 Winterthur", order.Address);
+        Assert.Equal(position, order.Location);
+        Assert.Equal(manual, order.IsLocationManuallySet);
+    }
+
+    [Theory]
     [InlineData("Grand Palais 1", "6440", "Brunnen", "Grand Parc", "Grand Parc 1, 6440 Ingenbohl", "Ingenbohl")]
     [InlineData("Seewenstrasse 130", "6423", "Seewen", "Seewernstrasse", "Seewernstrasse 130, 6423 Schwyz", "Schwyz")]
     public void Compare_ExplainsReportedImportWarnings(string street, string postal, string city,

@@ -69,9 +69,9 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - XML-Lieferadressen ohne Hausnummer bleiben erhalten, etwa Betriebszentrum Parkhaus A
-          - Lieferadressen werden bei Adresssuche und Kartenanzeige nicht mehr mit Auftragsadressen vermischt
-          - Kontaktpersonen und widerspruechliche XML-Adressfelder werden sicher unterschieden
+          - Pin-Bestaetigung speichert nur die Kartenposition und behaelt die XML-Lieferadresse
+          - Erneuter XML-Import stellt die Lieferadresse auch bei bestehenden manuellen Pins wieder her
+          - Korrigierte Lieferadressen werden auch in bereits eingeplanten Tourstopps aktualisiert
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

@@ -22,7 +22,6 @@ public partial class PinAddressInfoDialogWindow : Window
     private bool _satelliteView;
     private CancellationTokenSource? _mapLoadTimeoutCts;
 
-    public bool UseFoundAddress { get; private set; }
     public bool IsSelectedLocationManual { get; private set; }
     public bool IsSelectedLocationReviewRequired { get; private set; }
     public GeoPoint? SelectedLocation => _selectedLocation;
@@ -267,7 +266,6 @@ public partial class PinAddressInfoDialogWindow : Window
         {
             return;
         }
-        UseFoundAddress = _result is not null && PinAddressComparison.CanUseFoundAddress(_result);
         DialogResult = true;
     }
 

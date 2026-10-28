@@ -52,10 +52,7 @@ public static class OrderImportDifferenceAnalyzer
 
         AddOrderAddressChanges(changes, existingOrder.OrderAddress, importedOrder.OrderAddress);
         var manualLocationAddressChanged = HasManualLocationAddressChanged(existingOrder, importedOrder);
-        if (!existingOrder.IsLocationManuallySet || manualLocationAddressChanged)
-        {
-            AddDeliveryAddressChanges(changes, existingOrder.DeliveryAddress, importedOrder.DeliveryAddress);
-        }
+        AddDeliveryAddressChanges(changes, existingOrder.DeliveryAddress, importedOrder.DeliveryAddress);
 
         if (manualLocationAddressChanged)
         {

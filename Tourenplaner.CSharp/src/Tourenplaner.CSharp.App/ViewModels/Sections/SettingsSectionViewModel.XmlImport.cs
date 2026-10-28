@@ -588,14 +588,9 @@ public sealed partial class SettingsSectionViewModel
         // Work on a copy: a failed save must not alter a shared repository object.
         var updated = System.Text.Json.JsonSerializer.Deserialize<Order>(
             System.Text.Json.JsonSerializer.Serialize(order))!;
-        if (dialog.UseFoundAddress && result is not null)
-            PinAddressComparison.ApplyFoundAddress(updated, result with { Location = dialog.SelectedLocation });
-        else
-            updated.Location = dialog.SelectedLocation;
+        // Confirm coordinates only. The XML remains authoritative for the displayed address.
         var manuallyConfirmed = dialog.IsSelectedLocationManual || result?.IsPrecise != true;
-        updated.IsLocationManuallySet = manuallyConfirmed;
-        updated.ManualLocationAddress = manuallyConfirmed ? originalAddress : string.Empty;
-        updated.ManualLocationRequiresReview = false;
+        OrderPinValidationPolicy.ApplyManualConfirmation(updated, dialog.SelectedLocation!, manuallyConfirmed, originalAddress);
         try
         {
             if (_orderMutationRepository is not null)
@@ -614,9 +609,7 @@ public sealed partial class SettingsSectionViewModel
         }
         _dataSyncService?.PublishOrders(_instanceId, updated.Id, updated.Id);
         RemoveXmlImportPinIssue(orderId);
-        ImportStatusMessage = dialog.UseFoundAddress
-            ? $"Auftrag {orderId}: TomTom-Adresse und geprüfte Kartenposition gespeichert."
-            : $"Auftrag {orderId}: ursprüngliche Lieferadresse und geprüfte Kartenposition gespeichert.";
+        ImportStatusMessage = $"Auftrag {orderId}: XML-Lieferadresse beibehalten und geprüfte Kartenposition gespeichert.";
     }
 
     private async Task RecheckXmlImportPinIssueAsync(string orderId)
