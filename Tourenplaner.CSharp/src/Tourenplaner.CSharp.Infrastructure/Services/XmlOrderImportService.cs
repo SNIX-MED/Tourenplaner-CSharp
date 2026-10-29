@@ -542,7 +542,7 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
         IReadOnlyList<XElement> matchedProducts,
         XmlImportMappingSettings mapping)
     {
-        if (HasMontageAndDistributionDeliveryMarkers(matchedProducts))
+        if (HasMontageAndDistributionDeliveryMarkers(matchedProducts, mapping))
         {
             return DeliveryMethodExtensions.MitVerteilungMontage;
         }
@@ -633,14 +633,18 @@ public sealed class XmlOrderImportService : IXmlOrderImportService
                GetDeliveryTypeRules(mapping).Any(rule => rule.MatchValues.Contains(productArticleNumber));
     }
 
-    private static bool HasMontageAndDistributionDeliveryMarkers(IEnumerable<XElement> productElements)
+    private static bool HasMontageAndDistributionDeliveryMarkers(IReadOnlyList<XElement> productElements, XmlImportMappingSettings mapping)
     {
         var articleIds = productElements
             .Select(ReadExportArticleId)
             .Where(articleId => !string.IsNullOrWhiteSpace(articleId))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return articleIds.Contains(MontageArticleId) && articleIds.Contains(DistributionDeliveryArticleId);
+        var curbsideArticleNumbers = CreateDeliveryTypeMatchValues(
+            mapping.DeliveryTypeFreiBordsteinkanteArticleNumbers, DeliveryMethodExtensions.FreiBordsteinkante);
+        return articleIds.Contains(MontageArticleId) &&
+               (articleIds.Contains(DistributionDeliveryArticleId) ||
+                productElements.Any(product => curbsideArticleNumbers.Contains(GetDeliveryTypeMatchArticleNumber(product, mapping))));
     }
 
     private static bool IsMontageOrDistributionDeliveryMarker(XElement productElement)

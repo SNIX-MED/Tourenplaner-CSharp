@@ -1050,8 +1050,19 @@ public class XmlOrderImportServiceTests
         }
     }
 
-    [Fact]
-    public void LoadOrdersFromFileDetailed_UsesCombinedMontageAndDistributionMarkers()
+    [Theory]
+    [InlineData("1be04ec6-080a-11ec-8a64-40b076de1f8f", "", true)]
+    [InlineData("", "FRACHT-O-VERT", true)]
+    [InlineData("", "FRACHT-O-VERT-alt", true)]
+    [InlineData("", "FRACHT-O-VERT", false)]
+    [InlineData("", "FRACHT-O-VERT-alt", false)]
+    [InlineData("", " fracht-o-vert ", true)]
+    [InlineData("", "CUSTOM-CURBSIDE", true, "CUSTOM-CURBSIDE")]
+    [InlineData("", "FRACHT-O-VERT", true, "CUSTOM-CURBSIDE", "Selbstabholung", 2)]
+    [InlineData("", "Fracht mit Spediteur", true, null, "Spediteur")]
+    public void LoadOrdersFromFileDetailed_UsesCombinedMontageAndDistributionMarkers(
+        string deliveryArticleId, string deliveryArticleNumber, bool withMontage,
+        string? customCurbside = null, string? expectedDelivery = null, int expectedProductCount = 1)
     {
         var root = Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -1060,7 +1071,7 @@ public class XmlOrderImportServiceTests
         try
         {
             File.WriteAllText(xmlPath,
-                """
+                $"""
                 <belege>
                   <beleg>
                     <ident>order-1</ident>
@@ -1078,14 +1089,16 @@ public class XmlOrderImportServiceTests
                       </position>
                       <position>
                         <kopfid>order-1</kopfid>
-                        <artikelid>973d1a2f-155b-11ec-8a65-40b076de1f8f</artikelid>
+                        <artikelid>{(withMontage ? "973d1a2f-155b-11ec-8a65-40b076de1f8f" : deliveryArticleId)}</artikelid>
+                        <artikel>{(withMontage ? "" : deliveryArticleNumber)}</artikel>
                         <menge>1</menge>
                         <bezeichnung>Montagekosten</bezeichnung>
                         <gewicht>0</gewicht>
                       </position>
                       <position>
                         <kopfid>order-1</kopfid>
-                        <artikelid>1be04ec6-080a-11ec-8a64-40b076de1f8f</artikelid>
+                        <artikelid>{deliveryArticleId}</artikelid>
+                        <artikel>{deliveryArticleNumber}</artikel>
                         <menge>1</menge>
                         <bezeichnung>Lieferkosten mit Warenverteilung</bezeichnung>
                         <gewicht>0</gewicht>
@@ -1096,11 +1109,14 @@ public class XmlOrderImportServiceTests
                 """);
 
             var service = new XmlOrderImportService();
-            var result = service.LoadOrdersFromFileDetailed(xmlPath);
+            var result = service.LoadOrdersFromFileDetailed(xmlPath, new XmlImportMappingSettings
+            {
+                DeliveryTypeFreiBordsteinkanteArticleNumbers = customCurbside ?? XmlImportMappingSettings.DefaultDeliveryTypeFreiBordsteinkanteArticleNumbers
+            });
 
             Assert.Single(result.Orders);
-            Assert.Equal(DeliveryMethodExtensions.MitVerteilungMontage, result.Orders[0].Lieferbedingung);
-            Assert.Single(result.Orders[0].Produkte);
+            Assert.Equal(expectedDelivery ?? (withMontage ? DeliveryMethodExtensions.MitVerteilungMontage : DeliveryMethodExtensions.FreiBordsteinkante), result.Orders[0].Lieferbedingung);
+            Assert.Equal(expectedProductCount, result.Orders[0].Produkte.Count);
             Assert.Equal("PRODUKT-H", result.Orders[0].Produkte[0].ArtikelNummer);
             Assert.Empty(result.Errors);
         }

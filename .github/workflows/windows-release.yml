@@ -69,9 +69,9 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Pin-Bestaetigung speichert nur die Kartenposition und behaelt die XML-Lieferadresse
-          - Erneuter XML-Import stellt die Lieferadresse auch bei bestehenden manuellen Pins wieder her
-          - Korrigierte Lieferadressen werden auch in bereits eingeplanten Tourstopps aktualisiert
+          - XML-Import erkennt Montage zusammen mit Frei Bordsteinkante als Mit Verteilung & Montage
+          - Bestehende Kombination mit Warenverteilung und konfigurierte Versandartikel bleiben beruecksichtigt
+          - Regressionstests fuer Montagekombinationen und benutzerdefinierte Artikelnummern erweitert
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
