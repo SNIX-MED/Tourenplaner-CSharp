@@ -69,10 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - PDF-Export grosser Karten korrigiert; WEBFLEET-Synchronisierung nach erfolgreichem Export angeboten
-          - Automatische Tournamen mit deutschem Wochentag und einheitliche Infokacheln fuer geladene Touren
-          - XML-Wiederimport ohne Scheinupdates durch negative Nullwerte
-          - Negative Mengen und Gewichte in Teillieferungen, Touren und Anzeigen konsistent beruecksichtigt
+          - PDF-Layout vereinfacht: Mitarbeiter unter dem Titel, Auftragsnummer beim Kunden, Fahrzeug und Anhaenger getrennt
+          - PDF-Dateiname ohne doppeltes Datum; Pausenfeld in voller Breite ohne Punkt
+          - Speicherwarnung nennt Auftraege und Produkte ohne Gewicht, einschliesslich Teillieferungen
+          - Mausrad-Scrollen in der Routenuebersicht korrigiert
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

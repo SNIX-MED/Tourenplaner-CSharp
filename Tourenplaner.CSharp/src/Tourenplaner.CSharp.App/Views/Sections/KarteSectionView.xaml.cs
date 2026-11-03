@@ -608,6 +608,18 @@ public partial class KarteSectionView : UserControl
     private void OnRouteStopsPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         var stopsViewer = GetActiveRouteStopsScrollViewer();
+        ScrollRoutePanelWithMouseWheel(stopsViewer, e);
+    }
+
+    private void OnTourOverviewPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var listViewer = VisualTreeUtilities.FindDescendant<ScrollViewer>(TourOverviewList);
+        var viewer = listViewer?.ScrollableHeight > 0 ? listViewer : TourOverviewScrollViewer;
+        ScrollRoutePanelWithMouseWheel(viewer, e);
+    }
+
+    private static void ScrollRoutePanelWithMouseWheel(ScrollViewer? stopsViewer, MouseWheelEventArgs e)
+    {
         if (stopsViewer is null || stopsViewer.ScrollableHeight <= 0)
         {
             return;
@@ -2461,8 +2473,7 @@ public partial class KarteSectionView : UserControl
     private static string BuildDefaultPdfFileName(RouteExportSnapshot snapshot)
     {
         var name = string.IsNullOrWhiteSpace(snapshot.TourName) ? "Tour-Export" : snapshot.TourName.Trim();
-        var date = string.IsNullOrWhiteSpace(snapshot.TourDate) ? DateTime.Today.ToString("yyyy-MM-dd") : snapshot.TourDate.Trim();
-        var raw = $"{name}_{date}.pdf";
+        var raw = $"{name}.pdf";
         var invalid = Path.GetInvalidFileNameChars();
         return string.Concat(raw.Select(ch => invalid.Contains(ch) ? '_' : ch));
     }

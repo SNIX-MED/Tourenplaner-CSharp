@@ -1153,9 +1153,9 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                    <ScrollViewer x:Name="TourOverviewScrollViewer" VerticalScrollBarVisibility="Auto"
                                                   HorizontalScrollBarVisibility="Disabled"
-                                                  PreviewMouseWheel="OnRouteStopsPreviewMouseWheel">
+                                                  PreviewMouseWheel="OnTourOverviewPreviewMouseWheel">
                                         <ListBox x:Name="TourOverviewList"
                                                  ItemsSource="{Binding TourOverviewItems}"
                                                  SelectedItem="{Binding SelectedTourOverviewItem, Mode=TwoWay}"

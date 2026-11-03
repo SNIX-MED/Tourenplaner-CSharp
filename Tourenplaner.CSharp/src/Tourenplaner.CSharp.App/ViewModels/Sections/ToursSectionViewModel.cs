@@ -2082,6 +2082,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             }
 
             var result = dialog.Result;
+            if (!TourMissingWeightWarning.Confirm(tour, await _orderRepository.GetAllAsync())) return;
             var originalName = tour.Name;
             var originalDate = tour.Date;
             var originalStartTime = tour.StartTime;

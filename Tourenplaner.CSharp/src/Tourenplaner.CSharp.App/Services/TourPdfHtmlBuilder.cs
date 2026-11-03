@@ -8,6 +8,9 @@ public static class TourPdfHtmlBuilder
     public static string Build(RouteExportSnapshot snapshot, string? mapImageBase64Png)
     {
         var title = string.IsNullOrWhiteSpace(snapshot.TourName) ? "Tour-Export" : snapshot.TourName.Trim();
+        var employeeHtml = string.IsNullOrWhiteSpace(snapshot.EmployeeNames)
+            ? string.Empty
+            : $"<div class=\"subtitle\">{Html(snapshot.EmployeeNames.Trim())}</div>";
         var meta = BuildMeta(snapshot);
         var stops = string.Join(Environment.NewLine, snapshot.Stops.Select(BuildStopHtml));
         var additionalMaterial = BuildAdditionalMaterialHtml(snapshot.AdditionalMaterials);
@@ -67,9 +70,6 @@ public static class TourPdfHtmlBuilder
                      }
                      .meta-value {
                        white-space: pre-line;
-                     }
-                     .meta-value-wide {
-                       grid-column: 2 / -1;
                      }
                      .content {
                        display: grid;
@@ -144,10 +144,10 @@ public static class TourPdfHtmlBuilder
                      }
                      .pause-row {
                        display: flex;
-                       justify-content: flex-end;
                      }
                      .pause-badge {
-                       display: inline-flex;
+                       display: flex;
+                       width: 100%;
                        align-items: center;
                        gap: 6px;
                        padding: 4px 9px;
@@ -157,13 +157,6 @@ public static class TourPdfHtmlBuilder
                        color: #9a6700;
                        font-size: 11px;
                        font-weight: 600;
-                     }
-                     .pause-icon {
-                       width: 7px;
-                       height: 7px;
-                       border-radius: 999px;
-                       background: #1f2937;
-                       box-shadow: 0 0 0 2px #fde7c3;
                      }
                      .map-shell {
                        display: flex;
@@ -200,7 +193,7 @@ public static class TourPdfHtmlBuilder
                      <div class="header">
                        <div>
                          <h1 class="title">{{Html(title)}}</h1>
-                         <div class="subtitle">Tour-Export für die aktuell geladene Route</div>
+                         {{employeeHtml}}
                        </div>
                        <div class="meta">
                          {{meta}}
@@ -231,52 +224,41 @@ public static class TourPdfHtmlBuilder
     {
         var entries = new List<(string Label, string Value)>
         {
-            ("Tour", string.IsNullOrWhiteSpace(snapshot.TourName) ? "Aktuelle Route" : snapshot.TourName.Trim()),
             ("Datum", string.IsNullOrWhiteSpace(snapshot.TourDate) ? "n/a" : snapshot.TourDate.Trim()),
             ("Start", string.IsNullOrWhiteSpace(snapshot.StartTime) ? "n/a" : snapshot.StartTime.Trim()),
+            (string.Empty, string.Empty),
             ("Stopps", snapshot.Stops.Count.ToString())
         };
 
         if (!string.IsNullOrWhiteSpace(snapshot.VehicleLabel))
         {
-            entries.Add(("Fahrzeug & Anhänger", snapshot.VehicleLabel!.Trim()));
+            entries.Add(("Fahrzeug:", snapshot.VehicleLabel!.Trim()));
         }
 
         if (!string.IsNullOrWhiteSpace(snapshot.TrailerLabel))
         {
-            entries.Add(("Anhänger", snapshot.TrailerLabel!.Trim()));
+            entries.Add(("Anhänger:", snapshot.TrailerLabel!.Trim()));
         }
 
         return string.Join(Environment.NewLine, entries.Select(x =>
         {
-            var isVehicleLine = string.Equals(x.Label, "Fahrzeug & Anhänger", StringComparison.OrdinalIgnoreCase);
-            var valueClass = isVehicleLine ? "meta-value meta-value-wide" : "meta-value";
-            return $"<div class=\"meta-label\">{Html(x.Label)}</div><div class=\"{valueClass}\">{Html(x.Value)}</div>";
+            return $"<div class=\"meta-label\">{Html(x.Label)}</div><div class=\"meta-value\">{Html(x.Value)}</div>";
         }));
     }
 
     private static string BuildStopHtml(RouteExportStopInfo stop)
     {
         var extras = new List<string>();
+        var stopName = (stop.Name ?? string.Empty).Trim();
         if (!string.IsNullOrWhiteSpace(stop.OrderNumber)
             && !stop.OrderNumber.Trim().StartsWith("manual:", StringComparison.OrdinalIgnoreCase))
         {
-            extras.Add($"Auftrag: {stop.OrderNumber.Trim()}");
+            stopName = $"{stopName} ({stop.OrderNumber.Trim()})".Trim();
         }
 
         if (!string.IsNullOrWhiteSpace(stop.TimeWindow))
         {
-            extras.Add($"Zeitfenster: {stop.TimeWindow.Trim()}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(stop.Arrival))
-        {
-            extras.Add($"ETA: {stop.Arrival.Trim()}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(stop.ArrivalRange))
-        {
-            extras.Add($"ETA-Fenster: {stop.ArrivalRange.Trim()}");
+            extras.Add(stop.TimeWindow.Trim());
         }
 
         if (!string.IsNullOrWhiteSpace(stop.WeightText))
@@ -304,7 +286,6 @@ public static class TourPdfHtmlBuilder
             : $$"""
                <div class="pause-row">
                  <div class="pause-badge">
-                   <span class="pause-icon"></span>
                    <span>{{Html($"Pause {stop.PauseAfterMinutes} min")}}</span>
                  </div>
                </div>
@@ -315,7 +296,7 @@ public static class TourPdfHtmlBuilder
                    <div class="stop">
                      <div class="marker">{{Html(stop.Label)}}</div>
                      <div>
-                       <div class="stop-name">{{Html(stop.Name)}}</div>
+                       <div class="stop-name">{{Html(stopName)}}</div>
                        <div class="stop-address">{{Html(stop.Address)}}</div>
                        {{deliveryTypeHtml}}
                        {{extraHtml}}

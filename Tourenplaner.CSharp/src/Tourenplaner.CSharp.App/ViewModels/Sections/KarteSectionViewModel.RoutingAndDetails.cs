@@ -2939,6 +2939,7 @@ public sealed partial class KarteSectionViewModel
                 .ToList();
             tour.AdditionalMaterials = CloneAdditionalMaterials(additionalMaterials);
 
+            if (!TourMissingWeightWarning.Confirm(tour, await _orderRepository.GetAllAsync())) return;
             if (!ConfirmMissingPauseWarning(tour)) return;
 
             var previewTours = tours.ToList();
@@ -3121,6 +3122,7 @@ public sealed partial class KarteSectionViewModel
 
             var previewTours = tours.ToList();
             previewTours[index] = updated;
+            if (!TourMissingWeightWarning.Confirm(updated, await _orderRepository.GetAllAsync())) return;
             if (!ConfirmMissingPauseWarning(updated)) return;
             if (!ConfirmAssignmentConflictWarning(previewTours, updated.Id))
             {
@@ -4323,39 +4325,41 @@ public sealed partial class KarteSectionViewModel
             .ToList();
 
         snapshot = new RouteExportSnapshot(
-            BuildExportTourNameWithEmployees(),
+            string.IsNullOrWhiteSpace(RouteName) ? "Aktuelle Route" : RouteName.Trim(),
             string.IsNullOrWhiteSpace(RouteDate) ? string.Empty : RouteDate.Trim(),
             $"{NormalizeTimePart(RouteStartHour, 23)}:{NormalizeTimePart(RouteStartMinute, 59)}",
-            BuildVehicleTrailerLinesForExport(
-                _currentRouteVehicleId,
-                _currentRouteTrailerId,
-                _currentRouteSecondaryVehicleId,
-                _currentRouteSecondaryTrailerId),
-            null,
+            JoinExportLabels(ResolveVehicleLabel(_currentRouteVehicleId), ResolveVehicleLabel(_currentRouteSecondaryVehicleId)),
+            JoinExportLabels(ResolveTrailerLabel(_currentRouteTrailerId), ResolveTrailerLabel(_currentRouteSecondaryTrailerId)),
             stops,
             googleMapsPoints,
             _routeGeometryPoints.ToList(),
             _companyLocation is null
                 ? null
                 : new RouteExportCompanyInfo(_companyName, _companyAddress, _companyLocation.Latitude, _companyLocation.Longitude),
-            CloneAdditionalMaterials(_currentAdditionalMaterials));
+            CloneAdditionalMaterials(_currentAdditionalMaterials),
+            BuildExportEmployeeNames());
 
         return true;
     }
 
-    private string BuildExportTourNameWithEmployees()
+    private static string? JoinExportLabels(params string?[] labels)
     {
-        var baseName = string.IsNullOrWhiteSpace(RouteName) ? "Aktuelle Route" : RouteName.Trim();
+        var values = labels.Where(label => !string.IsNullOrWhiteSpace(label)).Select(label => label!.Trim()).ToList();
+        return values.Count == 0 ? null : string.Join(Environment.NewLine, values);
+    }
+
+    private string BuildExportEmployeeNames()
+    {
         var tourId = ResolveCurrentTourId();
         if (tourId <= 0)
         {
-            return baseName;
+            return string.Empty;
         }
 
         var selectedTour = _savedTours.FirstOrDefault(x => x.Id == tourId);
         if (selectedTour is null || selectedTour.EmployeeIds is null || selectedTour.EmployeeIds.Count == 0)
         {
-            return baseName;
+            return string.Empty;
         }
 
         var employees = selectedTour.EmployeeIds
@@ -4363,15 +4367,7 @@ public sealed partial class KarteSectionViewModel
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (employees.Count == 0)
-        {
-            return baseName;
-        }
-
-        var suffix = $"({string.Join(", ", employees)})";
-        return baseName.Contains(suffix, StringComparison.OrdinalIgnoreCase)
-            ? baseName
-            : $"{baseName} {suffix}";
+        return string.Join(", ", employees);
     }
 
     private static string FormatStoredArrivalWindow(TourStopRecord stop) =>
