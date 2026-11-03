@@ -5,6 +5,22 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class OrderDeliveryDialogViewModelTests
 {
+    [Theory]
+    [InlineData("-3", true)]
+    [InlineData("3", false)]
+    [InlineData("-11", false)]
+    public void NegativePositionCanBeAllocatedWithMatchingSign(string input, bool expected)
+    {
+        var order = new Order { Products = [new() { PositionId = "N", Name = "Abzug", Quantity = -10 }] };
+        var model = new OrderDeliveryDialogViewModel(order);
+        var line = Assert.Single(model.Lines);
+        line.IsSelected = true;
+        Assert.Equal(-10, line.Quantity);
+        line.QuantityText = input;
+        Assert.Equal(expected, model.TryBuild(out var lines, out _));
+        if (expected) Assert.Equal(-3, Assert.Single(lines).Quantity);
+    }
+
     [Fact]
     public void NewPartialDelivery_PrefillsBothDatesFromMainDeliveryDate()
     {

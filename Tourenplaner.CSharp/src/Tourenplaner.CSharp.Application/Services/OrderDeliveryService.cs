@@ -6,6 +6,9 @@ namespace Tourenplaner.CSharp.Application.Services;
 
 public sealed class OrderDeliveryService
 {
+    public static bool IsQuantityWithinAvailable(int quantity, int available) =>
+        available < 0 ? quantity <= 0 && quantity >= available : quantity >= 0 && quantity <= available;
+
     public const int MaximumDeliveryCount = 2;
 
     private static readonly Regex DeliveryNotePrefixPattern = new(
@@ -77,9 +80,9 @@ public sealed class OrderDeliveryService
                     .Select(x => new OrderDeliveryLine
                     {
                         OrderProductPositionId = x.PositionId,
-                        Quantity = Math.Max(0, OrderProductInfo.NormalizeQuantity(x.Quantity))
+                        Quantity = OrderProductInfo.NormalizeQuantity(x.Quantity)
                     })
-                    .Where(x => x.Quantity > 0)
+                    .Where(x => x.Quantity != 0)
                     .ToList()
             });
             changed = true;
@@ -95,11 +98,11 @@ public sealed class OrderDeliveryService
             .Where(x => x.Status != OrderDeliveryStatus.Cancelled)
             .SelectMany(x => x.Lines ?? [])
             .GroupBy(x => x.OrderProductPositionId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Key, x => x.Sum(y => Math.Max(0, y.Quantity)), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(x => x.Key, x => x.Sum(y => y.Quantity), StringComparer.OrdinalIgnoreCase);
 
         return order.Products.ToDictionary(
             x => x.PositionId,
-            x => Math.Max(0, OrderProductInfo.NormalizeQuantity(x.Quantity) - allocated.GetValueOrDefault(x.PositionId)),
+            x => Math.Clamp(OrderProductInfo.NormalizeQuantity(x.Quantity) - allocated.GetValueOrDefault(x.PositionId), Math.Min(0, OrderProductInfo.NormalizeQuantity(x.Quantity)), Math.Max(0, OrderProductInfo.NormalizeQuantity(x.Quantity))),
             StringComparer.OrdinalIgnoreCase);
     }
 
@@ -120,10 +123,10 @@ public sealed class OrderDeliveryService
 
         var allocated = (delivery.Lines ?? [])
             .GroupBy(x => x.OrderProductPositionId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Key, x => x.Sum(y => Math.Max(0, y.Quantity)), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(x => x.Key, x => x.Sum(y => y.Quantity), StringComparer.OrdinalIgnoreCase);
         return order.Products
             .Where(x => !string.IsNullOrWhiteSpace(x.Name))
-            .All(x => allocated.GetValueOrDefault(x.PositionId) == Math.Max(0, OrderProductInfo.NormalizeQuantity(x.Quantity)));
+            .All(x => allocated.GetValueOrDefault(x.PositionId) == OrderProductInfo.NormalizeQuantity(x.Quantity));
     }
 
     public OrderDelivery Create(Order order, IEnumerable<OrderDeliveryLine> lines, DateOnly? plannedDate, string? notes = null)
@@ -134,8 +137,15 @@ public sealed class OrderDeliveryService
             throw new InvalidOperationException("Ein Auftrag kann maximal zwei Lieferungen enthalten.");
         }
 
-        var requested = (lines ?? [])
-            .Where(x => x.Quantity > 0 && !string.IsNullOrWhiteSpace(x.OrderProductPositionId))
+        var inputLines = (lines ?? []).ToList();
+        foreach (var line in inputLines.Where(line => line.Quantity != 0))
+        {
+            var product = order.Products.FirstOrDefault(p => string.Equals(p.PositionId, line.OrderProductPositionId, StringComparison.OrdinalIgnoreCase));
+            if (product is null || !IsQuantityWithinAvailable(line.Quantity, OrderProductInfo.NormalizeQuantity(product.Quantity)))
+                throw new InvalidOperationException("Eine Liefermenge liegt ausserhalb der Auftragsmenge oder hat ein falsches Vorzeichen.");
+        }
+        var requested = inputLines
+            .Where(x => x.Quantity != 0 && !string.IsNullOrWhiteSpace(x.OrderProductPositionId))
             .GroupBy(x => x.OrderProductPositionId, StringComparer.OrdinalIgnoreCase)
             .Select(x => new OrderDeliveryLine { OrderProductPositionId = x.Key, Quantity = x.Sum(y => y.Quantity) })
             .ToList();
@@ -151,7 +161,7 @@ public sealed class OrderDeliveryService
             {
                 throw new InvalidOperationException("Die referenzierte Auftragsposition existiert nicht.");
             }
-            if (line.Quantity > available)
+            if (!IsQuantityWithinAvailable(line.Quantity, available))
             {
                 throw new InvalidOperationException($"Die Liefermenge {line.Quantity} überschreitet die Restmenge {available}.");
             }
@@ -208,9 +218,9 @@ public sealed class OrderDeliveryService
             .Select(x => new OrderDeliveryLine
             {
                 OrderProductPositionId = x.PositionId,
-                Quantity = Math.Max(0, OrderProductInfo.NormalizeQuantity(x.Quantity))
+                Quantity = OrderProductInfo.NormalizeQuantity(x.Quantity)
             })
-            .Where(x => x.Quantity > 0)
+            .Where(x => x.Quantity != 0)
             .ToList();
         retained.DeliveredAt = null;
         retained.Status = string.IsNullOrWhiteSpace(retained.AssignedTourId)
@@ -231,7 +241,7 @@ public sealed class OrderDeliveryService
         }
 
         var lines = GetRemainingQuantities(order)
-            .Where(x => x.Value > 0)
+            .Where(x => x.Value != 0)
             .Select(x => new OrderDeliveryLine { OrderProductPositionId = x.Key, Quantity = x.Value })
             .ToList();
         if (lines.Count == 0)
@@ -344,12 +354,12 @@ public sealed class OrderDeliveryService
         Normalize(order);
         if (order.Deliveries.Count <= 1 && order.Products.All(p =>
                 (delivery.Lines ?? []).Where(l => string.Equals(l.OrderProductPositionId, p.PositionId, StringComparison.OrdinalIgnoreCase))
-                    .Sum(l => Math.Max(0, l.Quantity)) == Math.Max(0, OrderProductInfo.NormalizeQuantity(p.Quantity))))
+                    .Sum(l => l.Quantity) == OrderProductInfo.NormalizeQuantity(p.Quantity)))
             return order.ResolveTotalWeightKg();
         var products = order.Products.ToDictionary(x => x.PositionId, StringComparer.OrdinalIgnoreCase);
         return (delivery.Lines ?? []).Sum(line =>
             products.TryGetValue(line.OrderProductPositionId, out var product)
-                ? Math.Max(0, OrderProductWeightNormalization.ResolveUnitWeightKg(product)) * Math.Max(0, line.Quantity)
+                ? OrderProductWeightNormalization.ResolveUnitWeightKg(product) * line.Quantity
                 : 0d);
     }
 
@@ -359,7 +369,7 @@ public sealed class OrderDeliveryService
         ArgumentNullException.ThrowIfNull(delivery);
 
         var includedPositionIds = (delivery.Lines ?? [])
-            .Where(x => x.Quantity > 0 && !string.IsNullOrWhiteSpace(x.OrderProductPositionId))
+            .Where(x => x.Quantity != 0 && !string.IsNullOrWhiteSpace(x.OrderProductPositionId))
             .Select(x => x.OrderProductPositionId)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return (order.Products ?? [])
@@ -377,11 +387,20 @@ public sealed class OrderDeliveryService
         }
 
         var products = order.Products.ToDictionary(x => x.PositionId, StringComparer.OrdinalIgnoreCase);
+        foreach (var line in order.Deliveries.Where(d => d.Status != OrderDeliveryStatus.Cancelled).SelectMany(d => d.Lines ?? []))
+        {
+            if (!products.TryGetValue(line.OrderProductPositionId, out var product)
+                || (line.Quantity != 0 && Math.Sign(line.Quantity) != Math.Sign(OrderProductInfo.NormalizeQuantity(product.Quantity))))
+            {
+                error = "Eine Liefermenge liegt ausserhalb der Auftragsmenge oder hat ein falsches Vorzeichen.";
+                return false;
+            }
+        }
         var allocations = order.Deliveries
             .Where(x => x.Status != OrderDeliveryStatus.Cancelled)
             .SelectMany(x => x.Lines ?? [])
             .GroupBy(x => x.OrderProductPositionId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Key, x => x.Sum(y => Math.Max(0, y.Quantity)), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(x => x.Key, x => x.Sum(y => y.Quantity), StringComparer.OrdinalIgnoreCase);
         foreach (var allocation in allocations)
         {
             if (!products.TryGetValue(allocation.Key, out var product))
@@ -390,7 +409,7 @@ public sealed class OrderDeliveryService
                 return false;
             }
             var allocated = allocation.Value;
-            if (allocated > Math.Max(0, OrderProductInfo.NormalizeQuantity(product.Quantity)))
+            if (!IsQuantityWithinAvailable(allocated, OrderProductInfo.NormalizeQuantity(product.Quantity)))
             {
                 error = $"Für «{product.Name}» sind bereits {allocated} Stück Lieferungen zugeteilt. Die Auftragsmenge darf nicht darunter liegen.";
                 return false;
@@ -401,7 +420,7 @@ public sealed class OrderDeliveryService
         {
             foreach (var product in order.Products.Where(x => !string.IsNullOrWhiteSpace(x.Name)))
             {
-                var ordered = Math.Max(0, OrderProductInfo.NormalizeQuantity(product.Quantity));
+                var ordered = OrderProductInfo.NormalizeQuantity(product.Quantity);
                 var allocated = allocations.GetValueOrDefault(product.PositionId);
                 if (allocated != ordered)
                 {
@@ -490,10 +509,10 @@ public sealed class OrderDeliveryService
             .Where(x => !ReferenceEquals(x, remainderDelivery))
             .SelectMany(x => x.Lines ?? [])
             .GroupBy(x => x.OrderProductPositionId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Key, x => x.Sum(y => Math.Max(0, y.Quantity)), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(x => x.Key, x => x.Sum(y => y.Quantity), StringComparer.OrdinalIgnoreCase);
         var importedById = importedProducts.ToDictionary(x => x.PositionId, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var fixedAllocation in fixedAllocations.Where(x => x.Value > 0))
+        foreach (var fixedAllocation in fixedAllocations.Where(x => x.Value != 0))
         {
             if (!importedById.ContainsKey(fixedAllocation.Key))
             {
@@ -505,16 +524,16 @@ public sealed class OrderDeliveryService
         var nextRemainderLines = new List<OrderDeliveryLine>();
         foreach (var product in importedProducts.Where(x => !string.IsNullOrWhiteSpace(x.Name)))
         {
-            var importedQuantity = Math.Max(0, OrderProductInfo.NormalizeQuantity(product.Quantity));
+            var importedQuantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
             var fixedQuantity = fixedAllocations.GetValueOrDefault(product.PositionId);
-            if (fixedQuantity > importedQuantity)
+            if (!IsQuantityWithinAvailable(fixedQuantity, importedQuantity))
             {
                 error = $"Die XML-Menge für «{product.Name}» ({importedQuantity}) liegt unter der bereits Lieferungen zugeteilten Menge ({fixedQuantity}).";
                 return false;
             }
 
             var remainderQuantity = importedQuantity - fixedQuantity;
-            if (remainderQuantity > 0)
+            if (remainderQuantity != 0)
             {
                 nextRemainderLines.Add(new OrderDeliveryLine
                 {
@@ -615,7 +634,7 @@ public sealed class OrderDeliveryService
         static Dictionary<string, int> NormalizeLines(IEnumerable<OrderDeliveryLine>? lines) =>
             (lines ?? [])
             .GroupBy(x => x.OrderProductPositionId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Key, x => x.Sum(y => Math.Max(0, y.Quantity)), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(x => x.Key, x => x.Sum(y => y.Quantity), StringComparer.OrdinalIgnoreCase);
 
         var leftLines = NormalizeLines(left);
         var rightLines = NormalizeLines(right);

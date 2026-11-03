@@ -10,6 +10,130 @@
              d:DesignHeight="860"
              d:DesignWidth="1500">
     <UserControl.Resources>
+        <DataTemplate x:Key="TourSummaryTilesTemplate">
+            <Grid>
+
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="SummaryTourName" FontSize="16"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource Brush.TextPrimary}"
+                           Text="{Binding TourName}" />
+                <Grid x:Name="SummaryFirstTileRow" Grid.Row="1" Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border MinHeight="64" Margin="0,0,5,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="46" />
+                                <ColumnDefinition Width="1" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Viewbox Width="34" Height="34" VerticalAlignment="Center" ToolTip="Fahrzeug">
+                                <Canvas Width="36" Height="28">
+                                    <Path Stroke="{DynamicResource Brush.TextPrimary}" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M 2,5 L 22,5 L 22,21 L 2,21 Z M 22,11 L 29,11 L 34,17 L 34,21 L 22,21 M 25,13 L 28,13 L 31,17 L 25,17 Z" />
+                                    <Ellipse Canvas.Left="6" Canvas.Top="18" Width="7" Height="7" Fill="{DynamicResource Brush.CardSoft}" Stroke="{DynamicResource Brush.TextPrimary}" StrokeThickness="1.6" />
+                                    <Ellipse Canvas.Left="25" Canvas.Top="18" Width="7" Height="7" Fill="{DynamicResource Brush.CardSoft}" Stroke="{DynamicResource Brush.TextPrimary}" StrokeThickness="1.6" />
+                                </Canvas>
+                            </Viewbox>
+                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                            <StackPanel Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding VehicleName}" ToolTip="{Binding VehicleName}" />
+                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding TrailerName}" ToolTip="{Binding TrailerName}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Margin" Value="0,3,0,0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TrailerName}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Grid.Column="1" MinHeight="64" Margin="5,0,0,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="38" />
+                                <ColumnDefinition Width="1" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Image Width="34" Height="34"
+                                   VerticalAlignment="Center"
+                                   Stretch="Uniform"
+                                   SnapsToDevicePixels="True"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Mitarbeiter.png" />
+                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Mitarbeiter" />
+                                <TextBlock Margin="0,1,0,0" MaxWidth="135" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" Text="{Binding EmployeeNames}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+                <Grid Grid.Row="2" Margin="0,5,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border MinHeight="64" Margin="0,0,5,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="38" />
+                                <ColumnDefinition Width="1" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Image Width="40" Height="40"
+                                   VerticalAlignment="Center"
+                                   Stretch="Uniform"
+                                   SnapsToDevicePixels="True"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Warengewicht.png" />
+                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Gesamtgewicht" />
+                                <TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding TotalWeightText}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Grid.Column="1" MinHeight="64" Margin="5,0,0,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="38" />
+                                <ColumnDefinition Width="1" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Image Width="34" Height="34"
+                                   VerticalAlignment="Center"
+                                   Stretch="Uniform"
+                                   SnapsToDevicePixels="True"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Ladegewicht.png" />
+                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
+                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Ladegewicht" />
+                                <TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding LoadCapacityText}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding DataContext.ShowTourOverviewPanel, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                    <Setter TargetName="SummaryTourName" Property="Visibility" Value="Collapsed" />
+                    <Setter TargetName="SummaryFirstTileRow" Property="Margin" Value="0" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <Style x:Key="DetailsToggleButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
             <Setter Property="Width" Value="36" />
@@ -1932,122 +2056,7 @@
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
-                            <Grid>
-
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock FontSize="16"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource Brush.TextPrimary}"
-                                           Text="{Binding SelectedTourOverviewItem.TourName}" />
-                                <Grid Grid.Row="1" Margin="0,10,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border MinHeight="64" Margin="0,0,5,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="46" />
-                                                <ColumnDefinition Width="1" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Viewbox Width="34" Height="34" VerticalAlignment="Center" ToolTip="Fahrzeug">
-                                                <Canvas Width="36" Height="28">
-                                                    <Path Stroke="{DynamicResource Brush.TextPrimary}" StrokeThickness="1.6" StrokeLineJoin="Round" Data="M 2,5 L 22,5 L 22,21 L 2,21 Z M 22,11 L 29,11 L 34,17 L 34,21 L 22,21 M 25,13 L 28,13 L 31,17 L 25,17 Z" />
-                                                    <Ellipse Canvas.Left="6" Canvas.Top="18" Width="7" Height="7" Fill="{DynamicResource Brush.CardSoft}" Stroke="{DynamicResource Brush.TextPrimary}" StrokeThickness="1.6" />
-                                                    <Ellipse Canvas.Left="25" Canvas.Top="18" Width="7" Height="7" Fill="{DynamicResource Brush.CardSoft}" Stroke="{DynamicResource Brush.TextPrimary}" StrokeThickness="1.6" />
-                                                </Canvas>
-                                            </Viewbox>
-                                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
-                                            <StackPanel Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding SelectedTourOverviewItem.VehicleName}" ToolTip="{Binding SelectedTourOverviewItem.VehicleName}" />
-                                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding SelectedTourOverviewItem.TrailerName}" ToolTip="{Binding SelectedTourOverviewItem.TrailerName}">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Margin" Value="0,3,0,0" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding SelectedTourOverviewItem.TrailerName}" Value="">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                    <Border Grid.Column="1" MinHeight="64" Margin="5,0,0,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="38" />
-                                                <ColumnDefinition Width="1" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Image Width="34" Height="34"
-                                                   VerticalAlignment="Center"
-                                                   Stretch="Uniform"
-                                                   SnapsToDevicePixels="True"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Mitarbeiter.png" />
-                                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
-                                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Mitarbeiter" />
-                                                <TextBlock Margin="0,1,0,0" MaxWidth="135" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" Text="{Binding SelectedTourOverviewItem.EmployeeNames}" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                </Grid>
-                                <Grid Grid.Row="2" Margin="0,5,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border MinHeight="64" Margin="0,0,5,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="38" />
-                                                <ColumnDefinition Width="1" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Image Width="40" Height="40"
-                                                   VerticalAlignment="Center"
-                                                   Stretch="Uniform"
-                                                   SnapsToDevicePixels="True"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Warengewicht.png" />
-                                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
-                                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Gesamtgewicht" />
-                                                <TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourOverviewItem.TotalWeightText}" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                    <Border Grid.Column="1" MinHeight="64" Margin="5,0,0,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="38" />
-                                                <ColumnDefinition Width="1" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Image Width="34" Height="34"
-                                                   VerticalAlignment="Center"
-                                                   Stretch="Uniform"
-                                                   SnapsToDevicePixels="True"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                                   Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Ladegewicht.png" />
-                                            <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
-                                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Ladegewicht" />
-                                                <TextBlock Margin="0,1,0,0" FontSize="16" FontWeight="Bold" Text="{Binding SelectedTourOverviewItem.LoadCapacityText}" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                </Grid>
-                            </Grid>
+                            <ContentControl Content="{Binding SelectedTourOverviewItem}" ContentTemplate="{StaticResource TourSummaryTilesTemplate}" />
                         </Border>
 
                         <Border Grid.Row="3" Margin="0,10,0,8" Padding="10">
@@ -2078,6 +2087,28 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+                                <ContentControl Content="{Binding LoadedTourSummary}" ContentTemplate="{StaticResource TourSummaryTilesTemplate}" Margin="0,0,0,6">
+                                    <ContentControl.Style>
+                                        <Style TargetType="ContentControl">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding LoadedTourSummary}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ContentControl.Style>
+                                </ContentControl>
+                                <StackPanel>
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding LoadedTourSummary}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
                                 <TextBlock FontWeight="SemiBold" Text="{Binding RouteTotalWeightText}" />
                                 <TextBlock Margin="0,4,0,0"
                                            FontWeight="SemiBold"
@@ -2094,6 +2125,7 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+                                </StackPanel>
                                 <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Margin="0,4,0,0" Text="{Binding RouteTimingSummary}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">

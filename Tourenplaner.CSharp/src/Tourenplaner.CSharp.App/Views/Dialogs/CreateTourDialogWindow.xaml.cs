@@ -50,7 +50,8 @@ public partial class CreateTourDialogWindow : Window
             selectedSecondaryTrailerId,
             selectedEmployeeIds,
             additionalMaterialGroups,
-            selectedAdditionalMaterials);
+            selectedAdditionalMaterials,
+            normalizeLegacyDefaultName: editTourId is not > 0);
         DataContext = ViewModel;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         Closed += (_, _) => ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
@@ -195,7 +196,8 @@ public sealed class CreateTourDialogViewModel : ObservableObject
         string? selectedSecondaryTrailerId = null,
         IReadOnlyList<string>? selectedEmployeeIds = null,
         IReadOnlyList<AdditionalMaterialGroup>? additionalMaterialGroups = null,
-        IReadOnlyList<TourAdditionalMaterial>? selectedAdditionalMaterials = null)
+        IReadOnlyList<TourAdditionalMaterial>? selectedAdditionalMaterials = null,
+        bool normalizeLegacyDefaultName = true)
     {
         HourOptions = Enumerable.Range(0, 24).Select(x => x.ToString("00", CultureInfo.InvariantCulture)).ToList();
         MinuteOptions = Enumerable.Range(0, 12).Select(x => (x * 5).ToString("00", CultureInfo.InvariantCulture)).ToList();
@@ -205,7 +207,9 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             _dateText = parsedDate.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         }
 
-        _name = (routeName ?? string.Empty).Trim();
+        _name = normalizeLegacyDefaultName
+            ? TourNameFormatter.NormalizeNewTourName(routeName, _dateText)
+            : (routeName ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(_name))
         {
             _isNameAutoManaged = true;
@@ -617,13 +621,7 @@ public sealed class CreateTourDialogViewModel : ObservableObject
 
     private static string BuildDefaultTourName(string? dateText)
     {
-        var normalized = (dateText ?? string.Empty).Trim();
-        if (!DateTime.TryParseExact(normalized, "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
-        {
-            parsedDate = DateTime.Today;
-        }
-
-        return $"Tour {parsedDate:dd.MM.yyyy}";
+        return TourNameFormatter.BuildDefault(dateText);
     }
 }
 

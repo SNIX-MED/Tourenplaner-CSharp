@@ -69,9 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - XML-Import erkennt Montage zusammen mit Frei Bordsteinkante als Mit Verteilung & Montage
-          - Bestehende Kombination mit Warenverteilung und konfigurierte Versandartikel bleiben beruecksichtigt
-          - Regressionstests fuer Montagekombinationen und benutzerdefinierte Artikelnummern erweitert
+          - PDF-Export grosser Karten korrigiert; WEBFLEET-Synchronisierung nach erfolgreichem Export angeboten
+          - Automatische Tournamen mit deutschem Wochentag und einheitliche Infokacheln fuer geladene Touren
+          - XML-Wiederimport ohne Scheinupdates durch negative Nullwerte
+          - Negative Mengen und Gewichte in Teillieferungen, Touren und Anzeigen konsistent beruecksichtigt
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

@@ -160,11 +160,18 @@ public static class OrderImportDifferenceAnalyzer
 
         for (var index = 0; index < imported.Count; index++)
         {
-            var oldLine = FormatProduct(existing[index]);
-            var newLine = FormatProduct(imported[index]);
-            if (!string.Equals(oldLine, newLine, StringComparison.Ordinal))
+            var oldProduct = existing[index];
+            var newProduct = imported[index];
+            // Compare numbers as numbers: +0 and -0 are equal, and real weight
+            // changes must not disappear through display rounding.
+            if (!string.Equals(oldProduct.Name?.Trim() ?? string.Empty, newProduct.Name?.Trim() ?? string.Empty, StringComparison.Ordinal)
+                || !string.Equals(oldProduct.Supplier?.Trim() ?? string.Empty, newProduct.Supplier?.Trim() ?? string.Empty, StringComparison.Ordinal)
+                || oldProduct.Quantity != newProduct.Quantity
+                || !oldProduct.UnitWeightKg.Equals(newProduct.UnitWeightKg)
+                || !oldProduct.WeightKg.Equals(newProduct.WeightKg)
+                || OrderProductInfo.NormalizeDeliveryStatus(oldProduct.DeliveryStatus) != OrderProductInfo.NormalizeDeliveryStatus(newProduct.DeliveryStatus))
             {
-                changes.Add($"Produkt {index + 1}: {DisplayValue(oldLine)} -> {DisplayValue(newLine)}");
+                changes.Add($"Produkt {index + 1}: {DisplayValue(FormatProduct(oldProduct))} -> {DisplayValue(FormatProduct(newProduct))}");
             }
         }
     }
@@ -184,8 +191,8 @@ public static class OrderImportDifferenceAnalyzer
             (product.Name ?? string.Empty).Trim(),
             (product.Supplier ?? string.Empty).Trim(),
             $"Menge {product.Quantity}",
-            $"Einzelgewicht {product.UnitWeightKg:0.##} kg",
-            $"Total {product.WeightKg:0.##} kg",
+            $"Einzelgewicht {(product.UnitWeightKg == 0 ? 0d : product.UnitWeightKg):G} kg",
+            $"Total {(product.WeightKg == 0 ? 0d : product.WeightKg):G} kg",
             OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus)
         });
 

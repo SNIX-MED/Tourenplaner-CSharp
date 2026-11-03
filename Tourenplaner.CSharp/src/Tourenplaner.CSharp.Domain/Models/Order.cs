@@ -74,9 +74,9 @@ public sealed class Order
             .Where(product => product is not null)
             .Sum(product => product.WeightKg != 0
                 ? product.WeightKg
-                : Math.Max(0d, product.UnitWeightKg) * OrderProductInfo.NormalizeQuantity(product.Quantity));
+                : product.UnitWeightKg * OrderProductInfo.NormalizeQuantity(product.Quantity));
 
-        return Math.Max(0d, totalWeightKg);
+        return totalWeightKg;
     }
 
     public static string NormalizeOrderStatus(string? value)

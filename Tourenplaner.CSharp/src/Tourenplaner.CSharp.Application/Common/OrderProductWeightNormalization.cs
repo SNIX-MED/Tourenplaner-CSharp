@@ -17,7 +17,9 @@ public static class OrderProductWeightNormalization
             return product.WeightKg / quantity;
         }
 
-        return 0d;
+        // Keep the legacy total-weight fallback above, but do not discard an
+        // explicit negative unit weight when no total weight was stored.
+        return product.UnitWeightKg;
     }
 
     public static double ResolveTotalWeightKg(OrderProductInfo product)

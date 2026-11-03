@@ -2796,14 +2796,14 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         if (order is not null)
         {
             var orderWeight = OrderDeliveryWeightService.ResolveStopWeightKg(order, stop.DeliveryId, tourId);
-            if (orderWeight > 0)
+            if (orderWeight != 0)
             {
                 return [$"Gewicht: {orderWeight:0.##} kg"];
             }
         }
 
         var fallbackWeight = ParseWeightKg(stop.Gewicht);
-        return fallbackWeight > 0 ? [$"Gewicht: {fallbackWeight} kg"] : [];
+        return fallbackWeight != 0 ? [$"Gewicht: {fallbackWeight} kg"] : [];
     }
 
     private static string BuildCalendarStopWeightText(Order? order, TourStopRecord stop, string? tourId = null)
@@ -2815,7 +2815,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         }
 
         var fallbackWeight = ParseWeightKg(stop.Gewicht);
-        return fallbackWeight > 0 ? $"Total: {fallbackWeight:0.##} kg" : string.Empty;
+        return fallbackWeight != 0 ? $"Total: {fallbackWeight:0.##} kg" : string.Empty;
     }
 
     private bool TryBuildReorderedStops(
@@ -3458,7 +3458,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             .Replace(',', '.');
         if (double.TryParse(numericText, NumberStyles.Float, CultureInfo.InvariantCulture, out var localizedValue))
         {
-            return (int)Math.Ceiling(Math.Max(0d, localizedValue));
+            return (int)Math.Ceiling(localizedValue);
         }
 
         return 0;
@@ -3467,8 +3467,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     private static string BuildStopWeightText(Order? order, TourStopRecord stop, string? tourId = null)
     {
         var weight = order is null ? ParseWeightKg(stop.Gewicht) :
-            (int)Math.Ceiling(Math.Max(0d, OrderDeliveryWeightService.ResolveStopWeightKg(order, stop.DeliveryId, tourId)));
-        return weight > 0 ? $"{weight:N0} kg" : string.Empty;
+            (int)Math.Ceiling(OrderDeliveryWeightService.ResolveStopWeightKg(order, stop.DeliveryId, tourId));
+        return weight != 0 ? $"{weight:N0} kg" : string.Empty;
     }
 
     private static string BuildNotesPreview(string? notes)

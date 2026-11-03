@@ -49,7 +49,7 @@ public sealed class OrderDeliveryDialogViewModel : INotifyPropertyChanged
         var service = new OrderDeliveryService();
         var remaining = service.GetRemainingQuantities(order);
         Lines = new ObservableCollection<OrderDeliveryLineInput>(order.Products
-            .Where(x => !string.IsNullOrWhiteSpace(x.Name) && remaining.GetValueOrDefault(x.PositionId) > 0)
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name) && remaining.GetValueOrDefault(x.PositionId) != 0)
             .Select(x => new OrderDeliveryLineInput(x.PositionId, x.Name, OrderProductInfo.NormalizeQuantity(x.Quantity), remaining[x.PositionId])));
         foreach (var line in Lines) line.PropertyChanged += (_, _) => PropertyChanged?.Invoke(this, new(nameof(Summary)));
         Delivery1PlannedDate = order.DeliveryDate?.ToDateTime(TimeOnly.MinValue);
@@ -62,19 +62,19 @@ public sealed class OrderDeliveryDialogViewModel : INotifyPropertyChanged
     public DateTime? Delivery2PlannedDate { get; set; }
     public string Delivery1Notes { get; set; } = string.Empty;
     public string Delivery2Notes { get; set; } = string.Empty;
-    public string Summary => $"Ausgewählte Menge: {Lines.Sum(x => Math.Max(0, x.Quantity))}";
+    public string Summary => $"Ausgewählte Menge: {Lines.Sum(x => x.Quantity)}";
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public bool TryBuild(out IReadOnlyList<OrderDeliveryLine> lines, out string error)
     {
         error = string.Empty;
-        if (Lines.Any(x => x.IsSelected && (!x.HasValidQuantity || x.Quantity < 1 || x.Quantity > x.RemainingQuantity)))
+        if (Lines.Any(x => x.IsSelected && (!x.HasValidQuantity || x.Quantity == 0 || !OrderDeliveryService.IsQuantityWithinAvailable(x.Quantity, x.RemainingQuantity))))
         {
             lines = [];
             error = "Eine Liefermenge liegt ausserhalb der verfügbaren Restmenge.";
             return false;
         }
-        lines = Lines.Where(x => x.IsSelected && x.Quantity > 0).Select(x => new OrderDeliveryLine { OrderProductPositionId = x.PositionId, Quantity = x.Quantity }).ToList();
+        lines = Lines.Where(x => x.IsSelected && x.Quantity != 0).Select(x => new OrderDeliveryLine { OrderProductPositionId = x.PositionId, Quantity = x.Quantity }).ToList();
         if (lines.Count == 0)
         {
             error = "Bitte mindestens eine Menge für diese Lieferung eingeben.";
@@ -102,7 +102,7 @@ public sealed class OrderDeliveryLineInput : INotifyPropertyChanged
         {
             if (_isSelected == value) return;
             _isSelected = value;
-            if (value && Quantity <= 0) QuantityText = RemainingQuantity.ToString();
+            if (value && Quantity == 0) QuantityText = RemainingQuantity.ToString();
             if (!value) QuantityText = "0";
             PropertyChanged?.Invoke(this, new(nameof(IsSelected)));
         }

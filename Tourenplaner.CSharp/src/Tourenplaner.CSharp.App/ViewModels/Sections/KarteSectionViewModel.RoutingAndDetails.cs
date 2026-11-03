@@ -853,7 +853,7 @@ public sealed partial class KarteSectionViewModel
             return order.Products ?? [];
         }
         var quantities = (delivery.Lines ?? []).ToDictionary(x => x.OrderProductPositionId, x => x.Quantity, StringComparer.OrdinalIgnoreCase);
-        return (order.Products ?? []).Select(x => quantities.TryGetValue(x.PositionId, out var quantity) && quantity > 0
+        return (order.Products ?? []).Select(x => quantities.TryGetValue(x.PositionId, out var quantity) && quantity != 0
             ? new OrderProductInfo
             {
                 PositionId = x.PositionId,
@@ -863,7 +863,7 @@ public sealed partial class KarteSectionViewModel
                 ExpectedDelivery = x.ExpectedDelivery,
                 Quantity = quantity,
                 UnitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(x),
-                WeightKg = Math.Max(0, OrderProductFormatter.ResolveUnitWeightKg(x)) * Math.Max(0, quantity),
+                WeightKg = OrderProductFormatter.ResolveUnitWeightKg(x) * quantity,
                 Dimensions = x.Dimensions,
                 DeliveryStatus = x.DeliveryStatus
             }
@@ -2657,6 +2657,8 @@ public sealed partial class KarteSectionViewModel
         var hasRouteStops = RouteStops.Any(x => !IsCompanyStop(x));
         var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(RouteDate, $"{RouteStartHour}:{RouteStartMinute}");
 
+        RouteName = TourNameFormatter.NormalizeNewTourName(RouteName, RouteDate);
+
         var dialog = new CreateTourDialogWindow(
             RouteDate,
             RouteName,
@@ -4206,6 +4208,9 @@ public sealed partial class KarteSectionViewModel
             return;
         }
 
+        // PDF generation is asynchronous: keep track of the exported tour so a
+        // selection change cannot accidentally send a different tour afterwards.
+        var exportedTourId = ResolveCurrentTourId();
         var result = await PdfExportHandler(snapshot);
         if (result.Cancelled)
         {
@@ -4215,6 +4220,27 @@ public sealed partial class KarteSectionViewModel
         if (result.Succeeded)
         {
             StatusText = result.Message;
+            var synchronize = AppMessageBox.Show(
+                "Das Tour-PDF wurde gespeichert. Möchtest du die Tour jetzt auch mit dem Fahrer auf WEBFLEET synchronisieren?",
+                "Tour mit WEBFLEET synchronisieren",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Question);
+            if (synchronize != System.Windows.MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            if (exportedTourId <= 0 || ResolveCurrentTourId() != exportedTourId)
+            {
+                AppMessageBox.Show(
+                    "Bitte die exportierte Tour zuerst speichern und auswählen und anschließend über „An WEBFLEET senden“ synchronisieren.",
+                    "WEBFLEET-Tour prüfen",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Information);
+                return;
+            }
+
+            await SendCurrentTourToWebfleetAsync();
             return;
         }
 
@@ -4670,13 +4696,7 @@ public sealed partial class KarteSectionViewModel
 
     private static string BuildDefaultRouteName(string? routeDate)
     {
-        var normalizedDate = (routeDate ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalizedDate))
-        {
-            normalizedDate = DateOnly.FromDateTime(DateTime.Today).ToString("dd.MM.yyyy");
-        }
-
-        return $"Tour {normalizedDate}";
+        return TourNameFormatter.BuildDefault(routeDate);
     }
 
     private void SetRouteNameFromDate(string? routeDate)
@@ -5024,6 +5044,23 @@ public sealed partial class KarteSectionViewModel
         }
 
         RouteLoadSummaryText = string.Join(Environment.NewLine, loadSummaryParts);
+        var loadedTour = _savedTours.FirstOrDefault(tour => tour.Id == LoadedTourId);
+        LoadedTourSummary = loadedTour is null ? null : new SavedTourOverviewItem(
+            loadedTour.Id, RouteName, RouteDate, RouteStartTime, RouteStops.Count(IsOrderStop),
+            string.Empty, string.Empty, string.Empty, string.Empty,
+            string.Join(", ", (loadedTour.EmployeeIds ?? []).Select(ResolveEmployeeLabel)
+                .Where(name => !string.IsNullOrWhiteSpace(name)).Select(ExtractEmployeeFirstName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)),
+            totalWeightKg,
+            assignments.Select(assignment => VehicleCombinationDisplayResolver.Resolve(
+                    _vehicleData, assignment.VehicleId, assignment.TrailerId))
+                .Sum(display => display.VehiclePayloadKg.GetValueOrDefault() + display.TrailerLoadKg.GetValueOrDefault()))
+        {
+            VehicleName = string.IsNullOrWhiteSpace(summaryVehicleId) ? "Nicht zugewiesen" :
+                _vehicleData.Vehicles.FirstOrDefault(vehicle => string.Equals(vehicle.Id, summaryVehicleId, StringComparison.OrdinalIgnoreCase))?.Name ?? summaryVehicleId,
+            TrailerName = string.IsNullOrWhiteSpace(summaryTrailerId) ? string.Empty :
+                _vehicleData.Trailers.FirstOrDefault(trailer => string.Equals(trailer.Id, summaryTrailerId, StringComparison.OrdinalIgnoreCase))?.Name ?? summaryTrailerId
+        };
         RouteVisualRevision++;
     }
 

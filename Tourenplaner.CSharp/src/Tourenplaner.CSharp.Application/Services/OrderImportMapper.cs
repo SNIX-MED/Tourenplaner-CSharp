@@ -104,6 +104,10 @@ public sealed class OrderImportMapper
             var previousProduct = index < existing.Count ? existing[index] : null;
             var quantity = (int)xmlProduct.Menge;
             var unitWeightKg = (double)xmlProduct.Gewicht;
+            // Canonicalize zero only; keep genuine negative weights and quantities.
+            if (unitWeightKg == 0) unitWeightKg = 0d;
+            var totalWeightKg = unitWeightKg * quantity;
+            if (totalWeightKg == 0) totalWeightKg = 0d;
 
             products.Add(new OrderProductInfo
             {
@@ -116,7 +120,7 @@ public sealed class OrderImportMapper
                 ExpectedDelivery = previousProduct?.ExpectedDelivery ?? string.Empty,
                 Quantity = quantity,
                 UnitWeightKg = unitWeightKg,
-                WeightKg = unitWeightKg * quantity,
+                WeightKg = totalWeightKg,
                 Dimensions = previousProduct?.Dimensions ?? string.Empty,
                 DeliveryStatus = previousProduct is null
                     ? ResolveImportedProductDeliveryStatus(

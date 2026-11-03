@@ -7,6 +7,68 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public class OrderImportServiceTests
 {
+    [Theory]
+    [InlineData(-6)]
+    [InlineData(-24)]
+    public async Task NegativeQuantityWithZeroWeightRemainsUnchangedAfterReload(int quantity)
+    {
+        var xml = CreateSqlOrder("222132", "Emil Frey AG", "Frei Bordsteinkante", "");
+        xml.Produkte[0].Menge = quantity;
+        xml.Produkte[0].Gewicht = 0;
+        var service = new OrderImportService();
+        var repository = new FakeOrderRepository([]);
+        await service.ImportOrdersAsync([xml], repository);
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal(quantity, stored.Products[0].Quantity);
+        Assert.Equal(0L, BitConverter.DoubleToInt64Bits(stored.Products[0].WeightKg));
+        // Model the loss of the zero sign during persistence/reload.
+        stored.Products[0].WeightKg = 0d;
+        await repository.SaveAllAsync([stored]);
+        var preview = await service.PreviewImportAsync([xml], repository);
+        Assert.Empty(preview.Errors);
+        Assert.Equal(ImportPreviewAction.Unchanged, Assert.Single(preview.Items).Action);
+        var result = await service.ImportOrdersAsync([xml], repository);
+        Assert.Empty(result.Errors);
+        Assert.Equal(0, result.UpdatedOrders);
+    }
+
+    [Fact]
+    public void ProductComparisonTreatsSignedZerosAsEqualButDetectsSmallNegativeChanges()
+    {
+        var existing = new Order { Products = [new() { UnitWeightKg = 0d, WeightKg = 0d }] };
+        var imported = new Order { Products = [new() { UnitWeightKg = -0d, WeightKg = -0d }] };
+        Assert.Equal(ImportPreviewAction.Unchanged, OrderImportDifferenceAnalyzer.Analyze(existing, imported).Action);
+        imported.Products[0].WeightKg = -0.001;
+        Assert.Equal(ImportPreviewAction.Update, OrderImportDifferenceAnalyzer.Analyze(existing, imported).Action);
+    }
+
+    [Fact]
+    public async Task NegativeProductWeightsArePreservedAndSubtractedAndReimportIsStable()
+    {
+        var xml = CreateSqlOrder("222132", "Emil Frey AG", "Frei Bordsteinkante", "");
+        xml.Produkte = [
+            new() { Bezeichnung = "Ware", Menge = 10, Gewicht = 5 },
+            new() { Bezeichnung = "Abzug über Menge", Menge = -6, Gewicht = 2 },
+            new() { Bezeichnung = "Abzug über Gewicht", Menge = 2, Gewicht = -3 }
+        ];
+        var service = new OrderImportService();
+        var repository = new FakeOrderRepository([]);
+        var result = await service.ImportOrdersAsync([xml], repository);
+        Assert.Empty(result.Errors);
+        var stored = Assert.Single(repository.StoredOrders);
+        Assert.Equal(-12, stored.Products[1].WeightKg);
+        Assert.Equal(-3, stored.Products[2].UnitWeightKg);
+        Assert.Equal(-6, stored.Products[2].WeightKg);
+        Assert.Equal(32, stored.ResolveTotalWeightKg());
+        Assert.Equal(ImportPreviewAction.Unchanged,
+            Assert.Single((await service.PreviewImportAsync([xml], repository)).Items).Action);
+        xml.Produkte[1].Gewicht = 3;
+        Assert.Equal(ImportPreviewAction.Update,
+            Assert.Single((await service.PreviewImportAsync([xml], repository)).Items).Action);
+        await service.ImportOrdersAsync([xml], repository);
+        Assert.Equal(-18, Assert.Single(repository.StoredOrders).Products[1].WeightKg);
+    }
+
     [Fact]
     public async Task ReimportRestoresExactXmlSpellingWithoutMovingConfirmedPin()
     {

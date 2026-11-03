@@ -11,12 +11,12 @@ public static class OrderDeliveryWeightService
                 ? string.Equals(d.Id, deliveryId, StringComparison.OrdinalIgnoreCase)
                 : d.Status != OrderDeliveryStatus.Cancelled && !string.IsNullOrWhiteSpace(tourId) && d.AssignedTourId == tourId)
             .SelectMany(d => d.Lines).GroupBy(l => l.OrderProductPositionId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Sum(l => Math.Max(0, l.Quantity)), StringComparer.OrdinalIgnoreCase);
-        return order.Products.Where(p => quantities.GetValueOrDefault(p.PositionId) > 0).Select(p => new OrderProductInfo
+            .ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity), StringComparer.OrdinalIgnoreCase);
+        return order.Products.Where(p => quantities.GetValueOrDefault(p.PositionId) != 0).Select(p => new OrderProductInfo
         {
             PositionId = p.PositionId, ExternalPositionId = p.ExternalPositionId, Name = p.Name, Supplier = p.Supplier,
             Quantity = quantities[p.PositionId], UnitWeightKg = Common.OrderProductWeightNormalization.ResolveUnitWeightKg(p),
-            WeightKg = Math.Max(0, Common.OrderProductWeightNormalization.ResolveUnitWeightKg(p)) * quantities[p.PositionId],
+            WeightKg = Common.OrderProductWeightNormalization.ResolveUnitWeightKg(p) * quantities[p.PositionId],
             ExpectedDelivery = p.ExpectedDelivery, DeliveryStatus = p.DeliveryStatus, Dimensions = p.Dimensions
         }).ToList();
     }

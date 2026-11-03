@@ -126,7 +126,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private MapOrderItem? _selectedOrder;
     private RouteStopItem? _selectedRouteStop;
     private bool _preferLegSelectionVisual;
-    private string _routeName = $"Tour {DateOnly.FromDateTime(DateTime.Today):dd.MM.yyyy}";
+    private string _routeName = TourNameFormatter.BuildDefault(null);
     private string _routeDate = DateOnly.FromDateTime(DateTime.Today).ToString("dd.MM.yyyy");
     private string _routeStartHour = "07";
     private string _routeStartMinute = "30";
@@ -227,6 +227,12 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     private readonly string _routeComputationCachePath;
     private SavedTourLookupItem? _selectedSavedTour;
     private SavedTourOverviewItem? _selectedTourOverviewItem;
+    private SavedTourOverviewItem? _loadedTourSummary;
+    public SavedTourOverviewItem? LoadedTourSummary
+    {
+        get => _loadedTourSummary;
+        private set => SetProperty(ref _loadedTourSummary, value);
+    }
     private int _selectedTourOverviewId;
     private int _hoveredTourOverviewId;
     private string _detailSelectedStatus = Order.DefaultOrderStatus;

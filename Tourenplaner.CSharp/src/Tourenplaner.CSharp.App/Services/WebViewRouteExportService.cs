@@ -113,9 +113,13 @@ public sealed class WebViewRouteExportService
         };
 
         ((Grid)window.Content).Children.Add(webView);
+        var tempHtmlPath = Path.Combine(Path.GetTempPath(), $"tourenplaner-webview-{Guid.NewGuid():N}.html");
 
         try
         {
+            // NavigateToString rejects HTML larger than 2 MB. Embedded map PNGs
+            // can exceed that limit, so load the complete document from a file.
+            await File.WriteAllTextAsync(tempHtmlPath, html);
             window.Show();
             var environment = await WebView2EnvironmentFactory.CreateAsync("Export");
             await webView.EnsureCoreWebView2Async(environment);
@@ -126,9 +130,16 @@ public sealed class WebViewRouteExportService
             }
 
             webView.CoreWebView2.NavigationCompleted += Handler;
-            webView.NavigateToString(html);
-            var navigationOk = await navTcs.Task;
-            webView.CoreWebView2.NavigationCompleted -= Handler;
+            bool navigationOk;
+            try
+            {
+                webView.CoreWebView2.Navigate(new Uri(tempHtmlPath).AbsoluteUri);
+                navigationOk = await navTcs.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            }
+            finally
+            {
+                webView.CoreWebView2.NavigationCompleted -= Handler;
+            }
 
             if (!navigationOk)
             {
@@ -149,6 +160,16 @@ public sealed class WebViewRouteExportService
             }
 
             window.Close();
+            try
+            {
+                File.Delete(tempHtmlPath);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
     }
 

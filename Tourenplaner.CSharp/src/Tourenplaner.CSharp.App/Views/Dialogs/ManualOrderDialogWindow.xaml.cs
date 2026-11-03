@@ -1111,7 +1111,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         {
             var delivery = deliveries[index];
             var productCards = (delivery.Lines ?? [])
-                .Where(x => x.Quantity > 0 && productsById.TryGetValue(x.OrderProductPositionId, out var product) && MatchesSelectedSupplier(product))
+                .Where(x => x.Quantity != 0 && productsById.TryGetValue(x.OrderProductPositionId, out var product) && MatchesSelectedSupplier(product))
                 .Select(x =>
                 {
                     var source = productsById[x.OrderProductPositionId];
