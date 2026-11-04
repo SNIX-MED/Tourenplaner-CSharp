@@ -16,6 +16,22 @@ public static class TourMissingWeightWarning
                      && !string.Equals(s.StopKind, "manual", StringComparison.OrdinalIgnoreCase)))
         {
             if (!byId.TryGetValue((stop.Auftragsnummer ?? string.Empty).Trim(), out var order)) continue;
+            // Match the weight calculation: a whole-order override does not cover partial deliveries.
+            var usesWholeOrderWeight = order.Deliveries.Count <= 1 &&
+                (string.IsNullOrWhiteSpace(stop.DeliveryId) || order.Deliveries.Any(d =>
+                    string.Equals(d.Id, stop.DeliveryId, StringComparison.OrdinalIgnoreCase) &&
+                    order.Products.All(p => (d.Lines ?? []).Where(l => string.Equals(l.OrderProductPositionId,
+                        p.PositionId, StringComparison.OrdinalIgnoreCase)).Sum(l => l.Quantity) ==
+                        OrderProductInfo.NormalizeQuantity(p.Quantity))));
+            if (usesWholeOrderWeight && order.ManualTotalWeightKg.HasValue)
+            {
+                if (double.IsFinite(order.ManualTotalWeightKg.Value) && order.ManualTotalWeightKg.Value > 0)
+                    continue;
+                if (!affected.TryGetValue(order.Id, out var manualEntry))
+                    manualEntry = (order, new HashSet<string>(StringComparer.Ordinal));
+                manualEntry.Products.Add("  • Manuelles Gesamtgewicht ist nicht grösser als 0 kg oder ungültig.");
+                affected[order.Id] = manualEntry;
+            }
             var products = OrderDeliveryWeightService.ResolveStopProducts(order, stop.DeliveryId, tour.Id.ToString());
             foreach (var product in products.Where(p => p.UnitWeightKg == 0 && p.WeightKg == 0))
             {
@@ -29,7 +45,7 @@ public static class TourMissingWeightWarning
             }
         }
         if (affected.Count == 0) return string.Empty;
-        return "Bei folgenden Aufträgen fehlen Produktgewichte (0 kg):\n\n"
+        return "Für folgende Aufträge oder Lieferungen fehlen verwertbare Gewichtsangaben (0 kg):\n\n"
             + string.Join("\n\n", affected.Values.Select(e => $"{e.Order.Id} – {e.Order.CustomerName}\n" + string.Join("\n", e.Products)))
             + "\n\nDas berechnete Tourgewicht kann dadurch zu niedrig sein.\nMöchtest du die Tour trotzdem speichern?";
     }
