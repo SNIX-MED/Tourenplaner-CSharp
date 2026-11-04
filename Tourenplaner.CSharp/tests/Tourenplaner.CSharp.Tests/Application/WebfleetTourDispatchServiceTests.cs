@@ -8,6 +8,89 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public sealed class WebfleetTourDispatchServiceTests
 {
     [Fact]
+    public async Task EditingClonePreservesIndependentCompleteDispatchHistory()
+    {
+        var original = new TourRecord { WebfleetDispatch = new()
+        {
+            ObjectUid = "driver-device", ObjectName = "Pascal", State = "sent",
+            SentAtUtc = DateTimeOffset.UtcNow, LastStatusCheckUtc = DateTimeOffset.UtcNow,
+            LastMessage = "sent", Stops = [new()
+            {
+                StopId = "removed-stop", WebfleetOrderId = "T42-3-222000",
+                ScheduledDate = new DateOnly(2026, 11, 6), StateCode = 100,
+                StateLabel = "Gesendet", StateChangedAtUtc = DateTimeOffset.UtcNow, LastMessage = "ok"
+            }]
+        }};
+        var clone = (TourRecord)typeof(Tourenplaner.CSharp.App.ViewModels.Sections.KarteSectionViewModel)
+            .GetMethod("CloneTourRecord", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [original])!;
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(original.WebfleetDispatch),
+            System.Text.Json.JsonSerializer.Serialize(clone.WebfleetDispatch));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new WebfleetTourDispatchService().PreviewSynchronizationAsync(clone,
+                new Vehicle { WebfleetObjectUid = "other-device" }, new WebfleetConnectionSettings(), new WebfleetConnectService()));
+        Assert.Contains("anderes WEBFLEET", error.Message);
+        clone.WebfleetDispatch.Stops[0].StateLabel = "changed";
+        clone.WebfleetDispatch.Stops.Clear();
+        Assert.Equal("Gesendet", Assert.Single(original.WebfleetDispatch.Stops).StateLabel);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RemovedStopIsDeletedEvenWhenEditingLostDispatchHistory(bool hasHistory)
+    {
+        var dispatch = new WebfleetDispatchRecord();
+        if (hasHistory)
+            dispatch.Stops = [new() { WebfleetOrderId = "T42-1-221899" },
+                new() { WebfleetOrderId = "T42-2-221989" }, new() { WebfleetOrderId = "T42-3-222000" }];
+        var desired = new HashSet<string>(["T42-1-221899", "T42-2-221989"], StringComparer.Ordinal);
+        string[] remote = ["T42-1-221899", "T42-2-221989", "T42-3-222000", "T420-3-222000", "unrelated"];
+        var removed = (List<string>)typeof(WebfleetTourDispatchService)
+            .GetMethod("FindObsoleteOrderIds", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [42, dispatch, desired, remote])!;
+        Assert.Equal(new[] { "T42-3-222000" }, removed);
+    }
+
+    [Fact]
+    public void RemovingMiddleStopCleansUpOldPositionsButKeepsDesiredAndUnrelatedOrders()
+    {
+        var dispatch = new WebfleetDispatchRecord { Stops =
+            [new() { WebfleetOrderId = "T42-2-B" }, new() { WebfleetOrderId = "already-absent" }] };
+        var desired = new HashSet<string>(["T42-1-A", "T42-2-C"], StringComparer.Ordinal);
+        string[] remote = ["T42-1-A", "T42-2-B", "T42-3-C", "T42-2-C", "T420-1-A", "customer-order"];
+        var removed = (List<string>)typeof(WebfleetTourDispatchService)
+            .GetMethod("FindObsoleteOrderIds", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [42, dispatch, desired, remote])!;
+        Assert.Equal(new[] { "T42-2-B", "T42-3-C" }, removed.OrderBy(id => id));
+    }
+
+    [Fact]
+    public void RemovingAllCustomerStopsAlsoFindsLegacyAndTruncatedIds()
+    {
+        string[] remote = ["T42-1-A", "T00042-002-B", "T42-3", "T43-1-A"];
+        var removed = (List<string>)typeof(WebfleetTourDispatchService)
+            .GetMethod("FindObsoleteOrderIds", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [42, new WebfleetDispatchRecord(), new HashSet<string>(), remote])!;
+        Assert.Equal(remote.Take(3).OrderBy(id => id), removed.OrderBy(id => id));
+    }
+
+    [Theory]
+    [InlineData("T42-3-221899", true)]
+    [InlineData("T00042-003-221899", true)]
+    [InlineData("T42-3", true)]
+    [InlineData("T420-3-221899", false)]
+    [InlineData("T4-3-221899", false)]
+    [InlineData("T42-other", false)]
+    [InlineData("CUSTOM-42", false)]
+    public void RecoveryRecognizesOnlyOrdersGeneratedForTheExactTour(string orderId, bool expected)
+    {
+        var actual = typeof(WebfleetTourDispatchService)
+            .GetMethod("IsTourOrderId", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [orderId, 42]);
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
     public void DispatchDateFollowsRoundedArrivalAcrossMidnight()
     {
         var tour = new TourRecord { Date = "28.10.2026" };

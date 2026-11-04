@@ -69,10 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - PDF-Layout vereinfacht: Mitarbeiter unter dem Titel, Auftragsnummer beim Kunden, Fahrzeug und Anhaenger getrennt
-          - PDF-Dateiname ohne doppeltes Datum; Pausenfeld in voller Breite ohne Punkt
-          - Speicherwarnung nennt Auftraege und Produkte ohne Gewicht, einschliesslich Teillieferungen
-          - Mausrad-Scrollen in der Routenuebersicht korrigiert
+          - Entfernte Tourstopps werden beim erneuten WEBFLEET-Abgleich zur Loeschung erkannt
+          - WEBFLEET-Versanddaten und bisherige Geraetezuordnung bleiben beim Bearbeiten einer Tour erhalten
+          - Verwaiste WEBFLEET-Auftraege derselben Tour werden auch bei verlorenen Versanddaten erkannt
+          - Neuer Nord-Button unter den Zoom-Schaltflaechen richtet die Karte wieder nach Norden aus
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

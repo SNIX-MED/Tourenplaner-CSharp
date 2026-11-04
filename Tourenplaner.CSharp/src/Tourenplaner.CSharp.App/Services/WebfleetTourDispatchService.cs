@@ -174,11 +174,7 @@ public sealed class WebfleetTourDispatchService
         }
 
         var desiredOrderIds = items.Select(item => item.Request.OrderId).ToHashSet(StringComparer.Ordinal);
-        var orderIdsToDelete = dispatch.Stops
-            .Select(stop => stop.WebfleetOrderId)
-            .Where(orderId => !string.IsNullOrWhiteSpace(orderId) && !desiredOrderIds.Contains(orderId) && remoteOrdersById.ContainsKey(orderId))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+        var orderIdsToDelete = FindObsoleteOrderIds(tour.Id, dispatch, desiredOrderIds, remoteOrdersById.Keys);
         foreach (var companyStop in tour.Stops.Where(stop => IsCompanyStartStop(stop) || IsCompanyEndStop(stop)))
         {
             var companyOrderNumber = IsCompanyStartStop(companyStop)
@@ -248,6 +244,26 @@ public sealed class WebfleetTourDispatchService
     {
         var prefix = $"T{tourId}-{dispatchPosition}";
         return $"{prefix}-{sourceOrder}".Length <= 20 ? $"{prefix}-{sourceOrder}" : prefix;
+    }
+
+    private static List<string> FindObsoleteOrderIds(int tourId, WebfleetDispatchRecord dispatch,
+        IReadOnlySet<string> desiredOrderIds, IEnumerable<string> remoteOrderIds)
+    {
+        var remoteIds = remoteOrderIds.ToHashSet(StringComparer.Ordinal);
+        return dispatch.Stops.Select(stop => stop.WebfleetOrderId)
+            .Concat(remoteIds.Where(orderId => IsTourOrderId(orderId, tourId)))
+            .Where(orderId => !string.IsNullOrWhiteSpace(orderId) && !desiredOrderIds.Contains(orderId) && remoteIds.Contains(orderId))
+            .Distinct(StringComparer.Ordinal).ToList();
+    }
+
+    private static bool IsTourOrderId(string orderId, int tourId)
+    {
+        // Match the complete generated tour/position components, including legacy
+        // padded IDs. Never use a loose prefix that could include another tour.
+        var parts = orderId.Split('-', 3);
+        return parts.Length >= 2 && parts[0].StartsWith('T') &&
+            int.TryParse(parts[0].AsSpan(1), NumberStyles.None, CultureInfo.InvariantCulture, out var id) && id == tourId &&
+            int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var position) && position > 0;
     }
 
     private static string BuildLegacyPaddedOrderId(int tourId, int stopOrder, string sourceOrder)

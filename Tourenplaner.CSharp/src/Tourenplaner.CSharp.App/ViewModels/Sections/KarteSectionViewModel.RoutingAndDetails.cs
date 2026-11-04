@@ -3106,6 +3106,9 @@ public sealed partial class KarteSectionViewModel
             // Keep the token of the freshly loaded record so PostgreSQL performs an
             // optimistic-concurrency update instead of treating the tour as a new row.
             updated.ConcurrencyToken = existingTour.ConcurrencyToken;
+            // Keep all previously sent stops, including removed ones, until WEBFLEET
+            // synchronization has deleted their remote orders.
+            updated.WebfleetDispatch = CloneTourRecord(existingTour).WebfleetDispatch;
             updated.AddressReviewOrderIds = existingTour.AddressReviewOrderIds.ToList();
             updated.AddressReviewRoutingError = existingTour.AddressReviewRoutingError;
 
@@ -3351,6 +3354,8 @@ public sealed partial class KarteSectionViewModel
     {
         return new TourRecord
         {
+            WebfleetDispatch = JsonSerializer.Deserialize<WebfleetDispatchRecord>(
+                JsonSerializer.Serialize(source.WebfleetDispatch)) ?? new WebfleetDispatchRecord(),
             AddressReviewOrderIds = source.AddressReviewOrderIds.ToList(),
             AddressReviewRoutingError = source.AddressReviewRoutingError,
             ScheduleVersion = source.ScheduleVersion,

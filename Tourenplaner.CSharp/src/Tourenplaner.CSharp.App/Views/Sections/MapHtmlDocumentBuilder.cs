@@ -76,6 +76,7 @@ internal static class MapHtmlDocumentBuilder
                    .map-zoom-button + .map-zoom-button { border-top: 1px solid #cbd5e1; }
                    .map-zoom-button:hover { background: #e9edf6; }
                    .map-zoom-button:active { opacity: .82; }
+                   .map-north-button { font-size: 16px; gap: 2px; }
                    .map-style-switch { position: absolute; right: 12px; bottom: 10px; z-index: 1350; display: inline-flex; gap: 3px; padding: 4px; border: 1px solid #cbd5e1; border-radius: 10px; background: rgba(255,255,255,.96); box-shadow: 0 4px 14px rgba(15,23,42,.18); }
                    .map-style-switch-button { min-width: 62px; height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #334155; cursor: pointer; font: 600 12px/1 Segoe UI, sans-serif; }
                    .map-style-switch-button:hover { background: #f1f5f9; }
@@ -244,9 +245,10 @@ internal static class MapHtmlDocumentBuilder
                    <button id="addPinToTourButton" type="button" hidden>Zu Tour hinzufügen</button>
                    <button id="manuallyPlacePinButton" type="button" hidden>Pin manuell setzen</button>
                  </div>
-                 <div class="map-zoom-controls" aria-label="Kartenzoom">
+                 <div class="map-zoom-controls" aria-label="Kartensteuerung">
                    <button id="mapZoomIn" class="map-zoom-button" type="button" aria-label="Karte vergrössern" title="Vergrössern">+</button>
                    <button id="mapZoomOut" class="map-zoom-button" type="button" aria-label="Karte verkleinern" title="Verkleinern">−</button>
+                   <button id="mapNorth" class="map-zoom-button map-north-button" type="button" aria-label="Karte nach Norden ausrichten" title="Nach Norden ausrichten">↑N</button>
                  </div>
                  <div class="map-style-switch" aria-label="Kartendarstellung">
                    <button class="map-style-switch-button" type="button" data-quick-map-style="standard">Karte</button>
@@ -676,6 +678,10 @@ internal static class MapHtmlDocumentBuilder
                          };
                          if (mapZoomInEl) mapZoomInEl.addEventListener('click', () => changeMapZoom(1));
                          if (mapZoomOutEl) mapZoomOutEl.addEventListener('click', () => changeMapZoom(-1));
+                         const mapNorthEl = document.getElementById('mapNorth');
+                         if (mapNorthEl) mapNorthEl.addEventListener('click', () => {
+                           map.easeTo({ bearing: 0, duration: 300 });
+                         });
                          mapCanvas.style.cursor = 'grab';
                          mapCanvas.addEventListener('mousedown', () => { mapCanvas.style.cursor = 'grabbing'; });
                          mapCanvas.addEventListener('mouseup', () => { mapCanvas.style.cursor = 'grab'; });
