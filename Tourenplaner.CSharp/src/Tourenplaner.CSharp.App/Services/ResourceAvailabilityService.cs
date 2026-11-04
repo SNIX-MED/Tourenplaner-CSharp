@@ -5,6 +5,12 @@ namespace Tourenplaner.CSharp.App.Services;
 
 public static class ResourceAvailabilityService
 {
+    public static bool BlocksResourceDeletion(TourRecord tour, DateOnly today)
+    {
+        var date = ParseDate(tour.Date);
+        return !tour.IsArchived || !date.HasValue || date.Value >= today;
+    }
+
     public static DateOnly? ParseDate(string? raw)
     {
         var text = (raw ?? string.Empty).Trim();

@@ -1,4 +1,4 @@
-﻿namespace Tourenplaner.CSharp.Domain.Models;
+namespace Tourenplaner.CSharp.Domain.Models;
 
 public sealed class Vehicle
 {
@@ -11,6 +11,8 @@ public sealed class Vehicle
     public int MaxPayloadKg { get; set; }
     public int MaxTrailerLoadKg { get; set; }
     public int GrossWeightKg { get; set; }
+    // Retained for historical tours, hidden from management and planning.
+    public bool IsDeleted { get; set; }
     public bool Active { get; set; } = true;
     public string Notes { get; set; } = string.Empty;
     public int VolumeM3 { get; set; }

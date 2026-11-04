@@ -1,4 +1,4 @@
-﻿using Tourenplaner.CSharp.Domain.Models;
+using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
@@ -8,6 +8,7 @@ internal static class VehicleNormalizer
 
     public static Vehicle NormalizeVehicle(Vehicle source)
     {
+        if (source.IsDeleted) source.Active = false;
         source.Id = string.IsNullOrWhiteSpace(source.Id) ? Guid.NewGuid().ToString() : source.Id.Trim();
         source.Type = NormalizeType(source.Type);
         source.Name = (source.Name ?? string.Empty).Trim();
@@ -29,6 +30,7 @@ internal static class VehicleNormalizer
 
     public static TrailerRecord NormalizeTrailer(TrailerRecord source)
     {
+        if (source.IsDeleted) source.Active = false;
         source.Id = string.IsNullOrWhiteSpace(source.Id) ? Guid.NewGuid().ToString() : source.Id.Trim();
         source.Name = (source.Name ?? string.Empty).Trim();
         source.LicensePlate = (source.LicensePlate ?? string.Empty).Trim().ToUpperInvariant();
@@ -46,6 +48,7 @@ internal static class VehicleNormalizer
 
     public static VehicleCombinationRecord NormalizeVehicleCombination(VehicleCombinationRecord source)
     {
+        if (source.IsDeleted) source.Active = false;
         source.Id = string.IsNullOrWhiteSpace(source.Id) ? Guid.NewGuid().ToString() : source.Id.Trim();
         source.VehicleId = (source.VehicleId ?? string.Empty).Trim();
         source.TrailerId = (source.TrailerId ?? string.Empty).Trim();
@@ -79,7 +82,7 @@ internal static class VehicleNormalizer
             }
 
             var plateKey = (item.LicensePlate ?? string.Empty).Replace(" ", string.Empty);
-            if (!vehicleNames.Add(item.Name) || (!string.IsNullOrWhiteSpace(plateKey) && !vehiclePlates.Add(plateKey)))
+            if (!item.IsDeleted && (!vehicleNames.Add(item.Name) || (!string.IsNullOrWhiteSpace(plateKey) && !vehiclePlates.Add(plateKey))))
             {
                 continue;
             }
@@ -106,7 +109,7 @@ internal static class VehicleNormalizer
             }
 
             var plateKey = (item.LicensePlate ?? string.Empty).Replace(" ", string.Empty);
-            if (!trailerNames.Add(item.Name) || (!string.IsNullOrWhiteSpace(plateKey) && !trailerPlates.Add(plateKey)))
+            if (!item.IsDeleted && (!trailerNames.Add(item.Name) || (!string.IsNullOrWhiteSpace(plateKey) && !trailerPlates.Add(plateKey))))
             {
                 continue;
             }
@@ -151,7 +154,7 @@ internal static class VehicleNormalizer
             }
 
             var key = $"{item.VehicleId}::{item.TrailerId}";
-            if (!combinationKeys.Add(key))
+            if (!item.IsDeleted && !combinationKeys.Add(key))
             {
                 continue;
             }

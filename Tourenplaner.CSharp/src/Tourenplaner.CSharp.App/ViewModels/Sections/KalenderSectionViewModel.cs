@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Windows.Input;
@@ -404,15 +404,15 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
     public IReadOnlyList<CalendarResourceAbsenceDayListItem> GetResourceAbsencesForDate(DateTime date)
     {
         var items = new List<CalendarResourceAbsenceDayListItem>();
-        foreach (var employee in _employees)
+        foreach (var employee in _employees.Where(x => !x.IsDeleted))
         {
             AddResourceAbsences(items, employee.UnavailabilityPeriods, date, employee.DisplayName, "Mitarbeiter abwesend", "#DC2626");
         }
-        foreach (var vehicle in _vehicles)
+        foreach (var vehicle in _vehicles.Where(x => !x.IsDeleted))
         {
             AddResourceAbsences(items, vehicle.UnavailabilityPeriods, date, vehicle.Name, "Fahrzeug nicht verfügbar", "#F97316");
         }
-        foreach (var trailer in _trailers)
+        foreach (var trailer in _trailers.Where(x => !x.IsDeleted))
         {
             AddResourceAbsences(items, trailer.UnavailabilityPeriods, date, trailer.Name, "Anhänger nicht verfügbar", "#F97316");
         }
@@ -1016,15 +1016,15 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             });
         }
 
-        foreach (var employee in _employees)
+        foreach (var employee in _employees.Where(x => !x.IsDeleted))
         {
             AddUnavailabilityEntries(entries, employee.UnavailabilityPeriods, date, $"Abwesend: {employee.DisplayName}", "#DC2626");
         }
-        foreach (var vehicle in _vehicles)
+        foreach (var vehicle in _vehicles.Where(x => !x.IsDeleted))
         {
             AddUnavailabilityEntries(entries, vehicle.UnavailabilityPeriods, date, $"Ausfall: {vehicle.Name}", "#F97316");
         }
-        foreach (var trailer in _trailers)
+        foreach (var trailer in _trailers.Where(x => !x.IsDeleted))
         {
             AddUnavailabilityEntries(entries, trailer.UnavailabilityPeriods, date, $"Ausfall: {trailer.Name}", "#F97316");
         }

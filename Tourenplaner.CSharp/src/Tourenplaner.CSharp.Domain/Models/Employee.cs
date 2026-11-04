@@ -1,4 +1,4 @@
-﻿namespace Tourenplaner.CSharp.Domain.Models;
+namespace Tourenplaner.CSharp.Domain.Models;
 
 public sealed class Employee
 {
@@ -14,6 +14,8 @@ public sealed class Employee
     public string WebfleetDriverName { get; set; } = string.Empty;
     public bool HasProgramProfile { get; set; } = true;
     public bool IsFavorite { get; set; }
+    // Retained for historical tours, hidden from management and planning.
+    public bool IsDeleted { get; set; }
     public bool Active { get; set; } = true;
     public List<ResourceUnavailabilityPeriod> UnavailabilityPeriods { get; set; } = new();
 }

@@ -1,4 +1,4 @@
-﻿namespace Tourenplaner.CSharp.Domain.Models;
+namespace Tourenplaner.CSharp.Domain.Models;
 
 public sealed class TrailerRecord
 {
@@ -7,6 +7,8 @@ public sealed class TrailerRecord
     public string LicensePlate { get; set; } = string.Empty;
     public int MaxPayloadKg { get; set; }
     public int GrossWeightKg { get; set; }
+    // Retained for historical tours, hidden from management and planning.
+    public bool IsDeleted { get; set; }
     public bool Active { get; set; } = true;
     public string Notes { get; set; } = string.Empty;
     public int VolumeM3 { get; set; }

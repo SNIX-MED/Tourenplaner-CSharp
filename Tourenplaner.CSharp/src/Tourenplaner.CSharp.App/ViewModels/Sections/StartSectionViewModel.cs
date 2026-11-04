@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Windows.Input;
@@ -423,18 +423,18 @@ public sealed class StartSectionViewModel : SectionViewModelBase
     private void BuildResourceAvailability(IReadOnlyList<Employee> employees, VehicleDataRecord vehicleData, DateTime today)
     {
         var from = DateOnly.FromDateTime(today);
-        foreach (var employee in employees.Where(x => x.Active))
+        foreach (var employee in employees.Where(x => x.Active && !x.IsDeleted))
         {
             AddResourcePeriods(EmployeeAbsences, employee.DisplayName, employee.UnavailabilityPeriods, from, OpenEmployeesCommand, "#DC2626");
         }
 
-        foreach (var vehicle in vehicleData.Vehicles.Where(x => x.Active))
+        foreach (var vehicle in vehicleData.Vehicles.Where(x => x.Active && !x.IsDeleted))
         {
             var name = string.IsNullOrWhiteSpace(vehicle.LicensePlate) ? vehicle.Name : $"{vehicle.Name} · {vehicle.LicensePlate}";
             AddResourcePeriods(VehicleOutages, name, vehicle.UnavailabilityPeriods, from, OpenVehiclesCommand, "#F97316");
         }
 
-        foreach (var trailer in vehicleData.Trailers.Where(x => x.Active))
+        foreach (var trailer in vehicleData.Trailers.Where(x => x.Active && !x.IsDeleted))
         {
             AddResourcePeriods(VehicleOutages, trailer.Name, trailer.UnavailabilityPeriods, from, OpenVehiclesCommand, "#F97316");
         }
@@ -679,9 +679,9 @@ public sealed class StartSectionViewModel : SectionViewModelBase
                 lines.Add(new UpcomingDaySummaryLine { Text = $"{time} {title}{note}", ShowManualDot = true, DotColor = color });
             }
         }
-        foreach (var employee in employees) Add(employee.UnavailabilityPeriods, $"Abwesend: {employee.DisplayName}", "#DC2626");
-        foreach (var vehicle in vehicleData.Vehicles) Add(vehicle.UnavailabilityPeriods, $"Ausfall: {vehicle.Name}", "#F97316");
-        foreach (var trailer in vehicleData.Trailers) Add(trailer.UnavailabilityPeriods, $"Ausfall: {trailer.Name}", "#F97316");
+        foreach (var employee in employees.Where(x => !x.IsDeleted)) Add(employee.UnavailabilityPeriods, $"Abwesend: {employee.DisplayName}", "#DC2626");
+        foreach (var vehicle in vehicleData.Vehicles.Where(x => !x.IsDeleted)) Add(vehicle.UnavailabilityPeriods, $"Ausfall: {vehicle.Name}", "#F97316");
+        foreach (var trailer in vehicleData.Trailers.Where(x => !x.IsDeleted)) Add(trailer.UnavailabilityPeriods, $"Ausfall: {trailer.Name}", "#F97316");
         return lines;
     }
     private static int ParseStartTimeMinutes(string? raw)

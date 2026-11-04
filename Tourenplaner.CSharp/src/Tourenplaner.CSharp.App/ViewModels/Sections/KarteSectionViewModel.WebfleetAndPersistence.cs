@@ -54,7 +54,7 @@ public sealed partial class KarteSectionViewModel
         }
 
         var employees = await _employeeRepository.LoadAsync(cancellationToken);
-        var driverCandidates = employees.Where(employee => (tour.EmployeeIds ?? []).Any(id => string.Equals(id, employee.Id, StringComparison.OrdinalIgnoreCase)) && !string.IsNullOrWhiteSpace(employee.WebfleetObjectUid)).ToList();
+        var driverCandidates = employees.Where(employee => !employee.IsDeleted && (tour.EmployeeIds ?? []).Any(id => string.Equals(id, employee.Id, StringComparison.OrdinalIgnoreCase)) && !string.IsNullOrWhiteSpace(employee.WebfleetObjectUid)).ToList();
         if (driverCandidates.Count == 0)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show("Keinem der für die Tour zugeordneten Mitarbeiter ist ein WEBFLEET-Gerät zugeordnet.", "WEBFLEET-Fahrer prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);

@@ -1,4 +1,4 @@
-﻿namespace Tourenplaner.CSharp.Domain.Models;
+namespace Tourenplaner.CSharp.Domain.Models;
 
 public sealed class VehicleCombinationRecord
 {
@@ -7,6 +7,8 @@ public sealed class VehicleCombinationRecord
     public string TrailerId { get; set; } = string.Empty;
     public int VehiclePayloadKg { get; set; }
     public int TrailerLoadKg { get; set; }
+    // Retained for historical tours, hidden from management and planning.
+    public bool IsDeleted { get; set; }
     public bool Active { get; set; } = true;
     public string Notes { get; set; } = string.Empty;
     public string CreatedAt { get; set; } = string.Empty;

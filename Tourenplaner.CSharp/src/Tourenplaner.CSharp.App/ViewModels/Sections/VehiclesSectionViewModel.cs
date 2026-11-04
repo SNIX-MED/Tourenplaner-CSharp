@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.Text.Json;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
@@ -160,7 +161,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
     public IReadOnlyList<VehicleCombinationOption> BuildCombinationOptions()
     {
         return _vehicles
-            .Where(x => x.Active)
+            .Where(x => x.Active && !x.IsDeleted)
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new VehicleCombinationOption(x.Id, BuildVehicleLabel(x)))
             .ToList();
@@ -169,7 +170,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
     public IReadOnlyList<VehicleCombinationOption> BuildTrailerOptions()
     {
         return _trailers
-            .Where(x => x.Active)
+            .Where(x => x.Active && !x.IsDeleted)
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new VehicleCombinationOption(x.Id, BuildTrailerLabel(x)))
             .ToList();
@@ -184,6 +185,10 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
 
         var existingVehicle = _vehicles.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
         var existingTrailer = _trailers.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
+        if (existingVehicle?.IsDeleted == true || existingTrailer?.IsDeleted == true)
+        {
+            throw new InvalidOperationException("Dieser Eintrag wurde inzwischen gelöscht. Bitte die Fahrzeugliste aktualisieren.");
+        }
 
         _vehicles.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
         _trailers.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -271,17 +276,21 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
     {
         var vehicleId = (result.VehicleId ?? string.Empty).Trim();
         var trailerId = (result.TrailerId ?? string.Empty).Trim();
-        if (_vehicles.All(x => !string.Equals(x.Id, vehicleId, StringComparison.OrdinalIgnoreCase)))
+        if (!_vehicles.Any(x => !x.IsDeleted && string.Equals(x.Id, vehicleId, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException("Das gewählte Zugfahrzeug existiert nicht mehr.");
         }
 
-        if (_trailers.All(x => !string.Equals(x.Id, trailerId, StringComparison.OrdinalIgnoreCase)))
+        if (!_trailers.Any(x => !x.IsDeleted && string.Equals(x.Id, trailerId, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException("Der gewählte Anhänger existiert nicht mehr.");
         }
 
         var id = string.IsNullOrWhiteSpace(result.Id) ? Guid.NewGuid().ToString() : result.Id.Trim();
+        if (_combinations.Any(x => x.IsDeleted && string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Diese Fahrzeugkombination wurde inzwischen gelöscht. Bitte die Fahrzeugliste aktualisieren.");
+        }
         ValidateCombinationResult(result, id);
         _combinations.RemoveAll(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
         _combinations.Add(new VehicleCombinationRecord
@@ -306,7 +315,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
 
         if (result.IsTrailer)
         {
-            if (_trailers.Any(x =>
+            if (_trailers.Any(x => !x.IsDeleted &&
                     !string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)))
             {
@@ -314,7 +323,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             }
 
             if (!string.IsNullOrWhiteSpace(plateKey) &&
-                _trailers.Any(x =>
+                _trailers.Any(x => !x.IsDeleted &&
                     !string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(NormalizeLicensePlateKey(x.LicensePlate), plateKey, StringComparison.OrdinalIgnoreCase)))
             {
@@ -324,7 +333,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             return;
         }
 
-        if (_vehicles.Any(x =>
+        if (_vehicles.Any(x => !x.IsDeleted &&
                 !string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
@@ -332,7 +341,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         }
 
         if (!string.IsNullOrWhiteSpace(plateKey) &&
-            _vehicles.Any(x =>
+            _vehicles.Any(x => !x.IsDeleted &&
                 !string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(NormalizeLicensePlateKey(x.LicensePlate), plateKey, StringComparison.OrdinalIgnoreCase)))
         {
@@ -345,7 +354,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         var vehicleId = (result.VehicleId ?? string.Empty).Trim();
         var trailerId = (result.TrailerId ?? string.Empty).Trim();
 
-        if (_combinations.Any(x =>
+        if (_combinations.Any(x => !x.IsDeleted &&
                 !string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(x.VehicleId, vehicleId, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(x.TrailerId, trailerId, StringComparison.OrdinalIgnoreCase)))
@@ -361,6 +370,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
 
     public async Task<string?> DeleteEntryAsync(FleetEntryCardItem entry)
     {
+        var retainHistory = false;
         if (!entry.IsCombination)
         {
             var tours = await _tourRepository.LoadAsync();
@@ -373,32 +383,66 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
                 .OrderBy(tour => ResourceAvailabilityService.ParseDate(tour.Date))
                 .ThenBy(tour => tour.StartTime, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            if (referencedTours.Count > 0)
+            retainHistory = referencedTours.Count > 0;
+            var blockingTours = referencedTours.Where(tour => ResourceAvailabilityService.BlocksResourceDeletion(tour, DateOnly.FromDateTime(DateTime.Today))).ToList();
+            if (blockingTours.Count > 0)
             {
-                return BuildDeletionBlockedMessage(entry.IsTrailer ? "Anhänger" : "Fahrzeug", entry.Name, referencedTours);
+                return BuildDeletionBlockedMessage(entry.IsTrailer ? "Anhänger" : "Fahrzeug", entry.Name, blockingTours);
             }
         }
 
+        var payload = JsonSerializer.Deserialize<VehicleDataRecord>(JsonSerializer.Serialize(new VehicleDataRecord
+        {
+            ConcurrencyToken = _concurrencyToken,
+            Vehicles = _vehicles,
+            Trailers = _trailers,
+            VehicleCombinations = _combinations
+        }))!;
+
         if (entry.IsCombination)
         {
-            _combinations.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+            payload.VehicleCombinations.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+        }
+        else if (retainHistory)
+        {
+            if (entry.IsTrailer)
+            {
+                var trailer = payload.Trailers.Single(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+                trailer.IsDeleted = true;
+                trailer.Active = false;
+            }
+            else
+            {
+                var vehicle = payload.Vehicles.Single(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+                vehicle.IsDeleted = true;
+                vehicle.Active = false;
+            }
+            foreach (var combination in payload.VehicleCombinations.Where(x => entry.IsTrailer
+                         ? string.Equals(x.TrailerId, entry.Id, StringComparison.OrdinalIgnoreCase)
+                         : string.Equals(x.VehicleId, entry.Id, StringComparison.OrdinalIgnoreCase)))
+            {
+                combination.IsDeleted = true;
+                combination.Active = false;
+            }
         }
         else if (entry.IsTrailer)
         {
-            _trailers.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+            payload.Trailers.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
         }
         else
         {
-            _vehicles.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
-            _combinations.RemoveAll(x => string.Equals(x.VehicleId, entry.Id, StringComparison.OrdinalIgnoreCase));
+            payload.Vehicles.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+            payload.VehicleCombinations.RemoveAll(x => string.Equals(x.VehicleId, entry.Id, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (entry.IsTrailer)
+        if (entry.IsTrailer && !retainHistory)
         {
-            _combinations.RemoveAll(x => string.Equals(x.TrailerId, entry.Id, StringComparison.OrdinalIgnoreCase));
+            payload.VehicleCombinations.RemoveAll(x => string.Equals(x.TrailerId, entry.Id, StringComparison.OrdinalIgnoreCase));
         }
 
-        await SaveCurrentStateAsync();
+        await _repository.SaveAsync(payload);
+        _dataSyncService.PublishVehicles(_instanceId);
+        await RefreshAsync();
         return null;
     }
 
@@ -475,7 +519,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         var today = DateOnly.FromDateTime(DateTime.Today);
         if (_displayMode == FleetDisplayMode.Vehicles)
         {
-            foreach (var vehicle in _vehicles
+            foreach (var vehicle in _vehicles.Where(x => !x.IsDeleted)
                          .OrderByDescending(x => x.Active)
                          .ThenByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
                          .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
@@ -508,7 +552,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         }
         else if (_displayMode == FleetDisplayMode.Trailers)
         {
-            foreach (var trailer in _trailers
+            foreach (var trailer in _trailers.Where(x => !x.IsDeleted)
                          .OrderByDescending(x => x.Active)
                          .ThenByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
                          .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
@@ -541,7 +585,7 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
         }
         else
         {
-            foreach (var combination in _combinations.OrderBy(x => !x.Active).ThenBy(x => ResolveVehicleName(vehiclesById, x.VehicleId), StringComparer.OrdinalIgnoreCase).ThenBy(x => ResolveTrailerName(trailersById, x.TrailerId), StringComparer.OrdinalIgnoreCase))
+            foreach (var combination in _combinations.Where(x => !x.IsDeleted).OrderBy(x => !x.Active).ThenBy(x => ResolveVehicleName(vehiclesById, x.VehicleId), StringComparer.OrdinalIgnoreCase).ThenBy(x => ResolveTrailerName(trailersById, x.TrailerId), StringComparer.OrdinalIgnoreCase))
             {
                 var vehicleName = ResolveVehicleName(vehiclesById, combination.VehicleId);
                 var trailerName = ResolveTrailerName(trailersById, combination.TrailerId);
@@ -564,9 +608,9 @@ public sealed class VehiclesSectionViewModel : SectionViewModelBase
             }
         }
 
-        var unavailableVehicles = _vehicles.Count(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today));
-        var unavailableTrailers = _trailers.Count(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today));
-        StatusText = $"Zugfahrzeuge: {_vehicles.Count} (heute Ausfall {unavailableVehicles}) | Anhänger: {_trailers.Count} (heute Ausfall {unavailableTrailers}) | Kombinationen: {_combinations.Count}";
+        var unavailableVehicles = _vehicles.Count(x => !x.IsDeleted && ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today));
+        var unavailableTrailers = _trailers.Count(x => !x.IsDeleted && ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today));
+        StatusText = $"Zugfahrzeuge: {_vehicles.Count(x => !x.IsDeleted)} (heute Ausfall {unavailableVehicles}) | Anhänger: {_trailers.Count(x => !x.IsDeleted)} (heute Ausfall {unavailableTrailers}) | Kombinationen: {_combinations.Count(x => !x.IsDeleted)}";
         ModeCountText = _displayMode switch
         {
             FleetDisplayMode.Vehicles => $"Zugfahrzeuge: {Entries.Count}",

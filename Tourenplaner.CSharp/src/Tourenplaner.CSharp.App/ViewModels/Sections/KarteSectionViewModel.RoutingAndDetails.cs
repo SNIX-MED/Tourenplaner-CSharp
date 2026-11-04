@@ -783,7 +783,7 @@ public sealed partial class KarteSectionViewModel
             {
                 _employeeLabelsById[employee.Id] = employee.DisplayName;
             }
-            if (!string.IsNullOrWhiteSpace(employee.WebfleetObjectUid) && !string.IsNullOrWhiteSpace(employee.DisplayName))
+            if (!employee.IsDeleted && !string.IsNullOrWhiteSpace(employee.WebfleetObjectUid) && !string.IsNullOrWhiteSpace(employee.DisplayName))
             {
                 _employeeLabelsByWebfleetObjectUid[employee.WebfleetObjectUid.Trim()] = employee.DisplayName;
                 if (!string.IsNullOrWhiteSpace(employee.Id))
@@ -2826,28 +2826,28 @@ public sealed partial class KarteSectionViewModel
         await Task.WhenAll(employeeTask, vehicleTask);
 
         var employees = (await employeeTask)
-            .Where(x => x.Active)
+            .Where(x => x.Active && !x.IsDeleted)
             .OrderByDescending(x => x.IsFavorite)
             .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourEmployeeOption(x.Id, x.DisplayName, x.IsFavorite, x.UnavailabilityPeriods))
             .ToList();
         _employeeLabelsById.Clear();
-        foreach (var employee in employees)
+        foreach (var employee in await employeeTask)
         {
             if (!string.IsNullOrWhiteSpace(employee.Id))
             {
-                _employeeLabelsById[employee.Id] = employee.Label;
+                _employeeLabelsById[employee.Id] = employee.DisplayName;
             }
         }
 
         var vehicleData = await vehicleTask;
         var vehicles = vehicleData.Vehicles
-            .Where(x => x.Active)
+            .Where(x => x.Active && !x.IsDeleted)
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]", x.UnavailabilityPeriods))
             .ToList();
         var trailers = vehicleData.Trailers
-            .Where(x => x.Active)
+            .Where(x => x.Active && !x.IsDeleted)
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]", x.UnavailabilityPeriods))
             .ToList();

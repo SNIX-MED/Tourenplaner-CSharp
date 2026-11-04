@@ -1685,7 +1685,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         foreach (var vehicle in vehicles.Vehicles.OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase))
         {
             var label = $"{vehicle.Name} [{vehicle.LicensePlate}]";
-            AvailableVehicles.Add(new LookupItem { Id = vehicle.Id, Label = label });
+            if (!vehicle.IsDeleted) AvailableVehicles.Add(new LookupItem { Id = vehicle.Id, Label = label });
             _vehicleLabelsById[vehicle.Id] = label;
         }
 
@@ -1694,7 +1694,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         foreach (var trailer in vehicles.Trailers.OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase))
         {
             var label = $"{trailer.Name} [{trailer.LicensePlate}]";
-            AvailableTrailers.Add(new LookupItem { Id = trailer.Id, Label = label });
+            if (!trailer.IsDeleted) AvailableTrailers.Add(new LookupItem { Id = trailer.Id, Label = label });
             _trailerLabelsById[trailer.Id] = label;
         }
 
@@ -1702,6 +1702,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         foreach (var employee in employees.OrderBy(e => e.DisplayName, StringComparer.OrdinalIgnoreCase))
         {
             _employeeLabelsById[employee.Id] = employee.DisplayName;
+            if (employee.IsDeleted) continue;
             var item = new SelectableEmployeeItem
             {
                 Id = employee.Id,
@@ -2332,7 +2333,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         await Task.WhenAll(employeesTask, vehiclesTask);
 
         var employees = (await employeesTask)
-            .Where(x => x.Active)
+            .Where(x => x.Active && !x.IsDeleted)
             .OrderByDescending(x => x.IsFavorite)
             .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourEmployeeOption(x.Id, x.DisplayName, x.IsFavorite, x.UnavailabilityPeriods))
@@ -2340,12 +2341,12 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
 
         var vehicleData = await vehiclesTask;
         var vehicles = vehicleData.Vehicles
-            .Where(x => x.Active)
+            .Where(x => x.Active && !x.IsDeleted)
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]", x.UnavailabilityPeriods))
             .ToList();
         var trailers = vehicleData.Trailers
-            .Where(x => x.Active)
+            .Where(x => x.Active && !x.IsDeleted)
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .Select(x => new TourLookupOption(x.Id, $"{x.Name} [{x.LicensePlate}]", x.UnavailabilityPeriods))
             .ToList();

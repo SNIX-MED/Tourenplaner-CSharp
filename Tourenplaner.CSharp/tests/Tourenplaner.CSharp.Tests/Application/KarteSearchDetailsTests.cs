@@ -1567,10 +1567,11 @@ public sealed partial class KarteSearchDetailsTests
         IOrderRepository? orderRepository = null,
         ITourRecordStore? tourRepository = null,
         IAppSettingsStore? settingsRepository = null,
-        AppDataSyncService? syncService = null) => new(
+        AppDataSyncService? syncService = null,
+        IEmployeeDataStore? employeeRepository = null) => new(
         orderRepository ?? new OrderStore(),
         tourRepository ?? new EmptyTourStore(),
-        new EmptyEmployeeStore(),
+        employeeRepository ?? new EmptyEmployeeStore(),
         new EmptyVehicleStore(),
         settingsRepository ?? new SettingsStore(),
         Path.Combine(Path.GetTempPath(), "tourenplaner-tests", Guid.NewGuid().ToString("N")),

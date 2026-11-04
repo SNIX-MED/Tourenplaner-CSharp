@@ -1,4 +1,5 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
+using System.Text.Json;
 using System.Windows.Input;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.ViewModels.Commands;
@@ -117,7 +118,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             throw new InvalidOperationException("Die gespeicherten WEBFLEET-Zugangsdaten sind unvollständig. Bitte API-Key und Passwort unter Einstellungen > WEBFLEET speichern.");
         }
 
-        var assignedObjectUids = _employees
+        var assignedObjectUids = _employees.Where(x => !x.IsDeleted)
             .Where(x => !string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase))
             .Select(x => x.WebfleetObjectUid)
             .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -138,7 +139,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             throw new InvalidOperationException("WEBFLEET ist noch nicht vollständig eingerichtet. Bitte die Verbindung unter Einstellungen > WEBFLEET prüfen.");
         }
 
-        var assignedDriverUids = _employees
+        var assignedDriverUids = _employees.Where(x => !x.IsDeleted)
             .Where(x => !string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase))
             .Select(x => x.WebfleetDriverUid)
             .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -150,7 +151,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
 
     public string GetWebfleetAssignmentHint(string? employeeId)
     {
-        var assignments = _employees
+        var assignments = _employees.Where(x => !x.IsDeleted)
             .Where(x => !string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase) &&
                         !string.IsNullOrWhiteSpace(x.WebfleetObjectUid))
             .Select(x => string.IsNullOrWhiteSpace(x.WebfleetObjectNumber)
@@ -167,7 +168,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         var current = _employees.FirstOrDefault(x => string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase));
         return current is not null &&
                !string.IsNullOrWhiteSpace(current.WebfleetObjectUid) &&
-               _employees.Any(x => !string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase) &&
+               _employees.Any(x => !x.IsDeleted && !string.Equals(x.Id, employeeId, StringComparison.OrdinalIgnoreCase) &&
                                    string.Equals(x.WebfleetObjectUid, current.WebfleetObjectUid, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -175,7 +176,11 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
     {
         var id = string.IsNullOrWhiteSpace(result.Id) ? Guid.NewGuid().ToString() : result.Id.Trim();
         var existing = _employees.FirstOrDefault(x => string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase));
-        var conflictingEmployee = _employees.FirstOrDefault(x =>
+        if (existing?.IsDeleted == true)
+        {
+            throw new InvalidOperationException("Dieser Mitarbeiter wurde inzwischen gelöscht. Bitte die Mitarbeiterliste aktualisieren.");
+        }
+        var conflictingEmployee = _employees.FirstOrDefault(x => !x.IsDeleted &&
             !string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(result.WebfleetObjectUid) &&
             string.Equals(x.WebfleetObjectUid, result.WebfleetObjectUid, StringComparison.OrdinalIgnoreCase));
@@ -183,7 +188,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         {
             throw new InvalidOperationException($"Das WEBFLEET-Gerät {result.WebfleetObjectNumber} ist bereits dem Mitarbeiter \"{conflictingEmployee.DisplayName}\" zugeordnet.");
         }
-        var conflictingDriver = _employees.FirstOrDefault(x =>
+        var conflictingDriver = _employees.FirstOrDefault(x => !x.IsDeleted &&
             !string.Equals(x.Id, id, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(result.WebfleetDriverUid) &&
             string.Equals(x.WebfleetDriverUid, result.WebfleetDriverUid, StringComparison.OrdinalIgnoreCase));
@@ -265,13 +270,25 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
             .OrderBy(tour => ResourceAvailabilityService.ParseDate(tour.Date))
             .ThenBy(tour => tour.StartTime, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (referencedTours.Count > 0)
+        var blockingTours = referencedTours.Where(tour => ResourceAvailabilityService.BlocksResourceDeletion(tour, DateOnly.FromDateTime(DateTime.Today))).ToList();
+        if (blockingTours.Count > 0)
         {
-            return BuildDeletionBlockedMessage("Mitarbeiter", entry.Name, referencedTours);
+            return BuildDeletionBlockedMessage("Mitarbeiter", entry.Name, blockingTours);
         }
 
-        _employees.RemoveAll(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
-        await SaveCurrentStateAsync(deletedEmployeeId: entry.Id);
+        if (referencedTours.Count > 0)
+        {
+            var source = _employees.Single(x => string.Equals(x.Id, entry.Id, StringComparison.OrdinalIgnoreCase));
+            var employee = JsonSerializer.Deserialize<Employee>(JsonSerializer.Serialize(source))!;
+            employee.IsDeleted = true;
+            employee.Active = false;
+            employee.HasProgramProfile = false;
+            await SaveCurrentStateAsync(savedEmployee: employee);
+        }
+        else
+        {
+            await SaveCurrentStateAsync(deletedEmployeeId: entry.Id);
+        }
         return null;
     }
 
@@ -314,7 +331,11 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
         }
         else
         {
-            await _repository.SaveAsync(_employees);
+            var employees = _employees.Where(x =>
+                !string.Equals(x.Id, deletedEmployeeId, StringComparison.OrdinalIgnoreCase) &&
+                (savedEmployee is null || !string.Equals(x.Id, savedEmployee.Id, StringComparison.OrdinalIgnoreCase))).ToList();
+            if (savedEmployee is not null) employees.Add(savedEmployee);
+            await _repository.SaveAsync(employees);
         }
         _dataSyncService.PublishEmployees(_instanceId);
         await RefreshAsync();
@@ -334,7 +355,7 @@ public sealed class EmployeesSectionViewModel : SectionViewModelBase
     {
         Entries.Clear();
         var today = DateOnly.FromDateTime(DateTime.Today);
-        foreach (var employee in _employees
+        foreach (var employee in _employees.Where(x => !x.IsDeleted)
                      .OrderByDescending(x => x.Active)
                      .ThenByDescending(x => x.IsFavorite)
                      .ThenByDescending(x => ResourceAvailabilityService.IsUnavailableOnDate(x.UnavailabilityPeriods, today))
