@@ -69,10 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Neue Touren koennen mit einem einzelnen manuellen Stopp erstellt und gespeichert werden
-          - Reine manuelle Touren koennen mit den bestehenden Pruefungen an WEBFLEET gesendet werden
-          - Bestehende Touren bleiben beim Start eines manuellen Tourentwurfs erhalten
-          - Tourwechsel und beendete Bearbeitung waehrend der Stoppeingabe werden abgesichert
+          - Reine manuelle Touren bleiben beim Aktualisieren der Uebersichten erhalten
+          - Gemischte Touren bleiben erhalten, solange ein manueller Zielstopp vorhanden ist
+          - Manuelle Stopps werden bei Auftragsbereinigung und Umbenennung geschuetzt
+          - Regressionstests fuer normale Touren, Teillieferungen und beide Uebersichten ergaenzt
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

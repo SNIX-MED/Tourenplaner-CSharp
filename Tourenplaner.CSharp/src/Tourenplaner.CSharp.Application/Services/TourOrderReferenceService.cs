@@ -107,13 +107,14 @@ public static class TourOrderReferenceService
             var orderStops = (tour.Stops ?? [])
                 .Where(IsOrderStop)
                 .ToList();
-            if (orderStops.Count == 0)
+            var hasManualStops = (tour.Stops ?? []).Any(IsManualStop);
+            if (orderStops.Count == 0 && !hasManualStops)
             {
                 deletedTourIds.Add(tour.Id);
                 continue;
             }
 
-            if (orderStops.All(stop =>
+            if (!hasManualStops && orderStops.Count > 0 && orderStops.All(stop =>
                 orderById.TryGetValue((stop.Auftragsnummer ?? string.Empty).Trim(), out var order) &&
                 order.IsArchived))
             {
@@ -203,7 +204,7 @@ public static class TourOrderReferenceService
 
     private static bool ShouldRemoveStop(TourStopRecord? stop, IReadOnlySet<string> validOrderIds)
     {
-        if (stop is null || TourStopIdentity.IsCompanyStop(stop))
+        if (stop is null || TourStopIdentity.IsCompanyStop(stop) || IsManualStop(stop))
         {
             return false;
         }
@@ -219,7 +220,7 @@ public static class TourOrderReferenceService
 
     private static bool IsOrderStop(TourStopRecord? stop)
     {
-        if (stop is null || TourStopIdentity.IsCompanyStop(stop))
+        if (stop is null || TourStopIdentity.IsCompanyStop(stop) || IsManualStop(stop))
         {
             return false;
         }
@@ -231,6 +232,11 @@ public static class TourOrderReferenceService
 
         return !string.IsNullOrWhiteSpace(stop.Auftragsnummer);
     }
+
+    private static bool IsManualStop(TourStopRecord? stop) =>
+        stop is not null && !TourStopIdentity.IsCompanyStop(stop) && !TourStopIdentity.IsPauseStop(stop) &&
+        (string.Equals(stop.StopKind?.Trim(), "manual", StringComparison.OrdinalIgnoreCase) ||
+         (stop.Id ?? string.Empty).Trim().StartsWith("manual:", StringComparison.OrdinalIgnoreCase));
 
     private static bool ShouldRemoveInvalidDeliveryStop(
         TourStopRecord? stop,

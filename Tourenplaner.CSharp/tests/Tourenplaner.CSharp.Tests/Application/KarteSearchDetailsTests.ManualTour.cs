@@ -208,6 +208,17 @@ public sealed partial class KarteSearchDetailsTests
         var repository = new JsonToursRepository(path);
         await repository.SaveAsync([tour]);
         var loaded = Assert.Single(await repository.LoadAsync());
+        var reloadedTours = new List<TourRecord> { loaded };
+        Assert.False(TourOrderReferenceService.ReconcileActiveToursWithOrders(reloadedTours, []).HasChanges);
+        Assert.Same(loaded, Assert.Single(reloadedTours));
+        await repository.SaveAsync(reloadedTours);
+        Assert.Single(await repository.LoadAsync());
+        var overview = CreateViewModel(tourRepository: repository);
+        await overview.RefreshAsync();
+        Assert.Equal(loaded.Id, Assert.Single(overview.TourOverviewItems).TourId);
+        await overview.RefreshAsync();
+        Assert.Equal(loaded.Id, Assert.Single(overview.TourOverviewItems).TourId);
+        Assert.Single(await repository.LoadAsync());
         var manual = Assert.Single(loaded.Stops, stop => stop.StopKind == "manual");
 
         Assert.Equal("manual:test", manual.Id);

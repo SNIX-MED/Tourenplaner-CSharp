@@ -7,6 +7,119 @@ namespace Tourenplaner.CSharp.Tests.Application;
 public class TourOrderReferenceServiceTests
 {
     [Theory]
+    [InlineData("company:start", "manual", "FIRMA-START")]
+    [InlineData("manual:legacy", "pause", "")]
+    [InlineData("pause:legacy", "manual", "")]
+    public void CompanyOrPauseStopCannotKeepEmptyTourAliveDespiteConflictingManualMarker(string id, string kind, string orderNumber)
+    {
+        var tours = new List<TourRecord> { new() { Id = 42, Stops =
+            [new() { Id = id, StopKind = kind, Auftragsnummer = orderNumber }] } };
+        var result = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, []);
+        Assert.Empty(tours);
+        Assert.Equal([42], result.DeletedTourIds);
+    }
+
+    [Fact]
+    public void RenameAndRefreshCannotModifyManualStopWithLegacyOrderNumber()
+    {
+        var manual = new TourStopRecord { Id = "manual:1", StopKind = "manual", Auftragsnummer = "OLD",
+            Name = "Abholung", Address = "Manuelles Ziel", Lat = 47, Lon = 8, DeliveryId = "D1" };
+        var orderStop = new TourStopRecord { Id = "order:1", Auftragsnummer = "OLD" };
+        var tour = new TourRecord { Id = 42, Stops = [manual, orderStop] };
+        TourOrderReferenceService.RenameOrderReferences([tour], "OLD", "NEW");
+        var tours = new List<TourRecord> { tour };
+        TourOrderReferenceService.ReconcileActiveToursWithOrders(tours,
+            [new Order { Id = "NEW", CustomerName = "Kunde", Address = "Auftragsadresse", Location = new(48, 9) }]);
+        Assert.Equal("OLD", manual.Auftragsnummer);
+        Assert.Equal("Abholung", manual.Name);
+        Assert.Equal("Manuelles Ziel", manual.Address);
+        Assert.Equal(47, manual.Lat);
+        Assert.Equal("D1", manual.DeliveryId);
+        Assert.Equal("NEW", orderStop.Auftragsnummer);
+        Assert.Equal("Kunde", orderStop.Name);
+        Assert.Contains(manual, Assert.Single(tours).Stops);
+    }
+
+    [Theory]
+    [InlineData(OrderDeliveryStatus.Delivered)]
+    [InlineData(OrderDeliveryStatus.Cancelled)]
+    public void RemovingLastPartialDeliveryPreservesRemainingManualDestination(OrderDeliveryStatus status)
+    {
+        var manual = new TourStopRecord { Id = "manual:1", StopKind = "manual" };
+        var tour = new TourRecord { Id = 42, Stops =
+            [new() { Id = "order:1", Auftragsnummer = "A-100", DeliveryId = "D1" }, manual] };
+        var tours = new List<TourRecord> { tour };
+        var orders = new[] { new Order { Id = "A-100", Deliveries = [new() { Id = "D1", Status = status }] } };
+        var result = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders);
+        Assert.Same(manual, Assert.Single(Assert.Single(tours).Stops));
+        Assert.Empty(result.DeletedTourIds);
+        Assert.Equal([42], result.RescheduledTourIds);
+        Assert.False(TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, orders).HasChanges);
+    }
+
+    [Theory]
+    [InlineData("manual", "stop-1", "")]
+    [InlineData("", "manual:legacy", "manual:legacy")]
+    [InlineData(" MANUAL ", "stop-1", "legacy-value")]
+    public void ManualOnlyTourSurvivesRepeatedReconciliation(string kind, string id, string orderNumber)
+    {
+        var manual = new TourStopRecord { Id = id, StopKind = kind, Auftragsnummer = orderNumber,
+            DeliveryId = "legacy-delivery", Name = "Abholung", Address = "Teststrasse", Lat = 47, Lon = 8,
+            ServiceMinutes = 25, EmployeeInfoText = "Empfang" };
+        var tour = new TourRecord { Id = 42, Stops = [manual] };
+        var tours = new List<TourRecord> { tour };
+        for (var i = 0; i < 3; i++)
+        {
+            var result = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours, []);
+            Assert.False(result.HasChanges);
+            Assert.Same(tour, Assert.Single(tours));
+            Assert.False(tour.IsArchived);
+            Assert.Same(manual, Assert.Single(tour.Stops));
+        }
+        Assert.False(TourOrderReferenceService.RemoveStopsWithoutOrders(tours, []).HasChanges);
+        Assert.Equal("Teststrasse", manual.Address);
+        Assert.Equal(25, manual.ServiceMinutes);
+        Assert.Equal("Empfang", manual.EmployeeInfoText);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void MixedTourKeepsManualStopWhenOrderDisappearsOrIsArchived(bool orderExists, bool archived)
+    {
+        var manual = new TourStopRecord { Id = "manual:1", StopKind = "manual" };
+        var orderStop = new TourStopRecord { Id = "order:1", Auftragsnummer = "A-100" };
+        var tour = new TourRecord { Id = 42, Stops = [orderStop, manual] };
+        var tours = new List<TourRecord> { tour };
+        var result = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours,
+            orderExists ? [new Order { Id = "A-100", IsArchived = archived }] : []);
+        Assert.Same(tour, Assert.Single(tours));
+        Assert.Contains(manual, tour.Stops);
+        Assert.False(tour.IsArchived);
+        Assert.Empty(result.DeletedTourIds);
+        Assert.Empty(result.ArchivedTourIds);
+        Assert.Equal(orderExists, tour.Stops.Contains(orderStop));
+        Assert.Equal(orderExists ? 0 : 1, result.RemovedStopCount);
+        if (!orderExists) Assert.Contains(42, result.RescheduledTourIds);
+    }
+
+    [Theory]
+    [InlineData(OrderDeliveryStatus.Planned, false)]
+    [InlineData(OrderDeliveryStatus.Delivered, true)]
+    [InlineData(OrderDeliveryStatus.Cancelled, true)]
+    public void NormalTourKeepsValidDeliveryAndRemovesOnlyCompletedOrCancelledDelivery(OrderDeliveryStatus status, bool removed)
+    {
+        var stop = new TourStopRecord { Id = "order:1", Auftragsnummer = "A-100", DeliveryId = "D1" };
+        var tours = new List<TourRecord> { new() { Id = 42, Stops = [stop] } };
+        var result = TourOrderReferenceService.ReconcileActiveToursWithOrders(tours,
+            [new Order { Id = "A-100", Deliveries = [new() { Id = "D1", Status = status, AssignedTourId = "42" }] }]);
+        Assert.Equal(removed, tours.Count == 0);
+        Assert.Equal(removed, result.DeletedTourIds.Contains(42));
+        if (!removed) Assert.Same(stop, Assert.Single(Assert.Single(tours).Stops));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void RenamingOrderPreservesStopIdentityDeliveryWindowAndReview(bool archived)

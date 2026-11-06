@@ -10,6 +10,26 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public sealed class ToursSectionViewModelTests
 {
+    [Fact]
+    public async Task ManualOnlyTourRemainsInDeliveryTourOverviewAfterRepeatedRefresh()
+    {
+        var tour = new TourRecord { Id = 42, Date = DateTime.Today.ToString("dd.MM.yyyy"),
+            StartTime = "08:00", Stops = [new() { Id = "manual:test", StopKind = "manual",
+                Name = "Abholung", Lat = 47, Lon = 8, ServiceMinutes = 10 }] };
+        var repository = new JsonToursRepository(Path.Combine(Path.GetTempPath(), "tourenplaner-tests",
+            Guid.NewGuid().ToString("N"), "tours.json"));
+        await repository.SaveAsync([tour]);
+        var viewModel = new ToursSectionViewModel(repository, new SingleOrderRepository(),
+            new EmptyEmployeeStore(), new EmptyVehicleStore(), new DefaultSettingsStore());
+        for (var i = 0; i < 2; i++)
+        {
+            await viewModel.RefreshAsync();
+            Assert.Equal(42, Assert.Single(viewModel.Tours).TourId);
+            Assert.False(tour.IsArchived);
+            Assert.Equal("manual:test", Assert.Single(tour.Stops, stop => stop.StopKind == "manual").Id);
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
