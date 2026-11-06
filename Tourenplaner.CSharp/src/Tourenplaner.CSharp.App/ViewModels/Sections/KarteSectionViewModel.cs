@@ -304,7 +304,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         StartSelectedTourEditingCommand = new AsyncCommand(StartSelectedTourEditingAsync, CanStartSelectedTourEditing);
         ArchiveSelectedTourCommand = new AsyncCommand(ArchiveSelectedTourAsync, CanEditOrLeaveSelectedTour);
         ExportRouteCommand = new AsyncCommand(ExportRouteAsync, CanExportRoute);
-        SaveRouteAsTourCommand = new AsyncCommand(SaveRouteAsTourAsync, () => CanModifyCurrentRoute() && RouteStops.Any(x => !IsCompanyStop(x)));
+        SaveRouteAsTourCommand = new AsyncCommand(SaveRouteAsTourAsync, () => CanModifyCurrentRoute() && RouteStops.Any(IsOrderStop));
         SaveCurrentTourCommand = new AsyncCommand(SaveCurrentTourAsync, CanSaveCurrentTour);
         SendCurrentTourToWebfleetCommand = new AsyncCommand(SendCurrentTourToWebfleetAsync, CanSendCurrentTourToWebfleet);
         RefreshWebfleetVehiclesCommand = new AsyncCommand(ToggleWebfleetVehiclesAsync);

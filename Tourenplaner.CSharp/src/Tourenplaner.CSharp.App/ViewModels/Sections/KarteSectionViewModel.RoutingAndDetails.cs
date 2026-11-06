@@ -1782,23 +1782,16 @@ public sealed partial class KarteSectionViewModel
 
     public async Task AddManualRouteStopAsync(double latitude, double longitude)
     {
-        if (!EnsureCurrentRouteCanBeModified()) return;
+        if (ShowRouteStopsPanel && !EnsureCurrentRouteCanBeModified()) return;
 
-        if (!ShowRouteStopsPanel || !RouteStops.Any(IsOrderStop))
-        {
-            Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                "Bitte zuerst eine Tour laden oder eine neue Tour mit mindestens einem Auftrag erstellen.",
-                "Stopp hinzufügen",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Information);
-            return;
-        }
-
-        if (latitude is < -90 or > 90 || longitude is < -180 or > 180)
+        if (!double.IsFinite(latitude) || !double.IsFinite(longitude) ||
+            latitude is < -90 or > 90 || longitude is < -180 or > 180)
         {
             return;
         }
 
+        var targetTourId = ResolveCurrentTourId();
+        var targetStops = RouteStops.ToArray();
         var searchAddress = GetSearchPinAddress(latitude, longitude);
         var dialog = new ManualRouteStopDialogWindow
         {
@@ -1832,6 +1825,28 @@ public sealed partial class KarteSectionViewModel
             EmployeeInfoText = dialog.Notes
         };
 
+        AddManualStopToRoute(manualStop, targetTourId, targetStops);
+    }
+
+    private bool AddManualStopToRoute(RouteStopItem manualStop, int targetTourId, IReadOnlyList<RouteStopItem> targetStops)
+    {
+        // The modal dialog and reverse geocoding both yield to the UI. Never insert into a different tour
+        // or a draft whose stops have changed while the lookup was running.
+        if (ResolveCurrentTourId() != targetTourId || !RouteStops.SequenceEqual(targetStops))
+        {
+            StatusText = "Die Tour wurde während der Adressabfrage geändert. Bitte den Stopp erneut hinzufügen.";
+            return false;
+        }
+        if (ShowRouteStopsPanel && !CanModifyCurrentRoute()) return false;
+
+        if (!ShowRouteStopsPanel)
+        {
+            // An overview selection is not an editable route. Start a new draft,
+            // just as when adding the first order, so saving cannot overwrite it.
+            ClearRoute(rebuildOrderGrid: false);
+        }
+        if (!CanModifyCurrentRoute()) return false;
+
         var endIndex = RouteStops
             .Select((stop, index) => new { stop, index })
             .FirstOrDefault(x => IsCompanyStop(x.stop) && string.Equals(x.stop.OrderId, CompanyEndStopId, StringComparison.OrdinalIgnoreCase))
@@ -1840,8 +1855,10 @@ public sealed partial class KarteSectionViewModel
         RouteStops.Insert(endIndex, manualStop);
         SelectedRouteStop = manualStop;
         RebuildPositions(calculateRouteImmediately: true);
+        RebuildOrderGrid();
         MarkRouteChanged();
         StatusText = $"Stopp \"{manualStop.Customer}\" mit {manualStop.PlannedStayMinutes} min hinzugefügt.";
+        return true;
     }
 
     public Task EditPauseAfterSelectedRouteStopAsync()
@@ -2654,7 +2671,7 @@ public sealed partial class KarteSectionViewModel
 
     private async Task OpenCreateTourDialogAsync()
     {
-        var hasRouteStops = RouteStops.Any(x => !IsCompanyStop(x));
+        var hasRouteStops = RouteStops.Any(IsOrderStop);
         var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(RouteDate, $"{RouteStartHour}:{RouteStartMinute}");
 
         RouteName = TourNameFormatter.NormalizeNewTourName(RouteName, RouteDate);
@@ -2682,7 +2699,7 @@ public sealed partial class KarteSectionViewModel
         if (!hasRouteStops)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
-                "Bitte zuerst mindestens einen Auftrag zur Route hinzufügen.",
+                "Bitte zuerst mindestens einen Auftrag oder manuellen Stopp zur Route hinzufügen.",
                 "Neue Tour",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Information);
@@ -2881,7 +2898,7 @@ public sealed partial class KarteSectionViewModel
         var wasCommitted = false;
         try
         {
-            if (!RouteStops.Any(x => !IsCompanyStop(x)))
+            if (!RouteStops.Any(IsOrderStop))
             {
                 return;
             }
@@ -5685,7 +5702,7 @@ public sealed partial class KarteSectionViewModel
             return false;
         }
 
-        if (RouteStops.Any(x => !IsCompanyStop(x)))
+        if (RouteStops.Any(IsOrderStop))
         {
             return true;
         }
