@@ -779,7 +779,7 @@ public sealed partial class KarteSearchDetailsTests
             var savedBefore = store.SaveCount;
             await (Task)typeof(KarteSectionViewModel).GetMethod("UpdateExistingTourAsync", flags)!.Invoke(vm,
                 [42, "Veralteter lokaler Entwurf", DateTime.Today.ToString("dd.MM.yyyy"), "08:00", null, null, null, null,
-                    new List<string>(), new List<TourAdditionalMaterial>(), true])!;
+                    new List<string>(), new List<TourAdditionalMaterial>(), true, null])!;
             // Refresh may persist reconciliation; none of those writes may contain the stale draft.
             Assert.All(store.SavedNames.Skip(savedBefore), name => Assert.Equal("Neuer Serverstand", name));
             Assert.Equal("Neuer Serverstand", store.Current.Name);

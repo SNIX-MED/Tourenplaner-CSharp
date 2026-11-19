@@ -130,6 +130,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         RecalculateCommand = new AsyncCommand(RecalculateAndSaveAsync, () => SelectedTour is not null);
         ConfirmAddressReviewCommand = new AsyncCommand(ConfirmAddressReviewAsync);
         SaveAssignmentCommand = new AsyncCommand(SaveSelectedAssignmentAsync, () => SelectedTour is not null && !IsTourLockedByMap(SelectedTour.TourId));
+        SaveFullStatusCommand = new AsyncCommand(SaveFullStatusAsync, () => SelectedTour is not null && !IsTourLockedByMap(SelectedTour.TourId));
         OpenTourOnMapCommand = new AsyncCommand(OpenSelectedTourOnMapAsync, () => SelectedTour is not null);
         EditTourOnMapCommand = new AsyncCommand(OpenSelectedTourOnMapForEditAsync, () => SelectedTour is not null);
         ApplyDateFilterCommand = new DelegateCommand(ApplyDateFilter);
@@ -265,6 +266,54 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
     public ICommand RemoveSelectedTourStopCommand { get; }
 
     public ICommand EditSelectedTourStopOrderCommand { get; }
+
+    public ICommand SaveFullStatusCommand { get; }
+    private bool _editorIsFull;
+    public bool EditorIsFull { get => _editorIsFull; set => SetProperty(ref _editorIsFull, value); }
+    internal Func<TourRecord?, bool> ConfirmFullTourWarning { get; set; } = tour => TourFullWarning.Confirm(tour);
+
+    public async Task SaveFullStatusAsync()
+    {
+        var selected = SelectedTour;
+        if (selected is null || !EnsureTourCanBeModified(selected.TourId)) return;
+        // Capture the editor before awaiting: selection and remote reloads can change it.
+        var isFull = EditorIsFull;
+        var attempt = await CollaborationSessionService.TryAcquireResourceAsync("tour", selected.TourId.ToString(CultureInfo.InvariantCulture));
+        using var lease = attempt.Lease;
+        if (lease is null)
+        {
+            StatusText = $"Die Tour wird aktuell von {attempt.Result.LockedByUserName} bearbeitet.";
+            ToastNotificationService.ShowInfo(StatusText);
+            return;
+        }
+        if (!EnsureTourCanBeModified(selected.TourId)) return;
+        var target = _loadedTours.FirstOrDefault(t => t.Id == selected.TourId);
+        if (target is null) return;
+        // A refreshed record must not silently receive edits made against an older version.
+        if (!ReferenceEquals(target, selected.Source))
+        {
+            StatusText = "Die Tour wurde zwischenzeitlich aktualisiert. Bitte die Markierung erneut prüfen und speichern.";
+            ToastNotificationService.ShowInfo(StatusText);
+            return;
+        }
+        var previous = (target.IsFull, target.FullReason, target.FullNote);
+        target.IsFull = isFull;
+        try
+        {
+            if (!await SaveTourAsync(target))
+            {
+                (target.IsFull, target.FullReason, target.FullNote) = previous;
+                return;
+            }
+        }
+        catch
+        {
+            (target.IsFull, target.FullReason, target.FullNote) = previous;
+            throw;
+        }
+        _dataSyncService.PublishTours(_instanceId, target.Id.ToString(CultureInfo.InvariantCulture), target.Id.ToString(CultureInfo.InvariantCulture));
+        await RefreshAsync();
+    }
 
     public ICommand OpenTourOnMapCommand { get; }
 
@@ -1246,6 +1295,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             return false;
         }
 
+        if (!IsPauseStop(sourceItem.Source) && !ConfirmFullTourWarning(targetTour)) return false;
+
         if (!ConfirmStopReassignment(sourceItem, sourceTour, targetTour))
         {
             return false;
@@ -1287,6 +1338,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 {
                     order.AssignedTourId = targetTour.Id.ToString(CultureInfo.InvariantCulture);
                 }
+                NewXmlOrderReviewService.MarkPlanned(order);
                 if (!await SaveOrderAsync(order, orders))
                 {
                     return false;
@@ -2062,7 +2114,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 showOpenOnMapButton: true,
                 additionalMaterialGroups: materialGroups,
                 selectedAdditionalMaterials: tour.AdditionalMaterials,
-                editTourId: tour.Id)
+                editTourId: tour.Id,
+                existingTour: tour)
             {
                 Owner = System.Windows.Application.Current?.MainWindow,
                 Title = "Tour bearbeiten"
@@ -2145,10 +2198,21 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 return;
             }
 
+            var originalFullStatus = (tour.IsFull, tour.FullReason, tour.FullNote);
+            result.ApplyFullStatusTo(tour);
             _scheduleService.ApplySchedule(tour);
-            if (!await SaveTourAsync(tour))
+            try
             {
-                return;
+                if (!await SaveTourAsync(tour))
+                {
+                    (tour.IsFull, tour.FullReason, tour.FullNote) = originalFullStatus;
+                    return;
+                }
+            }
+            catch
+            {
+                (tour.IsFull, tour.FullReason, tour.FullNote) = originalFullStatus;
+                throw;
             }
             StatusText = TourNotificationMessageFormatter.FormatTourUpdatedMessage(tour);
             ToastNotificationService.ShowInfo(StatusText);
@@ -3490,10 +3554,12 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         Employees = AvailableEmployees.Where(x => x.IsSelected).Select(x => x.Id).OrderBy(x => x).ToArray()
     });
     public override bool HasUnsavedChanges => SelectedTour is not null &&
-        _savedAssignmentState is not null && _savedAssignmentState != CaptureEditorAssignment();
+        ((_savedAssignmentState is not null && _savedAssignmentState != CaptureEditorAssignment()) ||
+         EditorIsFull != SelectedTour.Source.IsFull);
 
     private void SyncEditorFromSelection()
     {
+        EditorIsFull = SelectedTour?.Source.IsFull == true;
         _editorSyncInProgress = true;
         try
         {
@@ -3600,6 +3666,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             SecondaryVehicleId = source.SecondaryVehicleId,
             SecondaryTrailerId = source.SecondaryTrailerId,
             IsArchived = source.IsArchived,
+            IsFull = source.IsFull,
+            FullReason = source.FullReason,
+            FullNote = source.FullNote,
             ConcurrencyToken = source.ConcurrencyToken,
             EmployeeIds = source.EmployeeIds.ToList(),
             AdditionalMaterials = CloneAdditionalMaterials(source.AdditionalMaterials),
@@ -3654,6 +3723,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         RaiseCanExecuteChangedIfSupported(RefreshCommand);
         RaiseCanExecuteChangedIfSupported(RecalculateCommand);
         RaiseCanExecuteChangedIfSupported(SaveAssignmentCommand);
+        RaiseCanExecuteChangedIfSupported(SaveFullStatusCommand);
         RaiseCanExecuteChangedIfSupported(DeleteTourCommand);
         RaiseCanExecuteChangedIfSupported(ToggleArchiveTourCommand);
         RaiseCanExecuteChangedIfSupported(OpenTourOnMapCommand);
@@ -4377,6 +4447,8 @@ public sealed class TourOverviewItem
     public string CalendarWeightText { get; set; } = string.Empty;
     public ObservableCollection<TourCalendarCardStopItem> CalendarStops { get; set; } = [];
     public TourRecord Source { get; set; } = new();
+    public bool IsFull => Source.IsFull;
+    public string FullDescription => TourFullWarning.Description(Source);
 }
 
 public sealed class TourCalendarDayGroupItem

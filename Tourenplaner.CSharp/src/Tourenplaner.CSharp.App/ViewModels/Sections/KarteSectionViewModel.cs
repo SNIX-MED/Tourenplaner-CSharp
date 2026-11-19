@@ -273,6 +273,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         _employeeRepository = employeeRepository;
         _vehicleRepository = vehicleRepository;
         _settingsRepository = settingsRepository;
+        InitializeNewXmlOrderCommands();
         _dataSyncService = dataSyncService;
         _optimizationService = new RouteOptimizationService();
         _mapRouteService = new MapRouteService();
@@ -301,6 +302,8 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         OptimizeRouteCommand = new AsyncCommand(OptimizeRouteAsync, CanOptimizeRoute);
         OpenCreateTourDialogCommand = new AsyncCommand(OpenCreateTourDialogAsync, CanModifyCurrentRoute);
         EditSelectedTourCommand = new AsyncCommand(OpenEditSelectedTourDialogAsync, CanEditOrLeaveSelectedTour);
+        EditSelectedTourOverviewCommand = new AsyncCommand(
+            () => OpenEditTourDetailsAsync(_selectedTourOverviewId), () => _selectedTourOverviewId > 0);
         StartSelectedTourEditingCommand = new AsyncCommand(StartSelectedTourEditingAsync, CanStartSelectedTourEditing);
         ArchiveSelectedTourCommand = new AsyncCommand(ArchiveSelectedTourAsync, CanEditOrLeaveSelectedTour);
         ExportRouteCommand = new AsyncCommand(ExportRouteAsync, CanExportRoute);
@@ -374,6 +377,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public ICommand OpenCreateTourDialogCommand { get; }
 
     public ICommand EditSelectedTourCommand { get; }
+    public ICommand EditSelectedTourOverviewCommand { get; }
 
     public ICommand StartSelectedTourEditingCommand { get; }
 
@@ -553,6 +557,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
             }
 
             ApplyTourOverviewSelection(value);
+            RaiseCanExecuteChangedIfSupported(EditSelectedTourOverviewCommand);
         }
     }
 

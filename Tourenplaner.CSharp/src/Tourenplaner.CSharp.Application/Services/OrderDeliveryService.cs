@@ -620,6 +620,7 @@ public sealed class OrderDeliveryService
                 order.AssignedTourId = nextOrderTourId;
                 changed = true;
             }
+            changed |= NewXmlOrderReviewService.MarkPlanned(order);
         }
 
         return changed;

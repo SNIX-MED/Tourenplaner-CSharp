@@ -6,6 +6,31 @@ namespace Tourenplaner.CSharp.Tests.Infrastructure;
 public class JsonToursRepositoryTests
 {
     [Fact]
+    public async Task FullMarkerRoundTripsAndLegacyToursRemainUnmarked()
+    {
+        var root = CreateTempRoot();
+        var file = Path.Combine(root, "tours.json");
+        try
+        {
+            var repository = new JsonToursRepository(file);
+            await repository.UpsertAsync(new TourRecord { Id = 7, IsFull = true,
+                FullReason = " Platz ausgeschöpft ", FullNote = " Sperrige Schränke " });
+            var tour = Assert.Single(await new JsonToursRepository(file).LoadAsync());
+            Assert.True(tour.IsFull);
+            Assert.Equal("Platz ausgeschöpft", tour.FullReason);
+            Assert.Equal("Sperrige Schränke", tour.FullNote);
+            await File.WriteAllTextAsync(file, "[{\"id\":7},{\"id\":8,\"fullReason\":null,\"fullNote\":null}]");
+            foreach (var legacy in await repository.LoadAsync())
+            {
+                Assert.False(legacy.IsFull);
+                Assert.Empty(legacy.FullReason);
+                Assert.Empty(legacy.FullNote);
+            }
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public async Task AddressReview_PersistsAcrossReloadAndNormalizesLegacyNullValues()
     {
         var root = CreateTempRoot();

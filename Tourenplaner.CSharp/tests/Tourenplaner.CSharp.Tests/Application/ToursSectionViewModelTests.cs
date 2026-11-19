@@ -8,7 +8,8 @@ using Tourenplaner.CSharp.Infrastructure.Repositories.Parity;
 
 namespace Tourenplaner.CSharp.Tests.Application;
 
-public sealed class ToursSectionViewModelTests
+[Collection("Karte collaboration")]
+public sealed partial class ToursSectionViewModelTests
 {
     [Fact]
     public async Task ManualOnlyTourRemainsInDeliveryTourOverviewAfterRepeatedRefresh()

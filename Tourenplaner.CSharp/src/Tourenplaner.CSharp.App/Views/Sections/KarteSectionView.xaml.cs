@@ -43,7 +43,8 @@ public partial class KarteSectionView : UserControl
         TemporarySearchPin = 1 << 9,
         SpeedLimitBadge = 1 << 10,
         RouteWithoutAutoCenter = 1 << 11,
-        PinInfoCardHoverBehavior = 1 << 12
+        PinInfoCardHoverBehavior = 1 << 12,
+        NewXmlOrdersFocus = 1 << 13
     }
 
     private static readonly GridLength DefaultRoutePanelWidth = new(460d, GridUnitType.Pixel);
@@ -260,6 +261,10 @@ public partial class KarteSectionView : UserControl
         else if (e.PropertyName == nameof(KarteSectionViewModel.SearchFocusRevision))
         {
             QueueMapRefresh(MapRefreshOperation.MarkerSelection, UiRefreshDebounceMilliseconds);
+        }
+        else if (e.PropertyName == nameof(KarteSectionViewModel.NewXmlFocusRevision))
+        {
+            QueueMapRefresh(MapRefreshOperation.Markers | MapRefreshOperation.NewXmlOrdersFocus, UiRefreshDebounceMilliseconds);
         }
         else if (e.PropertyName == nameof(KarteSectionViewModel.SelectedRouteStop))
         {
@@ -556,6 +561,14 @@ public partial class KarteSectionView : UserControl
             }
         }
 
+        if ((operation & MapRefreshOperation.NewXmlOrdersFocus) != 0) await FocusNewXmlOrdersAsync();
+    }
+
+    private async Task FocusNewXmlOrdersAsync()
+    {
+        if (!_mapReady || !_mapScriptReady || MapWebView.CoreWebView2 is null || DataContext is not KarteSectionViewModel vm) return;
+        var points = vm.NewXmlFocusPoints.Select(point => new { lat = point.Latitude, lon = point.Longitude }).ToArray();
+        await MapWebView.CoreWebView2.ExecuteScriptAsync($"if (typeof window.gawelaFocusNewOrders === 'function') window.gawelaFocusNewOrders({JsonSerializer.Serialize(points)});");
     }
 
     private bool IsAutomaticMapFocusSuppressed =>
@@ -995,6 +1008,7 @@ public partial class KarteSectionView : UserControl
             status = x.StatusLabel,
             avisoStatus = x.AvisoStatusLabel,
             isAssigned = x.IsAssigned,
+            isNewXmlImport = x.IsNewXmlImport,
             isLocationManuallySet = x.IsLocationManuallySet,
             manualLocationRequiresReview = x.ManualLocationRequiresReview,
             isDimmed = x.IsDimmed,
@@ -1360,6 +1374,12 @@ public partial class KarteSectionView : UserControl
         {
             var addId = raw["add:".Length..];
             vm.AddOrderToRouteById(addId);
+            return;
+        }
+        if (raw.StartsWith("newXmlSeen:", StringComparison.Ordinal))
+        {
+            vm.MarkNewXmlOrderSeenAsync(raw["newXmlSeen:".Length..]).Forget(ex =>
+                AppMessageBox.Show($"Die Markierung konnte nicht gespeichert werden.\n\n{ex.Message}", "Als gesehen markieren", MessageBoxButton.OK, MessageBoxImage.Warning));
             return;
         }
 

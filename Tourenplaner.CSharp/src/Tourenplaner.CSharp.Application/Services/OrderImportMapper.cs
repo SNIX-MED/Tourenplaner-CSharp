@@ -82,7 +82,9 @@ public sealed class OrderImportMapper
             IstVorauszahlung = xmlOrder.IstVorauszahlung,
             IstVorauszahlungBezahlt = xmlOrder.IstVorauszahlungBezahlt,
             IsArchived = xmlOrder.Archiviert,
-            IsXmlImported = markAsXmlImported || existingOrder?.IsXmlImported == true
+            IsXmlImported = markAsXmlImported || existingOrder?.IsXmlImported == true,
+            XmlCreatedAtUtc = existingOrder?.XmlCreatedAtUtc,
+            XmlNewOrderWasPlanned = existingOrder?.XmlNewOrderWasPlanned == true
         };
 
         order.OrderStatus = Order.ResolveOrderStatusFromProducts(order.Products);

@@ -32,7 +32,8 @@ public partial class CreateTourDialogWindow : Window
         bool showOpenOnMapButton = false,
         IReadOnlyList<AdditionalMaterialGroup>? additionalMaterialGroups = null,
         IReadOnlyList<TourAdditionalMaterial>? selectedAdditionalMaterials = null,
-        int? editTourId = null)
+        int? editTourId = null,
+        TourRecord? existingTour = null)
     {
         InitializeComponent();
         ViewModel = new CreateTourDialogViewModel(
@@ -52,6 +53,7 @@ public partial class CreateTourDialogWindow : Window
             additionalMaterialGroups,
             selectedAdditionalMaterials,
             normalizeLegacyDefaultName: editTourId is not > 0);
+        ViewModel.IsFull = existingTour?.IsFull == true;
         DataContext = ViewModel;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         Closed += (_, _) => ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
@@ -307,6 +309,8 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     public IReadOnlyList<string> SingleEmployeeWarningDeliveryTypes => _singleEmployeeWarningDeliveryTypes;
     public List<SelectableAdditionalMaterial> AdditionalMaterialOptions { get; }
     public bool HasAdditionalMaterialOptions => AdditionalMaterialOptions.Count > 0;
+    private bool _isFull;
+    public bool IsFull { get => _isFull; set => SetProperty(ref _isFull, value); }
 
     public string DateText
     {
@@ -555,7 +559,10 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             UseSecondaryVehicle ? secondaryVehicleId : null,
             UseSecondaryVehicle && !string.IsNullOrWhiteSpace(secondaryTrailerId) ? secondaryTrailerId : null,
             employees,
-            AdditionalMaterialOptions.Where(x => x.IsSelected).Select(x => x.CreateSnapshot()).ToList());
+            AdditionalMaterialOptions.Where(x => x.IsSelected).Select(x => x.CreateSnapshot()).ToList())
+        {
+            IsFull = IsFull
+        };
         return true;
     }
 
@@ -683,7 +690,15 @@ public sealed record CreateTourDialogResult(
     string? SecondaryTrailerId,
     IReadOnlyList<string> EmployeeIds,
     IReadOnlyList<TourAdditionalMaterial> AdditionalMaterials,
-    bool EmployeeRecommendationConfirmed = false);
+    bool EmployeeRecommendationConfirmed = false)
+{
+    public bool IsFull { get; init; }
+
+    public void ApplyFullStatusTo(TourRecord tour)
+    {
+        tour.IsFull = IsFull;
+    }
+}
 
 public sealed class SelectableAdditionalMaterial : ObservableObject
 {

@@ -367,6 +367,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     private bool _isAlternativeDeliveryEnabled;
     private bool _isSelfPickupAlternativeEnabled;
     private bool _isXmlImported;
+    private DateTimeOffset? _existingXmlCreatedAtUtc;
+    private bool _existingXmlNewOrderWasPlanned;
     private bool _isEditingEnabled = true;
 
     private GeoPoint? _existingLocation;
@@ -917,7 +919,9 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
                                            (_existingIsLocationManuallySet &&
                                             !string.Equals(_existingDeliveryAddressKey, deliveryAddressKey, StringComparison.Ordinal)),
             IsArchived = IsArchived,
-            IsXmlImported = IsXmlImported
+            IsXmlImported = IsXmlImported,
+            XmlCreatedAtUtc = _existingXmlCreatedAtUtc,
+            XmlNewOrderWasPlanned = _existingXmlNewOrderWasPlanned
         };
 
         return true;
@@ -1001,6 +1005,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         _existingOrderAddressAdditional = existingOrder.OrderAddress?.Additional ?? string.Empty;
         _existingDeliveryAddressAdditional = existingOrder.DeliveryAddress?.Additional ?? string.Empty;
         IsXmlImported = existingOrder.IsXmlImported;
+        _existingXmlCreatedAtUtc = existingOrder.XmlCreatedAtUtc;
+        _existingXmlNewOrderWasPlanned = existingOrder.XmlNewOrderWasPlanned;
         IsEditingEnabled = !IsXmlImported;
         OrderNumber = existingOrder.Id;
         OrderDateText = existingOrder.ScheduledDate.ToDateTime(TimeOnly.MinValue).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);

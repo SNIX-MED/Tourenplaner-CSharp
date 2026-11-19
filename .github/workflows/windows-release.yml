@@ -69,10 +69,11 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Reine manuelle Touren bleiben beim Aktualisieren der Uebersichten erhalten
-          - Gemischte Touren bleiben erhalten, solange ein manueller Zielstopp vorhanden ist
-          - Manuelle Stopps werden bei Auftragsbereinigung und Umbenennung geschuetzt
-          - Regressionstests fuer normale Touren, Teillieferungen und beide Uebersichten ergaenzt
+          - Touren koennen manuell als voll markiert werden
+          - Neue XML-Auftraege werden auf der Karte hervorgehoben
+          - Gelesen-Status wird pro Benutzer gespeichert; Sammelaktion neben dem Filter
+          - Tourbearbeitung per Rechtsklick und Erhalt bestehender Tourdaten verbessert
+          - Pin-Kennzeichen und schmale Topbar-Layouts auf Regressionen geprueft
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

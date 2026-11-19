@@ -61,6 +61,8 @@ public sealed class Order
     public bool IsArchived { get; set; }
     /// <summary>Indicates that this order was last created or synchronized through the XML ERP import.</summary>
     public bool IsXmlImported { get; set; }
+    public DateTimeOffset? XmlCreatedAtUtc { get; set; }
+    public bool XmlNewOrderWasPlanned { get; set; }
     public string? ConcurrencyToken { get; set; }
 
     public double ResolveTotalWeightKg()

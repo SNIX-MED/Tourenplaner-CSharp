@@ -1,4 +1,4 @@
-﻿<Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.CreateTourDialogWindow"
+<Window x:Class="Tourenplaner.CSharp.App.Views.Dialogs.CreateTourDialogWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
@@ -41,10 +41,20 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
             <TextBlock x:Name="DialogHeading"
                        FontSize="34"
                        FontWeight="Bold"
+                       TextWrapping="Wrap"
                        Text="Neue Liefertour" />
+                <CheckBox Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                          Content="Tour ist voll" IsChecked="{Binding IsFull, Mode=TwoWay}"
+                          ToolTip="Die Markierung bleibt bis zum manuellen Aufheben bestehen." />
+            </Grid>
 
             <Grid Grid.Row="1" Margin="0,12,0,0">
                 <Grid.ColumnDefinitions>

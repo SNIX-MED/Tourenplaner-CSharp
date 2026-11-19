@@ -22,6 +22,8 @@ internal static class TourNormalizer
 
         source.Date = NormalizeDateString(source.Date);
         source.Name = (source.Name ?? string.Empty).Trim();
+        source.FullReason = (source.FullReason ?? string.Empty).Trim();
+        source.FullNote = (source.FullNote ?? string.Empty).Trim();
         source.AddressReviewOrderIds = (source.AddressReviewOrderIds ?? [])
             .Select(id => (id ?? string.Empty).Trim()).Where(id => id.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();

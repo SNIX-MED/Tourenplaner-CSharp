@@ -20,6 +20,7 @@ public sealed partial class KarteSectionViewModel
         IEnumerable<Order> filtered = _allOrders
             .Where(o => DeliveryMethodExtensions.CanUseLiefertour(o) && o.Location is not null)
             .Where(o => !o.IsArchived)
+            .Where(o => !ShowOnlyNewXmlOrders || IsNewXmlOrder(o))
             .Where(o => !legacyRouteOrderIds.Contains(o.Id));
 
         var selectedOrderStatuses = OrderSectionSharedHelpers.GetSelectedFilterLabels(OrderStatusFilters);
@@ -122,6 +123,7 @@ public sealed partial class KarteSectionViewModel
             SelectOrderDetailsById(previousSelectedId);
         }
         UpdateStatus();
+        UpdateNewXmlOrderReviewState();
         RaiseCommandStates();
     }
 

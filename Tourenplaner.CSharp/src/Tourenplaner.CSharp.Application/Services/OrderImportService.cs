@@ -89,11 +89,12 @@ public class OrderImportService : IOrderImportService
             try
             {
                 var existingOrder = existingOrders.FirstOrDefault(order =>
-                    string.Equals(order.Id, xmlOrder.AuftragNr, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(order.Id.Trim(), (xmlOrder.AuftragNr ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase));
                 var importedOrder = PrepareOrder(xmlOrder, existingOrder, protectedOrderIds, markAsXmlImported);
 
                 if (existingOrder is null)
                 {
+                    if (markAsXmlImported) importedOrder.XmlCreatedAtUtc = DateTimeOffset.UtcNow;
                     AddCreatedOrder(existingOrders, result, importedOrder);
                     continue;
                 }

@@ -60,6 +60,8 @@ internal static class MapHtmlDocumentBuilder
                   .gawela-pin-pattern-fill { width: 100%; height: 100%; border-radius: inherit; background: linear-gradient(135deg, rgba(255,255,255,0) 0 37%, rgba(255,255,255,0.98) 37% 43%, rgba(255,255,255,0) 43% 57%, rgba(255,255,255,0.98) 57% 63%, rgba(255,255,255,0) 63% 100%); background-position: center; background-repeat: no-repeat; }
                   .gawela-pin-label { position: absolute; left: 4px; top: 4px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 11px; line-height: 1; font-weight: 700; text-transform: uppercase; text-shadow: 0 1px 2px rgba(15,23,42,.45); pointer-events: none; z-index: 2; }
                   .gawela-pin-label-triangle { left: 2px; top: 5px; width: 24px; height: 18px; }
+                  .gawela-pin-new-ring { position: absolute; left: -5px; top: -5px; width: 38px; height: 38px; box-sizing: border-box; border: 2px solid #0891b2; border-radius: 50%; pointer-events: none; z-index: 0; }
+                  .gawela-pin-new-badge { position: absolute; left: 50%; top: 36px; transform: translateX(-50%); min-width: 29px; height: 14px; padding: 0 3px; box-sizing: border-box; border-radius: 4px; background: #0e7490; color: #ffffff; font: 800 9px/14px Segoe UI,sans-serif; text-align: center; white-space: nowrap; z-index: 7; pointer-events: none; box-shadow: 0 0 0 1px #ffffff; }
                   .gawela-pin-badges { position: absolute; right: -2px; top: -2px; display: flex; }
                   .gawela-pin-badge { width: 9px; height: 9px; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 0 1px rgba(30,41,59,0.55); }
                    .gawela-pin-badge-aviso-none { background: #64748b; color: #ffffff; }
@@ -244,6 +246,7 @@ internal static class MapHtmlDocumentBuilder
                    <button id="addManualStopButton" type="button">Stopp hinzufügen</button>
                    <button id="addPinToTourButton" type="button" hidden>Zu Tour hinzufügen</button>
                    <button id="manuallyPlacePinButton" type="button" hidden>Pin manuell setzen</button>
+                   <button id="newXmlSeenButton" type="button" hidden>Als gesehen markieren</button>
                  </div>
                  <div class="map-zoom-controls" aria-label="Kartensteuerung">
                    <button id="mapZoomIn" class="map-zoom-button" type="button" aria-label="Karte vergrössern" title="Vergrössern">+</button>
@@ -332,6 +335,7 @@ internal static class MapHtmlDocumentBuilder
                    const addManualStopButtonEl = document.getElementById('addManualStopButton');
                    const addPinToTourButtonEl = document.getElementById('addPinToTourButton');
                    const manuallyPlacePinButtonEl = document.getElementById('manuallyPlacePinButton');
+                   const newXmlSeenButtonEl = document.getElementById('newXmlSeenButton');
                    const detailsToggleEl = document.getElementById('detailsToggle');
                    const fleetTracksToggleEl = document.getElementById('fleetTracksToggle');
                    const fleetTracksOverlayEl = document.getElementById('fleetTracksOverlay');
@@ -597,7 +601,7 @@ internal static class MapHtmlDocumentBuilder
                            mapContextMenuEl.setAttribute('aria-hidden', 'true');
                          };
                          mapCanvas.addEventListener('contextmenu', event => event.preventDefault());
-                         const openMapContextMenu = (point, coordinates, orderId = '', isLocationManuallySet = false, isSearchPin = false) => {
+                         const openMapContextMenu = (point, coordinates, orderId = '', isLocationManuallySet = false, isSearchPin = false, isNewXmlImport = false) => {
                            if (!mapContextMenuEl) return;
                            contextMenuOrderId = (orderId || '').toString().trim();
                            contextMenuIsSearchPin = isSearchPin === true;
@@ -607,13 +611,14 @@ internal static class MapHtmlDocumentBuilder
                            if (addManualStopButtonEl) addManualStopButtonEl.hidden = isInteractivePin;
                            if (addPinToTourButtonEl) addPinToTourButtonEl.hidden = !isInteractivePin;
                            if (manuallyPlacePinButtonEl) manuallyPlacePinButtonEl.hidden = !isExistingPin;
+                           if (newXmlSeenButtonEl) newXmlSeenButtonEl.hidden = !isExistingPin || !isNewXmlImport;
                            if (manuallyPlacePinButtonEl && isExistingPin) {
                              manuallyPlacePinButtonEl.textContent = isLocationManuallySet
                                ? 'Pin manuell setzen (manuell gesetzt)'
                                : 'Pin manuell setzen';
                            }
                            mapContextMenuEl.style.left = `${Math.max(8, Math.min(point.x, mapCanvas.clientWidth - 190))}px`;
-                           const menuHeight = isExistingPin ? 92 : 55;
+                           const menuHeight = isExistingPin ? (isNewXmlImport ? 130 : 92) : 55;
                            mapContextMenuEl.style.top = `${Math.max(8, Math.min(point.y, mapCanvas.clientHeight - menuHeight))}px`;
                            mapContextMenuEl.classList.add('open');
                            mapContextMenuEl.setAttribute('aria-hidden', 'false');
@@ -660,6 +665,12 @@ internal static class MapHtmlDocumentBuilder
                              }
                            });
                          }
+                         if (newXmlSeenButtonEl) newXmlSeenButtonEl.addEventListener('click', event => {
+                           event.stopPropagation();
+                           const orderId = contextMenuOrderId;
+                           closeMapContextMenu();
+                           if (orderId && window.chrome && window.chrome.webview) window.chrome.webview.postMessage(`newXmlSeen:${orderId}`);
+                         });
                          const mapZoomInEl = document.getElementById('mapZoomIn');
                          const mapZoomOutEl = document.getElementById('mapZoomOut');
                          const changeMapZoom = (delta, around = null) => {
@@ -1090,7 +1101,11 @@ internal static class MapHtmlDocumentBuilder
                              for (let right = left + 1; right < candidates.length; right++) {
                                const dx = candidates[left].point.x - candidates[right].point.x;
                                const dy = candidates[left].point.y - candidates[right].point.y;
-                               if ((dx * dx) + (dy * dy) <= collisionDistanceSq) unite(left, right);
+                               const hasNew = candidates[left].marker.isNewXmlImport === true || candidates[right].marker.isNewXmlImport === true;
+                               const overlaps = hasNew
+                                 ? ((dx * dx) / Math.pow(30 * markerScale, 2)) + ((dy * dy) / Math.pow(55 * markerScale, 2)) <= 1
+                                 : (dx * dx) + (dy * dy) <= collisionDistanceSq;
+                               if (overlaps) unite(left, right);
                              }
                            }
 
@@ -1114,6 +1129,7 @@ internal static class MapHtmlDocumentBuilder
                              const members = group.map(entry => ({
                                id: entry.marker.id,
                                layer: entry.marker.__gawelaMarkerLayer,
+                               isNewXmlImport: entry.marker.isNewXmlImport === true,
                                lat: Number(entry.marker.lat),
                                lon: Number(entry.marker.lon)
                              }));
@@ -1124,6 +1140,21 @@ internal static class MapHtmlDocumentBuilder
                              const centerX = group.reduce((sum, entry) => sum + entry.point.x, 0) / group.length;
                              const centerY = group.reduce((sum, entry) => sum + entry.point.y, 0) / group.length;
                              if (spiderfy) {
+                               const hasNew = members.some(member => member.isNewXmlImport);
+                               if (hasNew) {
+                                 // Reserve the entire footprint, including the lower NEW label and existing corner indicators.
+                                 const columns = Math.ceil(Math.sqrt(group.length));
+                                 const rows = Math.ceil(group.length / columns);
+                                 group.forEach((entry, memberIndex) => {
+                                   const displaced = map.unproject([
+                                     centerX + ((memberIndex % columns) - ((columns - 1) / 2)) * 46 * markerScale,
+                                     centerY + (Math.floor(memberIndex / columns) - ((rows - 1) / 2)) * 72 * markerScale
+                                   ]);
+                                   result[entry.index].displayLat = displaced.lat;
+                                   result[entry.index].displayLon = displaced.lng;
+                                 });
+                                 return;
+                               }
                                const radius = Math.max(22, Math.min(48, (group.length * 18 * markerScale) / Math.PI));
                                group.forEach((entry, memberIndex) => {
                                  const angle = -(Math.PI / 2) + (((Math.PI * 2) / group.length) * memberIndex);
@@ -1139,7 +1170,7 @@ internal static class MapHtmlDocumentBuilder
 
                              if (group.length === 2) {
                                const isExpanded = hoveredOverlapGroupKey === screenGroupKey;
-                               const radius = isExpanded
+                               const radius = members.some(member => member.isNewXmlImport) ? Math.max(18, 19 * markerScale) : isExpanded
                                  ? Math.max(12, 14 * markerScale)
                                  : Math.max(4, 5 * markerScale);
                                group.forEach((entry, memberIndex) => {
@@ -1165,6 +1196,7 @@ internal static class MapHtmlDocumentBuilder
                              result[representative.index].displayLon = center.lng;
                              result[representative.index].__screenClusterCount = group.length;
                              result[representative.index].__screenClusterMembers = members;
+                             result[representative.index].__screenClusterNewXmlCount = members.filter(member => member.isNewXmlImport).length;
                              group.forEach(entry => {
                                if (entry.index !== representative.index) result[entry.index].__screenClusterHidden = true;
                              });
@@ -1247,12 +1279,27 @@ internal static class MapHtmlDocumentBuilder
                            });
                          };
 
+                         const applyNewXmlBadge = (element, isNew, count = 0) => {
+                           let badge = element.querySelector('.gawela-pin-new-badge');
+                           let ring = element.querySelector('.gawela-pin-new-ring');
+                           if (!isNew && count <= 0) {
+                             if (badge) badge.remove();
+                             if (ring) ring.remove();
+                             return;
+                           }
+                           if (!ring) { ring = document.createElement('div'); ring.className = 'gawela-pin-new-ring'; element.appendChild(ring); }
+                           if (!badge) { badge = document.createElement('div'); badge.className = 'gawela-pin-new-badge'; element.appendChild(badge); }
+                           badge.textContent = 'NEU';
+                           badge.title = count > 0 ? `${count} neue Aufträge in dieser Gruppe` : 'Neuer XML-Auftrag';
+                         };
                          const updateMarkerScreenClusterState = (marker, markerData, isRouteMarker) => {
                            if (!marker || typeof marker.getElement !== 'function') return;
                            const markerElement = marker.getElement();
                            if (!markerElement) return;
                            const hidden = markerData && markerData.__screenClusterHidden === true;
                            const count = markerData ? Number(markerData.__screenClusterCount) : 0;
+                           applyNewXmlBadge(markerElement, markerData && markerData.isNewXmlImport === true,
+                             markerData ? Number(markerData.__screenClusterNewXmlCount) || 0 : 0);
                            markerElement.style.display = hidden ? 'none' : '';
                            markerElement.style.pointerEvents = hidden ? 'none' : 'auto';
                            marker.__gawelaScreenClusterMembers = count > 1 && Array.isArray(markerData.__screenClusterMembers)
@@ -1408,6 +1455,7 @@ internal static class MapHtmlDocumentBuilder
                            const highlightRing = document.createElement('div');
                            highlightRing.className = 'gawela-pin-highlight-ring';
                            wrap.appendChild(highlightRing);
+                           applyNewXmlBadge(wrap, m && m.isNewXmlImport === true);
 
                            if (shape === 'triangle') {
                              const triangleOutline = document.createElement('div');
@@ -2588,12 +2636,21 @@ internal static class MapHtmlDocumentBuilder
                            postDiag(false, `Kartenfehler: ${reason}`);
                          });
 
+                         window.gawelaFocusNewOrders = function(points) {
+                           const valid = (Array.isArray(points) ? points : []).filter(point => point && Number.isFinite(point.lat) && Number.isFinite(point.lon) && Math.abs(point.lat) <= 90 && Math.abs(point.lon) <= 180);
+                           if (!valid.length) return;
+                           const bounds = new ttSdk.LngLatBounds();
+                           valid.forEach(point => bounds.extend([point.lon, point.lat]));
+                           map.fitBounds(bounds, { padding: 40, maxZoom: 14 });
+                         };
                          window.gawelaSetMarkers = function(markers) {
                            window.__gawelaLastMarkers = Array.isArray(markers) ? markers : [];
                            clearMarkers(mapMarkers);
                            markerMap = new Map();
 
                            if (!Array.isArray(markers) || markers.length === 0) {
+                             // An initially empty map must not jump when a later XML import adds its first pins.
+                             hasAppliedInitialMarkerFit = true;
                              return;
                            }
 
@@ -2652,7 +2709,7 @@ internal static class MapHtmlDocumentBuilder
                                evt.preventDefault();
                                evt.stopPropagation();
                                const point = map.project(marker.getLngLat());
-                               openMapContextMenu(point, null, m.id, m.manualLocationRequiresReview === true ? 'review' : m.isLocationManuallySet === true);
+                               openMapContextMenu(point, null, m.id, m.manualLocationRequiresReview === true ? 'review' : m.isLocationManuallySet === true, false, m.isNewXmlImport === true);
                              });
                              markerEl.addEventListener('click', (evt) => {
                                evt.stopPropagation();

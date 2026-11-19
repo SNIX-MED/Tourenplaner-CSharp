@@ -349,6 +349,7 @@ public sealed class AdditionalMaterialItem
 
 public sealed class UserAppPreference
 {
+    public List<string> SeenXmlImportOrderKeys { get; set; } = new();
     public string AppearanceMode { get; set; } = "Light";
     public string AvisoEmailSubjectTemplate { get; set; } = AppSettings.DefaultAvisoEmailSubjectTemplate;
     public string StatusColorNotSpecified { get; set; } = AppSettings.DefaultStatusColorNotSpecified;
@@ -399,6 +400,7 @@ public sealed class UserAppPreference
     {
         return new UserAppPreference
         {
+            SeenXmlImportOrderKeys = (SeenXmlImportOrderKeys ?? []).Where(key => !string.IsNullOrWhiteSpace(key)).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             AppearanceMode = AppearanceMode,
             AvisoEmailSubjectTemplate = AvisoEmailSubjectTemplate,
             StatusColorNotSpecified = StatusColorNotSpecified,

@@ -5,6 +5,20 @@ namespace Tourenplaner.CSharp.Tests.Application;
 
 public class ManualOrderDialogViewModelTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void XmlCreationAndPlanningHistorySurviveEditing(bool planned)
+    {
+        var source = CreateOrder();
+        source.IsXmlImported = true;
+        source.XmlCreatedAtUtc = DateTimeOffset.UtcNow;
+        source.XmlNewOrderWasPlanned = planned;
+        var vm = new ManualOrderDialogViewModel(source);
+        Assert.True(vm.TryBuildOrder(out var saved, out var error), error);
+        Assert.Equal(source.XmlCreatedAtUtc, saved!.XmlCreatedAtUtc);
+        Assert.Equal(planned, saved.XmlNewOrderWasPlanned);
+    }
     [Fact]
     public void CopyingAddressCopiesItsAdditionWithoutChangingSourceOrder()
     {

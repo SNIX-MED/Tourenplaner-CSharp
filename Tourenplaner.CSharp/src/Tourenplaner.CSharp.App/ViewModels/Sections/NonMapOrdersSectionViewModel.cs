@@ -1288,6 +1288,8 @@ public sealed class NonMapOrdersSectionViewModel : SectionViewModelBase
             IstVorauszahlungBezahlt = source.IstVorauszahlungBezahlt,
             IsArchived = source.IsArchived,
             IsXmlImported = source.IsXmlImported,
+            XmlCreatedAtUtc = source.XmlCreatedAtUtc,
+            XmlNewOrderWasPlanned = source.XmlNewOrderWasPlanned,
             ConcurrencyToken = source.ConcurrencyToken
         };
     }

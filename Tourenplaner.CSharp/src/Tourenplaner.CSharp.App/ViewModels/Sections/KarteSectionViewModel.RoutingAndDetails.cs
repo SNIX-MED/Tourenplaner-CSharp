@@ -625,6 +625,7 @@ public sealed partial class KarteSectionViewModel
         _additionalMaterialGroups = (settings.AdditionalMaterialGroups ?? []).ToList();
         var currentUserName = ResolveCurrentSettingsUserName(settings);
         var userPreference = settings.ResolveUserPreference(currentUserName);
+        LoadNewXmlOrderPreference(currentUserName, userPreference);
         _vehicleData = await vehiclesTask;
         _avisoEmailSubjectTemplate = string.IsNullOrWhiteSpace(userPreference.AvisoEmailSubjectTemplate)
             ? AppSettings.DefaultAvisoEmailSubjectTemplate
@@ -1286,7 +1287,7 @@ public sealed partial class KarteSectionViewModel
                ?? MapOrders.FirstOrDefault(x => string.Equals(x.OrderId, normalized, StringComparison.OrdinalIgnoreCase));
     }
 
-    public async Task FocusTourAsync(int tourId)
+    public async Task FocusTourAsync(int tourId, bool reconcileTours = true)
     {
         var isChangingTour = _activeTourId != tourId;
         if (isChangingTour && _hasUnsavedRouteChanges && RouteStops.Any(x => !IsCompanyStop(x)))
@@ -1309,7 +1310,7 @@ public sealed partial class KarteSectionViewModel
         }
         if (isChangingTour) await RefreshDeferredRemoteChangesAsync();
 
-        await LoadSavedToursAsync(tourId);
+        await LoadSavedToursAsync(tourId, reconcile: reconcileTours);
         await LoadTourIntoRouteAsync(tourId);
     }
 
@@ -1979,6 +1980,19 @@ public sealed partial class KarteSectionViewModel
         OnPropertyChanged(nameof(DetailProductItems));
     }
 
+    private string _confirmedFullTourSignature = string.Empty;
+    internal Func<TourRecord?, bool> ConfirmFullTourWarning { get; set; } = tour => TourFullWarning.Confirm(tour);
+
+    private bool ConfirmFullTourAddition(TourRecord? tour, bool onlyIfChanged = false)
+    {
+        if (tour?.IsFull != true) return true;
+        var signature = JsonSerializer.Serialize(new { tour.Id, tour.FullReason, tour.FullNote });
+        if (onlyIfChanged && signature == _confirmedFullTourSignature) return true;
+        if (!ConfirmFullTourWarning(tour)) return false;
+        _confirmedFullTourSignature = signature;
+        return true;
+    }
+
     private void AddSelectedOrderToRoute()
     {
         if (SelectedOrder is null)
@@ -1990,6 +2004,10 @@ public sealed partial class KarteSectionViewModel
         {
             return;
         }
+
+        if (!RouteStops.Any(stop => string.Equals(stop.OrderId, SelectedOrder.OrderId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(stop.DeliveryId, SelectedOrder.DeliveryId, StringComparison.OrdinalIgnoreCase)) &&
+            !ConfirmFullTourAddition(_savedTours.FirstOrDefault(tour => tour.Id == LoadedTourId))) return;
 
         if (!TryAddOrderToDraftRoute(SelectedOrder))
         {
@@ -2189,6 +2207,11 @@ public sealed partial class KarteSectionViewModel
         {
             return;
         }
+
+        if (selectedOrders.Any(order => !RouteStops.Any(stop =>
+                string.Equals(stop.OrderId, order.OrderId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(stop.DeliveryId, order.DeliveryId, StringComparison.OrdinalIgnoreCase))) &&
+            !ConfirmFullTourAddition(_savedTours.FirstOrDefault(tour => tour.Id == LoadedTourId))) return;
 
         var added = 0;
         var alreadyInRoute = 0;
@@ -2717,12 +2740,35 @@ public sealed partial class KarteSectionViewModel
             result.SecondaryTrailerId,
             result.EmployeeIds,
             result.AdditionalMaterials,
-            result.EmployeeRecommendationConfirmed);
+            result.EmployeeRecommendationConfirmed,
+            tourDetails: result);
     }
 
-    private async Task OpenEditSelectedTourDialogAsync()
+    internal Func<Func<CreateTourDialogWindow>, CreateTourDialogResult?> ShowTourDetailsDialog { get; set; } = createDialog =>
     {
-        var selectedTourId = ResolveTourIdForDetailsEditing();
+        var dialog = createDialog();
+        return dialog.ShowDialog() == true ? dialog.Result : null;
+    };
+
+    private Task OpenEditSelectedTourDialogAsync() => OpenEditTourDetailsAsync(ResolveTourIdForDetailsEditing());
+
+    internal async Task<bool> PrepareTourDetailsEditingAsync(int tourId)
+    {
+        if (tourId <= 0) return false;
+        if (LoadedTourId != tourId)
+        {
+            // Loading uses the existing discard confirmation when another route is dirty.
+            await FocusTourAsync(tourId, reconcileTours: false);
+            if (LoadedTourId != tourId) return false;
+        }
+        var tour = _savedTours.FirstOrDefault(x => x.Id == tourId);
+        if (tour is null) return false;
+        if (!IsEditingTour(tourId) && !await EnsureLoadedTourEditingAsync(tour)) return false;
+        return IsEditingTour(tourId);
+    }
+
+    private async Task OpenEditTourDetailsAsync(int selectedTourId)
+    {
         if (selectedTourId <= 0)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
@@ -2752,14 +2798,17 @@ public sealed partial class KarteSectionViewModel
 
         var editingWasActive = IsEditingTour(selectedTourId);
         var dialogConfirmed = false;
+        CollaborationResourceLease? detailsLease = null;
         try
         {
-            if (!editingWasActive && !await EnsureLoadedTourEditingAsync(tour)) return;
+            if (!await PrepareTourDetailsEditingAsync(selectedTourId)) return;
+            detailsLease = _loadedTourLease;
             tour = _savedTours.FirstOrDefault(x => x.Id == selectedTourId) ?? tour;
             var (editHour, editMinute) = ParseStartTimePartsOrDefault(tour.StartTime);
             var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date, tour.StartTime);
 
-            var dialog = new CreateTourDialogWindow(
+            if (!IsEditingTour(selectedTourId) || !ReferenceEquals(_loadedTourLease, detailsLease)) return;
+            var result = ShowTourDetailsDialog(() => new CreateTourDialogWindow(
                 routeDate: string.IsNullOrWhiteSpace(tour.Date) ? RouteDate : tour.Date.Trim(),
                 routeName: string.IsNullOrWhiteSpace(tour.Name) ? $"Tour {tour.Id}" : tour.Name.Trim(),
                 routeStartHour: editHour,
@@ -2778,18 +2827,18 @@ public sealed partial class KarteSectionViewModel
                 selectedEmployeeIds: tour.EmployeeIds,
                 additionalMaterialGroups: _additionalMaterialGroups,
                 selectedAdditionalMaterials: tour.AdditionalMaterials,
-                editTourId: tour.Id)
+                editTourId: tour.Id,
+                existingTour: tour)
             {
                 Owner = System.Windows.Application.Current?.MainWindow
-            };
+            });
 
-            if (dialog.ShowDialog() != true || dialog.Result is null)
+            if (result is null || !IsEditingTour(selectedTourId) || !ReferenceEquals(_loadedTourLease, detailsLease))
             {
                 return;
             }
 
             dialogConfirmed = true;
-            var result = dialog.Result;
             await UpdateExistingTourAsync(
                 selectedTourId,
                 result.RouteName,
@@ -2801,11 +2850,13 @@ public sealed partial class KarteSectionViewModel
                 result.SecondaryTrailerId,
                 result.EmployeeIds,
                 result.AdditionalMaterials,
-                result.EmployeeRecommendationConfirmed);
+                result.EmployeeRecommendationConfirmed,
+                tourDetails: result);
         }
         finally
         {
-            if (!editingWasActive && (!dialogConfirmed || _activeTourId != selectedTourId))
+            if (!editingWasActive && detailsLease is not null && ReferenceEquals(_loadedTourLease, detailsLease) &&
+                (!dialogConfirmed || _activeTourId != selectedTourId))
             {
                 ReleaseLoadedTourLeases();
                 await RefreshDeferredRemoteChangesAsync();
@@ -2893,7 +2944,8 @@ public sealed partial class KarteSectionViewModel
         string? secondaryTrailerId,
         IReadOnlyList<string> employeeIds,
         IReadOnlyList<TourAdditionalMaterial> additionalMaterials,
-        bool employeeRecommendationConfirmed = false)
+        bool employeeRecommendationConfirmed = false,
+        CreateTourDialogResult? tourDetails = null)
     {
         var wasCommitted = false;
         try
@@ -2955,6 +3007,7 @@ public sealed partial class KarteSectionViewModel
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             tour.AdditionalMaterials = CloneAdditionalMaterials(additionalMaterials);
+            tourDetails?.ApplyFullStatusTo(tour);
 
             if (!TourMissingWeightWarning.Confirm(tour, await _orderRepository.GetAllAsync())) return;
             if (!ConfirmMissingPauseWarning(tour)) return;
@@ -3030,20 +3083,30 @@ public sealed partial class KarteSectionViewModel
         string? secondaryTrailerId,
         IReadOnlyList<string> employeeIds,
         IReadOnlyList<TourAdditionalMaterial> additionalMaterials,
-        bool employeeRecommendationConfirmed = false)
+        bool employeeRecommendationConfirmed = false,
+        CreateTourDialogResult? tourDetails = null)
     {
         var wasCommitted = false;
+        var expectedDetailsLease = tourDetails is not null ? _loadedTourLease : null;
+        bool DetailsSessionIsCurrent() => tourDetails is null ||
+            (expectedDetailsLease is not null && ReferenceEquals(_loadedTourLease, expectedDetailsLease) && IsEditingTour(tourId));
         try
         {
-            var hasDraftRouteStops = RouteStops.Any(x => !IsCompanyStop(x));
+            if (!DetailsSessionIsCurrent()) return;
+            // Details of an unchanged saved tour use its persisted stops and routing data.
+            // Only a modified route needs rebuilding and newly calculated travel times.
+            var hasDraftRouteStops = RouteStops.Any(x => !IsCompanyStop(x)) &&
+                (tourDetails is null || _hasUnsavedRouteChanges);
             var isOverviewEdit = !hasDraftRouteStops && _activeTourId <= 0 && _selectedTourOverviewId == tourId;
+            var isSavedDetailsEdit = tourDetails is not null && IsEditingTour(tourId);
 
-            if (hasDraftRouteStops && !await EnsureLoadedTourOrderLeasesAsync(RouteStops.Where(IsOrderStop).Select(x => x.OrderId)))
+            if (hasDraftRouteStops && !await EnsureLoadedTourOrderLeasesAsync(RouteStops.Where(IsOrderStop).Select(x => x.OrderId), expectedDetailsLease))
             {
                 return;
             }
 
             var tours = (await _tourRepository.LoadAsync()).ToList();
+            if (!DetailsSessionIsCurrent()) return;
             var originalTours = CloneItems(tours);
             var originalOrders = CloneItems(_allOrders);
             var index = tours.FindIndex(x => x.Id == tourId);
@@ -3060,7 +3123,7 @@ public sealed partial class KarteSectionViewModel
 
             var existingTour = tours[index];
             EnsureTourEditVersionIsCurrent(existingTour);
-            if (!hasDraftRouteStops && !isOverviewEdit)
+            if (!hasDraftRouteStops && !isOverviewEdit && !isSavedDetailsEdit)
             {
                 Tourenplaner.CSharp.App.Services.AppMessageBox.Show(
                     "Bitte zuerst mindestens einen Auftrag zur Route hinzufügen.",
@@ -3071,6 +3134,7 @@ public sealed partial class KarteSectionViewModel
             }
 
             var availabilityError = await BuildAvailabilityErrorAsync(routeDate, startTime, vehicleId, trailerId, secondaryVehicleId, secondaryTrailerId, employeeIds);
+            if (!DetailsSessionIsCurrent()) return;
             if (!string.IsNullOrWhiteSpace(availabilityError))
             {
                 Tourenplaner.CSharp.App.Services.AppMessageBox.Show(availabilityError, "Ausfall prüfen", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -3123,6 +3187,17 @@ public sealed partial class KarteSectionViewModel
             // Keep the token of the freshly loaded record so PostgreSQL performs an
             // optimistic-concurrency update instead of treating the tour as a new row.
             updated.ConcurrencyToken = existingTour.ConcurrencyToken;
+            updated.IsFull = existingTour.IsFull;
+            updated.FullReason = existingTour.FullReason;
+            updated.FullNote = existingTour.FullNote;
+            tourDetails?.ApplyFullStatusTo(updated);
+            // Recheck against the freshly loaded record if the full marker changed remotely.
+            if (updated.Stops.Any(stop => !TourStopIdentity.IsCompanyStop(stop) && !TourStopIdentity.IsPauseStop(stop) &&
+                    !string.Equals(stop.StopKind, "manual", StringComparison.OrdinalIgnoreCase) &&
+                    !stop.Id.StartsWith("manual:", StringComparison.OrdinalIgnoreCase) && !existingTour.Stops.Any(previous =>
+                        string.Equals(previous.Auftragsnummer, stop.Auftragsnummer, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(previous.DeliveryId, stop.DeliveryId, StringComparison.OrdinalIgnoreCase))) &&
+                !ConfirmFullTourAddition(updated, onlyIfChanged: true)) return;
             // Keep all previously sent stops, including removed ones, until WEBFLEET
             // synchronization has deleted their remote orders.
             updated.WebfleetDispatch = CloneTourRecord(existingTour).WebfleetDispatch;
@@ -3142,57 +3217,76 @@ public sealed partial class KarteSectionViewModel
 
             var previewTours = tours.ToList();
             previewTours[index] = updated;
-            if (!TourMissingWeightWarning.Confirm(updated, await _orderRepository.GetAllAsync())) return;
+            var warningOrders = await _orderRepository.GetAllAsync();
+            if (!DetailsSessionIsCurrent()) return;
+            if (!TourMissingWeightWarning.Confirm(updated, warningOrders)) return;
             if (!ConfirmMissingPauseWarning(updated)) return;
             if (!ConfirmAssignmentConflictWarning(previewTours, updated.Id))
             {
                 return;
             }
+            if (!DetailsSessionIsCurrent()) return;
 
-            var routeOrderIds = hasDraftRouteStops
-                ? _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops())
-                : ExtractNonCompanyTourOrderIds(existingTour);
-            tours[index] = updated;
-            RemoveRouteOrderStopsFromOtherTours(tours, updated.Stops, tourId);
-
-            var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
-            var retainedDeliveryIds = (updated.Stops ?? []).Select(x => x.DeliveryId)
-                .Where(x => !string.IsNullOrWhiteSpace(x)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (var delivery in _allOrders.SelectMany(x => x.Deliveries ?? [])
-                         .Where(x => string.Equals(x.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase) && !retainedDeliveryIds.Contains(x.Id)))
+            var keepSavedAssignments = isSavedDetailsEdit && !hasDraftRouteStops;
+            if (keepSavedAssignments)
             {
-                delivery.AssignedTourId = null;
-                if (delivery.Status == OrderDeliveryStatus.Planned)
+                // A capacity/name/resource change does not reassign deliveries or reset their status.
+                await SaveTourRecordAsync(updated, previewTours);
+            }
+            else
+            {
+                var routeOrderIds = hasDraftRouteStops
+                    ? _mapRouteService.ExtractRouteOrderIds(ToMapRouteStops())
+                    : ExtractNonCompanyTourOrderIds(existingTour);
+                tours[index] = updated;
+                RemoveRouteOrderStopsFromOtherTours(tours, updated.Stops, tourId);
+
+                var tourKey = tourId.ToString(CultureInfo.InvariantCulture);
+                var retainedDeliveryIds = (updated.Stops ?? []).Select(x => x.DeliveryId)
+                    .Where(x => !string.IsNullOrWhiteSpace(x)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var delivery in _allOrders.SelectMany(x => x.Deliveries ?? [])
+                             .Where(x => string.Equals(x.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase) && !retainedDeliveryIds.Contains(x.Id)))
                 {
-                    delivery.Status = OrderDeliveryStatus.ReadyForPlanning;
+                    delivery.AssignedTourId = null;
+                    if (delivery.Status == OrderDeliveryStatus.Planned)
+                    {
+                        delivery.Status = OrderDeliveryStatus.ReadyForPlanning;
+                    }
                 }
-            }
-            foreach (var order in _allOrders.Where(o => string.Equals(o.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase)))
-            {
-                if (routeOrderIds.Contains(order.Id))
+                foreach (var order in _allOrders.Where(o => string.Equals(o.AssignedTourId, tourKey, StringComparison.OrdinalIgnoreCase)))
                 {
-                    continue;
+                    if (routeOrderIds.Contains(order.Id))
+                    {
+                        continue;
+                    }
+
+                    order.AssignedTourId = string.Empty;
+                    order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
                 }
 
-                order.AssignedTourId = string.Empty;
-                order.AvisoStatus = NormalizeAvisoStatus(string.Empty);
-            }
+                foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
+                {
+                    AssignDeliveriesFromTour(order, updated, tourKey);
+                }
 
-            foreach (var order in _allOrders.Where(o => routeOrderIds.Contains(o.Id)))
-            {
-                AssignDeliveriesFromTour(order, updated, tourKey);
+                await SaveChangedToursAndOrdersAsync(originalTours, tours, originalOrders, _allOrders);
             }
-
-            await SaveChangedToursAndOrdersAsync(originalTours, tours, originalOrders, _allOrders);
             wasCommitted = true;
+            if (!DetailsSessionIsCurrent())
+            {
+                _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
+                if (!keepSavedAssignments) PublishOrderChange(null, null);
+                return;
+            }
             SetRouteChanged(false);
             if (_loadedTourLeaseId == tourId) _loadedTourEditConcurrencyToken = updated.ConcurrencyToken;
             var successMessage = TourNotificationMessageFormatter.FormatTourUpdatedMessage(updated);
             StatusText = successMessage;
             ToastNotificationService.ShowInfo(successMessage);
             _dataSyncService.PublishTours(_instanceId, tourId.ToString(CultureInfo.InvariantCulture), tourId.ToString(CultureInfo.InvariantCulture));
-            PublishOrderChange(null, null);
-            await RefreshAfterLocalMutationAsync(tourId);
+            if (!keepSavedAssignments) PublishOrderChange(null, null);
+            await RefreshAfterLocalMutationAsync(tourId, reconcileTours: !keepSavedAssignments);
+            if (!DetailsSessionIsCurrent()) return;
             SetRouteChanged(false);
             ClearDraftRouteStopRemovalUndoHistory();
             if (isOverviewEdit)
@@ -3201,7 +3295,8 @@ public sealed partial class KarteSectionViewModel
             }
             else
             {
-                await FocusTourAsync(tourId);
+                if (tourDetails is not null) await LoadTourIntoRouteAsync(tourId);
+                else await FocusTourAsync(tourId);
             }
         }
         catch (ConcurrencyConflictException conflict)
@@ -3430,6 +3525,9 @@ public sealed partial class KarteSectionViewModel
             SecondaryVehicleId = string.IsNullOrWhiteSpace(source.SecondaryVehicleId) ? null : source.SecondaryVehicleId.Trim(),
             SecondaryTrailerId = string.IsNullOrWhiteSpace(source.SecondaryTrailerId) ? null : source.SecondaryTrailerId.Trim(),
             IsArchived = source.IsArchived,
+            IsFull = source.IsFull,
+            FullReason = source.FullReason,
+            FullNote = source.FullNote,
             ConcurrencyToken = source.ConcurrencyToken,
             TravelTimeCache = (source.TravelTimeCache ?? new Dictionary<string, int>())
                 .ToDictionary(x => (x.Key ?? string.Empty).Trim(), x => x.Value, StringComparer.OrdinalIgnoreCase),
@@ -3930,6 +4028,7 @@ public sealed partial class KarteSectionViewModel
         if (deliveryIds.Count == 0)
         {
             order.AssignedTourId = tourKey;
+            NewXmlOrderReviewService.MarkPlanned(order);
             return;
         }
         foreach (var delivery in order.Deliveries ?? [])
@@ -3943,6 +4042,7 @@ public sealed partial class KarteSectionViewModel
         order.AssignedTourId = (order.Deliveries ?? []).Where(x => x.Status != OrderDeliveryStatus.Cancelled)
             .Select(x => x.AssignedTourId).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1
             ? tourKey : string.Empty;
+        NewXmlOrderReviewService.MarkPlanned(order);
     }
 
     private static bool IsCompanyTourStop(TourStopRecord stop)
@@ -4671,6 +4771,7 @@ public sealed partial class KarteSectionViewModel
 
     private void ClearRoute(bool rebuildOrderGrid)
     {
+        _confirmedFullTourSignature = string.Empty;
         ClearDraftRouteStopRemovalUndoHistory();
         _activeTourId = 0;
         OnPropertyChanged(nameof(LoadedTourId));
@@ -5074,6 +5175,8 @@ public sealed partial class KarteSectionViewModel
                     _vehicleData, assignment.VehicleId, assignment.TrailerId))
                 .Sum(display => display.VehiclePayloadKg.GetValueOrDefault() + display.TrailerLoadKg.GetValueOrDefault()))
         {
+            IsFull = loadedTour.IsFull,
+            FullDescription = TourFullWarning.Description(loadedTour),
             VehicleName = string.IsNullOrWhiteSpace(summaryVehicleId) ? "Nicht zugewiesen" :
                 _vehicleData.Vehicles.FirstOrDefault(vehicle => string.Equals(vehicle.Id, summaryVehicleId, StringComparison.OrdinalIgnoreCase))?.Name ?? summaryVehicleId,
             TrailerName = string.IsNullOrWhiteSpace(summaryTrailerId) ? string.Empty :
@@ -5622,6 +5725,7 @@ public sealed partial class KarteSectionViewModel
         RaiseCanExecuteChangedIfSupported(OptimizeRouteCommand);
         RaiseCanExecuteChangedIfSupported(OpenCreateTourDialogCommand);
         RaiseCanExecuteChangedIfSupported(EditSelectedTourCommand);
+        RaiseCanExecuteChangedIfSupported(EditSelectedTourOverviewCommand);
         RaiseCanExecuteChangedIfSupported(StartSelectedTourEditingCommand);
         RaiseCanExecuteChangedIfSupported(ArchiveSelectedTourCommand);
         RaiseCanExecuteChangedIfSupported(ExportRouteCommand);
@@ -7641,6 +7745,8 @@ public sealed partial class KarteSectionViewModel
                 totalWeightKg,
                 loadCapacityKg)
             {
+                IsFull = tour.IsFull,
+                FullDescription = TourFullWarning.Description(tour),
                 VehicleName = string.IsNullOrWhiteSpace(tour.VehicleId) ? "Nicht zugewiesen" :
                     _vehicleData.Vehicles.FirstOrDefault(vehicle => string.Equals(vehicle.Id, tour.VehicleId, StringComparison.OrdinalIgnoreCase))?.Name ?? tour.VehicleId,
                 TrailerName = string.IsNullOrWhiteSpace(tour.TrailerId) ? string.Empty :
@@ -8873,6 +8979,7 @@ public sealed partial class KarteSectionViewModel
                                            StringComparison.OrdinalIgnoreCase),
             AssignedTourId = delivery?.AssignedTourId ?? order.AssignedTourId ?? string.Empty,
             IsAssigned = isAssigned,
+            IsNewXmlImport = IsNewXmlOrder(order) && !isAssigned,
             Latitude = order.Location?.Latitude ?? double.NaN,
             Longitude = order.Location?.Longitude ?? double.NaN,
             DeliveryLabel = NormalizeDeliveryType(order.DeliveryType),
@@ -9568,6 +9675,7 @@ public sealed class DetailProductItem
 
 public sealed class MapOrderItem
 {
+    public bool IsNewXmlImport { get; set; }
     public string OrderId { get; set; } = string.Empty;
     public string DeliveryId { get; set; } = string.Empty;
     public int? DeliverySequenceNumber { get; set; }
@@ -10168,6 +10276,8 @@ public sealed class SavedTourLookupItem
 
 public sealed class SavedTourOverviewItem
 {
+    public bool IsFull { get; set; }
+    public string FullDescription { get; set; } = string.Empty;
     public string VehicleName { get; set; } = "Nicht zugewiesen";
     public string TrailerName { get; set; } = string.Empty;
     public string VehicleCombinationText => string.Join(" + ",
