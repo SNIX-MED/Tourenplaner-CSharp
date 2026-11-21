@@ -3669,6 +3669,27 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             IsFull = source.IsFull,
             FullReason = source.FullReason,
             FullNote = source.FullNote,
+            LoadPlanPlacements = (source.LoadPlanPlacements ?? []).Select(item => new TourLoadPlanPlacement
+            {
+                ProductId = item.ProductId,
+                LoadingAreaId = item.LoadingAreaId,
+                Xcm = item.Xcm,
+                Ycm = item.Ycm,
+                IsRotated = item.IsRotated
+            }).ToList(),
+            LoadPlanPackages = (source.LoadPlanPackages ?? []).Select(item => new TourLoadPlanPackage
+            {
+                Id = item.Id,
+                OrderId = item.OrderId,
+                Name = item.Name,
+                PackageType = item.PackageType,
+                WidthMm = item.WidthMm,
+                DepthMm = item.DepthMm,
+                HeightMm = item.HeightMm,
+                ProductIds = (item.ProductIds ?? []).ToList()
+            }).ToList(),
+            LoadPlanSourceSignature = source.LoadPlanSourceSignature,
+            LoadPlanSavedAtUtc = source.LoadPlanSavedAtUtc,
             ConcurrencyToken = source.ConcurrencyToken,
             EmployeeIds = source.EmployeeIds.ToList(),
             AdditionalMaterials = CloneAdditionalMaterials(source.AdditionalMaterials),
@@ -4213,7 +4234,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             GroupId = x.GroupId,
             GroupName = x.GroupName,
             WeightKg = Math.Max(0, x.WeightKg),
-            Items = (x.Items ?? []).Select(i => new AdditionalMaterialItem { Name = i.Name, WeightKg = Math.Max(0, i.WeightKg) }).ToList()
+            RequiresLoadingSpace = x.RequiresLoadingSpace || (x.Items ?? []).Any(i => i.RequiresLoadingSpace),
+            WidthMm = Math.Max(0, x.WidthMm), DepthMm = Math.Max(0, x.DepthMm), HeightMm = Math.Max(0, x.HeightMm),
+            Items = (x.Items ?? []).Select(i => new AdditionalMaterialItem { Id = string.IsNullOrWhiteSpace(i.Id) ? Guid.NewGuid().ToString("N") : i.Id, Name = i.Name, Quantity = Math.Max(1, i.Quantity), WeightKg = Math.Max(0, i.WeightKg), RequiresLoadingSpace = i.RequiresLoadingSpace, WidthMm = Math.Max(0, i.WidthMm), DepthMm = Math.Max(0, i.DepthMm), HeightMm = Math.Max(0, i.HeightMm) }).ToList()
         }).ToList();
 
     private void OnDataChanged(object? sender, AppDataChangedEventArgs args)

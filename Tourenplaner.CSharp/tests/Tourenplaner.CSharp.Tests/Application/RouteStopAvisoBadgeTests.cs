@@ -20,21 +20,17 @@ public sealed class RouteStopAvisoBadgeTests
     }
 
     [Fact]
-    public void MapBadgeBindingAllowsPauseColorTriggerToOverrideIt()
+    public void MapStopMarkerUsesAvisoBadgeColor()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "src"))) root = root.Parent;
         Assert.NotNull(root);
         var document = XDocument.Load(Path.Combine(root!.FullName, "src", "Tourenplaner.CSharp.App", "Views", "Sections", "KarteSectionView.xaml"));
-        XNamespace ns = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
-        var badge = document.Descendants(ns + "Border").Single(border =>
-            border.Elements(ns + "TextBlock").Any(text => (string?)text.Attribute("Text") == "{Binding DisplayPosition}"));
-        Assert.Null(badge.Attribute("Background"));
-        Assert.Contains(badge.Descendants(ns + "Setter"), setter =>
-            (string?)setter.Attribute("Property") == "Background" && (string?)setter.Attribute("Value") == "{Binding AvisoBadgeColor}");
-        Assert.Contains(badge.Descendants(ns + "DataTrigger"), trigger =>
-            (string?)trigger.Attribute("Binding") == "{Binding IsPauseStop}" &&
-            trigger.Elements(ns + "Setter").Any(setter => (string?)setter.Attribute("Property") == "Background" && (string?)setter.Attribute("Value") == "#D99A21"));
+        XNamespace dialogs = "clr-namespace:Tourenplaner.CSharp.App.Views.Dialogs";
+        var marker = document.Descendants(dialogs + "LoadPlanStopMarkerControl").Single(control =>
+            (string?)control.Attribute("Letter") == "{Binding DisplayPosition}");
+        Assert.Equal("{Binding AvisoBadgeColor}", (string?)marker.Attribute("Fill"));
+        Assert.Equal("{Binding DeliveryMarkerShape}", (string?)marker.Attribute("Shape"));
     }
 
     [Theory]

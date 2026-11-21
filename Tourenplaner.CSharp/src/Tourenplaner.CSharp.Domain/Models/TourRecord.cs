@@ -29,6 +29,31 @@ public sealed class TourRecord
     public string RouteGeometrySignature { get; set; } = string.Empty;
     public string? ConcurrencyToken { get; set; }
     public WebfleetDispatchRecord WebfleetDispatch { get; set; } = new();
+    public List<TourLoadPlanPlacement> LoadPlanPlacements { get; set; } = new();
+    public List<TourLoadPlanPackage> LoadPlanPackages { get; set; } = new();
+    public string LoadPlanSourceSignature { get; set; } = string.Empty;
+    public DateTimeOffset? LoadPlanSavedAtUtc { get; set; }
+}
+
+public sealed class TourLoadPlanPackage
+{
+    public string Id { get; set; } = string.Empty;
+    public string OrderId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string PackageType { get; set; } = string.Empty;
+    public int WidthMm { get; set; }
+    public int DepthMm { get; set; }
+    public int HeightMm { get; set; }
+    public List<string> ProductIds { get; set; } = new();
+}
+
+public sealed class TourLoadPlanPlacement
+{
+    public string ProductId { get; set; } = string.Empty;
+    public string LoadingAreaId { get; set; } = string.Empty;
+    public double Xcm { get; set; }
+    public double Ycm { get; set; }
+    public bool IsRotated { get; set; }
 }
 
 public sealed class TourAdditionalMaterial
@@ -36,6 +61,10 @@ public sealed class TourAdditionalMaterial
     public string GroupId { get; set; } = string.Empty;
     public string GroupName { get; set; } = string.Empty;
     public double WeightKg { get; set; }
+    public bool RequiresLoadingSpace { get; set; }
+    public int WidthMm { get; set; }
+    public int DepthMm { get; set; }
+    public int HeightMm { get; set; }
     public List<AdditionalMaterialItem> Items { get; set; } = new();
 }
 

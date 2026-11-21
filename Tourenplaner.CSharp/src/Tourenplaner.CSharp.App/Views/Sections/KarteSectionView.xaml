@@ -4,11 +4,13 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
+             xmlns:dialogs="clr-namespace:Tourenplaner.CSharp.App.Views.Dialogs"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              mc:Ignorable="d"
              d:DesignHeight="860"
-             d:DesignWidth="1500">
+             d:DesignWidth="1500"
+             PreviewKeyDown="OnPreviewKeyDown">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <DataTemplate x:Key="TourSummaryTilesTemplate">
@@ -25,7 +27,21 @@
                            Foreground="{DynamicResource Brush.TextPrimary}"
                            Text="{Binding TourName}" />
                     <Border Margin="8,0,0,0" Padding="7,3" CornerRadius="8" Background="#FEE2E2"
-                            Visibility="{Binding IsFull, Converter={StaticResource BoolToVisibilityConverter}}" ToolTip="{Binding FullDescription}">
+                            ToolTip="{Binding FullDescription}">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsFull}" Value="True" />
+                                            <Condition Binding="{Binding ShowFullBadge}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <TextBlock Text="VOLL" FontSize="11" FontWeight="Bold" Foreground="#991B1B" />
                     </Border>
                 </StackPanel>
@@ -1169,7 +1185,6 @@
                                                  PreviewMouseRightButtonDown="TourOverviewList_PreviewMouseRightButtonDown"
                                                  MouseMove="TourOverviewList_MouseMove"
                                                  MouseLeave="TourOverviewList_MouseLeave"
-                                                 MouseDoubleClick="TourOverviewList_MouseDoubleClick"
                                                  ContextMenuOpening="TourOverviewList_ContextMenuOpening"
                                                  Style="{StaticResource RouteStopsListStyle}"
                                                  ItemContainerStyle="{StaticResource RouteStopListItemStyle}">
@@ -1493,48 +1508,23 @@
                                                                     </Style>
                                                                 </Border.Style>
                                                             </Border>
-                                                            <Border Width="38"
-                                                                    Height="38"
-                                                                    CornerRadius="19"
-                                                                    VerticalAlignment="Top"
-                                                                    HorizontalAlignment="Center">
-                                                                <Border.Style>
-                                                                    <Style TargetType="Border">
-                                                                        <Setter Property="Background" Value="{Binding AvisoBadgeColor}" />
-                                                                        <Setter Property="Width" Value="38" />
-                                                                        <Setter Property="Height" Value="38" />
-                                                                        <Setter Property="CornerRadius" Value="19" />
+                                                            <dialogs:LoadPlanStopMarkerControl Width="38" Height="38"
+                                                                                               VerticalAlignment="Top"
+                                                                                               HorizontalAlignment="Center"
+                                                                                               Letter="{Binding DisplayPosition}"
+                                                                                               Shape="{Binding DeliveryMarkerShape}"
+                                                                                               Fill="{Binding AvisoBadgeColor}">
+                                                                <dialogs:LoadPlanStopMarkerControl.Style>
+                                                                    <Style TargetType="dialogs:LoadPlanStopMarkerControl">
+                                                                        <Setter Property="Visibility" Value="Visible" />
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding IsCompanyAnchor}" Value="True">
                                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                                             </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
-                                                                                <Setter Property="Background" Value="#D99A21" />
-                                                                            </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
-                                                                </Border.Style>
-                                                                <TextBlock Text="{Binding DisplayPosition}"
-                                                                           Foreground="White"
-                                                                           FontWeight="SemiBold"
-                                                                           FontSize="16"
-                                                                           HorizontalAlignment="Center"
-                                                                           VerticalAlignment="Center">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="FontSize" Value="16" />
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsCompanyAnchor}" Value="True">
-                                                                                    <Setter Property="FontSize" Value="13" />
-                                                                                </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding IsPauseStop}" Value="True">
-                                                                                    <Setter Property="FontSize" Value="14" />
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                            </Border>
+                                                                </dialogs:LoadPlanStopMarkerControl.Style>
+                                                            </dialogs:LoadPlanStopMarkerControl>
                                                             <TextBlock Text="{Binding DisplayPosition}"
                                                                        VerticalAlignment="Center"
                                                                        HorizontalAlignment="Center"
@@ -2081,22 +2071,6 @@
                                 </Style>
                             </Border.Style>
                             <StackPanel>
-                                <TextBlock Margin="0,0,0,6"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource Brush.Accent}"
-                                           Text="{Binding LoadedTourAccessText}"
-                                           TextWrapping="Wrap">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding LoadedTourAccessText}" Value="">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
                                 <ContentControl Content="{Binding LoadedTourSummary}" ContentTemplate="{StaticResource TourSummaryTilesTemplate}" Margin="0,0,0,6">
                                     <ContentControl.Style>
                                         <Style TargetType="ContentControl">
@@ -2136,30 +2110,6 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 </StackPanel>
-                                <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Margin="0,4,0,0" Text="{Binding RouteTimingSummary}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowTourOverviewPanel}" Value="True">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Margin="0,2,0,0" Text="{Binding RoutingProviderStatusText}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ShowTourOverviewPanel}" Value="True">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
                             </StackPanel>
                         </Border>
 
@@ -2176,8 +2126,11 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
                             <Button Grid.Column="0" Content="Tourdetails" Command="{Binding EditSelectedTourCommand}" ToolTip="Tourdetails bearbeiten">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -2190,9 +2143,19 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
+                            <Button Grid.Column="1" Margin="8,0,0,0" Command="{Binding OpenLoadPlanCommand}" ToolTip="Ladeplan der aktuellen Tour öffnen" Style="{StaticResource SecondaryButtonStyle}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock VerticalAlignment="Center" Text="Ladeplan" />
+                                    <Border Margin="7,0,0,0" Padding="6,2" CornerRadius="8" Background="#FFFFF3E0"
+                                            Visibility="{Binding CurrentLoadPlanNeedsReview, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="#FFF97316" Text="Prüfung nötig" />
+                                    </Border>
+                                </StackPanel>
+                            </Button>
                             <Button x:Name="CurrentTourPrimaryActionButton"
-                                    Grid.Column="1"
-                                    Margin="8,0,0,0"
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Margin="0,8,0,0"
                                     Content="{Binding CurrentTourPrimaryActionText}"
                                     ToolTip="{Binding CurrentTourPrimaryActionToolTip}"
                                     AutomationProperties.Name="{Binding CurrentTourPrimaryActionAccessibleName}"
@@ -2208,7 +2171,7 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
-                            <Button Grid.Column="2" Margin="8,0,0,0" Content="An WEBFLEET senden" Command="{Binding SendCurrentTourToWebfleetCommand}">
+                            <Button Grid.Row="1" Grid.Column="1" Margin="8,8,0,0" Content="An WEBFLEET senden" Command="{Binding SendCurrentTourToWebfleetCommand}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Setter Property="Visibility" Value="Visible" />
@@ -2607,7 +2570,8 @@
                                             CornerRadius="12"
                                             Background="{DynamicResource Brush.CardSoft}"
                                             BorderBrush="{DynamicResource Brush.BorderSoft}"
-                                            BorderThickness="1">
+                                            BorderThickness="1"
+                                            Visibility="{Binding HasDetailNotes, Converter={StaticResource BoolToVisibilityConverter}}">
                                         <StackPanel>
                                             <TextBox Padding="0"
                                                        BorderThickness="0"
@@ -2656,11 +2620,57 @@
                                               VerticalScrollBarVisibility="Auto"
                                               PreviewMouseWheel="OnDetailsPreviewMouseWheel">
                                     <StackPanel>
+                                        <ItemsControl Margin="0,4,0,0" ItemsSource="{Binding DetailOrderPackageItems}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,0,0,8" Padding="8" CornerRadius="10"
+                                                            Background="#FFF0FBF5" BorderBrush="#FF31B96B" BorderThickness="1">
+                                                        <Border.ContextMenu>
+                                                            <ContextMenu Style="{StaticResource RouteStopContextMenuStyle}">
+                                                                <MenuItem Header="Bearbeiten"
+                                                                          Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                          Click="OnEditDetailPackageClicked" />
+                                                                <MenuItem Header="Auflösen"
+                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                          Click="OnDissolveDetailPackageClicked">
+                                                                    <MenuItem.Style>
+                                                                        <Style TargetType="MenuItem" BasedOn="{StaticResource RouteStopContextMenuItemStyle}">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}" />
+                                                                        </Style>
+                                                                    </MenuItem.Style>
+                                                                </MenuItem>
+                                                            </ContextMenu>
+                                                        </Border.ContextMenu>
+                                                        <Expander IsExpanded="True">
+                                                            <Expander.Header>
+                                                                <StackPanel>
+                                                                    <TextBlock FontWeight="SemiBold" Text="{Binding Heading}" />
+                                                                    <TextBlock Margin="0,2,0,0" FontSize="10" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding Summary}" />
+                                                                </StackPanel>
+                                                            </Expander.Header>
+                                                            <ItemsControl Margin="14,6,0,0" ItemsSource="{Binding Products}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <controls:ProductOverviewCard Margin="0,0,0,6" Title="{Binding Title}" Supplier="{Binding Supplier}"
+                                                                            ExpectedDelivery="{Binding ExpectedDelivery}" DimensionsLine="{Binding DimensionsLine}"
+                                                                            WeightLine="{Binding WeightLine}" TotalLine="{Binding TotalLine}" DeliveryStatus="{Binding DeliveryStatus}"
+                                                                            BackgroundColor="{Binding BackgroundColor}" BorderColor="{Binding BorderColor}" IsSelected="{Binding IsSelected}"
+                                                                            HasSupplier="{Binding HasSupplier}" HasExpectedDelivery="{Binding HasExpectedDelivery}" HasDimensions="{Binding HasDimensions}"
+                                                                            MouseLeftButtonDown="OnDetailProductMouseLeftButtonDown" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </Expander>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                         <ItemsControl x:Name="DetailProductsItemsControl"
                                                       Margin="0,4,0,0"
                                                       Focusable="True"
                                                       PreviewKeyDown="OnDetailProductsPreviewKeyDown"
-                                                      ItemsSource="{Binding DetailProductItems}">
+                                                      ItemsSource="{Binding DetailUngroupedProductItems}">
                                             <ItemsControl.Style>
                                                 <Style TargetType="ItemsControl">
                                                     <Setter Property="Visibility" Value="Visible" />
@@ -2674,6 +2684,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <controls:ProductOverviewCard Margin="0,0,0,8"
+                                                                                  Tag="{Binding DataContext.CanCreateDetailPackage, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                                   Title="{Binding Title, Mode=OneWay}"
                                                                                   Supplier="{Binding Supplier, Mode=OneWay}"
                                                                                   ExpectedDelivery="{Binding ExpectedDelivery, Mode=OneWay}"
@@ -2687,7 +2698,16 @@
                                                                                   HasSupplier="{Binding HasSupplier, Mode=OneWay}"
                                                                                   HasExpectedDelivery="{Binding HasExpectedDelivery, Mode=OneWay}"
                                                                                   HasDimensions="{Binding HasDimensions, Mode=OneWay}"
-                                                                                  MouseLeftButtonDown="OnDetailProductMouseLeftButtonDown" />
+                                                                                  MouseLeftButtonDown="OnDetailProductMouseLeftButtonDown">
+                                                        <controls:ProductOverviewCard.ContextMenu>
+                                                            <ContextMenu Style="{StaticResource RouteStopContextMenuStyle}">
+                                                                <MenuItem Header="Packstück erstellen"
+                                                                          Style="{StaticResource RouteStopContextMenuItemStyle}"
+                                                                          IsEnabled="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                          Click="OnCreateDetailPackageClicked" />
+                                                            </ContextMenu>
+                                                        </controls:ProductOverviewCard.ContextMenu>
+                                                    </controls:ProductOverviewCard>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>

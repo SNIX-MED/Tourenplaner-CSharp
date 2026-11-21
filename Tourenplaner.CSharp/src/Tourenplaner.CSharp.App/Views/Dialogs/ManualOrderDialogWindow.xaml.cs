@@ -195,6 +195,31 @@ public partial class ManualOrderDialogWindow : Window
         ViewModel.RemoveSelectedProductLine();
     }
 
+    private void OnCreatePackageClicked(object sender, RoutedEventArgs e)
+    {
+        var products = ViewModel.GetSelectedProductsForPackage();
+        if (products.Count < 2) return;
+        var dialog = new LoadPlanPackageDialogWindow($"Packstück {ViewModel.OrderPackages.Count + 1}") { Owner = this };
+        if (dialog.ShowDialog() == true)
+            ViewModel.CreatePackage(dialog.PackageName, dialog.PackageType, dialog.WidthMm, dialog.DepthMm, dialog.HeightMm, products);
+    }
+
+    private void OnEditOrderPackageClicked(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not OrderPackageInput package) return;
+        var dialog = new LoadPlanPackageDialogWindow(package.Name, package.PackageType,
+            package.WidthMm, package.DepthMm, package.HeightMm) { Owner = this };
+        if (dialog.ShowDialog() == true)
+            ViewModel.UpdatePackage(package, dialog.PackageName, dialog.PackageType,
+                dialog.WidthMm, dialog.DepthMm, dialog.HeightMm);
+    }
+
+    private void OnDissolveOrderPackageClicked(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is OrderPackageInput package)
+            ViewModel.DissolvePackage(package);
+    }
+
     private void OnProductGridDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (ViewModel.SelectedProductLine is null)
@@ -416,6 +441,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     public ObservableCollection<ProductLineInput> ProductLines { get; } = new();
 
+    public ObservableCollection<OrderPackageInput> OrderPackages { get; } = new();
+
     public ObservableCollection<DeliveryNoteInput> DeliveryNotes { get; } = new();
 
     public ObservableCollection<DeliveryProductGroup> DeliveryProductGroups { get; } = new();
@@ -473,6 +500,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
                 OnPropertyChanged(nameof(CanEditOrRemoveProductLine));
                 OnPropertyChanged(nameof(CanEditDeliveryCanOccurEarlier));
                 OnPropertyChanged(nameof(CanChangeSelectedProductStatus));
+                OnPropertyChanged(nameof(CanCreatePackage));
             }
         }
     }
@@ -492,6 +520,9 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
     public bool CanEditOrRemoveProductLine => IsEditingEnabled && SelectedProductLine is not null;
 
     public bool CanChangeSelectedProductStatus => _selectedProductLines.Count > 0;
+
+    public bool CanCreatePackage => _selectedProductLines.Count >= 2 &&
+        _selectedProductLines.All(product => !IsProductPackaged(product.PositionId));
 
     public string SelectedProductsSummary => _selectedProductLines.Count switch
     {
@@ -532,7 +563,41 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
         SynchronizeSelectedProductStatus();
         OnPropertyChanged(nameof(CanChangeSelectedProductStatus));
+        OnPropertyChanged(nameof(CanCreatePackage));
         OnPropertyChanged(nameof(SelectedProductsSummary));
+    }
+
+    public IReadOnlyList<ProductLineInput> GetSelectedProductsForPackage() =>
+        _selectedProductLines.Where(product => !IsProductPackaged(product.PositionId)).ToList();
+
+    public void CreatePackage(string name, string packageType, int widthMm, int depthMm, int heightMm,
+        IReadOnlyList<ProductLineInput> products)
+    {
+        OrderPackages.Add(new OrderPackageInput(Guid.NewGuid().ToString("N"), name, packageType,
+            widthMm, depthMm, heightMm, products));
+        RefreshPackagePresentation();
+    }
+
+    public void UpdatePackage(OrderPackageInput package, string name, string packageType,
+        int widthMm, int depthMm, int heightMm)
+    {
+        package.Update(name, packageType, widthMm, depthMm, heightMm);
+    }
+
+    public void DissolvePackage(OrderPackageInput package)
+    {
+        OrderPackages.Remove(package);
+        RefreshPackagePresentation();
+    }
+
+    private bool IsProductPackaged(string? positionId) => !string.IsNullOrWhiteSpace(positionId) &&
+        OrderPackages.Any(package => package.ProductPositionIds.Contains(positionId, StringComparer.OrdinalIgnoreCase));
+
+    private void RefreshPackagePresentation()
+    {
+        FilteredProductLines.Refresh();
+        RebuildDeliveryProductGroups();
+        OnPropertyChanged(nameof(CanCreatePackage));
     }
 
     public string OrderNumber
@@ -884,6 +949,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             Email = (Email ?? string.Empty).Trim(),
             Phone = (Phone ?? string.Empty).Trim(),
             Products = products,
+            Packages = OrderPackages.Select(package => package.ToOrderPackageInfo()).ToList(),
             Deliveries = _existingDeliveries.Select(delivery => new OrderDelivery
             {
                 Id = delivery.Id,
@@ -929,6 +995,8 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
 
     public void AddProductLine(ProductLineInput line)
     {
+        if (string.IsNullOrWhiteSpace(line.PositionId))
+            line.PositionId = Guid.NewGuid().ToString("N");
         ProductLines.Add(line);
         RefreshSupplierFilters();
         RebuildDeliveryProductGroups();
@@ -950,6 +1018,9 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         }
 
         ProductLines[index] = line;
+        foreach (var package in OrderPackages.Where(package => package.ProductPositionIds.Contains(
+                     SelectedProductLine.PositionId, StringComparer.OrdinalIgnoreCase)))
+            package.ReplaceProduct(SelectedProductLine, line);
         RefreshSupplierFilters();
         RebuildDeliveryProductGroups();
         SelectedProductLine = line;
@@ -964,6 +1035,9 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
         }
 
         var index = ProductLines.IndexOf(SelectedProductLine);
+        foreach (var package in OrderPackages.Where(package => package.ProductPositionIds.Contains(
+                     SelectedProductLine.PositionId, StringComparer.OrdinalIgnoreCase)).ToList())
+            DissolvePackage(package);
         ProductLines.Remove(SelectedProductLine);
         RefreshSupplierFilters();
         RebuildDeliveryProductGroups();
@@ -1079,6 +1153,15 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             ProductLines.Add(ProductLineInput.FromOrderProductInfo(product));
         }
 
+        OrderPackages.Clear();
+        foreach (var package in existingOrder.Packages ?? [])
+        {
+            var members = ProductLines.Where(product => package.ProductPositionIds.Contains(
+                product.PositionId, StringComparer.OrdinalIgnoreCase)).ToList();
+            if (members.Count > 0)
+                OrderPackages.Add(OrderPackageInput.FromOrderPackageInfo(package, members));
+        }
+
         RefreshSupplierFilters();
         RebuildDeliveryProductGroups();
         RefreshSelectedStatusFromProducts();
@@ -1092,6 +1175,7 @@ public sealed class ManualOrderDialogViewModel : INotifyPropertyChanged
             return true;
         }
 
+        if (IsProductPackaged(product.PositionId)) return false;
         var supplier = (product.Supplier ?? string.Empty).Trim();
         var filterLabel = supplier.Length == 0 ? WithoutSupplierFilter : supplier;
         return SupplierFilterItems.Any(filter =>
@@ -1351,6 +1435,63 @@ public sealed record DeliveryProductGroup(
     bool IsDelivered,
     IReadOnlyList<ProductLineInput> ProductLines);
 
+public sealed class OrderPackageInput : INotifyPropertyChanged
+{
+    private string _name;
+    private string _packageType;
+    private int _widthMm;
+    private int _depthMm;
+    private int _heightMm;
+
+    public OrderPackageInput(string id, string name, string packageType, int widthMm, int depthMm,
+        int heightMm, IEnumerable<ProductLineInput> products)
+    {
+        Id = id;
+        _name = name;
+        _packageType = packageType;
+        _widthMm = widthMm;
+        _depthMm = depthMm;
+        _heightMm = heightMm;
+        Products = new ObservableCollection<ProductLineInput>(products);
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public string Id { get; }
+    public string Name => _name;
+    public string PackageType => _packageType;
+    public int WidthMm => _widthMm;
+    public int DepthMm => _depthMm;
+    public int HeightMm => _heightMm;
+    public ObservableCollection<ProductLineInput> Products { get; }
+    public IReadOnlyList<string> ProductPositionIds => Products.Select(product => product.PositionId).ToList();
+    public string Heading => $"{(string.IsNullOrWhiteSpace(PackageType) ? "Packstück" : PackageType)}: {Name}";
+    public string Summary => $"{WidthMm} × {DepthMm}{(HeightMm > 0 ? $" × {HeightMm}" : string.Empty)} mm · {Products.Count} Produkte · {Products.Sum(product => product.TotalWeightKg):0.##} kg";
+
+    public void Update(string name, string packageType, int widthMm, int depthMm, int heightMm)
+    {
+        _name = name; _packageType = packageType; _widthMm = widthMm; _depthMm = depthMm; _heightMm = heightMm;
+        foreach (var property in new[] { nameof(Name), nameof(PackageType), nameof(WidthMm), nameof(DepthMm), nameof(HeightMm), nameof(Heading), nameof(Summary) })
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+    }
+
+    public void ReplaceProduct(ProductLineInput oldProduct, ProductLineInput newProduct)
+    {
+        var index = Products.IndexOf(oldProduct);
+        if (index >= 0) Products[index] = newProduct;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ProductPositionIds)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Summary)));
+    }
+
+    public OrderPackageInfo ToOrderPackageInfo() => new()
+    {
+        Id = Id, Name = Name, PackageType = PackageType, WidthMm = WidthMm, DepthMm = DepthMm,
+        HeightMm = HeightMm, ProductPositionIds = ProductPositionIds.ToList()
+    };
+
+    public static OrderPackageInput FromOrderPackageInfo(OrderPackageInfo package, IEnumerable<ProductLineInput> products) =>
+        new(package.Id, package.Name, package.PackageType, package.WidthMm, package.DepthMm, package.HeightMm, products);
+}
+
 public sealed class ProductLineInput : INotifyPropertyChanged
 {
     public string PositionId { get; set; } = string.Empty;
@@ -1361,6 +1502,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
     private int _quantity = 1;
     private double _unitWeightKg;
     private string _dimensions = string.Empty;
+    private double? _effectiveUnitWeightKg;
+    private string _effectiveDimensions = string.Empty;
     private string _deliveryStatus = OrderProductInfo.DefaultDeliveryStatus;
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -1456,6 +1599,18 @@ public sealed class ProductLineInput : INotifyPropertyChanged
         }
     }
 
+    public double? EffectiveUnitWeightKg
+    {
+        get => _effectiveUnitWeightKg;
+        set => SetProperty(ref _effectiveUnitWeightKg, value is >= 0 ? value : null);
+    }
+
+    public string EffectiveDimensions
+    {
+        get => _effectiveDimensions;
+        set => SetProperty(ref _effectiveDimensions, value ?? string.Empty);
+    }
+
     public string DeliveryStatus
     {
         get => _deliveryStatus;
@@ -1518,6 +1673,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             UnitWeightKg = Math.Max(0d, UnitWeightKg),
             WeightKg = OrderProductInfo.NormalizeQuantity(Quantity) * Math.Max(0d, UnitWeightKg),
             Dimensions = (Dimensions ?? string.Empty).Trim(),
+            EffectiveUnitWeightKg = EffectiveUnitWeightKg,
+            EffectiveDimensions = (EffectiveDimensions ?? string.Empty).Trim(),
             DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(DeliveryStatus)
         };
     }
@@ -1534,6 +1691,8 @@ public sealed class ProductLineInput : INotifyPropertyChanged
             Quantity = OrderProductInfo.NormalizeQuantity(product.Quantity),
             UnitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(product),
             Dimensions = product.Dimensions ?? string.Empty,
+            EffectiveUnitWeightKg = product.EffectiveUnitWeightKg,
+            EffectiveDimensions = product.EffectiveDimensions ?? string.Empty,
             DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus)
         };
     }

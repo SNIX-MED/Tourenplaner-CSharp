@@ -1460,7 +1460,15 @@ public sealed class OrdersSectionViewModel : SectionViewModelBase
                 UnitWeightKg = p.UnitWeightKg,
                 WeightKg = p.WeightKg,
                 Dimensions = p.Dimensions,
+                EffectiveUnitWeightKg = p.EffectiveUnitWeightKg,
+                EffectiveDimensions = p.EffectiveDimensions,
                 DeliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(p.DeliveryStatus)
+            }).ToList(),
+            Packages = (source.Packages ?? []).Select(p => new OrderPackageInfo
+            {
+                Id = p.Id, Name = p.Name, PackageType = p.PackageType, WidthMm = p.WidthMm,
+                DepthMm = p.DepthMm, HeightMm = p.HeightMm,
+                ProductPositionIds = (p.ProductPositionIds ?? []).ToList()
             }).ToList(),
             Deliveries = (source.Deliveries ?? []).Select(d => new OrderDelivery
             {

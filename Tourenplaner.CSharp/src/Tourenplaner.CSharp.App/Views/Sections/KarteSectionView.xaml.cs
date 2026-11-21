@@ -52,6 +52,7 @@ public partial class KarteSectionView : UserControl
     private static readonly GridLength HiddenDetailsPanelWidth = new(0d, GridUnitType.Pixel);
     private const int DataRefreshDebounceMilliseconds = 45;
     private const int UiRefreshDebounceMilliseconds = 12;
+    private const int TourOverviewDoubleClickDelayMilliseconds = 500;
     private const int PinInfoCardScaleScriptThrottleMilliseconds = 16;
     private const double DetailsPanelMinWidthExpanded = 280d;
     private const double RouteDragAutoScrollEdgeSize = 72d;
@@ -75,6 +76,7 @@ public partial class KarteSectionView : UserControl
     private DispatcherTimer? _routeDragAutoScrollTimer;
     private double _routeDragAutoScrollVelocity;
     private int _mapRefreshRevision;
+    private CancellationTokenSource? _tourOverviewDeselectCts;
     private bool _isMapRefreshLoopRunning;
     private MapRefreshOperation _pendingMapRefresh;
     private int _consecutiveMapRefreshFailures;
@@ -697,6 +699,26 @@ public partial class KarteSectionView : UserControl
 
         vm.SelectAllDetailProducts();
         e.Handled = true;
+    }
+
+    private async void OnCreateDetailPackageClicked(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is KarteSectionViewModel vm && vm.CanCreateDetailPackage)
+            await vm.CreateDetailPackageAsync();
+    }
+
+    private async void OnEditDetailPackageClicked(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is KarteSectionViewModel vm &&
+            sender is MenuItem { CommandParameter: DetailOrderPackageItem package })
+            await vm.EditDetailPackageAsync(package);
+    }
+
+    private async void OnDissolveDetailPackageClicked(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is KarteSectionViewModel vm &&
+            sender is MenuItem { CommandParameter: DetailOrderPackageItem package })
+            await vm.DissolveDetailPackageAsync(package);
     }
 
     private void OnStartTimePreviewTextInput(object sender, TextCompositionEventArgs e)
@@ -1638,21 +1660,20 @@ public partial class KarteSectionView : UserControl
         await vm.EditRouteStartTimeAsync();
     }
 
-    private async void TourOverviewList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (DataContext is not KarteSectionViewModel vm ||
-            sender is not ListBox listBox ||
-            listBox.SelectedItem is not SavedTourOverviewItem selected ||
-            selected.TourId <= 0)
+        if (e.Key != Key.Escape ||
+            DataContext is not KarteSectionViewModel { SelectedTourOverviewItem: not null } vm)
         {
             return;
         }
 
-        SuppressAutomaticMapFocus();
-        await vm.FocusTourAsync(selected.TourId);
+        vm.ClearTourOverviewSelection();
+        vm.SetHoveredTourOverviewId(0);
+        e.Handled = true;
     }
 
-    private void TourOverviewList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private async void TourOverviewList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
             sender is not ListBox listBox)
@@ -1663,12 +1684,66 @@ public partial class KarteSectionView : UserControl
         var listItem = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
         if (listItem?.DataContext is SavedTourOverviewItem selected)
         {
+            CancelPendingTourOverviewDeselection();
+
+            if (e.ClickCount >= 2 && selected.TourId > 0)
+            {
+                vm.SelectTourOverviewById(selected.TourId);
+                SuppressAutomaticMapFocus();
+                e.Handled = true;
+                await vm.FocusTourAsync(selected.TourId);
+                return;
+            }
+
+            if (vm.SelectedTourOverviewItem?.TourId == selected.TourId)
+            {
+                e.Handled = true;
+                ScheduleTourOverviewDeselection(vm, selected.TourId);
+                return;
+            }
+
             vm.SelectTourOverviewById(selected.TourId);
             return;
         }
 
+        CancelPendingTourOverviewDeselection();
         listBox.SelectedItem = null;
         vm.SetHoveredTourOverviewId(0);
+    }
+
+    private async void ScheduleTourOverviewDeselection(KarteSectionViewModel vm, int tourId)
+    {
+        var cancellation = new CancellationTokenSource();
+        _tourOverviewDeselectCts = cancellation;
+
+        try
+        {
+            await Task.Delay(TourOverviewDoubleClickDelayMilliseconds, cancellation.Token);
+            if (vm.SelectedTourOverviewItem?.TourId == tourId)
+            {
+                vm.ClearTourOverviewSelection();
+                vm.SetHoveredTourOverviewId(0);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // A second click turns the gesture into a double-click and keeps the selection intact.
+        }
+        finally
+        {
+            if (ReferenceEquals(_tourOverviewDeselectCts, cancellation))
+            {
+                _tourOverviewDeselectCts = null;
+            }
+
+            cancellation.Dispose();
+        }
+    }
+
+    private void CancelPendingTourOverviewDeselection()
+    {
+        _tourOverviewDeselectCts?.Cancel();
+        _tourOverviewDeselectCts = null;
     }
 
     private void TourOverviewList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)

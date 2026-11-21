@@ -34,10 +34,43 @@ internal static class TourNormalizer
         source.TrailerId = string.IsNullOrWhiteSpace(source.TrailerId) ? null : source.TrailerId.Trim();
         source.SecondaryVehicleId = string.IsNullOrWhiteSpace(source.SecondaryVehicleId) ? null : source.SecondaryVehicleId.Trim();
         source.SecondaryTrailerId = string.IsNullOrWhiteSpace(source.SecondaryTrailerId) ? null : source.SecondaryTrailerId.Trim();
+        source.LoadPlanSourceSignature = (source.LoadPlanSourceSignature ?? string.Empty).Trim();
         source.EmployeeIds = source.EmployeeIds
             .Select(x => (x ?? string.Empty).Trim())
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct()
+            .ToList();
+        source.LoadPlanPlacements = (source.LoadPlanPlacements ?? [])
+            .Where(x => x is not null && !string.IsNullOrWhiteSpace(x.ProductId) && !string.IsNullOrWhiteSpace(x.LoadingAreaId))
+            .Select(x => new TourLoadPlanPlacement
+            {
+                ProductId = x.ProductId.Trim(),
+                LoadingAreaId = x.LoadingAreaId.Trim(),
+                Xcm = Math.Max(0, x.Xcm),
+                Ycm = Math.Max(0, x.Ycm),
+                IsRotated = x.IsRotated
+            })
+            .GroupBy(x => x.ProductId, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.Last())
+            .ToList();
+        source.LoadPlanPackages = (source.LoadPlanPackages ?? [])
+            .Where(x => x is not null && !string.IsNullOrWhiteSpace(x.Id) &&
+                        !string.IsNullOrWhiteSpace(x.OrderId) && x.WidthMm > 0 && x.DepthMm > 0 && x.HeightMm >= 0)
+            .Select(x => new TourLoadPlanPackage
+            {
+                Id = x.Id.Trim(),
+                OrderId = x.OrderId.Trim(),
+                Name = string.IsNullOrWhiteSpace(x.Name) ? "Packstück" : x.Name.Trim(),
+                PackageType = (x.PackageType ?? string.Empty).Trim(),
+                WidthMm = x.WidthMm,
+                DepthMm = x.DepthMm,
+                HeightMm = x.HeightMm,
+                ProductIds = (x.ProductIds ?? []).Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Select(id => id.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+            })
+            .Where(x => x.ProductIds.Count > 0)
+            .GroupBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.Last())
             .ToList();
 
         source.TravelTimeCache = source.TravelTimeCache

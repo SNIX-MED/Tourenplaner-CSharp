@@ -2033,10 +2033,17 @@ public sealed partial class SettingsSectionViewModel : SectionViewModelBase
         Id = string.IsNullOrWhiteSpace(source.Id) ? Guid.NewGuid().ToString("N") : source.Id.Trim(),
         Name = (source.Name ?? string.Empty).Trim(),
         TotalWeightKg = source.TotalWeightKg,
+        RequiresLoadingSpace = source.RequiresLoadingSpace,
+        WidthMm = Math.Max(0, source.WidthMm),
+        DepthMm = Math.Max(0, source.DepthMm),
+        HeightMm = Math.Max(0, source.HeightMm),
         Items = (source.Items ?? []).Select(x => new AdditionalMaterialItem
         {
+            Id = string.IsNullOrWhiteSpace(x.Id) ? Guid.NewGuid().ToString("N") : x.Id,
             Name = (x.Name ?? string.Empty).Trim(),
-            WeightKg = Math.Max(0, x.WeightKg)
+            Quantity = Math.Max(1, x.Quantity), WeightKg = Math.Max(0, x.WeightKg),
+            RequiresLoadingSpace = x.RequiresLoadingSpace,
+            WidthMm = Math.Max(0, x.WidthMm), DepthMm = Math.Max(0, x.DepthMm), HeightMm = Math.Max(0, x.HeightMm)
         }).ToList()
     };
 

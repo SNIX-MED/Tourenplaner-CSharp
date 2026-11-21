@@ -22,6 +22,7 @@ public sealed class OrderDeliveryService
         ArgumentNullException.ThrowIfNull(order);
         var changed = false;
         order.Products ??= [];
+        order.Packages ??= [];
         order.Deliveries ??= [];
 
         foreach (var product in order.Products)
@@ -32,6 +33,25 @@ public sealed class OrderDeliveryService
                 changed = true;
             }
         }
+
+        var validProductIds = order.Products.Select(product => product.PositionId)
+            .Where(id => !string.IsNullOrWhiteSpace(id)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var package in order.Packages)
+        {
+            if (string.IsNullOrWhiteSpace(package.Id))
+            {
+                package.Id = Guid.NewGuid().ToString("N");
+                changed = true;
+            }
+            var normalizedIds = (package.ProductPositionIds ?? []).Where(validProductIds.Contains)
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (!(package.ProductPositionIds ?? []).SequenceEqual(normalizedIds, StringComparer.OrdinalIgnoreCase))
+            {
+                package.ProductPositionIds = normalizedIds;
+                changed = true;
+            }
+        }
+        if (order.Packages.RemoveAll(package => package.ProductPositionIds.Count == 0) > 0) changed = true;
 
         var nextSequence = 1;
         foreach (var delivery in order.Deliveries)

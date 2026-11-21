@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Produkt"
         Width="560"
-        Height="620"
+        Height="790"
         MinWidth="520"
         MinHeight="520"
         WindowStartupLocation="CenterOwner"
@@ -26,24 +26,90 @@
                 <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Produktname" />
                 <TextBox Margin="0,6,0,0" Height="38" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
 
-                <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Lieferant (optional)" />
-                <TextBox Margin="0,6,0,0" Height="38" Text="{Binding Supplier, UpdateSourceTrigger=PropertyChanged}" />
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock FontWeight="SemiBold" Text="Lieferant (optional)" />
+                        <TextBox Margin="0,6,0,0" Height="38" Text="{Binding Supplier, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock FontWeight="SemiBold" Text="Lieferung erwartet" />
+                        <TextBox Margin="0,6,0,0" Height="38" Text="{Binding ExpectedDelivery, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Grid>
 
-                <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Lieferung erwartet:" />
-                <TextBox Margin="0,6,0,0" Height="38" Text="{Binding ExpectedDelivery, UpdateSourceTrigger=PropertyChanged}" />
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock FontWeight="SemiBold" Text="Menge" />
+                        <TextBox Margin="0,6,0,0" Height="38" Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock FontWeight="SemiBold" Text="Gewicht pro Stück (kg)" />
+                        <Grid Margin="0,6,0,0" Height="38">
+                            <TextBox Padding="10,0,32,0"
+                                     Text="{Binding UnitWeightKgText, UpdateSourceTrigger=PropertyChanged}"
+                                     PreviewTextInput="OnUnitWeightPreviewTextInput"
+                                     DataObject.Pasting="OnUnitWeightPasting" />
+                            <TextBlock Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextMuted}" Text="kg" />
+                        </Grid>
+                    </StackPanel>
+                </Grid>
 
-                <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Menge" />
-                <TextBox Margin="0,6,0,0" Height="38" Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Breite (mm)" />
+                        <Grid Margin="0,4,0,0" Height="38"><TextBox Padding="10,0,34,0" Text="{Binding WidthMmText, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="OnDimensionPreviewTextInput" DataObject.Pasting="OnDimensionPasting"/><TextBlock Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextMuted}" Text="mm"/></Grid>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Tiefe (mm)" />
+                        <Grid Margin="0,4,0,0" Height="38"><TextBox Padding="10,0,34,0" Text="{Binding DepthMmText, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="OnDimensionPreviewTextInput" DataObject.Pasting="OnDimensionPasting"/><TextBlock Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextMuted}" Text="mm"/></Grid>
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Foreground="{DynamicResource Brush.TextMuted}" Text="Höhe (mm)" />
+                        <Grid Margin="0,4,0,0" Height="38"><TextBox Padding="10,0,34,0" Text="{Binding HeightMmText, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="OnDimensionPreviewTextInput" DataObject.Pasting="OnDimensionPasting"/><TextBlock Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextMuted}" Text="mm"/></Grid>
+                    </StackPanel>
+                </Grid>
 
-                <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Gewicht pro Stück (kg)" />
-                <TextBox Margin="0,6,0,0"
-                         Height="38"
-                         Text="{Binding UnitWeightKgText, UpdateSourceTrigger=PropertyChanged}"
-                         PreviewTextInput="OnUnitWeightPreviewTextInput"
-                         DataObject.Pasting="OnUnitWeightPasting" />
-
-                <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Masse (optional)" />
-                <TextBox Margin="0,6,0,0" Height="38" Text="{Binding Dimensions, UpdateSourceTrigger=PropertyChanged}" />
+                <Border Margin="0,18,0,0" Padding="12" CornerRadius="10"
+                        BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1"
+                        Background="{DynamicResource Brush.CardMuted}">
+                    <Expander IsExpanded="False">
+                        <Expander.Header>
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="Effektive Verpackungsmasse" />
+                        </Expander.Header>
+                        <StackPanel>
+                            <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Effektives Gewicht pro Stück (kg)" />
+                            <Grid Margin="0,5,0,0" Height="38">
+                                <TextBox Padding="10,0,32,0" Text="{Binding EffectiveUnitWeightKgText, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="OnUnitWeightPreviewTextInput" DataObject.Pasting="OnUnitWeightPasting" />
+                                <TextBlock Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextMuted}" Text="kg" />
+                            </Grid>
+                            <TextBlock Margin="0,12,0,0" FontWeight="SemiBold" Text="Effektive Maße in mm" />
+                            <Grid Margin="0,5,0,0">
+                                <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="10"/><ColumnDefinition/><ColumnDefinition Width="10"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <StackPanel><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Breite"/><Grid Height="38" Margin="0,4,0,0"><TextBox Padding="10,0,34,0" Text="{Binding EffectiveWidthMmText, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="OnDimensionPreviewTextInput" DataObject.Pasting="OnDimensionPasting"/><TextBlock Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextMuted}" Text="mm"/></Grid></StackPanel>
+                                <StackPanel Grid.Column="2"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Tiefe"/><Grid Height="38" Margin="0,4,0,0"><TextBox Padding="10,0,34,0" Text="{Binding EffectiveDepthMmText, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="OnDimensionPreviewTextInput" DataObject.Pasting="OnDimensionPasting"/><TextBlock Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextMuted}" Text="mm"/></Grid></StackPanel>
+                                <StackPanel Grid.Column="4"><TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Höhe (optional)"/><Grid Height="38" Margin="0,4,0,0"><TextBox Padding="10,0,34,0" Text="{Binding EffectiveHeightMmText, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="OnDimensionPreviewTextInput" DataObject.Pasting="OnDimensionPasting"/><TextBlock Margin="0,0,10,0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{DynamicResource Brush.TextMuted}" Text="mm"/></Grid></StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Expander>
+                </Border>
 
                 <TextBlock Margin="0,16,0,0" FontWeight="SemiBold" Text="Lieferstatus" />
                 <ComboBox Margin="0,6,0,0"

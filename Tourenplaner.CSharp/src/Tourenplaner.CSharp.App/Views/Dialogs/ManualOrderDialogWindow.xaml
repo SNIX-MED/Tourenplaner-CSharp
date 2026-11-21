@@ -642,6 +642,13 @@
                                                     Style="{StaticResource SuccessButtonStyle}"
                                                     IsEnabled="{Binding IsEditingEnabled}"
                                                     Click="OnAddProductClicked" />
+                                            <Button Margin="8,0,0,0"
+                                                    Height="34"
+                                                    VerticalAlignment="Bottom"
+                                                    Content="Packstück erstellen"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    IsEnabled="{Binding CanCreatePackage}"
+                                                    Click="OnCreatePackageClicked" />
                                             <ComboBox Width="180"
                                                       Height="34"
                                                       Margin="8,0,0,0"
@@ -654,6 +661,47 @@
                                     </Grid>
 
                                     <StackPanel Grid.Row="1" Margin="0,10,0,8">
+                                        <ItemsControl ItemsSource="{Binding OrderPackages}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,0,0,10" Padding="10" CornerRadius="10"
+                                                            Background="#FFF0FBF5" BorderBrush="#FF31B96B" BorderThickness="1">
+                                                        <Expander IsExpanded="True">
+                                                            <Expander.Header>
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                                    <StackPanel>
+                                                                        <TextBlock FontSize="15" FontWeight="SemiBold" Text="{Binding Heading}" />
+                                                                        <TextBlock Margin="0,2,0,0" FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="{Binding Summary}" />
+                                                                    </StackPanel>
+                                                                    <StackPanel Grid.Column="1" Margin="12,0,0,0" Orientation="Horizontal">
+                                                                        <Button Padding="10,4" Content="Bearbeiten" Style="{StaticResource SecondaryButtonStyle}" Click="OnEditOrderPackageClicked" />
+                                                                        <Button Margin="6,0,0,0" Padding="10,4" Content="Auflösen" Style="{StaticResource SecondaryButtonStyle}" Click="OnDissolveOrderPackageClicked" />
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Expander.Header>
+                                                            <ListBox Margin="18,8,0,0" Padding="0" Background="Transparent" BorderThickness="0"
+                                                                     SelectionMode="Extended" SelectionChanged="OnProductSelectionChanged"
+                                                                     MouseDoubleClick="OnProductGridDoubleClick" ItemsSource="{Binding Products}">
+                                                                <ListBox.ItemContainerStyle>
+                                                                    <Style TargetType="ListBoxItem"><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,0,6"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style>
+                                                                </ListBox.ItemContainerStyle>
+                                                                <ListBox.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <controls:ProductOverviewCard Title="{Binding DisplayTitle}" Supplier="{Binding Supplier}"
+                                                                            ExpectedDelivery="{Binding DisplayExpectedDelivery}" DimensionsLine="{Binding DimensionsLine}"
+                                                                            WeightLine="{Binding WeightLine}" TotalLine="{Binding TotalLine}" DeliveryStatus="{Binding DeliveryStatus}"
+                                                                            BackgroundColor="{Binding StatusBackgroundColor}" BorderColor="{Binding StatusBorderColor}"
+                                                                            IsSelected="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                                                                            HasSupplier="{Binding HasSupplier}" HasExpectedDelivery="{Binding HasExpectedDelivery}" HasDimensions="{Binding HasDimensions}" />
+                                                                    </DataTemplate>
+                                                                </ListBox.ItemTemplate>
+                                                            </ListBox>
+                                                        </Expander>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                         <ItemsControl ItemsSource="{Binding DeliveryProductGroups}"
                                                       Visibility="{Binding HasDeliveryProductGroups, Converter={StaticResource BoolToVisibilityConverter}}">
                                             <ItemsControl.ItemTemplate>

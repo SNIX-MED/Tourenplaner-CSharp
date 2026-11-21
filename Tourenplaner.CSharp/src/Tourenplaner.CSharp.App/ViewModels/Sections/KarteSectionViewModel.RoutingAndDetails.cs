@@ -866,6 +866,8 @@ public sealed partial class KarteSectionViewModel
                 UnitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(x),
                 WeightKg = OrderProductFormatter.ResolveUnitWeightKg(x) * quantity,
                 Dimensions = x.Dimensions,
+                EffectiveUnitWeightKg = x.EffectiveUnitWeightKg,
+                EffectiveDimensions = x.EffectiveDimensions,
                 DeliveryStatus = x.DeliveryStatus
             }
             : new OrderProductInfo()).ToList();
@@ -1037,6 +1039,7 @@ public sealed partial class KarteSectionViewModel
                 Longitude = x.Longitude,
                 PlannedStayMinutes = x.PlannedStayMinutes,
                 EmployeeInfoText = x.EmployeeInfoText,
+                DeliveryLabel = x.DeliveryLabel,
                 IsManualStop = x.IsManualStop
             })
             .ToList();
@@ -1977,7 +1980,7 @@ public sealed partial class KarteSectionViewModel
         OnPropertyChanged(nameof(LegendAvisoBadgeColorBestaetigt));
         OnPropertyChanged(nameof(DetailOrderStatusColor));
         OnPropertyChanged(nameof(DetailOrderStatusBadgeBackgroundColor));
-        OnPropertyChanged(nameof(DetailProductItems));
+        RaiseDetailProductCollectionsChanged();
     }
 
     private string _confirmedFullTourSignature = string.Empty;
@@ -2070,6 +2073,7 @@ public sealed partial class KarteSectionViewModel
             Address = BuildRouteStopAddressLine(order.Street, order.PostalCodeCity, order.Address),
             Latitude = order.Latitude,
             Longitude = order.Longitude,
+            DeliveryLabel = order.DeliveryLabel,
             PlannedStayMinutes = ResolveDefaultServiceMinutesForDeliveryType(order.DeliveryLabel)
         };
 
@@ -3190,6 +3194,17 @@ public sealed partial class KarteSectionViewModel
             updated.IsFull = existingTour.IsFull;
             updated.FullReason = existingTour.FullReason;
             updated.FullNote = existingTour.FullNote;
+            updated.LoadPlanPlacements = (existingTour.LoadPlanPlacements ?? []).Select(item => new TourLoadPlanPlacement
+            {
+                ProductId = item.ProductId,
+                LoadingAreaId = item.LoadingAreaId,
+                Xcm = item.Xcm,
+                Ycm = item.Ycm,
+                IsRotated = item.IsRotated
+            }).ToList();
+            updated.LoadPlanPackages = CloneLoadPlanPackages(existingTour.LoadPlanPackages);
+            updated.LoadPlanSourceSignature = existingTour.LoadPlanSourceSignature;
+            updated.LoadPlanSavedAtUtc = existingTour.LoadPlanSavedAtUtc;
             tourDetails?.ApplyFullStatusTo(updated);
             // Recheck against the freshly loaded record if the full marker changed remotely.
             if (updated.Stops.Any(stop => !TourStopIdentity.IsCompanyStop(stop) && !TourStopIdentity.IsPauseStop(stop) &&
@@ -3528,6 +3543,17 @@ public sealed partial class KarteSectionViewModel
             IsFull = source.IsFull,
             FullReason = source.FullReason,
             FullNote = source.FullNote,
+            LoadPlanPlacements = (source.LoadPlanPlacements ?? []).Select(item => new TourLoadPlanPlacement
+            {
+                ProductId = item.ProductId,
+                LoadingAreaId = item.LoadingAreaId,
+                Xcm = item.Xcm,
+                Ycm = item.Ycm,
+                IsRotated = item.IsRotated
+            }).ToList(),
+            LoadPlanPackages = CloneLoadPlanPackages(source.LoadPlanPackages),
+            LoadPlanSourceSignature = source.LoadPlanSourceSignature,
+            LoadPlanSavedAtUtc = source.LoadPlanSavedAtUtc,
             ConcurrencyToken = source.ConcurrencyToken,
             TravelTimeCache = (source.TravelTimeCache ?? new Dictionary<string, int>())
                 .ToDictionary(x => (x.Key ?? string.Empty).Trim(), x => x.Value, StringComparer.OrdinalIgnoreCase),
@@ -3548,6 +3574,19 @@ public sealed partial class KarteSectionViewModel
                 .ToList()
         };
     }
+
+    private static List<TourLoadPlanPackage> CloneLoadPlanPackages(IEnumerable<TourLoadPlanPackage>? packages) =>
+        (packages ?? []).Select(item => new TourLoadPlanPackage
+        {
+            Id = item.Id,
+            OrderId = item.OrderId,
+            Name = item.Name,
+            PackageType = item.PackageType,
+            WidthMm = item.WidthMm,
+            DepthMm = item.DepthMm,
+            HeightMm = item.HeightMm,
+            ProductIds = (item.ProductIds ?? []).ToList()
+        }).ToList();
 
     private async Task LoadSelectedSavedTourAsync(int previousTourId)
     {
@@ -3837,7 +3876,6 @@ public sealed partial class KarteSectionViewModel
         OnPropertyChanged(nameof(IsLoadedTourEditing));
         OnPropertyChanged(nameof(IsLoadedTourReadOnly));
         OnPropertyChanged(nameof(CanReorderRouteStops));
-        OnPropertyChanged(nameof(LoadedTourAccessText));
         OnPropertyChanged(nameof(StartTourEditingToolTip));
         RaiseCommandStates();
     }
@@ -3918,6 +3956,10 @@ public sealed partial class KarteSectionViewModel
                         IsCompanyAnchor = false,
                         IsPauseStop = isPause,
                         IsManualStop = isManual, ManualAvisoStatus = stop.ManualAvisoStatus, ManualWindowStart = stop.IsArrivalWindowFixed ? stop.PlannedArrivalOptimistic : string.Empty, ManualWindowEnd = stop.IsArrivalWindowFixed ? stop.PlannedArrivalPessimistic : string.Empty, AvisoStatus = isManual ? stop.ManualAvisoStatus : string.Empty,
+                        DeliveryLabel = isPause || isManual
+                            ? DeliveryMethodExtensions.FreiBordsteinkante
+                            : NormalizeDeliveryType(_allOrders.FirstOrDefault(order =>
+                                string.Equals(order.Id, ExtractTourStopOrderId(stop), StringComparison.OrdinalIgnoreCase))?.DeliveryType),
                         PlannedStayMinutes = isPause
                             ? Math.Max(0, stop.ServiceMinutes)
                             : isManual ? Math.Max(0, stop.ServiceMinutes) : ResolvePlannedStayMinutes(stop.ServiceMinutes, ExtractTourStopOrderId(stop)),
@@ -4730,6 +4772,8 @@ public sealed partial class KarteSectionViewModel
                                   (stop.OrderId ?? string.Empty).StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase),
                     IsManualStop = string.Equals((stop.StopKind ?? string.Empty).Trim(), ManualStopKind, StringComparison.OrdinalIgnoreCase) ||
                                    (stop.OrderId ?? string.Empty).StartsWith(ManualStopIdPrefix, StringComparison.OrdinalIgnoreCase),
+                    DeliveryLabel = NormalizeDeliveryType(_allOrders.FirstOrDefault(order =>
+                        string.Equals(order.Id, stop.OrderId, StringComparison.OrdinalIgnoreCase))?.DeliveryType),
                     IsArchivedOrder = IsRouteStopArchived(stop.OrderId),
                     PlannedStayMinutes = string.Equals((stop.StopKind ?? string.Empty).Trim(), PauseStopKind, StringComparison.OrdinalIgnoreCase) ||
                                          (stop.OrderId ?? string.Empty).StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase)
@@ -5176,6 +5220,7 @@ public sealed partial class KarteSectionViewModel
                 .Sum(display => display.VehiclePayloadKg.GetValueOrDefault() + display.TrailerLoadKg.GetValueOrDefault()))
         {
             IsFull = loadedTour.IsFull,
+            ShowFullBadge = false,
             FullDescription = TourFullWarning.Description(loadedTour),
             VehicleName = string.IsNullOrWhiteSpace(summaryVehicleId) ? "Nicht zugewiesen" :
                 _vehicleData.Vehicles.FirstOrDefault(vehicle => string.Equals(vehicle.Id, summaryVehicleId, StringComparison.OrdinalIgnoreCase))?.Name ?? summaryVehicleId,
@@ -5551,12 +5596,28 @@ public sealed partial class KarteSectionViewModel
             GroupId = (x.GroupId ?? string.Empty).Trim(),
             GroupName = (x.GroupName ?? string.Empty).Trim(),
             WeightKg = Math.Max(0, x.WeightKg),
+            RequiresLoadingSpace = x.RequiresLoadingSpace || (x.Items ?? []).Any(i => i.RequiresLoadingSpace),
+            WidthMm = ResolveAdditionalMaterialGroupWidth(x),
+            DepthMm = ResolveAdditionalMaterialGroupDepth(x),
+            HeightMm = ResolveAdditionalMaterialGroupHeight(x),
             Items = (x.Items ?? []).Select(i => new AdditionalMaterialItem
             {
+                Id = string.IsNullOrWhiteSpace(i.Id) ? Guid.NewGuid().ToString("N") : i.Id,
                 Name = (i.Name ?? string.Empty).Trim(),
-                WeightKg = Math.Max(0, i.WeightKg)
+                Quantity = Math.Max(1, i.Quantity), WeightKg = Math.Max(0, i.WeightKg),
+                RequiresLoadingSpace = i.RequiresLoadingSpace,
+                WidthMm = Math.Max(0, i.WidthMm), DepthMm = Math.Max(0, i.DepthMm), HeightMm = Math.Max(0, i.HeightMm)
             }).ToList()
         }).ToList();
+
+    private static int ResolveAdditionalMaterialGroupWidth(TourAdditionalMaterial group) =>
+        group.WidthMm > 0 ? group.WidthMm : (group.Items ?? []).Select(item => Math.Max(0, item.WidthMm)).DefaultIfEmpty().Max();
+
+    private static int ResolveAdditionalMaterialGroupDepth(TourAdditionalMaterial group) =>
+        group.DepthMm > 0 ? group.DepthMm : (group.Items ?? []).Sum(item => Math.Max(0, item.DepthMm) * Math.Max(1, item.Quantity));
+
+    private static int ResolveAdditionalMaterialGroupHeight(TourAdditionalMaterial group) =>
+        group.HeightMm > 0 ? group.HeightMm : (group.Items ?? []).Select(item => Math.Max(0, item.HeightMm)).DefaultIfEmpty().Max();
 
     private async Task<string?> BuildAvailabilityErrorAsync(
         string routeDate,
@@ -5725,6 +5786,7 @@ public sealed partial class KarteSectionViewModel
         RaiseCanExecuteChangedIfSupported(OptimizeRouteCommand);
         RaiseCanExecuteChangedIfSupported(OpenCreateTourDialogCommand);
         RaiseCanExecuteChangedIfSupported(EditSelectedTourCommand);
+        RaiseCanExecuteChangedIfSupported(OpenLoadPlanCommand);
         RaiseCanExecuteChangedIfSupported(EditSelectedTourOverviewCommand);
         RaiseCanExecuteChangedIfSupported(StartSelectedTourEditingCommand);
         RaiseCanExecuteChangedIfSupported(ArchiveSelectedTourCommand);
@@ -5734,6 +5796,7 @@ public sealed partial class KarteSectionViewModel
         OnPropertyChanged(nameof(CurrentTourPrimaryActionText));
         OnPropertyChanged(nameof(CurrentTourPrimaryActionToolTip));
         OnPropertyChanged(nameof(CurrentTourPrimaryActionAccessibleName));
+        OnPropertyChanged(nameof(CurrentLoadPlanNeedsReview));
         RaiseCanExecuteChangedIfSupported(SendCurrentTourToWebfleetCommand);
         RaiseCanExecuteChangedIfSupported(OpenSelectedTourOverviewCommand);
         RaiseCanExecuteChangedIfSupported(ClearRouteCommand);
@@ -5782,6 +5845,376 @@ public sealed partial class KarteSectionViewModel
     private bool CanEditOrLeaveSelectedTour()
     {
         return ResolveCurrentTourId() > 0;
+    }
+
+    private bool CanOpenLoadPlan() => ResolveCurrentTourId() > 0 && RouteStops.Any(IsOrderStop);
+
+    public bool CurrentLoadPlanNeedsReview
+    {
+        get
+        {
+            var tour = _savedTours.FirstOrDefault(candidate => candidate.Id == ResolveCurrentTourId());
+            if (tour is null || ((tour.LoadPlanPlacements?.Count ?? 0) == 0 &&
+                                 (tour.LoadPlanPackages?.Count ?? 0) == 0 &&
+                                 string.IsNullOrWhiteSpace(tour.LoadPlanSourceSignature))) return false;
+            if (string.IsNullOrWhiteSpace(tour.LoadPlanSourceSignature)) return true;
+            var orders = BuildCurrentLoadPlanOrders();
+            var areas = BuildCurrentLoadPlanAreas(tour);
+            var packages = BuildEffectiveLoadPlanPackages(tour, orders);
+            return !string.Equals(tour.LoadPlanSourceSignature,
+                BuildLoadPlanSourceSignature(tour, orders, areas, packages), StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private List<LoadPlanOrderItem> BuildCurrentLoadPlanOrders() => RouteStops
+        .Where(IsOrderStop)
+        .Select((stop, index) => BuildLoadPlanOrder(stop, BuildLoadPlanStopLetter(index)))
+        .Where(order => order is not null).Cast<LoadPlanOrderItem>().ToList();
+
+    private List<LoadPlanAreaItem> BuildCurrentLoadPlanAreas(TourRecord tour) =>
+        BuildVehicleAssignments(tour.VehicleId, tour.TrailerId, tour.SecondaryVehicleId, tour.SecondaryTrailerId)
+            .SelectMany((assignment, index) => BuildLoadPlanAreas(assignment.VehicleId, assignment.TrailerId, index + 1))
+            .ToList();
+
+    private List<TourLoadPlanPackage> BuildEffectiveLoadPlanPackages(TourRecord tour, IReadOnlyList<LoadPlanOrderItem> orders)
+    {
+        var packages = CloneLoadPlanPackages(tour.LoadPlanPackages)
+            .Where(package => !package.Id.StartsWith("order-package:", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        foreach (var loadOrder in orders)
+        {
+            var sourceOrder = _allOrders.FirstOrDefault(order => string.Equals(order.Id, loadOrder.OrderId, StringComparison.OrdinalIgnoreCase));
+            foreach (var package in sourceOrder?.Packages ?? [])
+            {
+                var packageId = $"order-package:{package.Id}";
+                var positions = (package.ProductPositionIds ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var productIds = loadOrder.Products.Where(product => positions.Contains(product.SourceProductPositionId))
+                    .Select(product => product.Id).ToList();
+                if (productIds.Count == 0) continue;
+                var existing = packages.FirstOrDefault(candidate => string.Equals(candidate.Id, packageId, StringComparison.OrdinalIgnoreCase));
+                if (existing is null)
+                {
+                    existing = new TourLoadPlanPackage { Id = packageId };
+                    packages.Add(existing);
+                }
+                existing.OrderId = loadOrder.LoadPlanKey;
+                existing.Name = package.Name;
+                existing.PackageType = package.PackageType;
+                existing.WidthMm = package.WidthMm;
+                existing.DepthMm = package.DepthMm;
+                existing.HeightMm = package.HeightMm;
+                existing.ProductIds = productIds;
+            }
+        }
+        return packages;
+    }
+
+    private static string BuildLoadPlanSourceSignature(TourRecord tour, IEnumerable<LoadPlanOrderItem> orders,
+        IEnumerable<LoadPlanAreaItem> areas, IEnumerable<TourLoadPlanPackage> packages)
+    {
+        var value = new StringBuilder()
+            .Append(tour.VehicleId).Append('|').Append(tour.TrailerId).Append('|')
+            .Append(tour.SecondaryVehicleId).Append('|').Append(tour.SecondaryTrailerId).AppendLine();
+        foreach (var area in areas.OrderBy(area => area.Id, StringComparer.OrdinalIgnoreCase))
+            value.Append(area.Id).Append('|').Append(area.LengthCm).Append('|').Append(area.WidthCm).Append('|').Append(area.HeightCm).Append('|').Append(area.MaxPayloadKg).AppendLine();
+        foreach (var product in orders.SelectMany(order => order.Products).OrderBy(product => product.Id, StringComparer.OrdinalIgnoreCase))
+            value.Append(product.Id).Append('|').Append(product.Name).Append('|')
+                .Append(product.DimensionsMm.Width).Append('|').Append(product.DimensionsMm.Depth).Append('|').Append(product.DimensionsMm.Height).Append('|')
+                .Append(product.WeightKg.ToString("R", CultureInfo.InvariantCulture)).AppendLine();
+        foreach (var group in (tour.AdditionalMaterials ?? []).OrderBy(group => group.GroupId, StringComparer.OrdinalIgnoreCase))
+        {
+            value.Append("material-group|").Append(group.GroupId).Append('|').Append(group.GroupName).Append('|')
+                .Append(group.RequiresLoadingSpace).Append('|').Append(ResolveAdditionalMaterialGroupWidth(group)).Append('|')
+                .Append(ResolveAdditionalMaterialGroupDepth(group)).Append('|').Append(ResolveAdditionalMaterialGroupHeight(group)).Append('|')
+                .Append(group.WeightKg.ToString("R", CultureInfo.InvariantCulture)).AppendLine();
+            foreach (var item in (group.Items ?? []).OrderBy(item => item.Id, StringComparer.OrdinalIgnoreCase))
+                value.Append("material-item|").Append(item.Id).Append('|').Append(item.Name).Append('|')
+                    .Append(Math.Max(1, item.Quantity)).Append('|')
+                    .Append(item.WeightKg.ToString("R", CultureInfo.InvariantCulture)).AppendLine();
+        }
+        foreach (var package in packages.OrderBy(package => package.Id, StringComparer.OrdinalIgnoreCase))
+        {
+            value.Append(package.Id).Append('|').Append(package.OrderId).Append('|').Append(package.Name).Append('|').Append(package.PackageType).Append('|')
+                .Append(package.WidthMm).Append('|').Append(package.DepthMm).Append('|').Append(package.HeightMm).Append('|');
+            foreach (var id in (package.ProductIds ?? []).OrderBy(id => id, StringComparer.OrdinalIgnoreCase)) value.Append(id).Append(',');
+            value.AppendLine();
+        }
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(value.ToString())));
+    }
+
+    private async Task OpenLoadPlanAsync()
+    {
+        if (!CanOpenLoadPlan())
+        {
+            return;
+        }
+
+        var orders = BuildCurrentLoadPlanOrders();
+
+        var tour = _savedTours.FirstOrDefault(candidate => candidate.Id == ResolveCurrentTourId());
+        var loadingAreas = tour is null ? [] : BuildCurrentLoadPlanAreas(tour);
+        var loadPlanPackages = tour is null ? [] : BuildEffectiveLoadPlanPackages(tour, orders);
+        var additionalMaterials = tour is null ? [] : BuildLoadPlanAdditionalMaterials(tour);
+
+        var dialog = new LoadPlanWindow(
+            string.IsNullOrWhiteSpace(RouteName) ? $"Tour {ResolveCurrentTourId()}" : RouteName.Trim(),
+            orders,
+            additionalMaterials,
+            loadingAreas,
+            loadPlanPackages,
+            tour?.LoadPlanPlacements ?? [],
+            EditLoadPlanProductAsync,
+            _additionalMaterialGroups,
+            tour?.AdditionalMaterials ?? [],
+            ManageAdditionalMaterialGroupsFromLoadPlanAsync)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        if (dialog.ShowDialog() != true || tour is null) return;
+
+        try
+        {
+            var current = _tourMutationStore is not null
+                ? await _tourMutationStore.GetByIdAsync(tour.Id)
+                : (await _tourRepository.LoadAsync()).FirstOrDefault(candidate => candidate.Id == tour.Id);
+            if (current is null)
+            {
+                ToastNotificationService.ShowInfo("Die Tour wurde zwischenzeitlich gelöscht.");
+                return;
+            }
+
+            current.LoadPlanPlacements = dialog.SavedPlacements.Select(item => new TourLoadPlanPlacement
+            {
+                ProductId = item.ProductId,
+                LoadingAreaId = item.LoadingAreaId,
+                Xcm = item.Xcm,
+                Ycm = item.Ycm,
+                IsRotated = item.IsRotated
+            }).ToList();
+            current.LoadPlanPackages = dialog.SavedPackages.Select(item => new TourLoadPlanPackage
+            {
+                Id = item.Id,
+                OrderId = item.OrderId,
+                Name = item.Name,
+                PackageType = item.PackageType,
+                WidthMm = item.WidthMm,
+                DepthMm = item.DepthMm,
+                HeightMm = item.HeightMm,
+                ProductIds = item.ProductIds.ToList()
+            }).ToList();
+            current.AdditionalMaterials = CloneAdditionalMaterials(dialog.SavedAdditionalMaterials);
+            current.LoadPlanSourceSignature = BuildLoadPlanSourceSignature(current, orders, loadingAreas, current.LoadPlanPackages);
+            current.LoadPlanSavedAtUtc = DateTimeOffset.UtcNow;
+            if (_tourMutationStore is not null)
+            {
+                await _tourMutationStore.UpsertAsync(current);
+            }
+            else
+            {
+                var allTours = (await _tourRepository.LoadAsync()).ToList();
+                var index = allTours.FindIndex(candidate => candidate.Id == current.Id);
+                if (index >= 0) allTours[index] = current;
+                await _tourRepository.SaveAsync(allTours);
+            }
+
+            var localIndex = _savedTours.FindIndex(candidate => candidate.Id == current.Id);
+            if (localIndex >= 0) _savedTours[localIndex] = current;
+            OnPropertyChanged(nameof(CurrentLoadPlanNeedsReview));
+            _dataSyncService.PublishTours(_instanceId, current.Id.ToString(CultureInfo.InvariantCulture),
+                current.Id.ToString(CultureInfo.InvariantCulture));
+            ToastNotificationService.ShowInfo("Ladeplan gespeichert.");
+        }
+        catch (Exception ex)
+        {
+            ToastNotificationService.ShowInfo($"Ladeplan konnte nicht gespeichert werden: {ex.Message}");
+        }
+    }
+
+    private async Task<IReadOnlyList<AdditionalMaterialGroup>?> ManageAdditionalMaterialGroupsFromLoadPlanAsync()
+    {
+        var owner = System.Windows.Application.Current?.Windows.OfType<System.Windows.Window>()
+            .FirstOrDefault(window => window.IsActive) ?? System.Windows.Application.Current?.MainWindow;
+        var dialog = new AdditionalMaterialGroupsDialogWindow(_additionalMaterialGroups) { Owner = owner };
+        if (dialog.ShowDialog() != true) return null;
+
+        var settings = await _settingsRepository.LoadAsync();
+        settings.AdditionalMaterialGroups = dialog.Result.ToList();
+        await _settingsRepository.SaveAsync(settings);
+        _additionalMaterialGroups = dialog.Result.ToList();
+        ToastNotificationService.ShowInfo("Zusatzmaterial gespeichert.");
+        return _additionalMaterialGroups;
+    }
+
+    private async Task<OrderProductInfo?> EditLoadPlanProductAsync(LoadPlanProductItem item)
+    {
+        var source = _allOrders.FirstOrDefault(order =>
+            string.Equals(order.Id, item.SourceOrderId, StringComparison.OrdinalIgnoreCase));
+        if (source is null) return null;
+        var candidate = OrderEditPersistenceService.CreateCandidate(source);
+        var products = candidate.Products ?? [];
+        var index = products.FindIndex(product =>
+            string.Equals(product.PositionId, item.SourceProductPositionId, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return null;
+
+        var dialog = new OrderProductDialogWindow(ProductLineInput.FromOrderProductInfo(products[index]))
+        {
+            Owner = System.Windows.Application.Current?.Windows.OfType<System.Windows.Window>()
+                .FirstOrDefault(window => window.IsActive) ?? System.Windows.Application.Current?.MainWindow
+        };
+        if (dialog.ShowDialog() != true || dialog.Result is null) return null;
+
+        var updated = dialog.Result.ToOrderProductInfo();
+        products[index] = updated;
+        candidate.OrderStatus = Order.ResolveOrderStatusFromProducts(products);
+        await SaveOrderCandidateAsync(candidate);
+        RebuildOrderGrid(candidate.Id);
+        RefreshRouteVisualsAfterOrderMutation();
+        PublishOrderChange(candidate.Id, candidate.Id);
+        StatusText = $"Produkt in Auftrag {candidate.Id} wurde aktualisiert.";
+        return updated;
+    }
+
+    private static List<LoadPlanProductItem> BuildLoadPlanAdditionalMaterials(TourRecord tour)
+    {
+        var result = new List<LoadPlanProductItem>();
+        foreach (var group in tour.AdditionalMaterials ?? [])
+        {
+            var widthMm = ResolveAdditionalMaterialGroupWidth(group);
+            var depthMm = ResolveAdditionalMaterialGroupDepth(group);
+            var heightMm = ResolveAdditionalMaterialGroupHeight(group);
+            if (!group.RequiresLoadingSpace || widthMm <= 0 || depthMm <= 0) continue;
+            var groupId = string.IsNullOrWhiteSpace(group.GroupId)
+                ? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                    Encoding.UTF8.GetBytes(group.GroupName ?? string.Empty)))[..12]
+                : group.GroupId;
+            result.Add(new LoadPlanProductItem(
+                $"material-group:{groupId}", (group.GroupName ?? string.Empty).Trim(), 1, 1,
+                new ProductDimensionsMm(widthMm, depthMm, heightMm),
+                Math.Max(0, group.WeightKg), "Z", "square"));
+        }
+        return result;
+    }
+
+    private IEnumerable<LoadPlanAreaItem> BuildLoadPlanAreas(string vehicleId, string trailerId, int assignmentNumber)
+    {
+        var capacity = VehicleCombinationDisplayResolver.Resolve(_vehicleData, vehicleId, trailerId);
+        var vehicle = _vehicleData.Vehicles.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, vehicleId, StringComparison.OrdinalIgnoreCase));
+        if (vehicle is not null)
+        {
+            yield return new LoadPlanAreaItem(
+                $"vehicle:{vehicle.Id}",
+                assignmentNumber,
+                false,
+                string.IsNullOrWhiteSpace(vehicle.Name) ? vehicle.Id : vehicle.Name,
+                vehicle.LicensePlate,
+                vehicle.LoadingArea?.LengthCm ?? 0,
+                vehicle.LoadingArea?.WidthCm ?? 0,
+                vehicle.LoadingArea?.HeightCm ?? 0,
+                Math.Max(0, capacity.VehiclePayloadKg ?? vehicle.MaxPayloadKg));
+        }
+
+        var trailer = _vehicleData.Trailers.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, trailerId, StringComparison.OrdinalIgnoreCase));
+        if (trailer is not null)
+        {
+            yield return new LoadPlanAreaItem(
+                $"trailer:{trailer.Id}",
+                assignmentNumber,
+                true,
+                string.IsNullOrWhiteSpace(trailer.Name) ? trailer.Id : trailer.Name,
+                trailer.LicensePlate,
+                trailer.LoadingArea?.LengthCm ?? 0,
+                trailer.LoadingArea?.WidthCm ?? 0,
+                trailer.LoadingArea?.HeightCm ?? 0,
+                Math.Max(0, capacity.TrailerLoadKg ?? trailer.MaxPayloadKg));
+        }
+    }
+
+    private LoadPlanOrderItem? BuildLoadPlanOrder(RouteStopItem stop, string stopLetter)
+    {
+        var order = _allOrders.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, stop.OrderId, StringComparison.OrdinalIgnoreCase));
+        if (order is null)
+        {
+            return null;
+        }
+
+        var products = order.Products ?? [];
+        if (!string.IsNullOrWhiteSpace(stop.DeliveryId))
+        {
+            var delivery = (order.Deliveries ?? []).FirstOrDefault(candidate =>
+                string.Equals(candidate.Id, stop.DeliveryId, StringComparison.OrdinalIgnoreCase));
+            if (delivery is not null)
+            {
+                var quantities = (delivery.Lines ?? [])
+                    .ToDictionary(line => line.OrderProductPositionId, line => line.Quantity, StringComparer.OrdinalIgnoreCase);
+                products = products
+                    .Where(product => quantities.TryGetValue(product.PositionId, out var quantity) && quantity > 0)
+                    .Select(product => new OrderProductInfo
+                    {
+                        PositionId = product.PositionId,
+                        ExternalPositionId = product.ExternalPositionId,
+                        Name = product.Name,
+                        Quantity = quantities[product.PositionId],
+                        UnitWeightKg = OrderProductFormatter.ResolveUnitWeightKg(product),
+                        WeightKg = OrderProductFormatter.ResolveUnitWeightKg(product) * quantities[product.PositionId],
+                        Dimensions = product.Dimensions,
+                        EffectiveUnitWeightKg = product.EffectiveUnitWeightKg,
+                        EffectiveDimensions = product.EffectiveDimensions
+                    })
+                    .ToList();
+            }
+        }
+
+        var productItems = products
+            .Where(product => !string.IsNullOrWhiteSpace(product.Name))
+            .SelectMany(product =>
+            {
+                var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
+                var loadDimensions = string.IsNullOrWhiteSpace(product.EffectiveDimensions)
+                    ? product.Dimensions : product.EffectiveDimensions;
+                var dimensions = ProductDimensionsMm.TryParse(loadDimensions, out var parsedDimensions)
+                    ? parsedDimensions
+                    : default;
+                return Enumerable.Range(1, quantity).Select(unit => new LoadPlanProductItem(
+                    $"{stop.MarkerId}:{product.PositionId}:{unit}",
+                    product.Name.Trim(),
+                    unit,
+                    quantity,
+                    dimensions,
+                    OrderProductFormatter.ResolveUnitWeightKg(product),
+                    stopLetter,
+                    ResolveLoadPlanMarkerShape(order.DeliveryType),
+                    order.Id,
+                    product.PositionId));
+            })
+            .ToList();
+
+        return new LoadPlanOrderItem(stop.MarkerId, stop.OrderId, stop.Customer, stop.Address, stopLetter,
+            ResolveLoadPlanMarkerShape(order.DeliveryType), productItems);
+    }
+
+    private static string BuildLoadPlanStopLetter(int index)
+    {
+        var value = Math.Max(0, index) + 1;
+        var result = string.Empty;
+        while (value > 0)
+        {
+            value--;
+            result = (char)('A' + value % 26) + result;
+            value /= 26;
+        }
+        return result;
+    }
+
+    private static string ResolveLoadPlanMarkerShape(string? deliveryType)
+    {
+        var normalized = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(deliveryType);
+        if (normalized.Contains("Montage", StringComparison.OrdinalIgnoreCase)) return "triangle";
+        if (normalized.Contains("Verteilung", StringComparison.OrdinalIgnoreCase)) return "square";
+        return "circle";
     }
 
     private bool CanStartSelectedTourEditing()
@@ -6493,13 +6926,101 @@ public sealed partial class KarteSectionViewModel
         await SaveOrderCandidateAsync(order);
         RebuildOrderGrid(order.Id);
         OnPropertyChanged(nameof(DetailProducts));
-        OnPropertyChanged(nameof(DetailProductItems));
+        RaiseDetailProductCollectionsChanged();
         OnPropertyChanged(nameof(DetailOrderStatus));
         OnPropertyChanged(nameof(DetailOrderStatusColor));
         OnPropertyChanged(nameof(DetailOrderStatusBadgeBackgroundColor));
         RefreshRouteVisualsAfterOrderMutation();
         PublishOrderChange(order.Id, order.Id);
         StatusText = $"Produkt in Auftrag {order.Id} wurde aktualisiert.";
+    }
+
+    public async Task CreateDetailPackageAsync()
+    {
+        if (!CanCreateDetailPackage) return;
+        var selected = FindSelectedOrderModel();
+        var order = selected is null ? null : OrderEditPersistenceService.CreateCandidate(selected);
+        if (order is null) return;
+        var products = _selectedDetailProductIndices.Where(index => index >= 0 && index < order.Products.Count)
+            .Select(index => order.Products[index]).ToList();
+        if (products.Count < 2) return;
+
+        var dialog = new LoadPlanPackageDialogWindow($"Packstück {(order.Packages?.Count ?? 0) + 1}")
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        order.Packages ??= [];
+        order.Packages.Add(new OrderPackageInfo
+        {
+            Id = Guid.NewGuid().ToString("N"), Name = dialog.PackageName, PackageType = dialog.PackageType,
+            WidthMm = dialog.WidthMm, DepthMm = dialog.DepthMm, HeightMm = dialog.HeightMm,
+            ProductPositionIds = products.Select(product => product.PositionId).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+        });
+        await SaveOrderCandidateAsync(order);
+        RebuildOrderGrid(order.Id);
+        ClearDetailProductSelection(raiseDetailItemsChanged: false);
+        RaiseDetailProductCollectionsChanged();
+        OnPropertyChanged(nameof(DetailUngroupedProductItems));
+        OnPropertyChanged(nameof(DetailOrderPackageItems));
+        OnPropertyChanged(nameof(CanCreateDetailPackage));
+        RefreshRouteVisualsAfterOrderMutation();
+        PublishOrderChange(order.Id, order.Id);
+        StatusText = $"{dialog.PackageName} wurde in Auftrag {order.Id} erstellt.";
+    }
+
+    public async Task EditDetailPackageAsync(DetailOrderPackageItem? packageItem)
+    {
+        var selected = FindSelectedOrderModel();
+        var order = selected is null ? null : OrderEditPersistenceService.CreateCandidate(selected);
+        var package = order?.Packages?.FirstOrDefault(candidate => string.Equals(
+            candidate.Id, packageItem?.Id, StringComparison.OrdinalIgnoreCase));
+        if (order is null || package is null) return;
+
+        var dialog = new LoadPlanPackageDialogWindow(package.Name, package.PackageType,
+            package.WidthMm, package.DepthMm, package.HeightMm)
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        package.Name = dialog.PackageName;
+        package.PackageType = dialog.PackageType;
+        package.WidthMm = dialog.WidthMm;
+        package.DepthMm = dialog.DepthMm;
+        package.HeightMm = dialog.HeightMm;
+        await SaveDetailPackageChangeAsync(order, $"{package.Name} wurde aktualisiert.");
+    }
+
+    public async Task DissolveDetailPackageAsync(DetailOrderPackageItem? packageItem)
+    {
+        var selected = FindSelectedOrderModel();
+        var order = selected is null ? null : OrderEditPersistenceService.CreateCandidate(selected);
+        var package = order?.Packages?.FirstOrDefault(candidate => string.Equals(
+            candidate.Id, packageItem?.Id, StringComparison.OrdinalIgnoreCase));
+        if (order is null || package is null) return;
+
+        var confirmation = AppMessageBox.ShowConfirmation(
+            System.Windows.Application.Current?.MainWindow,
+            $"Soll das Packstück \"{package.Name}\" aufgelöst werden? Die Produkte bleiben im Auftrag erhalten.",
+            "Packstück auflösen", "Abbrechen", "Auflösen");
+        if (confirmation != MessageBoxResult.Yes) return;
+
+        order.Packages.Remove(package);
+        await SaveDetailPackageChangeAsync(order, $"{package.Name} wurde aufgelöst.");
+    }
+
+    private async Task SaveDetailPackageChangeAsync(Order order, string statusText)
+    {
+        await SaveOrderCandidateAsync(order);
+        RebuildOrderGrid(order.Id);
+        ClearDetailProductSelection(raiseDetailItemsChanged: false);
+        RaiseDetailProductCollectionsChanged();
+        OnPropertyChanged(nameof(CanCreateDetailPackage));
+        RefreshRouteVisualsAfterOrderMutation();
+        PublishOrderChange(order.Id, order.Id);
+        StatusText = statusText;
     }
 
     public async Task SaveDetailManualTotalWeightAsync(string? value, string? info)
@@ -6574,8 +7095,9 @@ public sealed partial class KarteSectionViewModel
         }
 
         SyncDetailSelectedProductStatusFromSelection();
-        OnPropertyChanged(nameof(DetailProductItems));
+        RaiseDetailProductCollectionsChanged();
         OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(CanCreateDetailPackage));
         OnPropertyChanged(nameof(DetailSelectedProductsSummary));
         RaiseCommandStates();
     }
@@ -6596,8 +7118,9 @@ public sealed partial class KarteSectionViewModel
         _selectedDetailProductIndices.Clear();
         _selectedDetailProductIndices.Add(productIndex);
         SyncDetailSelectedProductStatusFromSelection();
-        OnPropertyChanged(nameof(DetailProductItems));
+        RaiseDetailProductCollectionsChanged();
         OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(CanCreateDetailPackage));
         OnPropertyChanged(nameof(DetailSelectedProductsSummary));
         RaiseCommandStates();
     }
@@ -6616,8 +7139,9 @@ public sealed partial class KarteSectionViewModel
         _selectedDetailProductIndices.Clear();
         _selectedDetailProductIndices.UnionWith(productIndices);
         SyncDetailSelectedProductStatusFromSelection();
-        OnPropertyChanged(nameof(DetailProductItems));
+        RaiseDetailProductCollectionsChanged();
         OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(CanCreateDetailPackage));
         OnPropertyChanged(nameof(DetailSelectedProductsSummary));
         RaiseCommandStates();
     }
@@ -6633,11 +7157,12 @@ public sealed partial class KarteSectionViewModel
         _selectedDetailProductIndices.Clear();
         if (raiseDetailItemsChanged)
         {
-            OnPropertyChanged(nameof(DetailProductItems));
+            RaiseDetailProductCollectionsChanged();
         }
 
         SyncDetailSelectedProductStatusFromSelection();
         OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(CanCreateDetailPackage));
         OnPropertyChanged(nameof(DetailSelectedProductsSummary));
         RaiseCommandStates();
     }
@@ -6667,11 +7192,12 @@ public sealed partial class KarteSectionViewModel
 
         if (raiseDetailItemsChanged)
         {
-            OnPropertyChanged(nameof(DetailProductItems));
+            RaiseDetailProductCollectionsChanged();
         }
 
         SyncDetailSelectedProductStatusFromSelection();
         OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(CanCreateDetailPackage));
         OnPropertyChanged(nameof(DetailSelectedProductsSummary));
         RaiseCommandStates();
     }
@@ -6706,11 +7232,12 @@ public sealed partial class KarteSectionViewModel
 
         if (raiseDetailItemsChanged)
         {
-            OnPropertyChanged(nameof(DetailProductItems));
+            RaiseDetailProductCollectionsChanged();
         }
 
         SyncDetailSelectedProductStatusFromSelection();
         OnPropertyChanged(nameof(HasSelectedDetailProducts));
+        OnPropertyChanged(nameof(CanCreateDetailPackage));
         OnPropertyChanged(nameof(DetailSelectedProductsSummary));
         RaiseCommandStates();
     }
@@ -6789,7 +7316,7 @@ public sealed partial class KarteSectionViewModel
         RebuildOrderGrid(order.Id);
         RestoreDetailProductSelection(selectedProductIndices, products, raiseDetailItemsChanged: false);
         OnPropertyChanged(nameof(DetailProducts));
-        OnPropertyChanged(nameof(DetailProductItems));
+        RaiseDetailProductCollectionsChanged();
         OnPropertyChanged(nameof(DetailOrderStatus));
         OnPropertyChanged(nameof(DetailOrderStatusColor));
         OnPropertyChanged(nameof(DetailOrderStatusBadgeBackgroundColor));
@@ -7032,6 +7559,7 @@ public sealed partial class KarteSectionViewModel
     {
         await OrderEditPersistenceService.SaveAsync(_orderRepository, _allOrders, candidate);
         ReplaceCommittedOrder(candidate);
+        OnPropertyChanged(nameof(CurrentLoadPlanNeedsReview));
     }
 
     private void ReplaceCommittedOrder(Order candidate)
@@ -9538,11 +10066,19 @@ public sealed partial class KarteSectionViewModel
         return normalized.Length == 7 && normalized.StartsWith('#') ? normalized.ToUpperInvariant() : fallback;
     }
 
+    private void RaiseDetailProductCollectionsChanged()
+    {
+        OnPropertyChanged(nameof(DetailProductItems));
+        OnPropertyChanged(nameof(DetailUngroupedProductItems));
+        OnPropertyChanged(nameof(DetailOrderPackageItems));
+    }
+
     private IReadOnlyList<DetailProductItem> BuildDetailProductItems(IEnumerable<OrderProductInfo>? products)
     {
         var culture = CultureInfo.CurrentCulture;
         var items = new List<DetailProductItem>();
         var sourceProducts = (products ?? []).ToList();
+        var orderProducts = FindSelectedOrderModel()?.Products ?? sourceProducts;
         for (var i = 0; i < sourceProducts.Count; i++)
         {
             var product = sourceProducts[i];
@@ -9563,8 +10099,12 @@ public sealed partial class KarteSectionViewModel
             var borderColor = ResolveProductDeliveryStatusColor(deliveryStatus);
             var backgroundColor = CreateSoftStatusBackground(deliveryStatus, borderColor);
 
+            var productIndex = orderProducts.FindIndex(candidate => string.Equals(
+                candidate.PositionId, product.PositionId, StringComparison.OrdinalIgnoreCase));
+            if (productIndex < 0) productIndex = i;
             items.Add(new DetailProductItem(
-                i,
+                productIndex,
+                product.PositionId,
                 $"{quantity}x {product.Name.Trim()}",
                 (product.Supplier ?? string.Empty).Trim(),
                 OrderProductInfo.ShouldShowExpectedDelivery(product.ExpectedDelivery, deliveryStatus)
@@ -9633,6 +10173,7 @@ public sealed class DetailProductItem
 {
     public DetailProductItem(
         int productIndex,
+        string positionId,
         string title,
         string supplier,
         string expectedDelivery,
@@ -9645,6 +10186,7 @@ public sealed class DetailProductItem
         bool isSelected)
     {
         ProductIndex = productIndex;
+        PositionId = positionId ?? string.Empty;
         Title = title;
         Supplier = supplier ?? string.Empty;
         ExpectedDelivery = expectedDelivery ?? string.Empty;
@@ -9658,6 +10200,7 @@ public sealed class DetailProductItem
     }
 
     public int ProductIndex { get; }
+    public string PositionId { get; }
     public string Title { get; }
     public string Supplier { get; }
     public string ExpectedDelivery { get; }
@@ -9671,6 +10214,15 @@ public sealed class DetailProductItem
     public bool HasSupplier => !string.IsNullOrWhiteSpace(Supplier);
     public bool HasExpectedDelivery => !string.IsNullOrWhiteSpace(ExpectedDelivery);
     public bool HasDimensions => !string.IsNullOrWhiteSpace(DimensionsLine);
+}
+
+public sealed record DetailOrderPackageItem(
+    string Id,
+    string Heading,
+    string Dimensions,
+    IReadOnlyList<DetailProductItem> Products)
+{
+    public string Summary => $"{Dimensions} · {Products.Count} Produkte";
 }
 
 public sealed class MapOrderItem
@@ -9769,6 +10321,7 @@ public sealed class RouteStopItem : ObservableObject
     private string _nextLegArrivalRangeText = string.Empty;
     private string _nextLegAccentColor = "#8EC6E8";
     private string _employeeInfoText = string.Empty;
+    private string _deliveryLabel = DeliveryMethodExtensions.FreiBordsteinkante;
     private int _pauseAfterMinutes;
     private int _trafficBufferAfterMinutes;
 
@@ -10072,6 +10625,16 @@ public sealed class RouteStopItem : ObservableObject
         }
     }
 
+    public string DeliveryLabel
+    {
+        get => _deliveryLabel;
+        set
+        {
+            if (SetProperty(ref _deliveryLabel, value ?? DeliveryMethodExtensions.FreiBordsteinkante))
+                OnPropertyChanged(nameof(DeliveryMarkerShape));
+        }
+    }
+
     public int PauseAfterMinutes
     {
         get => _pauseAfterMinutes;
@@ -10113,6 +10676,9 @@ public sealed class RouteStopItem : ObservableObject
     public bool HasPauseAfter => PauseAfterMinutes > 0;
     public bool HasTrafficBufferAfter => TrafficBufferAfterMinutes > 0;
     public string DisplayPosition => IsPauseStop ? "P" : ToAlphaLabel(DisplayIndex > 0 ? DisplayIndex : Position);
+    public string DeliveryMarkerShape => DeliveryLabel.Contains("Montage", StringComparison.OrdinalIgnoreCase)
+        ? "triangle"
+        : DeliveryLabel.Contains("Verteilung", StringComparison.OrdinalIgnoreCase) ? "square" : "circle";
     public string DisplayName => IsCompanyDisplay ? Address : (IsPauseStop ? "Pause" : (!string.IsNullOrWhiteSpace(Customer) ? Customer : Address));
     public string DisplayNameWithOrder =>
         IsCompanyDisplay || string.IsNullOrWhiteSpace(DisplayOrder) || string.Equals(DisplayOrder, "-", StringComparison.Ordinal)
@@ -10277,6 +10843,7 @@ public sealed class SavedTourLookupItem
 public sealed class SavedTourOverviewItem
 {
     public bool IsFull { get; set; }
+    public bool ShowFullBadge { get; set; } = true;
     public string FullDescription { get; set; } = string.Empty;
     public string VehicleName { get; set; } = "Nicht zugewiesen";
     public string TrailerName { get; set; } = string.Empty;

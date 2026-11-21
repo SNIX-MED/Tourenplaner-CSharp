@@ -6,6 +6,10 @@ public static class OrderProductWeightNormalization
 {
     public static double ResolveUnitWeightKg(OrderProductInfo product)
     {
+        if (product.EffectiveUnitWeightKg is >= 0)
+        {
+            return product.EffectiveUnitWeightKg.Value;
+        }
         var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
         if (product.UnitWeightKg > 0)
         {
@@ -25,6 +29,10 @@ public static class OrderProductWeightNormalization
     public static double ResolveTotalWeightKg(OrderProductInfo product)
     {
         var quantity = OrderProductInfo.NormalizeQuantity(product.Quantity);
+        if (product.EffectiveUnitWeightKg is >= 0)
+        {
+            return product.EffectiveUnitWeightKg.Value * quantity;
+        }
         if (product.WeightKg != 0)
         {
             return product.WeightKg;

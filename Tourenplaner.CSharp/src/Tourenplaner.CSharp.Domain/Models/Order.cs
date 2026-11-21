@@ -43,6 +43,7 @@ public sealed class Order
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public List<OrderProductInfo> Products { get; set; } = new();
+    public List<OrderPackageInfo> Packages { get; set; } = new();
     public List<OrderDelivery> Deliveries { get; set; } = new();
     public double? ManualTotalWeightKg { get; set; }
     public string ManualTotalWeightInfo { get; set; } = string.Empty;
@@ -74,9 +75,11 @@ public sealed class Order
 
         var totalWeightKg = (Products ?? [])
             .Where(product => product is not null)
-            .Sum(product => product.WeightKg != 0
-                ? product.WeightKg
-                : product.UnitWeightKg * OrderProductInfo.NormalizeQuantity(product.Quantity));
+            .Sum(product => product.EffectiveUnitWeightKg.HasValue
+                ? Math.Max(0d, product.EffectiveUnitWeightKg.Value) * OrderProductInfo.NormalizeQuantity(product.Quantity)
+                : product.WeightKg != 0
+                    ? product.WeightKg
+                    : product.UnitWeightKg * OrderProductInfo.NormalizeQuantity(product.Quantity));
 
         return totalWeightKg;
     }
@@ -213,6 +216,17 @@ public sealed class Order
     }
 }
 
+public sealed class OrderPackageInfo
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string PackageType { get; set; } = string.Empty;
+    public int WidthMm { get; set; }
+    public int DepthMm { get; set; }
+    public int HeightMm { get; set; }
+    public List<string> ProductPositionIds { get; set; } = new();
+}
+
 public sealed class OrderAddressInfo
 {
     public string Name { get; set; } = string.Empty;
@@ -265,6 +279,8 @@ public sealed class OrderProductInfo
     public double UnitWeightKg { get; set; }
     public double WeightKg { get; set; }
     public string Dimensions { get; set; } = string.Empty;
+    public double? EffectiveUnitWeightKg { get; set; }
+    public string EffectiveDimensions { get; set; } = string.Empty;
     public string DeliveryStatus { get; set; } = DefaultDeliveryStatus;
 
     public static string NormalizeDeliveryStatus(string? value)

@@ -75,6 +75,14 @@ public static class OrderProductFormatter
         {
             parts.Add($"Masse: {product.Dimensions.Trim()}");
         }
+        if (!string.IsNullOrWhiteSpace(product.EffectiveDimensions))
+        {
+            parts.Add($"Effektive Masse: {product.EffectiveDimensions.Trim()}");
+        }
+        if (product.EffectiveUnitWeightKg is >= 0)
+        {
+            parts.Add($"Effektiv: {product.EffectiveUnitWeightKg.Value.ToString("0.##", CultureInfo.InvariantCulture)} kg/Stk");
+        }
 
         var deliveryStatus = OrderProductInfo.NormalizeDeliveryStatus(product.DeliveryStatus);
         parts.Add($"Status: {deliveryStatus}");

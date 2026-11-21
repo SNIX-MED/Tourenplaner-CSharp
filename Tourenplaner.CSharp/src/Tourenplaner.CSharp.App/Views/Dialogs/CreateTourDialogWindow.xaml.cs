@@ -71,7 +71,6 @@ public partial class CreateTourDialogWindow : Window
         {
             Title = "Liefertour bearbeiten";
             DialogHeading.Text = "Liefertour bearbeiten";
-            StopEditingHint.Visibility = Visibility.Visible;
             SaveButton.Content = "Änderungen übernehmen";
             OpenOnMapButton.Visibility = Visibility.Collapsed;
             System.Windows.Controls.Grid.SetColumn(SaveButton, 1);
@@ -282,7 +281,11 @@ public sealed class CreateTourDialogViewModel : ObservableObject
                 Id = selected.GroupId,
                 Name = selected.GroupName,
                 TotalWeightKg = selected.WeightKg,
-                Items = (selected.Items ?? []).Select(x => new AdditionalMaterialItem { Name = x.Name, WeightKg = x.WeightKg }).ToList()
+                RequiresLoadingSpace = selected.RequiresLoadingSpace,
+                WidthMm = selected.WidthMm,
+                DepthMm = selected.DepthMm,
+                HeightMm = selected.HeightMm,
+                Items = (selected.Items ?? []).Select(SelectableAdditionalMaterial.CloneMaterialItem).ToList()
             });
         }
         AdditionalMaterialOptions = availableGroups
@@ -714,7 +717,20 @@ public sealed class SelectableAdditionalMaterial : ObservableObject
         GroupId = _source.Id,
         GroupName = _source.Name,
         WeightKg = WeightKg,
-        Items = (_source.Items ?? []).Select(x => new AdditionalMaterialItem { Name = x.Name, WeightKg = x.WeightKg }).ToList()
+        RequiresLoadingSpace = _source.RequiresLoadingSpace,
+        WidthMm = _source.WidthMm,
+        DepthMm = _source.DepthMm,
+        HeightMm = _source.HeightMm,
+        Items = (_source.Items ?? []).Select(CloneMaterialItem).ToList()
+    };
+
+    public static AdditionalMaterialItem CloneMaterialItem(AdditionalMaterialItem x) => new()
+    {
+        Id = string.IsNullOrWhiteSpace(x.Id) ? Guid.NewGuid().ToString("N") : x.Id,
+        Name = x.Name,
+        Quantity = Math.Max(1, x.Quantity), WeightKg = Math.Max(0, x.WeightKg),
+        RequiresLoadingSpace = x.RequiresLoadingSpace,
+        WidthMm = Math.Max(0, x.WidthMm), DepthMm = Math.Max(0, x.DepthMm), HeightMm = Math.Max(0, x.HeightMm)
     };
 }
 

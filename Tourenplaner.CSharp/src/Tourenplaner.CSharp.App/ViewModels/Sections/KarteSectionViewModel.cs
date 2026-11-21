@@ -302,6 +302,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         OptimizeRouteCommand = new AsyncCommand(OptimizeRouteAsync, CanOptimizeRoute);
         OpenCreateTourDialogCommand = new AsyncCommand(OpenCreateTourDialogAsync, CanModifyCurrentRoute);
         EditSelectedTourCommand = new AsyncCommand(OpenEditSelectedTourDialogAsync, CanEditOrLeaveSelectedTour);
+        OpenLoadPlanCommand = new AsyncCommand(OpenLoadPlanAsync, CanOpenLoadPlan);
         EditSelectedTourOverviewCommand = new AsyncCommand(
             () => OpenEditTourDetailsAsync(_selectedTourOverviewId), () => _selectedTourOverviewId > 0);
         StartSelectedTourEditingCommand = new AsyncCommand(StartSelectedTourEditingAsync, CanStartSelectedTourEditing);
@@ -377,6 +378,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public ICommand OpenCreateTourDialogCommand { get; }
 
     public ICommand EditSelectedTourCommand { get; }
+    public ICommand OpenLoadPlanCommand { get; }
     public ICommand EditSelectedTourOverviewCommand { get; }
 
     public ICommand StartSelectedTourEditingCommand { get; }
@@ -496,11 +498,6 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     internal int ResolveTourIdForDetailsEditing() => LoadedTourId > 0 ? LoadedTourId : ResolveCurrentTourId();
     public bool IsLoadedTourReadOnly => LoadedTourId > 0 && !IsLoadedTourEditing;
     public bool CanReorderRouteStops => LoadedTourId <= 0 || IsLoadedTourEditing;
-    public string LoadedTourAccessText => IsLoadedTourEditing
-        ? "Bearbeitungsmodus – diese Tour ist für andere Benutzer gesperrt."
-        : IsLoadedTourReadOnly
-            ? "Nur Ansicht – zum Ändern bitte 'Tour bearbeiten' wählen."
-            : string.Empty;
     public string StartTourEditingToolTip => IsLoadedTourEditing
         ? "Bearbeitungsmodus für Tourstopps ist aktiv"
         : "Bearbeitungsmodus für Tourstopps starten";
@@ -997,6 +994,9 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 OnPropertyChanged(nameof(DetailTourStatus));
                 OnPropertyChanged(nameof(DetailProducts));
                 OnPropertyChanged(nameof(DetailProductItems));
+                OnPropertyChanged(nameof(DetailUngroupedProductItems));
+                OnPropertyChanged(nameof(DetailOrderPackageItems));
+                OnPropertyChanged(nameof(CanCreateDetailPackage));
                 OnPropertyChanged(nameof(DetailManualTotalWeightKgText));
                 OnPropertyChanged(nameof(DetailManualTotalWeightInfoText));
                 OnPropertyChanged(nameof(DetailEffectiveTotalWeightText));
@@ -1075,6 +1075,30 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
     public string DetailTourStatus => SelectedOrder?.TourStatusLabel ?? "Offen";
     public string DetailProducts => OrderProductFormatter.BuildDetails(GetSelectedDeliveryProducts());
     public IReadOnlyList<DetailProductItem> DetailProductItems => BuildDetailProductItems(GetSelectedDeliveryProducts());
+    public IReadOnlyList<DetailProductItem> DetailUngroupedProductItems
+    {
+        get
+        {
+            var packagedIds = (FindSelectedOrderModel()?.Packages ?? []).SelectMany(package => package.ProductPositionIds ?? [])
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return DetailProductItems.Where(item => !packagedIds.Contains(item.PositionId)).ToList();
+        }
+    }
+    public IReadOnlyList<DetailOrderPackageItem> DetailOrderPackageItems
+    {
+        get
+        {
+            var order = FindSelectedOrderModel();
+            if (order is null) return [];
+            var items = DetailProductItems;
+            return (order.Packages ?? []).Select(package => new DetailOrderPackageItem(
+                    package.Id,
+                    $"{(string.IsNullOrWhiteSpace(package.PackageType) ? "Packstück" : package.PackageType)}: {package.Name}",
+                    $"{package.WidthMm} × {package.DepthMm}{(package.HeightMm > 0 ? $" × {package.HeightMm}" : string.Empty)} mm",
+                    items.Where(item => (package.ProductPositionIds ?? []).Contains(item.PositionId, StringComparer.OrdinalIgnoreCase)).ToList()))
+                .Where(package => package.Products.Count > 0).ToList();
+        }
+    }
     public IReadOnlyList<string> DetailProductDeliveryStatusOptions => OrderProductInfo.DeliveryStatusOptions;
     public string? DetailSelectedProductStatus
     {
@@ -1103,6 +1127,18 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
         }
     }
     public bool HasSelectedDetailProducts => _selectedDetailProductIndices.Count > 0;
+    public bool CanCreateDetailPackage
+    {
+        get
+        {
+            var order = FindSelectedOrderModel();
+            if (order is null || _selectedDetailProductIndices.Count < 2) return false;
+            var packagedIds = (order.Packages ?? []).SelectMany(package => package.ProductPositionIds ?? [])
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return _selectedDetailProductIndices.All(index => index >= 0 && index < order.Products.Count &&
+                !packagedIds.Contains(order.Products[index].PositionId));
+        }
+    }
     public string DetailSelectedProductsSummary => HasSelectedDetailProducts
         ? $"{_selectedDetailProductIndices.Count} Produkt(e) ausgewählt"
         : "Ctrl + Linksklick für Mehrfachauswahl";

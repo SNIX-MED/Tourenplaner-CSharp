@@ -334,17 +334,27 @@ public sealed class AdditionalMaterialGroup
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = string.Empty;
     public double? TotalWeightKg { get; set; }
+    public bool RequiresLoadingSpace { get; set; }
+    public int WidthMm { get; set; }
+    public int DepthMm { get; set; }
+    public int HeightMm { get; set; }
     public List<AdditionalMaterialItem> Items { get; set; } = new();
 
     public double ResolveWeightKg() => TotalWeightKg.HasValue
         ? Math.Max(0, TotalWeightKg.Value)
-        : (Items ?? []).Sum(x => Math.Max(0, x.WeightKg));
+        : (Items ?? []).Sum(x => Math.Max(0, x.WeightKg) * Math.Max(1, x.Quantity));
 }
 
 public sealed class AdditionalMaterialItem
 {
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Name { get; set; } = string.Empty;
+    public int Quantity { get; set; } = 1;
     public double WeightKg { get; set; }
+    public int WidthMm { get; set; }
+    public int DepthMm { get; set; }
+    public int HeightMm { get; set; }
+    public bool RequiresLoadingSpace { get; set; }
 }
 
 public sealed class UserAppPreference

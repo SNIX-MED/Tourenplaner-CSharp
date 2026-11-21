@@ -17,7 +17,8 @@ public static class OrderDeliveryWeightService
             PositionId = p.PositionId, ExternalPositionId = p.ExternalPositionId, Name = p.Name, Supplier = p.Supplier,
             Quantity = quantities[p.PositionId], UnitWeightKg = Common.OrderProductWeightNormalization.ResolveUnitWeightKg(p),
             WeightKg = Common.OrderProductWeightNormalization.ResolveUnitWeightKg(p) * quantities[p.PositionId],
-            ExpectedDelivery = p.ExpectedDelivery, DeliveryStatus = p.DeliveryStatus, Dimensions = p.Dimensions
+            ExpectedDelivery = p.ExpectedDelivery, DeliveryStatus = p.DeliveryStatus, Dimensions = p.Dimensions,
+            EffectiveUnitWeightKg = p.EffectiveUnitWeightKg, EffectiveDimensions = p.EffectiveDimensions
         }).ToList();
     }
     public static double ResolveStopWeightKg(Order order, string? deliveryId, string? tourId = null)
