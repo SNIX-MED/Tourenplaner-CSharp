@@ -37,7 +37,8 @@ public sealed class JsonCalendarManualEntryRepository : JsonRepositoryBase<Calen
             Time = (entry.Time ?? string.Empty).Trim(),
             Title = (entry.Title ?? string.Empty).Trim(),
             Description = (entry.Description ?? string.Empty).Trim(),
-            ColorHex = NormalizeColor(entry.ColorHex)
+            ColorHex = NormalizeColor(entry.ColorHex),
+            ShowInMapTab = entry.ShowInMapTab
         };
     }
 

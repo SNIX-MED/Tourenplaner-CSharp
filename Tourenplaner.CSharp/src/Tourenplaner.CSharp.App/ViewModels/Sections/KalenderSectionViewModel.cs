@@ -253,7 +253,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         string? time,
         string? title,
         string? description,
-        string? colorHex)
+        string? colorHex,
+        bool showInMapTab = false)
     {
         var validation = ValidateManualEntryInput(time, title);
         if (!validation.Success)
@@ -268,7 +269,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             Time = validation.NormalizedTime,
             Title = validation.NormalizedTitle,
             Description = (description ?? string.Empty).Trim(),
-            ColorHex = NormalizeHexColor(colorHex, DefaultManualEntryColor)
+            ColorHex = NormalizeHexColor(colorHex, DefaultManualEntryColor),
+            ShowInMapTab = showInMapTab
         };
 
         _manualEntries.Add(entry);
@@ -288,7 +290,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         string? time,
         string? title,
         string? description,
-        string? colorHex)
+        string? colorHex,
+        bool showInMapTab = false)
     {
         var normalizedId = (entryId ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(normalizedId))
@@ -313,6 +316,7 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         existing.Title = validation.NormalizedTitle;
         existing.Description = (description ?? string.Empty).Trim();
         existing.ColorHex = NormalizeHexColor(colorHex, DefaultManualEntryColor);
+        existing.ShowInMapTab = showInMapTab;
 
         if (_manualEntryMutationStore is not null) await _manualEntryMutationStore.UpsertAsync(existing);
         else await _manualEntryRepository.SaveAsync(_manualEntries);
@@ -332,6 +336,11 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
             return ManualEntrySaveResult.Fail("Manueller Eintrag konnte nicht gefunden werden.");
         }
 
+        var (lease, conflict) = await LockManualEntryAsync(normalizedId);
+        using var deleteLease = lease;
+        if (conflict is not null) return ManualEntrySaveResult.Fail(conflict);
+
+        await ReloadManualEntryForEditAsync(normalizedId);
         var removed = _manualEntries.RemoveAll(x => string.Equals(x.Id, normalizedId, StringComparison.OrdinalIgnoreCase));
         if (removed == 0)
         {
@@ -347,6 +356,24 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
         SelectDayByDate(focusDate);
 
         return ManualEntrySaveResult.Ok();
+    }
+
+    internal async Task<(CollaborationResourceLease? Lease, string? Conflict)> LockManualEntryAsync(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return (null, null);
+        var (lease, result) = await CollaborationSessionService.TryAcquireResourceAsync("calendar-entry", id);
+        return (lease, result.Acquired ? null : $"Der Kalendereintrag wird bereits bearbeitet ({result.LockedByUserName}).");
+    }
+
+    internal async Task<CalendarManualEntryEditItem?> ReloadManualEntryForEditAsync(string id)
+    {
+        var entries = await _manualEntryRepository.LoadAsync();
+        _manualEntries.Clear();
+        _manualEntries.AddRange(entries);
+        var entry = entries.FirstOrDefault(item => string.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase));
+        return entry is not null && ParseManualEntryDate(entry.Date) is { } date
+            ? GetManualEntriesForDate(date).FirstOrDefault(item => string.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase))
+            : null;
     }
 
     public IReadOnlyList<CalendarManualEntryEditItem> GetManualEntriesForDate(DateTime date)
@@ -372,7 +399,8 @@ public sealed class KalenderSectionViewModel : SectionViewModelBase
                 Time = x.Time,
                 Title = (x.Entry.Title ?? string.Empty).Trim(),
                 Description = (x.Entry.Description ?? string.Empty).Trim(),
-                ColorHex = NormalizeHexColor(x.Entry.ColorHex, DefaultManualEntryColor)
+                ColorHex = NormalizeHexColor(x.Entry.ColorHex, DefaultManualEntryColor),
+                ShowInMapTab = x.Entry.ShowInMapTab
             })
             .ToList();
     }
@@ -1596,6 +1624,7 @@ public sealed class CalendarManualEntryItem
 
 public sealed class CalendarManualEntryEditItem
 {
+    public bool ShowInMapTab { get; set; }
     public string Id { get; set; } = string.Empty;
 
     public DateTime Date { get; set; } = DateTime.Today;

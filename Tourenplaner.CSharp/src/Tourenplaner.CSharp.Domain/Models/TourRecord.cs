@@ -19,6 +19,7 @@ public sealed class TourRecord
     public string? SecondaryTrailerId { get; set; }
     public bool IsArchived { get; set; }
     public bool IsFull { get; set; }
+    public bool IsManuallyFixed { get; set; }
     public string FullReason { get; set; } = string.Empty;
     public string FullNote { get; set; } = string.Empty;
     public List<string> AddressReviewOrderIds { get; set; } = new();

@@ -197,17 +197,35 @@ public partial class KalenderSectionView : UserControl
         }
     }
 
-    private async Task OpenManualEntryEditorAsync(KalenderSectionViewModel vm, DateTime date, CalendarManualEntryEditItem? existingEntry)
+    private Task OpenManualEntryEditorAsync(KalenderSectionViewModel vm, DateTime date, CalendarManualEntryEditItem? existingEntry)
+        => OpenManualEntryEditorAsync(vm, Window.GetWindow(this), date, existingEntry?.Id);
+
+    internal static async Task OpenManualEntryEditorAsync(KalenderSectionViewModel vm, Window? owner, DateTime date, string? entryId)
     {
         try
         {
+            var (lease, conflict) = await vm.LockManualEntryAsync(entryId);
+            using var editLease = lease;
+            if (conflict is not null)
+            {
+                ShowWarning(owner, conflict);
+                return;
+            }
+
+            var existingEntry = entryId is null ? null : await vm.ReloadManualEntryForEditAsync(entryId);
+            if (entryId is not null && existingEntry is null)
+            {
+                ShowWarning(owner, "Der Kalendereintrag ist nicht mehr vorhanden.");
+                return;
+            }
+
             var dialog = new CalendarManualEntryDialogWindow(
-                date,
+                existingEntry?.Date ?? date,
                 vm.ManualEntryColorOptions,
                 vm.DefaultManualEntryColor,
                 existingEntry)
             {
-                Owner = Window.GetWindow(this)
+                Owner = owner
             };
             if (dialog.ShowDialog() != true || dialog.EntryDate is not DateTime selectedDate)
             {
@@ -227,7 +245,8 @@ public partial class KalenderSectionView : UserControl
                     dialog.EntryTime,
                     dialog.EntryTitle,
                     dialog.EntryDescription,
-                    dialog.EntryColor);
+                    dialog.EntryColor,
+                    dialog.ShowInMapTab);
             }
             else
             {
@@ -236,23 +255,25 @@ public partial class KalenderSectionView : UserControl
                     dialog.EntryTime,
                     dialog.EntryTitle,
                     dialog.EntryDescription,
-                    dialog.EntryColor);
+                    dialog.EntryColor,
+                    dialog.ShowInMapTab);
             }
 
             if (!result.Success)
             {
-                ShowWarning(result.Message);
+                ShowWarning(owner, result.Message);
             }
         }
         catch (Exception ex)
         {
-            ShowWarning($"Dialog konnte nicht geöffnet werden: {ex.Message}");
+            ShowWarning(owner, $"Bearbeiten fehlgeschlagen: {ex.Message}");
         }
     }
 
-    private void ShowWarning(string message)
+    private void ShowWarning(string message) => ShowWarning(Window.GetWindow(this), message);
+
+    private static void ShowWarning(Window? owner, string message)
     {
-        var owner = Window.GetWindow(this);
         if (owner is not null)
         {
             Tourenplaner.CSharp.App.Services.AppMessageBox.Show(owner, message, "Kalender", MessageBoxButton.OK, MessageBoxImage.Warning);

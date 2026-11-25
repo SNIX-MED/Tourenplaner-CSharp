@@ -15,6 +15,7 @@ public partial class LoadPlanWindow : Window
 {
     private Point _productDragStart;
     private LoadPlanProductItem? _productDragItem;
+    private LoadPlanProductItem? _packageSelectionAnchor;
     private readonly Func<LoadPlanProductItem, Task<OrderProductInfo?>> _editProductAsync;
     private IReadOnlyList<AdditionalMaterialGroup> _availableAdditionalMaterialGroups;
     private readonly Func<Task<IReadOnlyList<AdditionalMaterialGroup>?>> _manageAdditionalMaterialGroupsAsync;
@@ -83,6 +84,12 @@ public partial class LoadPlanWindow : Window
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
+        if (LoadPlanSurface.HasOverlaps)
+        {
+            MessageBox.Show(this, "Im Ladeplan überlappen sich noch Objekte. Bitte verschieben oder drehen Sie die rot markierten Objekte vor dem Speichern.",
+                "Überlappung im Ladeplan", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         SavedPlacements = LoadPlanSurface.ExportPlacements();
         SavedPackages = Orders.SelectMany(order => order.Packages).Select(package => new TourLoadPlanPackage
         {
@@ -130,6 +137,37 @@ public partial class LoadPlanWindow : Window
             RequiresLoadingSpace = item.RequiresLoadingSpace
         }).ToList()
     };
+
+    private void OnPackageSelectionMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _productDragItem = null;
+        if (sender is not CheckBox { DataContext: LoadPlanProductItem product } || !product.CanSelectForPackage)
+            return;
+
+        if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) || _packageSelectionAnchor is not { CanSelectForPackage: true } anchor)
+        {
+            _packageSelectionAnchor = product;
+            return;
+        }
+
+        var order = Orders.FirstOrDefault(candidate => candidate.Products.Contains(product));
+        if (order is null || !order.Products.Contains(anchor))
+        {
+            _packageSelectionAnchor = product;
+            return;
+        }
+
+        var products = order.Products.ToList();
+        var start = products.IndexOf(anchor);
+        var end = products.IndexOf(product);
+        for (var index = Math.Min(start, end); index <= Math.Max(start, end); index++)
+        {
+            if (products[index].CanSelectForPackage)
+                products[index].IsSelectedForPackage = true;
+        }
+
+        e.Handled = true;
+    }
 
     private void OnCreatePackageClick(object sender, RoutedEventArgs e)
     {
@@ -622,7 +660,7 @@ public sealed class LoadPlanSurfaceControl : FrameworkElement
             var width = (saved.IsRotated ? product.DimensionsMm.Depth : product.DimensionsMm.Width) / 10d;
             var bounds = new Rect(saved.Xcm, saved.Ycm, length, width);
             if (bounds.Right > area.LengthCm || bounds.Bottom > area.WidthCm ||
-                _placedProducts.Any(x => ReferenceEquals(x.Area, area) && x.AreaBounds.IntersectsWith(bounds))) continue;
+                Overlaps(area, bounds, null)) continue;
             _placedProducts.Add(new PlacedLoadPlanProduct(product, area, bounds, saved.IsRotated));
             product.IsPlaced = true;
         }
@@ -748,7 +786,7 @@ public sealed class LoadPlanSurfaceControl : FrameworkElement
         UpdatePlacementPreview(product, e.GetPosition(this), null, false);
         StartPreviewAnimation();
         InvalidateVisual();
-        e.Effects = _placementPreview?.IsValid == true ? DragDropEffects.Move : DragDropEffects.None;
+        e.Effects = _placementPreview?.Fits == true ? DragDropEffects.Move : DragDropEffects.None;
         e.Handled = true;
     }
 
@@ -765,7 +803,7 @@ public sealed class LoadPlanSurfaceControl : FrameworkElement
         }
 
         var preview = CreatePreview(product, e.GetPosition(this), null, false);
-        if (preview is null || !preview.IsValid)
+        if (preview is null || !preview.Fits)
         {
             _pendingProduct = product;
             _pendingRotated = false;
@@ -807,10 +845,16 @@ public sealed class LoadPlanSurfaceControl : FrameworkElement
             yCm = Math.Clamp(yCm, 0, target.Area.WidthCm - widthCm);
         }
         var candidate = new Rect(xCm, yCm, lengthCm, widthCm);
-        var overlaps = _placedProducts.Any(placed => !ReferenceEquals(placed, ignoredProduct) &&
-            ReferenceEquals(placed.Area, target.Area) && placed.AreaBounds.IntersectsWith(candidate));
-        return new LoadPlanPlacementPreview(product, target.Area, candidate, fits && !overlaps, rotated);
+        var overlaps = Overlaps(target.Area, candidate, ignoredProduct);
+        return new LoadPlanPlacementPreview(product, target.Area, candidate, fits, fits && !overlaps, rotated);
     }
+
+    public bool HasOverlaps => _placedProducts.Any(item => Overlaps(item.Area, item.AreaBounds, item));
+
+    private bool Overlaps(LoadPlanAreaItem area, Rect bounds, PlacedLoadPlanProduct? ignored) =>
+        _placedProducts.Any(item => !ReferenceEquals(item, ignored) && ReferenceEquals(item.Area, area) &&
+            Math.Min(bounds.Right, item.AreaBounds.Right) - Math.Max(bounds.Left, item.AreaBounds.Left) > 1e-6 &&
+            Math.Min(bounds.Bottom, item.AreaBounds.Bottom) - Math.Max(bounds.Top, item.AreaBounds.Top) > 1e-6);
 
     private void UpdatePlacementPreview(LoadPlanProductItem product, Point pointer,
         PlacedLoadPlanProduct? ignoredProduct, bool rotated)
@@ -848,7 +892,7 @@ public sealed class LoadPlanSurfaceControl : FrameworkElement
                 e.Handled = true;
                 return;
             }
-            var target = _placementPreview?.IsValid == true ? _placementPreview : null;
+            var target = _placementPreview?.Fits == true ? _placementPreview : null;
             if (target is not null)
             {
                 var placed = new PlacedLoadPlanProduct(_pendingProduct, target.Area, target.AreaBounds, target.IsRotated);
@@ -894,7 +938,8 @@ public sealed class LoadPlanSurfaceControl : FrameworkElement
             (point.Y - layout.Bounds.Top) / layout.Scale - hit.AreaBounds.Y);
         _movingProduct = hit;
         _movingRotated = hit.IsRotated;
-        _placementPreview = new LoadPlanPlacementPreview(hit.Product, hit.Area, hit.AreaBounds, true, hit.IsRotated);
+        _placementPreview = new LoadPlanPlacementPreview(hit.Product, hit.Area, hit.AreaBounds, true,
+            !Overlaps(hit.Area, hit.AreaBounds, hit), hit.IsRotated);
         CaptureMouse();
         StartPreviewAnimation();
         InvalidateVisual();
@@ -948,7 +993,7 @@ public sealed class LoadPlanSurfaceControl : FrameworkElement
             return;
         }
         if (_movingProduct is null) return;
-        if (_placementPreview?.IsValid == true)
+        if (_placementPreview?.Fits == true)
         {
             _movingProduct.Area = _placementPreview.Area;
             _movingProduct.AreaBounds = _placementPreview.AreaBounds;
@@ -982,10 +1027,7 @@ public sealed class LoadPlanSurfaceControl : FrameworkElement
         var x = Math.Clamp(center.X - newWidth / 2d, 0, Math.Max(0, selected.Area.LengthCm - newWidth));
         var y = Math.Clamp(center.Y - newHeight / 2d, 0, Math.Max(0, selected.Area.WidthCm - newHeight));
         var candidate = new Rect(x, y, newWidth, newHeight);
-        var valid = newWidth <= selected.Area.LengthCm && newHeight <= selected.Area.WidthCm &&
-            !_placedProducts.Any(placed => !ReferenceEquals(placed, selected) &&
-                ReferenceEquals(placed.Area, selected.Area) && placed.AreaBounds.IntersectsWith(candidate));
-        if (!valid) return;
+        if (newWidth > selected.Area.LengthCm || newHeight > selected.Area.WidthCm) return;
         selected.AreaBounds = candidate;
         selected.IsRotated = !selected.IsRotated;
         InvalidateVisual();
@@ -1160,8 +1202,11 @@ public sealed class LoadPlanSurfaceControl : FrameworkElement
             if (layout is null) continue;
             var rect = ToScreenRect(placed.AreaBounds, layout);
             var selected = ReferenceEquals(placed, _selectedProduct);
-            context.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(210, 34, 197, 94)),
-                new Pen(selected ? Brushes.DarkViolet : new SolidColorBrush(Color.FromRgb(21, 128, 61)),
+            var overlaps = Overlaps(placed.Area, placed.AreaBounds, placed);
+            var fill = overlaps ? Color.FromArgb(210, 239, 68, 68) : Color.FromArgb(210, 34, 197, 94);
+            var outline = overlaps ? Brushes.DarkRed : new SolidColorBrush(Color.FromRgb(21, 128, 61));
+            context.DrawRoundedRectangle(new SolidColorBrush(fill),
+                new Pen(selected ? Brushes.DarkViolet : outline,
                     selected ? 3 : 1.5), rect, 4, 4);
             var markerSize = Math.Min(22, Math.Max(0, Math.Min(rect.Width - 6, rect.Height - 6)));
             if (markerSize >= 10)
@@ -1481,6 +1526,7 @@ internal sealed record LoadPlanPlacementPreview(
     LoadPlanProductItem Product,
     LoadPlanAreaItem Area,
     Rect AreaBounds,
+    bool Fits,
     bool IsValid,
     bool IsRotated);
 

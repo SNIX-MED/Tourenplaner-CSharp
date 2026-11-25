@@ -22,6 +22,7 @@ public partial class CalendarManualEntryDialogWindow : Window
         EntryDatePicker.SelectedDateText = selectedDate.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
         EntryTitleTextBox.Text = existingEntry?.Title ?? string.Empty;
         EntryDescriptionTextBox.Text = existingEntry?.Description ?? string.Empty;
+        ShowInMapTabCheckBox.IsChecked = existingEntry?.ShowInMapTab ?? false;
 
         _hourOptions = [EmptyTimePart, .. Enumerable.Range(0, 24).Select(x => x.ToString("00", CultureInfo.InvariantCulture))];
         _minuteOptions = [EmptyTimePart, .. Enumerable.Range(0, 60).Select(x => x.ToString("00", CultureInfo.InvariantCulture))];
@@ -114,6 +115,7 @@ public partial class CalendarManualEntryDialogWindow : Window
     public string EntryTitle => (EntryTitleTextBox.Text ?? string.Empty).Trim();
 
     public string EntryDescription => (EntryDescriptionTextBox.Text ?? string.Empty).Trim();
+    public bool ShowInMapTab => ShowInMapTabCheckBox.IsChecked == true;
 
     public string EntryColor => NormalizeHexColor((EntryColorComboBox.SelectedItem as CalendarColorOptionItem)?.Hex, DefaultManualColorHex);
 

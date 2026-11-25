@@ -1,12 +1,48 @@
 using System.Text.Json;
 using Tourenplaner.CSharp.App.Services;
 using Tourenplaner.CSharp.App.Views.Dialogs;
+using Tourenplaner.CSharp.Application.Common;
 using Tourenplaner.CSharp.Domain.Models;
 
 namespace Tourenplaner.CSharp.Tests.Application;
 
 public class CreateTourFullStatusTests
 {
+    [Theory]
+    [InlineData("", "auftrag:222166::delivery::partial", "222166")]
+    [InlineData("", "222166", "222166")]
+    [InlineData("222166", "auftrag:999999", "222166")]
+    [InlineData("222166", "pause:1", "")]
+    public void ResolvesCurrentAndLegacyOrderIds(string orderNumber, string stopId, string expected)
+    {
+        Assert.Equal(expected, TourStopIdentity.ResolveOrderId(new TourStopRecord
+        {
+            Id = stopId,
+            Auftragsnummer = orderNumber
+        }));
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void FixedDeliveryOrderDoesNotReplaceManualFlag(bool automatic, bool manual)
+    {
+        var vm = new CreateTourDialogViewModel("25.11.2026", "Tour", "08", "00",
+            [new("V", "Fahrzeug")], [], [new("E", "Mitarbeiter", false)],
+            selectedVehicleId: "V", selectedEmployeeIds: ["E"])
+        {
+            HasFixedDeliveryOrder = automatic,
+            IsFixed = manual
+        };
+        Assert.Equal(automatic || manual, vm.IsFixed);
+        Assert.Equal(!automatic, vm.CanSetFixed);
+        Assert.True(vm.TryBuildResult(out var result, out var error), error);
+        var tour = new TourRecord();
+        result.ApplyFullStatusTo(tour);
+        Assert.Equal(manual, tour.IsManuallyFixed);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

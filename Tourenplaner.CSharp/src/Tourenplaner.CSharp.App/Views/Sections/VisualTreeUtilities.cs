@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 
 namespace Tourenplaner.CSharp.App.Views.Sections;
 
@@ -14,7 +15,13 @@ internal static class VisualTreeUtilities
                 return match;
             }
 
-            child = VisualTreeHelper.GetParent(child);
+            child = child switch
+            {
+                Visual or Visual3D => VisualTreeHelper.GetParent(child),
+                FrameworkContentElement element => element.Parent ?? ContentOperations.GetParent(element),
+                ContentElement element => ContentOperations.GetParent(element),
+                _ => null
+            };
         }
 
         return null;

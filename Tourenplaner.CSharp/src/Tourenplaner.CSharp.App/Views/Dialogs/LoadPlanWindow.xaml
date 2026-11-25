@@ -153,6 +153,7 @@
                                                             </Grid.ColumnDefinitions>
                                                             <CheckBox VerticalAlignment="Center" HorizontalAlignment="Center"
                                                                       IsChecked="{Binding IsSelectedForPackage}"
+                                                                      PreviewMouseLeftButtonDown="OnPackageSelectionMouseDown"
                                                                       IsEnabled="{Binding CanSelectForPackage}" />
                                                             <TextBlock Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center"
                                                                        FontWeight="SemiBold" Text="{Binding UnitText}" />

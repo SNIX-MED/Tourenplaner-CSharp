@@ -91,6 +91,7 @@ public sealed partial class MainShellViewModel : ObservableObject
             repositories.DataRootPath,
             dataSyncService);
         _mapSection = map;
+        map.CalendarEntryStore = repositories.CalendarManualEntryStore;
         var tours = new ToursSectionViewModel(
             repositories.TourRecordStore,
             repositories.OrderRepository,
@@ -117,6 +118,8 @@ public sealed partial class MainShellViewModel : ObservableObject
             orderId => OpenOrderEditorFromCalendarAsync(orderId),
             dataSyncService: dataSyncService);
         _calendarSection = calendar;
+        map.EditCalendarEntryAsync = (owner, entry) =>
+            Views.Sections.KalenderSectionView.OpenManualEntryEditorAsync(calendar, owner, entry.Date, entry.Id);
         var ordersWorkflowService = new OrderSectionWorkflowService(
             repositories.OrderRepository,
             repositories.TourRecordStore,

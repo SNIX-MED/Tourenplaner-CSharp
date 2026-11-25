@@ -33,7 +33,8 @@ public partial class CreateTourDialogWindow : Window
         IReadOnlyList<AdditionalMaterialGroup>? additionalMaterialGroups = null,
         IReadOnlyList<TourAdditionalMaterial>? selectedAdditionalMaterials = null,
         int? editTourId = null,
-        TourRecord? existingTour = null)
+        TourRecord? existingTour = null,
+        bool hasFixedDeliveryOrder = false)
     {
         InitializeComponent();
         ViewModel = new CreateTourDialogViewModel(
@@ -54,6 +55,8 @@ public partial class CreateTourDialogWindow : Window
             selectedAdditionalMaterials,
             normalizeLegacyDefaultName: editTourId is not > 0);
         ViewModel.IsFull = existingTour?.IsFull == true;
+        ViewModel.HasFixedDeliveryOrder = hasFixedDeliveryOrder;
+        ViewModel.IsFixed = existingTour?.IsManuallyFixed == true;
         DataContext = ViewModel;
         ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         Closed += (_, _) => ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
@@ -314,6 +317,14 @@ public sealed class CreateTourDialogViewModel : ObservableObject
     public bool HasAdditionalMaterialOptions => AdditionalMaterialOptions.Count > 0;
     private bool _isFull;
     public bool IsFull { get => _isFull; set => SetProperty(ref _isFull, value); }
+    private bool _isManuallyFixed;
+    public bool HasFixedDeliveryOrder { get; set; }
+    public bool CanSetFixed => !HasFixedDeliveryOrder;
+    public bool IsFixed
+    {
+        get => HasFixedDeliveryOrder || _isManuallyFixed;
+        set => SetProperty(ref _isManuallyFixed, value);
+    }
 
     public string DateText
     {
@@ -564,7 +575,8 @@ public sealed class CreateTourDialogViewModel : ObservableObject
             employees,
             AdditionalMaterialOptions.Where(x => x.IsSelected).Select(x => x.CreateSnapshot()).ToList())
         {
-            IsFull = IsFull
+            IsFull = IsFull,
+            IsManuallyFixed = _isManuallyFixed
         };
         return true;
     }
@@ -696,10 +708,12 @@ public sealed record CreateTourDialogResult(
     bool EmployeeRecommendationConfirmed = false)
 {
     public bool IsFull { get; init; }
+    public bool IsManuallyFixed { get; init; }
 
     public void ApplyFullStatusTo(TourRecord tour)
     {
         tour.IsFull = IsFull;
+        tour.IsManuallyFixed = IsManuallyFixed;
     }
 }
 

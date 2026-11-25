@@ -595,6 +595,7 @@ public sealed partial class KarteSectionViewModel
         try
         {
             await RefreshCoreAsync();
+            await RefreshMapCalendarEntriesAsync();
         }
         finally
         {
@@ -2713,7 +2714,8 @@ public sealed partial class KarteSectionViewModel
             employees,
             GetSingleEmployeeWarningDeliveryTypesForRouteStops(RouteStops.Where(x => !IsCompanyStop(x)).Select(x => x.OrderId)),
             additionalMaterialGroups: _additionalMaterialGroups,
-            selectedAdditionalMaterials: _currentAdditionalMaterials)
+            selectedAdditionalMaterials: _currentAdditionalMaterials,
+            hasFixedDeliveryOrder: HasFixedDeliveryOrder(RouteStops.Where(IsOrderStop).Select(stop => stop.OrderId)))
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
@@ -2832,7 +2834,10 @@ public sealed partial class KarteSectionViewModel
                 additionalMaterialGroups: _additionalMaterialGroups,
                 selectedAdditionalMaterials: tour.AdditionalMaterials,
                 editTourId: tour.Id,
-                existingTour: tour)
+                existingTour: tour,
+                hasFixedDeliveryOrder: HasFixedDeliveryOrder(RouteStops.Any(IsOrderStop)
+                    ? RouteStops.Where(IsOrderStop).Select(stop => stop.OrderId)
+                    : ExtractNonCompanyTourOrderIds(tour)))
             {
                 Owner = System.Windows.Application.Current?.MainWindow
             });
@@ -3192,6 +3197,7 @@ public sealed partial class KarteSectionViewModel
             // optimistic-concurrency update instead of treating the tour as a new row.
             updated.ConcurrencyToken = existingTour.ConcurrencyToken;
             updated.IsFull = existingTour.IsFull;
+            updated.IsManuallyFixed = existingTour.IsManuallyFixed;
             updated.FullReason = existingTour.FullReason;
             updated.FullNote = existingTour.FullNote;
             updated.LoadPlanPlacements = (existingTour.LoadPlanPlacements ?? []).Select(item => new TourLoadPlanPlacement
@@ -3541,6 +3547,7 @@ public sealed partial class KarteSectionViewModel
             SecondaryTrailerId = string.IsNullOrWhiteSpace(source.SecondaryTrailerId) ? null : source.SecondaryTrailerId.Trim(),
             IsArchived = source.IsArchived,
             IsFull = source.IsFull,
+            IsManuallyFixed = source.IsManuallyFixed,
             FullReason = source.FullReason,
             FullNote = source.FullNote,
             LoadPlanPlacements = (source.LoadPlanPlacements ?? []).Select(item => new TourLoadPlanPlacement
@@ -3996,37 +4003,7 @@ public sealed partial class KarteSectionViewModel
     }
 
     private static string ExtractTourStopOrderId(TourStopRecord stop)
-    {
-        if (IsPauseTourStop(stop))
-        {
-            return string.Empty;
-        }
-
-        // Auftragsnummer is the canonical business identifier. A delivery-specific
-        // technical marker id may be stored in Id and must never leak into the UI.
-        var number = (stop.Auftragsnummer ?? string.Empty).Trim();
-        if (!string.IsNullOrWhiteSpace(number))
-        {
-            return number;
-        }
-
-        var id = (stop.Id ?? string.Empty).Trim();
-        if (id.StartsWith("auftrag:", StringComparison.OrdinalIgnoreCase))
-        {
-            var parsed = id["auftrag:".Length..].Trim();
-            var deliverySeparator = parsed.IndexOf("::delivery::", StringComparison.OrdinalIgnoreCase);
-            if (deliverySeparator > 0)
-            {
-                parsed = parsed[..deliverySeparator].Trim();
-            }
-            if (!string.IsNullOrWhiteSpace(parsed))
-            {
-                return parsed;
-            }
-        }
-
-        return id;
-    }
+        => TourStopIdentity.ResolveOrderId(stop);
 
     private static void RemoveRouteOrderStopsFromOtherTours(
         List<TourRecord> tours,
@@ -5225,7 +5202,8 @@ public sealed partial class KarteSectionViewModel
             VehicleName = string.IsNullOrWhiteSpace(summaryVehicleId) ? "Nicht zugewiesen" :
                 _vehicleData.Vehicles.FirstOrDefault(vehicle => string.Equals(vehicle.Id, summaryVehicleId, StringComparison.OrdinalIgnoreCase))?.Name ?? summaryVehicleId,
             TrailerName = string.IsNullOrWhiteSpace(summaryTrailerId) ? string.Empty :
-                _vehicleData.Trailers.FirstOrDefault(trailer => string.Equals(trailer.Id, summaryTrailerId, StringComparison.OrdinalIgnoreCase))?.Name ?? summaryTrailerId
+                _vehicleData.Trailers.FirstOrDefault(trailer => string.Equals(trailer.Id, summaryTrailerId, StringComparison.OrdinalIgnoreCase))?.Name ?? summaryTrailerId,
+            VehicleCombinationLines = BuildVehicleCombinationLines(assignments)
         };
         RouteVisualRevision++;
     }
@@ -5585,6 +5563,19 @@ public sealed partial class KarteSectionViewModel
             .GroupBy(x => $"{x.VehicleId}|{x.TrailerId}", StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .ToList();
+    }
+
+    private IReadOnlyList<string> BuildVehicleCombinationLines(IEnumerable<(string VehicleId, string TrailerId)> assignments)
+    {
+        return assignments.Select(assignment =>
+        {
+            var vehicle = _vehicleData.Vehicles.FirstOrDefault(item =>
+                string.Equals(item.Id, assignment.VehicleId, StringComparison.OrdinalIgnoreCase));
+            var trailer = _vehicleData.Trailers.FirstOrDefault(item =>
+                string.Equals(item.Id, assignment.TrailerId, StringComparison.OrdinalIgnoreCase));
+            return SavedTourOverviewItem.FormatVehicleCombination(
+                vehicle?.Name ?? assignment.VehicleId, trailer?.Name ?? assignment.TrailerId);
+        }).DefaultIfEmpty("Nicht zugewiesen").ToList();
     }
 
     private static int ResolveAdditionalMaterialWeightKg(IEnumerable<TourAdditionalMaterial>? materials) =>
@@ -7888,6 +7879,12 @@ public sealed partial class KarteSectionViewModel
 
     private void RefreshRouteVisualsAfterOrderMutation()
     {
+        var toursById = _savedTours.ToLookup(tour => tour.Id);
+        foreach (var row in TourOverviewItems)
+        {
+            if (toursById[row.TourId].FirstOrDefault() is { } tour)
+                row.FixedDescription = BuildFixedDescription(tour);
+        }
         UpdateRouteSummary();
         RebuildPlannedTourRouteOverlays();
     }
@@ -8234,6 +8231,7 @@ public sealed partial class KarteSectionViewModel
 
     private void RebuildTourOverviewItems()
     {
+        RouteOverviewRows.Clear();
         TourOverviewItems.Clear();
         foreach (var tour in _savedTours
                      .OrderBy(t => ParseDateForSort(t.Date))
@@ -8255,7 +8253,8 @@ public sealed partial class KarteSectionViewModel
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            var loadCapacityKg = BuildVehicleAssignments(tour.VehicleId, tour.TrailerId, tour.SecondaryVehicleId, tour.SecondaryTrailerId)
+            var assignments = BuildVehicleAssignments(tour.VehicleId, tour.TrailerId, tour.SecondaryVehicleId, tour.SecondaryTrailerId);
+            var loadCapacityKg = assignments
                 .Select(assignment => VehicleCombinationDisplayResolver.Resolve(_vehicleData, assignment.VehicleId, assignment.TrailerId))
                 .Sum(display => display.VehiclePayloadKg.GetValueOrDefault() + display.TrailerLoadKg.GetValueOrDefault());
             var status = ResolveTourOverviewStatus(tour, parsedDate);
@@ -8273,13 +8272,74 @@ public sealed partial class KarteSectionViewModel
                 totalWeightKg,
                 loadCapacityKg)
             {
+                CalendarWeekSuffix = parsedDate == DateTime.MinValue ? string.Empty : $" (KW {ISOWeek.GetWeekOfYear(parsedDate)})",
                 IsFull = tour.IsFull,
+                FixedDescription = BuildFixedDescription(tour),
                 FullDescription = TourFullWarning.Description(tour),
                 VehicleName = string.IsNullOrWhiteSpace(tour.VehicleId) ? "Nicht zugewiesen" :
                     _vehicleData.Vehicles.FirstOrDefault(vehicle => string.Equals(vehicle.Id, tour.VehicleId, StringComparison.OrdinalIgnoreCase))?.Name ?? tour.VehicleId,
                 TrailerName = string.IsNullOrWhiteSpace(tour.TrailerId) ? string.Empty :
-                    _vehicleData.Trailers.FirstOrDefault(trailer => string.Equals(trailer.Id, tour.TrailerId, StringComparison.OrdinalIgnoreCase))?.Name ?? tour.TrailerId
+                    _vehicleData.Trailers.FirstOrDefault(trailer => string.Equals(trailer.Id, tour.TrailerId, StringComparison.OrdinalIgnoreCase))?.Name ?? tour.TrailerId,
+                VehicleCombinationLines = BuildVehicleCombinationLines(assignments)
             });
+        }
+        foreach (var tour in TourOverviewItems) RouteOverviewRows.Add(tour);
+        InsertMapCalendarEntries();
+    }
+
+    private bool HasFixedDeliveryOrder(IEnumerable<string> orderIds) => FindFixedDeliveryOrders(orderIds).Any();
+
+    private IEnumerable<Order> FindFixedDeliveryOrders(IEnumerable<string> orderIds)
+    {
+        var ids = orderIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return _allOrders.Where(order => ids.Contains(order.Id) && order.DeliveryDate.HasValue && !order.DeliveryCanOccurEarlier);
+    }
+
+    private string BuildFixedDescription(TourRecord tour)
+    {
+        var reasons = new List<string>();
+        if (tour.IsManuallyFixed) reasons.Add("Manuell als fix markiert");
+
+        var orderIds = FindFixedDeliveryOrders(ExtractNonCompanyTourOrderIds(tour))
+            .Select(order => order.Id)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (orderIds.Count == 1)
+            reasons.Add($"Fix-Lieferdatum bei Auftrag {orderIds[0]}");
+        else if (orderIds.Count > 1)
+            reasons.Add($"Fix-Lieferdatum bei Aufträgen {string.Join(", ", orderIds)}");
+
+        return string.Join(Environment.NewLine, reasons);
+    }
+
+    internal async Task RefreshMapCalendarEntriesAsync()
+    {
+        if (CalendarEntryStore is not { } store) return;
+        var revision = ++_mapCalendarRefreshRevision;
+        var entries = await store.LoadAsync();
+        if (revision != _mapCalendarRefreshRevision) return;
+
+        _mapCalendarEntries = entries.Where(entry => entry.ShowInMapTab)
+            .Select(entry => new MapCalendarEntryRow(entry.Id, ParseDateForSort(entry.Date), entry.Title, entry.Time,
+                entry.Description, entry.ColorHex))
+            .Where(entry => entry.Date != DateTime.MinValue)
+            .OrderBy(entry => entry.Date).ThenBy(entry => entry.Time, StringComparer.Ordinal)
+            .ToList();
+        foreach (var previous in RouteOverviewRows.OfType<MapCalendarEntryRow>().ToList())
+            RouteOverviewRows.Remove(previous);
+        InsertMapCalendarEntries();
+    }
+
+    private void InsertMapCalendarEntries()
+    {
+        var index = 0;
+        foreach (var entry in _mapCalendarEntries)
+        {
+            while (index < RouteOverviewRows.Count && RouteOverviewRows[index] is SavedTourOverviewItem tour &&
+                   ParseDateForSort(tour.DateText) <= entry.Date)
+                index++;
+            RouteOverviewRows.Insert(index++, entry);
         }
     }
 
@@ -10840,15 +10900,35 @@ public sealed class SavedTourLookupItem
     }
 }
 
-public sealed class SavedTourOverviewItem
+public sealed record MapCalendarEntryRow(string Id, DateTime Date, string Title, string Time, string Description, string ColorHex)
 {
+    public bool IsCalendarEntry => true;
+}
+
+public sealed class SavedTourOverviewItem : ObservableObject
+{
+    private string _fixedDescription = string.Empty;
+    public bool IsFixed => FixedDescription.Length > 0;
+    public string FixedDescription
+    {
+        get => _fixedDescription;
+        set
+        {
+            if (SetProperty(ref _fixedDescription, value)) OnPropertyChanged(nameof(IsFixed));
+        }
+    }
+    public bool IsCalendarEntry => false;
+    public string CalendarWeekSuffix { get; init; } = string.Empty;
     public bool IsFull { get; set; }
     public bool ShowFullBadge { get; set; } = true;
     public string FullDescription { get; set; } = string.Empty;
     public string VehicleName { get; set; } = "Nicht zugewiesen";
     public string TrailerName { get; set; } = string.Empty;
-    public string VehicleCombinationText => string.Join(" + ",
-        new[] { VehicleName, TrailerName }.Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim()));
+    public string VehicleCombinationText => FormatVehicleCombination(VehicleName, TrailerName);
+    public IReadOnlyList<string> VehicleCombinationLines { get; init; } = ["Nicht zugewiesen"];
+
+    internal static string FormatVehicleCombination(string vehicle, string trailer) => string.Join(" + ",
+        new[] { vehicle, trailer }.Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim()));
     public SavedTourOverviewItem(int tourId, string tourName, string dateText, string startTimeText, int stopCount, string statusLabel, string statusBackground, string statusForeground, string statusGlyph, string employeeNames, double totalWeightKg, int loadCapacityKg)
     {
         TourId = tourId;

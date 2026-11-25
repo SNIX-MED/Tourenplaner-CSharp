@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:Tourenplaner.CSharp.App.Views.Controls"
              xmlns:dialogs="clr-namespace:Tourenplaner.CSharp.App.Views.Dialogs"
+             xmlns:sections="clr-namespace:Tourenplaner.CSharp.App.ViewModels.Sections"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
              mc:Ignorable="d"
@@ -65,21 +66,15 @@
                                 </Canvas>
                             </Viewbox>
                             <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
-                            <StackPanel Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center">
-                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding VehicleName}" ToolTip="{Binding VehicleName}" />
-                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding TrailerName}" ToolTip="{Binding TrailerName}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Margin" Value="0,3,0,0" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding TrailerName}" Value="">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </StackPanel>
+                            <ItemsControl Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center"
+                                          ItemsSource="{Binding VehicleCombinationLines}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Margin="0,1" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                   Text="{Binding}" ToolTip="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </Grid>
                     </Border>
                     <Border Grid.Column="1" MinHeight="64" Margin="5,0,0,0" Padding="10" CornerRadius="12" Background="{DynamicResource Brush.CardSoft}" BorderBrush="{DynamicResource Brush.BorderSoft}" BorderThickness="1">
@@ -96,10 +91,8 @@
                                    RenderOptions.BitmapScalingMode="HighQuality"
                                    Source="/Tourenplaner.CSharp.App;component/Assets/RouteOverview/Mitarbeiter.png" />
                             <Border Grid.Column="1" Width="1" Height="40" VerticalAlignment="Center" Background="{DynamicResource Brush.BorderSoft}" />
-                            <StackPanel Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center">
-                                <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextMuted}" Text="Mitarbeiter" />
-                                <TextBlock Margin="0,1,0,0" MaxWidth="135" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" Text="{Binding EmployeeNames}" />
-                            </StackPanel>
+                            <TextBlock Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left"
+                                       MaxWidth="135" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" Text="{Binding EmployeeNames}" />
                         </Grid>
                     </Border>
                 </Grid>
@@ -1179,15 +1172,23 @@
                                                   HorizontalScrollBarVisibility="Disabled"
                                                   PreviewMouseWheel="OnTourOverviewPreviewMouseWheel">
                                         <ListBox x:Name="TourOverviewList"
-                                                 ItemsSource="{Binding TourOverviewItems}"
+                                                 ItemsSource="{Binding RouteOverviewRows}"
                                                  SelectedItem="{Binding SelectedTourOverviewItem, Mode=TwoWay}"
                                                  PreviewMouseLeftButtonDown="TourOverviewList_PreviewMouseLeftButtonDown"
                                                  PreviewMouseRightButtonDown="TourOverviewList_PreviewMouseRightButtonDown"
                                                  MouseMove="TourOverviewList_MouseMove"
                                                  MouseLeave="TourOverviewList_MouseLeave"
                                                  ContextMenuOpening="TourOverviewList_ContextMenuOpening"
-                                                 Style="{StaticResource RouteStopsListStyle}"
-                                                 ItemContainerStyle="{StaticResource RouteStopListItemStyle}">
+                                                 Style="{StaticResource RouteStopsListStyle}">
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource RouteStopListItemStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCalendarEntry}" Value="True">
+                                                            <Setter Property="IsEnabled" Value="False" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
                                             <ListBox.ContextMenu>
                                                 <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
                                                              Style="{StaticResource RouteStopContextMenuStyle}">
@@ -1220,8 +1221,25 @@
                                                               Foreground="{DynamicResource Brush.Danger}" />
                                                 </ContextMenu>
                                             </ListBox.ContextMenu>
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
+                                            <ListBox.Resources>
+                                                <DataTemplate DataType="{x:Type sections:MapCalendarEntryRow}">
+                                                    <Border Margin="0,0,0,8" Padding="10,5" CornerRadius="8"
+                                                            BorderThickness="1" BorderBrush="{DynamicResource Brush.BorderSoft}"
+                                                            Background="{DynamicResource Brush.CardSoft}"
+                                                            ToolTip="{Binding Description}" ToolTipService.ShowOnDisabled="True">
+                                                        <DockPanel>
+                                                            <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0"
+                                                                       Foreground="{DynamicResource Brush.TextMuted}">
+                                                                <Run Text="{Binding Date, Mode=OneWay, StringFormat=dd.MM.yyyy}" />
+                                                                <Run Text=" " /><Run Text="{Binding Time, Mode=OneWay}" />
+                                                            </TextBlock>
+                                                            <Ellipse Width="8" Height="8" Margin="0,0,8,0" Fill="{Binding ColorHex}" />
+                                                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                                                                       Foreground="{DynamicResource Brush.TextPrimary}" />
+                                                        </DockPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                                <DataTemplate DataType="{x:Type sections:SavedTourOverviewItem}">
                                                     <Border Margin="0,0,0,8"
                                                             Padding="12"
                                                             CornerRadius="14"
@@ -1251,11 +1269,31 @@
                                                                 <TextBlock FontSize="16"
                                                                            FontWeight="SemiBold"
                                                                            Foreground="{DynamicResource Brush.TextPrimary}"
-                                                                           Text="{Binding TourName}" />
+                                                                           TextTrimming="CharacterEllipsis"><Run Text="{Binding TourName, Mode=OneWay}"/><Run Text="{Binding CalendarWeekSuffix, Mode=OneWay}" Foreground="{DynamicResource Brush.TextMuted}" FontWeight="Normal"/></TextBlock>
+                                                                <StackPanel Orientation="Horizontal">
                                                                 <Border Margin="0,5,0,0" Padding="7,3" CornerRadius="8" Background="#FEE2E2" HorizontalAlignment="Left"
                                                                         Visibility="{Binding IsFull, Converter={StaticResource BoolToVisibilityConverter}}" ToolTip="{Binding FullDescription}">
                                                                     <TextBlock Text="VOLL" FontSize="11" FontWeight="Bold" Foreground="#991B1B" />
                                                                 </Border>
+                                                                <Border Margin="4,5,0,0" Padding="6,2" CornerRadius="8"
+                                                                        Background="#FEE2E2" BorderBrush="#FCA5A5" BorderThickness="1"
+                                                                        Visibility="{Binding IsFixed, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                                        ToolTip="{Binding FixedDescription}">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <Viewbox Width="12" Height="13" Margin="0,0,4,0" VerticalAlignment="Center">
+                                                                            <Canvas Width="12" Height="13">
+                                                                                <Path Data="M 3.5,6 L 3.5,3.6 A 2.5,2.5 0 0 1 8.5,3.6 L 8.5,6"
+                                                                                      Stroke="#A3A3A3" StrokeThickness="1.5" />
+                                                                                <Rectangle Canvas.Left="1" Canvas.Top="5" Width="10" Height="8"
+                                                                                           RadiusX="1.5" RadiusY="1.5" Fill="#FFB347" />
+                                                                                <Path Data="M 6,7.2 A 1,1 0 0 1 6.5,9 L 6.5,10.7 L 5.5,10.7 L 5.5,9 A 1,1 0 0 1 6,7.2 Z"
+                                                                                      Fill="#725039" />
+                                                                            </Canvas>
+                                                                        </Viewbox>
+                                                                        <TextBlock Text="FIX" FontSize="11" FontWeight="Bold" Foreground="#B91C1C" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                                </StackPanel>
                                                                 <TextBlock Margin="0,4,0,0"
                                                                            Foreground="{DynamicResource Brush.TextMuted}"
                                                                            Text="{Binding StopCountText}" />
@@ -1304,7 +1342,7 @@
                                                         </Grid>
                                                     </Border>
                                                 </DataTemplate>
-                                            </ListBox.ItemTemplate>
+                                            </ListBox.Resources>
                                         </ListBox>
                                     </ScrollViewer>
                                 </Border>
@@ -2480,13 +2518,23 @@
                                                 BorderBrush="{DynamicResource Brush.BorderSoft}"
                                                 BorderThickness="1">
                                             <StackPanel>
-                                                <TextBox Padding="0"
+                                                <DockPanel>
+                                                <Button DockPanel.Dock="Right" Width="26" Height="26" Padding="0"
+                                                        Margin="4,0,0,0" Style="{StaticResource SecondaryButtonStyle}"
+                                                        IsEnabled="{Binding CanOpenDeliveryAddressInGoogleMaps}"
+                                                        ToolTip="Lieferadresse in Google Maps öffnen"
+                                                        AutomationProperties.Name="Lieferadresse in Google Maps öffnen"
+                                                        Click="OnOpenDeliveryAddressInGoogleMaps">
+                                                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="13" Text="&#xE707;" />
+                                                </Button>
+                                                <TextBox Padding="0" VerticalAlignment="Center"
                                                          BorderThickness="0"
                                                          Background="Transparent"
                                                          Cursor="IBeam"
                                                          FontWeight="SemiBold"
                                                          IsReadOnly="True"
                                                          Text="Lieferadresse:" />
+                                                </DockPanel>
                                                 <TextBox Margin="0,4,0,0"
                                                          Padding="0"
                                                          BorderThickness="0"

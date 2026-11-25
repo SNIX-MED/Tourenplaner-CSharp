@@ -13,4 +13,5 @@ public sealed class CalendarManualEntry
     public string Description { get; set; } = string.Empty;
 
     public string ColorHex { get; set; } = "#0EA5E9";
+    public bool ShowInMapTab { get; set; }
 }

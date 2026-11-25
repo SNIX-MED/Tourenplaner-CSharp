@@ -34,6 +34,23 @@ public static class TourStopIdentity
                id.StartsWith(PauseStopIdPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
+    public static string ResolveOrderId(TourStopRecord stop)
+    {
+        if (IsPauseStop(stop)) return string.Empty;
+
+        var number = (stop.Auftragsnummer ?? string.Empty).Trim();
+        if (number.Length > 0) return number;
+
+        var id = (stop.Id ?? string.Empty).Trim();
+        const string orderPrefix = "auftrag:";
+        if (!id.StartsWith(orderPrefix, StringComparison.OrdinalIgnoreCase)) return id;
+
+        var orderId = id[orderPrefix.Length..].Trim();
+        var deliverySeparator = orderId.IndexOf("::delivery::", StringComparison.OrdinalIgnoreCase);
+        if (deliverySeparator > 0) orderId = orderId[..deliverySeparator].Trim();
+        return orderId.Length > 0 ? orderId : id;
+    }
+
     public static string NormalizeCompanyStopDisplayName(string? value)
     {
         var text = (value ?? string.Empty).Trim();

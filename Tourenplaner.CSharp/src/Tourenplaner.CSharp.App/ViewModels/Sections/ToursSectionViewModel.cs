@@ -2095,7 +2095,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             var (editHour, editMinute) = ParseStartTimeParts(tour.StartTime);
             var (employees, vehicles, trailers) = await LoadTourDialogOptionsAsync(tour.Date, tour.StartTime);
             var materialGroups = (await _settingsRepository.LoadAsync()).AdditionalMaterialGroups ?? [];
-            var singleEmployeeWarningDeliveryTypes = await BuildSingleEmployeeWarningDeliveryTypesAsync(tour);
+            var (singleEmployeeWarningDeliveryTypes, hasFixedDeliveryOrder) = await LoadTourOrderFlagsAsync(tour);
 
             var dialog = new CreateTourDialogWindow(
                 routeDate: string.IsNullOrWhiteSpace(tour.Date) ? DateTime.Today.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : tour.Date.Trim(),
@@ -2115,7 +2115,8 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 additionalMaterialGroups: materialGroups,
                 selectedAdditionalMaterials: tour.AdditionalMaterials,
                 editTourId: tour.Id,
-                existingTour: tour)
+                existingTour: tour,
+                hasFixedDeliveryOrder: hasFixedDeliveryOrder)
             {
                 Owner = System.Windows.Application.Current?.MainWindow,
                 Title = "Tour bearbeiten"
@@ -2198,20 +2199,20 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
                 return;
             }
 
-            var originalFullStatus = (tour.IsFull, tour.FullReason, tour.FullNote);
+            var originalTourFlags = (tour.IsFull, tour.FullReason, tour.FullNote, tour.IsManuallyFixed);
             result.ApplyFullStatusTo(tour);
             _scheduleService.ApplySchedule(tour);
             try
             {
                 if (!await SaveTourAsync(tour))
                 {
-                    (tour.IsFull, tour.FullReason, tour.FullNote) = originalFullStatus;
+                    (tour.IsFull, tour.FullReason, tour.FullNote, tour.IsManuallyFixed) = originalTourFlags;
                     return;
                 }
             }
             catch
             {
-                (tour.IsFull, tour.FullReason, tour.FullNote) = originalFullStatus;
+                (tour.IsFull, tour.FullReason, tour.FullNote, tour.IsManuallyFixed) = originalTourFlags;
                 throw;
             }
             StatusText = TourNotificationMessageFormatter.FormatTourUpdatedMessage(tour);
@@ -2279,22 +2280,24 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
         return leases;
     }
 
-    private async Task<IReadOnlyList<string>> BuildSingleEmployeeWarningDeliveryTypesAsync(TourRecord tour)
+    private async Task<(IReadOnlyList<string> DeliveryTypes, bool HasFixedDeliveryOrder)> LoadTourOrderFlagsAsync(TourRecord tour)
     {
         var orderIds = (tour.Stops ?? [])
-            .Where(stop => stop is not null && !string.IsNullOrWhiteSpace(stop.Auftragsnummer))
-            .Select(stop => stop.Auftragsnummer.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(stop => stop is not null && !TourStopIdentity.IsCompanyStop(stop))
+            .Select(TourStopIdentity.ResolveOrderId)
+            .Where(id => id.Length > 0)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (orderIds.Count == 0)
         {
-            return [];
+            return ([], false);
         }
 
         var orders = await _orderRepository.GetAllAsync();
         var deliveryTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var hasFixedDeliveryOrder = false;
         foreach (var order in orders.Where(x => orderIds.Contains(x.Id)))
         {
+            hasFixedDeliveryOrder |= order.DeliveryDate.HasValue && !order.DeliveryCanOccurEarlier;
             var deliveryType = DeliveryMethodExtensions.NormalizeDeliveryTypeLabel(order.DeliveryType);
             if (string.Equals(deliveryType, DeliveryMethodExtensions.MitVerteilung, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(deliveryType, DeliveryMethodExtensions.MitVerteilungMontage, StringComparison.OrdinalIgnoreCase))
@@ -2303,9 +2306,9 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             }
         }
 
-        return deliveryTypes
+        return (deliveryTypes
             .OrderBy(x => string.Equals(x, DeliveryMethodExtensions.MitVerteilung, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-            .ToList();
+            .ToList(), hasFixedDeliveryOrder);
     }
 
     private async Task<bool> SaveTourAsync(TourRecord tour, CancellationToken cancellationToken = default)
@@ -3667,6 +3670,7 @@ public sealed class ToursSectionViewModel : SectionViewModelBase
             SecondaryTrailerId = source.SecondaryTrailerId,
             IsArchived = source.IsArchived,
             IsFull = source.IsFull,
+            IsManuallyFixed = source.IsManuallyFixed,
             FullReason = source.FullReason,
             FullNote = source.FullNote,
             LoadPlanPlacements = (source.LoadPlanPlacements ?? []).Select(item => new TourLoadPlanPlacement

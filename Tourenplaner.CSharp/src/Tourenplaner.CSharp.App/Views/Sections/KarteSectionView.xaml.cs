@@ -1673,11 +1673,36 @@ public partial class KarteSectionView : UserControl
         e.Handled = true;
     }
 
+    private void OnOpenDeliveryAddressInGoogleMaps(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not KarteSectionViewModel { DeliveryAddressGoogleMapsUrl: { } url }) return;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+            AppMessageBox.Show("Google Maps konnte nicht geöffnet werden.", "Google Maps",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private async void TourOverviewList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (DataContext is not KarteSectionViewModel vm ||
             sender is not ListBox listBox)
         {
+            return;
+        }
+
+        if (FindCalendarOverviewHit(listBox, e) is { } calendarEntry)
+        {
+            CancelPendingTourOverviewDeselection();
+            e.Handled = true;
+            if (e.ClickCount == 2 && vm.EditCalendarEntryAsync is { } edit)
+                await edit(Window.GetWindow(this), calendarEntry);
             return;
         }
 
@@ -1753,6 +1778,13 @@ public partial class KarteSectionView : UserControl
             return;
         }
 
+        if (FindCalendarOverviewHit(listBox, e) is not null)
+        {
+            CancelPendingTourOverviewDeselection();
+            e.Handled = true;
+            return;
+        }
+
         var listItem = VisualTreeUtilities.FindAncestor<ListBoxItem>(e.OriginalSource as DependencyObject);
         if (listItem?.DataContext is SavedTourOverviewItem selected)
         {
@@ -1765,6 +1797,13 @@ public partial class KarteSectionView : UserControl
         {
             vm.SetHoveredTourOverviewId(0);
         }
+    }
+
+    private static MapCalendarEntryRow? FindCalendarOverviewHit(ListBox listBox, MouseEventArgs e)
+    {
+        // Visual hit testing also finds disabled calendar rows.
+        var hit = System.Windows.Media.VisualTreeHelper.HitTest(listBox, e.GetPosition(listBox));
+        return VisualTreeUtilities.FindAncestor<ListBoxItem>(hit?.VisualHit)?.DataContext as MapCalendarEntryRow;
     }
 
     private void TourOverviewList_MouseMove(object sender, MouseEventArgs e)

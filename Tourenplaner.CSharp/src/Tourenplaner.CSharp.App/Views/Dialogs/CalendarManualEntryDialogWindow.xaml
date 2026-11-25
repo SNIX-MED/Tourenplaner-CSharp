@@ -98,6 +98,7 @@
                                  TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto" />
                     </StackPanel>
+                    <CheckBox x:Name="ShowInMapTabCheckBox" Margin="0,10,0,0" Content="In Kartentab anzeigen" />
                 </StackPanel>
             </ScrollViewer>
 

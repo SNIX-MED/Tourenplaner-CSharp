@@ -348,6 +348,11 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public ObservableCollection<SavedTourLookupItem> SavedTours { get; } = new();
     public ObservableCollection<SavedTourOverviewItem> TourOverviewItems { get; } = new();
+    public ObservableCollection<object> RouteOverviewRows { get; } = new();
+    internal ICalendarManualEntryStore? CalendarEntryStore { get; set; }
+    internal Func<System.Windows.Window?, MapCalendarEntryRow, Task>? EditCalendarEntryAsync { get; set; }
+    private IReadOnlyList<MapCalendarEntryRow> _mapCalendarEntries = [];
+    private int _mapCalendarRefreshRevision;
 
     public ICommand RefreshCommand { get; }
     public ICommand SearchCommand { get; }
@@ -983,6 +988,7 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
                 }
                 OnPropertyChanged(nameof(DetailAddress));
                 OnPropertyChanged(nameof(DetailCustomer));
+                OnPropertyChanged(nameof(CanOpenDeliveryAddressInGoogleMaps));
                 OnPropertyChanged(nameof(IsDetailLocationManuallySet));
                 OnPropertyChanged(nameof(DetailLocationStatusText));
                 OnPropertyChanged(nameof(DetailOrderNumber));
@@ -1045,6 +1051,22 @@ public sealed partial class KarteSectionViewModel : SectionViewModelBase
 
     public string DetailAddress => FormatOrderAddress(FindSelectedOrderModel());
     public string DetailCustomer => FormatDeliveryAddress(FindSelectedOrderModel());
+    public bool CanOpenDeliveryAddressInGoogleMaps => DeliveryAddressGoogleMapsUrl is not null;
+
+    internal string? DeliveryAddressGoogleMapsUrl
+    {
+        get
+        {
+            var address = FindSelectedOrderModel()?.DeliveryAddress;
+            if (address is null || string.IsNullOrWhiteSpace(address.Street) ||
+                (string.IsNullOrWhiteSpace(address.City) && string.IsNullOrWhiteSpace(address.PostalCode)))
+                return null;
+
+            var locality = $"{address.PostalCode?.Trim()} {address.City?.Trim()}".Trim();
+            var query = $"{BuildStreetLine(address.Street, address.HouseNumber)}, {locality}";
+            return "https://www.google.com/maps/search/?api=1&query=" + Uri.EscapeDataString(query);
+        }
+    }
     public bool IsDetailLocationManuallySet => FindSelectedOrderModel()?.IsLocationManuallySet == true;
     public string DetailLocationStatusText => FindSelectedOrderModel()?.ManualLocationRequiresReview == true
         ? "⚠ Manueller Pin – Adresse geändert"

@@ -69,12 +69,10 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "Release $tag"
           $notes = @"
-          - Visuelle Ladeplanung mit Fahrzeug- und Anhaengerflaechen, Zoom und Verschieben
-          - Produkte und Packstuecke per Drag-and-drop platzieren, drehen und entfernen
-          - Packstuecke in Auftraegen und im Ladeplan erstellen und verwalten
-          - Effektive Verpackungsmasse und Gewichte fuer Produkte hinterlegen
-          - Zusatzmaterial zentral verwalten, Touren zuordnen und im Ladeplan platzieren
-          - Veraltete Ladeplaene werden nach relevanten Aenderungen zur Pruefung markiert
+          - Kalenderwochen, Kalenderkarten und FIX-Hinweise in der Routenuebersicht
+          - Kalenderkarten per Doppelklick bearbeiten, mit Bearbeitungssperre im Mehrbenutzerbetrieb
+          - Fahrzeugkombinationen kompakt anzeigen und Lieferadressen in Google Maps oeffnen
+          - Ladeplan mit Shift-Bereichsauswahl und Warnung bei ueberlappenden Objekten
           "@
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

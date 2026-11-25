@@ -121,6 +121,11 @@ public sealed partial class MainShellViewModel
 
     private void OnDataChanged(object? sender, AppDataChangedEventArgs args)
     {
+        if (args.Kinds.HasFlag(AppDataKind.CalendarEntries))
+        {
+            _mapSection.RefreshMapCalendarEntriesAsync().Forget();
+        }
+
         if (!args.Kinds.HasFlag(AppDataKind.Employees))
         {
             return;
